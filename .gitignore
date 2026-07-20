@@ -1,0 +1,26 @@
+# Gradle
+.gradle/
+build/
+# Never ignore the wrapper jar — it must be committed so ./gradlew bootstraps everywhere.
+!gradle/wrapper/gradle-wrapper.jar
+
+# Kotlin / Gradle Kotlin DSL caches
+.kotlin/
+
+# IntelliJ IDEA
+.idea/
+*.iml
+*.ipr
+*.iws
+out/
+
+# OS cruft
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Local, machine-specific config
+local.properties
+
+# Logs
+*.log
