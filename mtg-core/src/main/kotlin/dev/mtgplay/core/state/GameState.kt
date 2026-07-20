@@ -1,11 +1,14 @@
 package dev.mtgplay.core.state
 
+import dev.mtgplay.core.definition.CardDefinition
 import dev.mtgplay.core.event.GameEvent
+import dev.mtgplay.core.identity.CardRef
 import dev.mtgplay.core.identity.ObjectId
 import dev.mtgplay.core.identity.PlayerId
 import dev.mtgplay.core.random.Rng
 import kotlinx.collections.immutable.PersistentList
 import kotlinx.collections.immutable.PersistentMap
+import kotlinx.collections.immutable.persistentMapOf
 
 /**
  * The complete, immutable state of a game in progress (ADR-002).
@@ -33,6 +36,12 @@ import kotlinx.collections.immutable.PersistentMap
  *   below it, and ids are never reused (CR 400.7).
  * @property rng the deterministic PRNG state all in-game randomness draws from (ADR-006).
  * @property events the append-only event log; derived, never load-bearing.
+ * @property definitions the match's card-definition registry (P2.1): what each printed card
+ *   *does*, keyed by [CardRef] in deterministic (name-sorted) insertion order. Static data
+ *   carried in the state because the engine is a pure function of the state alone (ADR-004);
+ *   a card without an entry is inert and uncastable (architect decision, P2.1).
+ * @property pendingCast the cast currently gathering decisions (CR 601.2), or `null` when no
+ *   cast is in progress; see [PendingCast] for the atomicity contract.
  */
 data class GameState(
     val players: PersistentMap<PlayerId, PlayerState>,
@@ -41,6 +50,8 @@ data class GameState(
     val nextObjectId: Long,
     val rng: Rng,
     val events: PersistentList<GameEvent>,
+    val definitions: PersistentMap<CardRef, CardDefinition> = persistentMapOf(),
+    val pendingCast: PendingCast? = null,
 ) {
     init {
         require(players.isNotEmpty()) { "a game has at least one seated player" }
@@ -51,6 +62,20 @@ data class GameState(
         val highest = ids.maxOfOrNull(ObjectId::value)
         require(highest == null || highest < nextObjectId) {
             "CR 400.7: object id $highest is not below the allocation counter $nextObjectId"
+        }
+        definitions.forEach { (ref, definition) ->
+            require(definition.characteristics.name == ref.name) {
+                "definition registered under ${ref.name} describes \"${definition.characteristics.name}\""
+            }
+        }
+        val cast = pendingCast
+        if (cast != null) {
+            val caster = players[cast.caster]
+            requireNotNull(caster) { "pending cast names unseated caster ${cast.caster}" }
+            require(caster.hand.any { it.id == cast.cardObjectId }) {
+                "CR 601.2: a pending cast's card must still be in the caster's hand until the " +
+                    "pipeline executes; ${cast.cardObjectId} is not in ${cast.caster}'s hand"
+            }
         }
     }
 
@@ -69,7 +94,7 @@ data class GameState(
             }
         val shared =
             sharedZones.battlefield.asSequence() +
-                sharedZones.stack.asSequence() +
+                sharedZones.stack.asSequence().map(StackEntry::obj) +
                 sharedZones.exile.asSequence()
         return perPlayer + shared
     }

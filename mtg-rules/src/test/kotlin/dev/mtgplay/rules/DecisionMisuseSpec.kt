@@ -1,7 +1,5 @@
 package dev.mtgplay.rules
 
-import dev.mtgplay.core.identity.CardRef
-import dev.mtgplay.core.state.GameObject
 import dev.mtgplay.core.state.Turn
 import dev.mtgplay.core.state.TurnPhase
 import dev.mtgplay.rules.decision.Decision
@@ -9,9 +7,7 @@ import dev.mtgplay.rules.decision.DecisionRequestId
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.StringSpec
 import io.kotest.matchers.shouldBe
-import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.types.shouldBeInstanceOf
-import kotlinx.collections.immutable.persistentListOf
 
 private fun overfullCleanupState() =
     twoPlayerState(
@@ -92,20 +88,5 @@ class DecisionMisuseSpec :
             shouldThrow<IllegalStateException> {
                 engine.advance(idle, Decision.SingleSelect(DecisionRequestId(alice, 0), 0))
             }
-        }
-
-        "TODO P2.1: all players passing over a nonempty stack fails loudly (CR 608 not yet implemented)" {
-            val first = engine.start(mountainConfig()).shouldBeInstanceOf<AdvanceResult.NeedsDecision>()
-            val (spellId, allocated) = first.state.allocateObjectId()
-            val stackObject = GameObject(spellId, CardRef("Mountain"), alice)
-            val withStack =
-                allocated.copy(
-                    sharedZones = allocated.sharedZones.copy(stack = persistentListOf(stackObject)),
-                )
-            val second =
-                engine.advance(withStack, respondTo(first.request)).shouldBeInstanceOf<AdvanceResult.NeedsDecision>()
-            val error =
-                shouldThrow<IllegalStateException> { engine.advance(second.state, respondTo(second.request)) }
-            error.message.shouldBeInstanceOf<String>() shouldContain "P2.1"
         }
     })

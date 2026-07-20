@@ -5,6 +5,7 @@ import dev.mtgplay.core.random.shuffled
 import dev.mtgplay.core.state.GameState
 import dev.mtgplay.rules.decision.Decision
 import dev.mtgplay.rules.decision.DecisionRequest
+import dev.mtgplay.rules.decision.DecisionRequestId
 import kotlinx.collections.immutable.toPersistentList
 
 /** Generous turn cap for lands-only random playouts: they deck out near turn 108 (CR 104.3c). */
@@ -35,17 +36,26 @@ class RandomLegalResponder(
         state: GameState,
     ): Decision =
         when (request) {
-            is DecisionRequest.ChooseAction -> {
-                val (index, next) = rng.nextInt(request.options.size)
-                rng = next
-                Decision.SingleSelect(request.id, index)
-            }
+            is DecisionRequest.ChooseAction -> randomSingleSelect(request.id, request.options.size)
             is DecisionRequest.ChooseDiscards -> {
                 val (indices, next) = randomSubset(request.options.size, request.count, rng)
                 rng = next
                 Decision.MultiSelect(request.id, indices)
             }
+            // The casting requests (CR 601.2c, CR 601.2g) are uniform picks over the
+            // engine-enumerated legal targets and payment plans (ADR-005).
+            is DecisionRequest.ChooseTargets -> randomSingleSelect(request.id, request.options.size)
+            is DecisionRequest.ChoosePaymentPlan -> randomSingleSelect(request.id, request.options.size)
         }
+
+    private fun randomSingleSelect(
+        id: DecisionRequestId,
+        optionCount: Int,
+    ): Decision.SingleSelect {
+        val (index, next) = rng.nextInt(optionCount)
+        rng = next
+        return Decision.SingleSelect(id, index)
+    }
 
     private fun randomSubset(
         size: Int,

@@ -1,10 +1,12 @@
 package dev.mtgplay.core.state
 
+import dev.mtgplay.core.mana.ManaType
 import kotlinx.collections.immutable.PersistentList
+import kotlinx.collections.immutable.persistentListOf
 
 /**
- * Everything the game tracks per player: the life total and the three per-player zones
- * (CR 400.2).
+ * Everything the game tracks per player: the life total, the three per-player zones (CR 400.2),
+ * and the mana pool (CR 106.4).
  *
  * Zone ordering conventions, fixed here for the whole engine:
  * - [library] (CR 401) — index 0 is the top of the library, the next card drawn.
@@ -25,6 +27,10 @@ import kotlinx.collections.immutable.PersistentList
  * @property library the player's library (CR 401); index 0 is the top.
  * @property hand the player's hand (CR 402).
  * @property graveyard the player's graveyard (CR 404); the last element is the top.
+ * @property manaPool the mana in this player's pool (CR 106.4), a multiset of [ManaType] kept
+ *   in insertion order (production order; no rules meaning, deterministic per the [GameState]
+ *   iteration rule). Filled by resolving mana abilities (CR 605.3), drained by payment
+ *   (CR 601.2g–h), and emptied when each step and phase ends (CR 500.4).
  * @property priorityStatus where this player stands in the current priority round (CR 117);
  *   [PriorityStatus.NONE] whenever no round is open.
  * @property attemptedDrawFromEmptyLibrary whether this player has attempted to draw a card from
@@ -40,6 +46,7 @@ data class PlayerState(
     val library: PersistentList<GameObject>,
     val hand: PersistentList<GameObject>,
     val graveyard: PersistentList<GameObject>,
+    val manaPool: PersistentList<ManaType> = persistentListOf(),
     val priorityStatus: PriorityStatus = PriorityStatus.NONE,
     val attemptedDrawFromEmptyLibrary: Boolean = false,
     val decisionsAnswered: Int = 0,

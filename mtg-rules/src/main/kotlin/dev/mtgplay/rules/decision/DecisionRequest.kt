@@ -3,6 +3,7 @@ package dev.mtgplay.rules.decision
 import dev.mtgplay.core.identity.CardRef
 import dev.mtgplay.core.identity.ObjectId
 import dev.mtgplay.core.identity.PlayerId
+import dev.mtgplay.core.state.Target
 
 /**
  * A typed request for one player decision — what the engine returns when it cannot proceed
@@ -70,5 +71,59 @@ sealed interface DecisionRequest {
             val objectId: ObjectId,
             val card: CardRef,
         )
+    }
+
+    /**
+     * The target choice of a cast in progress (CR 601.2c): [seat] is casting [card] and must
+     * pick one of [options] — the engine-enumerated legal targets (ADR-005) — by index.
+     * Surfaced only for a spell that targets, and only when at least one legal target exists
+     * (a cast with none is excluded from enumeration, so this request is never empty).
+     *
+     * Single-select because every targeted spell in the P2.1–P2.2 pool chooses exactly one
+     * target; multi-target specs arrive as a sibling shape when a card needs them.
+     *
+     * @property cardObjectId the hand object being cast (still in hand — see
+     *   [dev.mtgplay.core.state.PendingCast]).
+     * @property card the printed identity, for display.
+     * @property options the legal targets, in deterministic enumeration order.
+     */
+    data class ChooseTargets(
+        override val id: DecisionRequestId,
+        val cardObjectId: ObjectId,
+        val card: CardRef,
+        val options: List<Target>,
+    ) : DecisionRequest {
+        init {
+            require(options.isNotEmpty()) {
+                "CR 601.2c: a targets request is only surfaced when a legal target exists (ADR-005)"
+            }
+        }
+    }
+
+    /**
+     * The payment choice of a cast in progress (CR 601.2g–h): [seat] must pick one of
+     * [options] — the enumerated distinct payment plans for the spell's cost — by index.
+     *
+     * Always surfaced, even when exactly one plan exists (architect decision, P2.1): a
+     * uniform decision sequence keeps replay logs canonical, the same rationale as the
+     * no-auto-pass rule (ADR-004).
+     *
+     * @property cardObjectId the hand object being cast (still in hand — see
+     *   [dev.mtgplay.core.state.PendingCast]).
+     * @property card the printed identity, for display.
+     * @property options the distinct payment plans, in the deterministic order defined by
+     *   docs/design/mana-payment.md; never empty (an unaffordable cast is never enumerated).
+     */
+    data class ChoosePaymentPlan(
+        override val id: DecisionRequestId,
+        val cardObjectId: ObjectId,
+        val card: CardRef,
+        val options: List<PaymentPlan>,
+    ) : DecisionRequest {
+        init {
+            require(options.isNotEmpty()) {
+                "CR 601.2g: a payment request is only surfaced when a payment plan exists (ADR-005)"
+            }
+        }
     }
 }

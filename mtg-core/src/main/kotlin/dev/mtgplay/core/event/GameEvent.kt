@@ -3,6 +3,8 @@ package dev.mtgplay.core.event
 import dev.mtgplay.core.identity.CardRef
 import dev.mtgplay.core.identity.ObjectId
 import dev.mtgplay.core.identity.PlayerId
+import dev.mtgplay.core.mana.ManaType
+import dev.mtgplay.core.state.Target
 import dev.mtgplay.core.state.TurnPhase
 import dev.mtgplay.core.state.TurnStep
 
@@ -16,8 +18,9 @@ import dev.mtgplay.core.state.TurnStep
  *
  * Later packets grow this hierarchy *in this file* — events are nouns, so they live in core
  * even though the engine in `mtg-rules` emits them. Growth is strictly additive. The members
- * below are the P1.2 set: the game-lifecycle, turn-structure, priority, and zone-move
- * happenings the engine skeleton emits — enough for a readable game log, nothing speculative.
+ * below are the P1.2 set (game lifecycle, turn structure, priority, zone moves) plus the P2.1
+ * set (the CR 601 casting stages, mana, life, and CR 608 resolution) — enough for a readable
+ * game log, nothing speculative.
  */
 sealed interface GameEvent {
     /**
@@ -71,6 +74,99 @@ sealed interface GameEvent {
         val player: PlayerId,
         val objectId: ObjectId,
         val card: CardRef,
+    ) : GameEvent
+
+    /**
+     * [caster] proposed casting [card] (CR 601.2a): the hand card moved to the stack, becoming
+     * the new stack object [objectId] there (CR 400.7). The first stage of the CR 601 pipeline;
+     * the cast is complete only at [SpellCast].
+     */
+    data class SpellProposed(
+        val caster: PlayerId,
+        val objectId: ObjectId,
+        val card: CardRef,
+    ) : GameEvent
+
+    /**
+     * [caster] chose the [targets] of the spell [objectId] on the stack (CR 601.2c); empty
+     * target lists are not announced, so this only appears for a spell that targets.
+     */
+    data class TargetsChosen(
+        val caster: PlayerId,
+        val objectId: ObjectId,
+        val targets: List<Target>,
+    ) : GameEvent
+
+    /**
+     * [player] activated a mana ability of the battlefield source [sourceId] (CR 605.3): the
+     * source was tapped and the ability resolved immediately — no stack, no priority round
+     * (CR 605.3a–b). The mana it added follows as [ManaAdded].
+     */
+    data class ManaAbilityActivated(
+        val player: PlayerId,
+        val sourceId: ObjectId,
+        val card: CardRef,
+    ) : GameEvent
+
+    /** One [mana] was added to [player]'s mana pool (CR 106.4). */
+    data class ManaAdded(
+        val player: PlayerId,
+        val mana: ManaType,
+    ) : GameEvent
+
+    /**
+     * [player]'s mana pool emptied because a step or phase ended (CR 500.4). Emitted only when
+     * the pool actually held mana — unspent mana is the exception, not the rule.
+     */
+    data class ManaPoolEmptied(
+        val player: PlayerId,
+    ) : GameEvent
+
+    /**
+     * [player]'s life total changed by [change] (negative for a loss) to [newTotal]
+     * (CR 119.3–4): a cost paid with life (CR 107.4-Phyrexian), a lose-life effect, or later
+     * phases' damage results (CR 120.3).
+     */
+    data class LifeChanged(
+        val player: PlayerId,
+        val change: Int,
+        val newTotal: Int,
+    ) : GameEvent
+
+    /**
+     * [caster] finished casting the spell [objectId] (CR 601.2i): every stage of the CR 601
+     * pipeline completed, costs fully paid, and the spell now waits on the stack. This is the
+     * moment "when a player casts a spell" triggers care about (Phase 5's cast-trigger hook).
+     */
+    data class SpellCast(
+        val caster: PlayerId,
+        val objectId: ObjectId,
+        val card: CardRef,
+    ) : GameEvent
+
+    /**
+     * The spell [objectId], controlled by [controller], resolved (CR 608.2): its instructions
+     * were performed, and the card was put into its owner's graveyard as the new object
+     * [graveyardObjectId] (CR 608.2m, CR 400.7).
+     */
+    data class SpellResolved(
+        val controller: PlayerId,
+        val objectId: ObjectId,
+        val card: CardRef,
+        val graveyardObjectId: ObjectId,
+    ) : GameEvent
+
+    /**
+     * The spell [objectId], controlled by [controller], did not resolve because all of its
+     * targets were illegal when it tried to (CR 608.2b): none of its instructions were
+     * performed, and the card was put into its owner's graveyard as the new object
+     * [graveyardObjectId] (CR 608.2m, CR 400.7).
+     */
+    data class SpellFizzled(
+        val controller: PlayerId,
+        val objectId: ObjectId,
+        val card: CardRef,
+        val graveyardObjectId: ObjectId,
     ) : GameEvent
 
     /** [player] lost the game (CR 104.3) for [reason]. */

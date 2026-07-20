@@ -47,7 +47,8 @@ internal fun mountainConfig(
 
 /**
  * The pass-everything, discard-lowest-index auto-responder: passes every priority window and
- * answers discard requests with the lowest stable indices.
+ * answers discard requests with the lowest stable indices. It never initiates a cast, so the
+ * casting requests are unreachable for it — reaching one fails loudly instead of guessing.
  */
 internal fun respondTo(request: DecisionRequest): Decision =
     when (request) {
@@ -57,6 +58,10 @@ internal fun respondTo(request: DecisionRequest): Decision =
             Decision.SingleSelect(request.id, passIndex)
         }
         is DecisionRequest.ChooseDiscards -> Decision.MultiSelect(request.id, (0 until request.count).toList())
+        is DecisionRequest.ChooseTargets ->
+            error("the pass-everything responder never casts, but a targets request surfaced: $request")
+        is DecisionRequest.ChoosePaymentPlan ->
+            error("the pass-everything responder never casts, but a payment request surfaced: $request")
     }
 
 /** One engine suspension observed while driving a game: the paused state and its request. */
@@ -130,18 +135,21 @@ internal fun playerWithZones(
         graveyard = persistentListOf(),
     )
 
-/** A handcrafted two-player [GameState] — a valid engine input by construction (ADR-004). */
+/**
+ * A handcrafted two-player [GameState] — a valid engine input by construction (ADR-004) —
+ * with empty shared zones and no definitions; casting scenarios use `fixtureState` instead.
+ */
 internal fun twoPlayerState(
     turn: Turn,
     aliceState: PlayerState,
     bobState: PlayerState,
     nextObjectId: Long,
-    stack: PersistentList<GameObject> = persistentListOf(),
 ): GameState =
     GameState(
         players = persistentMapOf(alice to aliceState, bob to bobState),
         turn = turn,
-        sharedZones = SharedZones(battlefield = persistentListOf(), stack = stack, exile = persistentListOf()),
+        sharedZones =
+            SharedZones(battlefield = persistentListOf(), stack = persistentListOf(), exile = persistentListOf()),
         nextObjectId = nextObjectId,
         rng = Rng(0),
         events = persistentListOf(),

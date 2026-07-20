@@ -2,6 +2,7 @@ package dev.mtgplay.rules.engine
 
 import dev.mtgplay.core.identity.PlayerId
 import dev.mtgplay.core.state.GameState
+import dev.mtgplay.core.state.PendingCast
 import dev.mtgplay.core.state.PriorityStatus
 import dev.mtgplay.core.state.TurnStep
 import dev.mtgplay.rules.decision.Decision
@@ -15,7 +16,7 @@ internal fun chooseActionRequest(
 ): DecisionRequest.ChooseAction =
     DecisionRequest.ChooseAction(
         id = DecisionRequestId(seat, state.player(seat).decisionsAnswered),
-        options = legalPriorityOptions(),
+        options = legalPriorityOptions(state, seat),
     )
 
 /**
@@ -33,13 +34,54 @@ internal fun cleanupDiscardRequest(state: GameState): DecisionRequest.ChooseDisc
 }
 
 /**
+ * The request the open [cast] is waiting on (CR 601.2): the target choice first (CR 601.2c),
+ * then — always, even with a single plan (architect decision, P2.1: uniform decision
+ * sequences keep replay logs canonical) — the payment choice (CR 601.2g). A pure function of
+ * the state, like every pending request (ADR-004).
+ */
+internal fun pendingCastRequest(
+    state: GameState,
+    cast: PendingCast,
+): DecisionRequest {
+    val card =
+        state.player(cast.caster).hand.firstOrNull { it.id == cast.cardObjectId }
+            ?: error("CR 601.2: the pending cast's card ${cast.cardObjectId} is not in ${cast.caster}'s hand")
+    val definition = spellDefinitionOf(state, card.card)
+    val id = DecisionRequestId(cast.caster, state.player(cast.caster).decisionsAnswered)
+    return if (cast.chosenTargets == null) {
+        DecisionRequest.ChooseTargets(
+            id = id,
+            cardObjectId = cast.cardObjectId,
+            card = card.card,
+            options = legalTargets(state, definition.targetSpec),
+        )
+    } else {
+        val cost =
+            definition.manaCost
+                ?: error(
+                    "CR 601.2f: castable definition ${card.card.name} has no mana cost; alternative costs " +
+                        "arrive in Phase 5 (docs/decklists.md)",
+                )
+        DecisionRequest.ChoosePaymentPlan(
+            id = id,
+            cardObjectId = cast.cardObjectId,
+            card = card.card,
+            options = enumeratePaymentPlans(state, cast.caster, cost),
+        )
+    }
+}
+
+/**
  * Recomputes the decision request [state] is paused at, or `null` if the state is not a pause
  * point. This is the resumability keystone (ADR-004): the pending request is a pure function of
  * the state, so `advance` validates any incoming decision against exactly what is pending.
  *
- * A pause is one of: some player holds priority (a [DecisionRequest.ChooseAction] window,
- * CR 117.1), or the cleanup step's discard-to-hand-size is due — the active player's hand
- * exceeds the maximum with no priority round open (CR 514.1).
+ * A pause is one of, checked in this order:
+ * 1. a cast gathering decisions — [GameState.pendingCast] is open (CR 601.2); the caster also
+ *    holds priority throughout the gathering, so this check must precede the window's;
+ * 2. some player holds priority (a [DecisionRequest.ChooseAction] window, CR 117.1);
+ * 3. the cleanup step's discard-to-hand-size is due — the active player's hand exceeds the
+ *    maximum with no priority round open (CR 514.1).
  */
 internal fun pendingDecisionRequest(state: GameState): DecisionRequest? {
     val holders =
@@ -48,13 +90,25 @@ internal fun pendingDecisionRequest(state: GameState): DecisionRequest? {
             .keys
             .toList()
     require(holders.size <= 1) { "CR 117: at most one player holds priority at a time, found $holders" }
+    val cast = state.pendingCast
     val holder = holders.firstOrNull()
-    if (holder != null) return chooseActionRequest(state, holder)
-    val discardDue =
-        state.turn.step == TurnStep.CLEANUP &&
-            state.player(state.turn.activePlayer).hand.size > MAXIMUM_HAND_SIZE
-    return if (discardDue) cleanupDiscardRequest(state) else null
+    return when {
+        cast != null -> {
+            require(holder == cast.caster) {
+                "CR 601.2: the casting player ${cast.caster} must hold priority while gathering; holder was $holder"
+            }
+            pendingCastRequest(state, cast)
+        }
+        holder != null -> chooseActionRequest(state, holder)
+        cleanupDiscardDue(state) -> cleanupDiscardRequest(state)
+        else -> null
+    }
 }
+
+/** Whether the cleanup step's discard down to maximum hand size is due (CR 514.1). */
+private fun cleanupDiscardDue(state: GameState): Boolean =
+    state.turn.step == TurnStep.CLEANUP &&
+        state.player(state.turn.activePlayer).hand.size > MAXIMUM_HAND_SIZE
 
 /**
  * Validates [decision] against the pending [request], failing loudly on any misuse (ADR-004):
@@ -70,14 +124,9 @@ internal fun validateDecision(
         "decision answers request ${decision.requestId}, but the pending request is ${request.id}"
     }
     when (request) {
-        is DecisionRequest.ChooseAction -> {
-            require(decision is Decision.SingleSelect) {
-                "a ChooseAction request requires a SingleSelect decision, got ${decision::class.simpleName}"
-            }
-            require(decision.index in request.options.indices) {
-                "option index ${decision.index} is out of range for ${request.options.size} option(s)"
-            }
-        }
+        is DecisionRequest.ChooseAction -> validateSingleSelect(request, decision, request.options.size)
+        is DecisionRequest.ChooseTargets -> validateSingleSelect(request, decision, request.options.size)
+        is DecisionRequest.ChoosePaymentPlan -> validateSingleSelect(request, decision, request.options.size)
         is DecisionRequest.ChooseDiscards -> {
             require(decision is Decision.MultiSelect) {
                 "a ChooseDiscards request requires a MultiSelect decision, got ${decision::class.simpleName}"
@@ -92,5 +141,18 @@ internal fun validateDecision(
                 "discard indices ${decision.indices} out of range for ${request.options.size} hand card(s)"
             }
         }
+    }
+}
+
+private fun validateSingleSelect(
+    request: DecisionRequest,
+    decision: Decision,
+    optionCount: Int,
+) {
+    require(decision is Decision.SingleSelect) {
+        "a ${request::class.simpleName} request requires a SingleSelect decision, got ${decision::class.simpleName}"
+    }
+    require(decision.index in 0 until optionCount) {
+        "option index ${decision.index} is out of range for $optionCount option(s)"
     }
 }

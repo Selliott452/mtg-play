@@ -51,7 +51,8 @@ value class CardCensus internal constructor(
                     count(player.graveyard)
                 }
             count(state.sharedZones.battlefield)
-            count(state.sharedZones.stack)
+            // The stack holds typed entries (P2.1); each entry's card object counts (CR 405.2).
+            count(state.sharedZones.stack.map { it.obj })
             count(state.sharedZones.exile)
             return CardCensus(tally.toPersistentMap())
         }

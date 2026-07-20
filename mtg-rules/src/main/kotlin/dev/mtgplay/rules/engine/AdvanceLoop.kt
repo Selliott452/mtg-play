@@ -1,6 +1,8 @@
 package dev.mtgplay.rules.engine
 
+import dev.mtgplay.core.definition.CardDefinition
 import dev.mtgplay.core.event.GameEvent
+import dev.mtgplay.core.identity.CardRef
 import dev.mtgplay.core.identity.ObjectId
 import dev.mtgplay.core.identity.PlayerId
 import dev.mtgplay.core.random.Rng
@@ -78,6 +80,7 @@ internal fun startGame(config: MatchConfig): AdvanceResult {
             nextObjectId = nextObjectId,
             rng = rng,
             events = persistentListOf(GameEvent.GameStarted(startingPlayer)),
+            definitions = canonicalDefinitions(config),
         )
     for (seat in turnOrder) {
         repeat(config.startingHandSize) { state = drawCard(state, seat) }
@@ -171,14 +174,29 @@ internal fun finishCleanup(state: GameState): AdvanceResult {
 }
 
 /**
- * Leaves the current position: begins the next step or phase in CR 500.1 order, or — when the
- * turn's last position just ended — begins the next player's turn.
+ * Leaves the current position: every mana pool empties because the step or phase is ending
+ * (CR 500.4), then the next step or phase in CR 500.1 order begins — or, when the turn's last
+ * position just ended, the next player's turn.
  */
 internal fun advancePastCurrentPosition(state: GameState): AdvanceResult {
-    val next = positionAfter(state.turn)
+    val eased = emptyManaPoolsAtPositionEnd(state)
+    val next = positionAfter(eased.turn)
     return if (next == null) {
-        beginTurn(state, state.seatAfter(state.turn.activePlayer), state.turn.number + 1)
+        beginTurn(eased, eased.seatAfter(eased.turn.activePlayer), eased.turn.number + 1)
     } else {
-        beginPosition(state.copy(turn = state.turn.copy(phase = next.phase, step = next.step)))
+        beginPosition(eased.copy(turn = eased.turn.copy(phase = next.phase, step = next.step)))
     }
+}
+
+/**
+ * The match's definition registry in canonical, name-sorted insertion order (the deterministic
+ * iteration rule on [GameState]) — never the config map's own order, so callers may pass any
+ * `Map` implementation (ADR-006).
+ */
+private fun canonicalDefinitions(config: MatchConfig): PersistentMap<CardRef, CardDefinition> {
+    var definitions = persistentMapOf<CardRef, CardDefinition>()
+    for ((ref, definition) in config.definitions.entries.sortedBy { it.key.name }) {
+        definitions = definitions.putting(ref, definition)
+    }
+    return definitions
 }

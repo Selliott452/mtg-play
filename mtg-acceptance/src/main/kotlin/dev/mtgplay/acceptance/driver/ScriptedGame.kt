@@ -10,6 +10,7 @@ import dev.mtgplay.rules.MatchResult
 import dev.mtgplay.rules.decision.Decision
 import dev.mtgplay.rules.decision.DecisionRequest
 import dev.mtgplay.rules.decision.PriorityOption
+import dev.mtgplay.rules.pendingRequestOf
 
 /**
  * The correctness rig's scripted-game driver — the durable evolution of the P1.2 test support.
@@ -211,6 +212,28 @@ class ScriptedGame private constructor(
             val violations = checker.check(firstState, baseline)
             check(violations.isEmpty()) { "initial state violates invariants: $violations" }
             return ScriptedGame(engine, checker, baseline, firstResult)
+        }
+
+        /**
+         * Resumes driving from a paused [initialState] — a state a test constructed (or doctored
+         * from an engine start, e.g. planting battlefield fixtures while the play-land action is
+         * still P2.2's). The pending request is re-derived from the state alone
+         * ([pendingRequestOf], ADR-004), the state is invariant-checked, and the baseline card
+         * census is captured *here* — conservation is measured against this state, exactly as a
+         * replay of the same scenario would measure it.
+         */
+        fun startFrom(
+            initialState: GameState,
+            engine: GameEngine = DefaultGameEngine(),
+            checker: StateChecker = StateChecker.DEFAULT,
+        ): ScriptedGame {
+            val request =
+                pendingRequestOf(initialState)
+                    ?: error("startFrom requires a state paused at a decision point (ADR-004)")
+            val baseline = CardCensus.of(initialState)
+            val violations = checker.check(initialState, baseline)
+            check(violations.isEmpty()) { "initial state violates invariants: $violations" }
+            return ScriptedGame(engine, checker, baseline, AdvanceResult.NeedsDecision(initialState, request))
         }
     }
 }

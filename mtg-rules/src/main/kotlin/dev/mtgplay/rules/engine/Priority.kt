@@ -62,20 +62,17 @@ internal fun applyPassPriority(
 }
 
 /**
- * All players passed in succession (CR 117.4). With a nonempty stack the top object would
- * resolve — that is the casting/stack packet's territory, so it fails loudly until P2.1. With
- * an empty stack the step or phase ends (CR 500.2); a completed round *during cleanup* instead
- * begins another cleanup step (CR 514.3a).
+ * All players passed in succession (CR 117.4). With a nonempty stack the topmost object
+ * resolves (CR 608.1). With an empty stack the step or phase ends (CR 500.2); a completed
+ * round *during cleanup* instead begins another cleanup step (CR 514.3a) — the current one
+ * still ends, so mana pools empty (CR 500.4).
  */
 internal fun endOfPriorityRound(state: GameState): AdvanceResult {
     if (state.sharedZones.stack.isNotEmpty()) {
-        error(
-            "TODO P2.1 (CR 608): all players passed with a nonempty stack; " +
-                "resolving the top object of the stack is not implemented until the casting packet",
-        )
+        return resolveTopOfStack(state)
     }
     return if (state.turn.step == TurnStep.CLEANUP) {
-        beginPosition(state)
+        beginPosition(emptyManaPoolsAtPositionEnd(state))
     } else {
         advancePastCurrentPosition(state)
     }

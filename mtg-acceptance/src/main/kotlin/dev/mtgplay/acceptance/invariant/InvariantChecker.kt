@@ -2,6 +2,7 @@ package dev.mtgplay.acceptance.invariant
 
 import dev.mtgplay.core.state.GameState
 import dev.mtgplay.core.state.PriorityStatus
+import dev.mtgplay.core.zone.ZoneId
 
 /**
  * The correctness rig's first line of defence (PLAN.md §2.3): a pure function that inspects a
@@ -52,9 +53,41 @@ object InvariantChecker {
             addAll(checkIdSanity(residences, state.nextObjectId, decisionCountsOf(state)))
             addAll(checkPriorityUniqueness(state))
             addAll(checkDrawFailureHonesty(state))
+            addAll(checkManaPoolEmptiness(state))
+            addAll(checkTapStatusScope(residences))
             if (expectedCards != null) addAll(checkCardConservation(state, expectedCards))
         }
     }
+
+    /**
+     * [Invariant.MANA_POOL_EMPTY_AT_PAUSE]: every seat's mana pool is empty (CR 500.4; see the
+     * invariant's KDoc for the exact P2.x rule and its Phase 5 revision).
+     */
+    internal fun checkManaPoolEmptiness(state: GameState): List<Violation> =
+        state.players.entries
+            .sortedBy { it.key.seat }
+            .filter { it.value.manaPool.isNotEmpty() }
+            .map { (seat, player) ->
+                Violation(
+                    Invariant.MANA_POOL_EMPTY_AT_PAUSE,
+                    "CR 500.4: seat ${seat.seat}'s mana pool holds ${player.manaPool} at an observed pause",
+                )
+            }
+
+    /**
+     * [Invariant.TAP_STATUS_SCOPE]: only battlefield objects may be tapped (CR 110.5). Operates
+     * on the residence list so corrupt placements are directly testable.
+     */
+    internal fun checkTapStatusScope(residences: List<ZoneResidence>): List<Violation> =
+        residences
+            .filter { it.zone != ZoneId.Battlefield && it.obj.tapped }
+            .map { residence ->
+                Violation(
+                    Invariant.TAP_STATUS_SCOPE,
+                    "CR 110.5: object ${residence.obj.id.value} is tapped in ${residence.zone}, " +
+                        "but tapped is a battlefield-only status",
+                )
+            }
 
     /**
      * [Invariant.ZONE_CONSERVATION]: no object id occupies more than one zone. Operates on a

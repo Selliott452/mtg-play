@@ -38,7 +38,9 @@ data class ZoneResidence(
                         player.graveyard.forEach { add(ZoneResidence(ZoneId.Graveyard(seat), it)) }
                     }
                 state.sharedZones.battlefield.forEach { add(ZoneResidence(ZoneId.Battlefield, it)) }
-                state.sharedZones.stack.forEach { add(ZoneResidence(ZoneId.Stack, it)) }
+                // The stack holds typed entries (P2.1); the residing object is the entry's card
+                // object — a spell on the stack is as much a card as one in a hand (CR 405.2).
+                state.sharedZones.stack.forEach { add(ZoneResidence(ZoneId.Stack, it.obj)) }
                 state.sharedZones.exile.forEach { add(ZoneResidence(ZoneId.Exile, it)) }
             }
     }

@@ -24,6 +24,8 @@ internal fun applyDecision(
     return when (request) {
         is DecisionRequest.ChooseAction -> applyChosenAction(answered, request, decision)
         is DecisionRequest.ChooseDiscards -> applyChosenDiscards(answered, request, decision)
+        is DecisionRequest.ChooseTargets -> applyChosenTargets(answered, request, decision)
+        is DecisionRequest.ChoosePaymentPlan -> applyChosenPaymentPlan(answered, request, decision)
     }
 }
 
@@ -33,8 +35,9 @@ private fun applyChosenAction(
     decision: Decision,
 ): AdvanceResult {
     check(decision is Decision.SingleSelect) { "unreachable: decision shape was validated against the request" }
-    return when (request.options[decision.index]) {
+    return when (val option = request.options[decision.index]) {
         PriorityOption.Pass -> applyPassPriority(state, request.seat)
+        is PriorityOption.CastSpell -> beginCastGathering(state, request.seat, option.objectId)
     }
 }
 
@@ -50,4 +53,22 @@ private fun applyChosenDiscards(
         }
     // Continue the cleanup step the discard belongs to (CR 514.1 -> 514.2 -> 514.3).
     return cleanupStep(afterDiscards)
+}
+
+private fun applyChosenTargets(
+    state: GameState,
+    request: DecisionRequest.ChooseTargets,
+    decision: Decision,
+): AdvanceResult {
+    check(decision is Decision.SingleSelect) { "unreachable: decision shape was validated against the request" }
+    return applyChosenTarget(state, request.options[decision.index])
+}
+
+private fun applyChosenPaymentPlan(
+    state: GameState,
+    request: DecisionRequest.ChoosePaymentPlan,
+    decision: Decision,
+): AdvanceResult {
+    check(decision is Decision.SingleSelect) { "unreachable: decision shape was validated against the request" }
+    return executeCastPipeline(state, request.options[decision.index])
 }

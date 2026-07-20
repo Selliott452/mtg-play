@@ -7,6 +7,7 @@ import dev.mtgplay.acceptance.playerWithZones
 import dev.mtgplay.acceptance.twoPlayerState
 import dev.mtgplay.core.identity.CardRef
 import dev.mtgplay.core.identity.ObjectId
+import dev.mtgplay.core.mana.ManaType
 import dev.mtgplay.core.state.GameObject
 import dev.mtgplay.core.state.PriorityStatus
 import dev.mtgplay.core.state.Turn
@@ -16,6 +17,7 @@ import io.kotest.core.spec.style.StringSpec
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
+import kotlinx.collections.immutable.persistentListOf
 
 /**
  * The invariant checker suite: each invariant gets a handcrafted violating input that yields
@@ -169,6 +171,47 @@ class InvariantCheckerSpec :
                 )
             val baseline = CardCensus.of(state)
             InvariantChecker.check(state, baseline).shouldBeEmpty()
+        }
+
+        // --- MANA_POOL_EMPTY_AT_PAUSE --------------------------------------------------------
+
+        "CR 500.4: a nonempty mana pool at an observed pause is exactly one MANA_POOL_EMPTY_AT_PAUSE violation" {
+            val state =
+                twoPlayerState(
+                    turn = precombatMain,
+                    aliceState =
+                        playerWithZones(library = mountains(0L..2L, alice))
+                            .copy(manaPool = persistentListOf(ManaType.RED)),
+                    bobState = playerWithZones(library = mountains(10L..12L, bob)),
+                    nextObjectId = 100,
+                )
+            InvariantChecker.check(state).map { it.invariant } shouldContainExactly
+                listOf(Invariant.MANA_POOL_EMPTY_AT_PAUSE)
+        }
+
+        // --- TAP_STATUS_SCOPE ----------------------------------------------------------------
+
+        "CR 110.5: a tapped object outside the battlefield is exactly one TAP_STATUS_SCOPE violation" {
+            val residences =
+                listOf(
+                    ZoneResidence(
+                        ZoneId.Hand(alice),
+                        GameObject(ObjectId(1), CardRef("Mountain"), alice, tapped = true),
+                    ),
+                )
+            InvariantChecker.checkTapStatusScope(residences).map { it.invariant } shouldContainExactly
+                listOf(Invariant.TAP_STATUS_SCOPE)
+        }
+
+        "tap-status scope: a tapped battlefield object produces no violation" {
+            val residences =
+                listOf(
+                    ZoneResidence(
+                        ZoneId.Battlefield,
+                        GameObject(ObjectId(1), CardRef("Mountain"), alice, tapped = true),
+                    ),
+                )
+            InvariantChecker.checkTapStatusScope(residences).shouldBeEmpty()
         }
 
         // --- clean multi-invariant coverage -----------------------------------------------

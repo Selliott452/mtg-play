@@ -1,15 +1,91 @@
 package dev.mtgplay.rules.engine
 
+import dev.mtgplay.core.definition.SpellDefinition
+import dev.mtgplay.core.definition.TargetSpec
+import dev.mtgplay.core.definition.TimingClass
+import dev.mtgplay.core.identity.PlayerId
+import dev.mtgplay.core.mana.ManaCost
+import dev.mtgplay.core.state.GameState
+import dev.mtgplay.core.state.TurnPhase
 import dev.mtgplay.rules.decision.PriorityOption
 
 /**
- * Enumerates the legal options for the player holding priority (ADR-005) — the single source of
- * legality truth: what this returns is exactly what the engine will accept, and nothing else is
- * representable.
+ * Enumerates the legal options for [seat], who holds priority in [state] (ADR-005) — the
+ * single source of legality truth: what this returns is exactly what the engine will accept,
+ * and nothing else is representable.
  *
- * In P1.2 the only legal option is [PriorityOption.Pass] — no cards are castable, no lands
- * playable, no abilities activatable — so the enumeration is constant. P2.1 grows the signature
- * to consult the game state (castable spells, playable lands) and this remains the one place
- * legality lives.
+ * [PriorityOption.Pass] is always present (CR 117.3d). A [PriorityOption.CastSpell] is
+ * enumerated for each hand card that clears every gate (so CR 601.2 will succeed and choosing
+ * the option never dead-ends):
+ * - it has a castable definition — inert cards (no definition, or a non-spell one) are simply
+ *   absent (architect decision, P2.1);
+ * - its timing class permits casting from this window (CR 117.1a, [timingPermitsCast]);
+ * - each of its required targets has at least one legal choice (CR 601.2c);
+ * - at least one payment plan exists for its cost (CR 601.2g, docs/design/mana-payment.md).
+ *
+ * Hand order fixes the option order, so indices are deterministic (ADR-006). Playing a land
+ * (CR 117.1b) joins in P2.2; activating abilities (CR 117.1c) in Phase 5.
  */
-internal fun legalPriorityOptions(): List<PriorityOption> = listOf(PriorityOption.Pass)
+internal fun legalPriorityOptions(
+    state: GameState,
+    seat: PlayerId,
+): List<PriorityOption> =
+    listOf<PriorityOption>(PriorityOption.Pass) +
+        state.player(seat).hand.mapNotNull { obj ->
+            val definition = state.definitions[obj.card] as? SpellDefinition
+            if (definition != null && castIsLegal(state, seat, definition)) {
+                PriorityOption.CastSpell(obj.id, obj.card)
+            } else {
+                null
+            }
+        }
+
+/** Whether every CR 601.2 gate passes for [seat] casting a card defined by [definition] now. */
+private fun castIsLegal(
+    state: GameState,
+    seat: PlayerId,
+    definition: SpellDefinition,
+): Boolean =
+    timingPermitsCast(state, seat, definition.timing) &&
+        targetsAvailable(state, definition.targetSpec) &&
+        enumeratePaymentPlans(state, seat, castableCost(definition)).isNotEmpty()
+
+/** The cost enumeration prices (CR 601.2f); loud on a castable definition with no mana cost. */
+private fun castableCost(definition: SpellDefinition): ManaCost =
+    definition.manaCost
+        ?: error(
+            "CR 601.2f: castable definition ${definition.characteristics.name} has no mana cost; casting " +
+                "without one requires an alternative cost, which arrives in Phase 5 (docs/decklists.md)",
+        )
+
+/**
+ * Whether [timing] permits [seat] to cast from the current window (CR 117.1a): instant speed
+ * whenever the player has priority; sorcery speed only for the active player, during a main
+ * phase of their own turn, with the stack empty.
+ */
+internal fun timingPermitsCast(
+    state: GameState,
+    seat: PlayerId,
+    timing: TimingClass,
+): Boolean =
+    when (timing) {
+        TimingClass.INSTANT_SPEED -> true
+        TimingClass.SORCERY_SPEED ->
+            seat == state.turn.activePlayer &&
+                (state.turn.phase == TurnPhase.PRECOMBAT_MAIN || state.turn.phase == TurnPhase.POSTCOMBAT_MAIN) &&
+                state.sharedZones.stack.isEmpty()
+    }
+
+/**
+ * Whether every target [spec] requires has at least one legal choice (CR 601.2c): a spell that
+ * cannot be fully targeted cannot legally be cast, so it is excluded from enumeration
+ * (ADR-005) rather than allowed to dead-end mid-pipeline.
+ */
+internal fun targetsAvailable(
+    state: GameState,
+    spec: TargetSpec,
+): Boolean =
+    when (spec) {
+        TargetSpec.None -> true
+        TargetSpec.AnyTarget -> legalTargets(state, spec).isNotEmpty()
+    }

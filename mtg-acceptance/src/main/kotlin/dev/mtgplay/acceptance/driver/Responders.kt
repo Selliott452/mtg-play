@@ -14,7 +14,9 @@ object Responders {
     /**
      * Passes every priority window and, when forced to discard down to maximum hand size
      * (CR 514.1), discards the lowest-indexed cards. The deterministic baseline policy for driving
-     * lands-only games to deck-out and for [ScriptedGame.passUntil].
+     * lands-only games to deck-out and for [ScriptedGame.passUntil]. It never chooses to cast, so
+     * the casting requests (CR 601.2) are unreachable for it — reaching one fails loudly instead
+     * of guessing.
      */
     val PASS_AND_DISCARD_LOWEST: Responder =
         Responder { request, _ ->
@@ -28,6 +30,10 @@ object Responders {
                 }
                 is DecisionRequest.ChooseDiscards ->
                     Decision.MultiSelect(request.id, (0 until request.count).toList())
+                is DecisionRequest.ChooseTargets ->
+                    error("the pass-everything responder never casts, but a targets request surfaced: $request")
+                is DecisionRequest.ChoosePaymentPlan ->
+                    error("the pass-everything responder never casts, but a payment request surfaced: $request")
             }
         }
 }

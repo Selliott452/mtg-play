@@ -1,20 +1,29 @@
 package dev.mtgplay.rules.engine
 
 import dev.mtgplay.core.state.GameState
+import kotlinx.collections.immutable.toPersistentList
 
 /** The maximum hand size players discard down to during cleanup (CR 402.2, CR 514.1). */
 internal const val MAXIMUM_HAND_SIZE: Int = 7
 
 /**
- * The untap step's turn-based actions (CR 502): phasing and untapping the active player's
- * permanents, performed before anyone could receive priority.
+ * The untap step's turn-based actions (CR 502): the active player untaps their tapped
+ * permanents (CR 502.2, all at once), before anyone could receive priority (CR 502.4).
  *
- * A documented no-op hook in P1.2: nothing can be tapped (or phased) until Phase 3 introduces
- * permanents on the battlefield with a tapped status. The hook exists so the untap step's
- * turn-based-action slot is real in the state machine — Phase 3 fills it in without reshaping
- * the advance loop.
+ * Controller is owner until control-changing effects exist (Phase 4+). Phasing (CR 502.1)
+ * remains a documented gap: nothing in the MVP pool phases, and an unrepresentable status
+ * cannot be silently mishandled. No event is emitted — the untap is fully visible in the
+ * state (and the fingerprint); a dedicated event can join `GameEvent` when a driver needs the
+ * narration.
  */
-internal fun untapStepTurnBasedActions(state: GameState): GameState = state
+internal fun untapStepTurnBasedActions(state: GameState): GameState {
+    val active = state.turn.activePlayer
+    val untapped =
+        state.sharedZones.battlefield
+            .map { obj -> if (obj.owner == active && obj.tapped) obj.copy(tapped = false) else obj }
+            .toPersistentList()
+    return state.copy(sharedZones = state.sharedZones.copy(battlefield = untapped))
+}
 
 /**
  * The draw step's turn-based action (CR 504.1): the active player draws a card. Happens before
