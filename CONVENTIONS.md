@@ -38,16 +38,15 @@ to write the code.
   is Dependency -> applyByTimestampAnyway(effect)
   ```
 
-- **Determinism (ADR-006).** All randomness goes through the match-owned seeded PRNG. Direct
+- **Determinism (ADR-006).** All randomness goes through the match-owned seeded PRNG:
+  `dev.mtgplay.core.random.Rng`, a pure in-repo splitmix64. Its algorithm (and the rejection
+  sampling in `nextInt`) is a **frozen replay contract** — recorded games are seed + decisions,
+  so an algorithm change silently invalidates every corpus; known-answer tests pin the
+  published output vectors to make any change a build failure instead. Direct
   `kotlin.random.Random` / `java.util.Random` in any `mtg-*` module is a review-blocking
-  defect and is rejected by detekt (`ForbiddenImport`, below). The **only** sanctioned use is
-  the PRNG wrapper in `mtg-core`, which opts out explicitly:
-
-  ```kotlin
-  // The single sanctioned entry point for randomness; every other module draws from this.
-  @Suppress("ForbiddenImport") // ADR-006: this IS the seeded wrapper all randomness flows through
-  import kotlin.random.Random
-  ```
+  defect and is rejected by detekt (`ForbiddenImport`, below). There are **no** sanctioned
+  exceptions and no `@Suppress("ForbiddenImport")` anywhere — the in-repo implementation
+  needs none, which is precisely why it was chosen over wrapping a platform RNG.
 
 - **Enumerated actions (ADR-005).** Agents choose engine-enumerated options by index; legality
   logic lives in one place, and enumeration completeness is a tested property.

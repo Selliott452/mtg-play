@@ -8,9 +8,9 @@
 # Two project-specific enforcements live here; both are documented in CONVENTIONS.md:
 #   * UnsafeCallOnNullableType — bans the `!!` operator ("No `!!`").
 #   * ForbiddenImport         — bans kotlin.random.* and java.util.Random so all randomness
-#                               flows through the seeded match PRNG (ADR-006). The single
-#                               sanctioned exception is the PRNG wrapper in mtg-core, which
-#                               opts out with an explicit `@Suppress("ForbiddenImport")`.
+#                               flows through the seeded match PRNG (ADR-006): the in-repo
+#                               splitmix64 `Rng` in mtg-core, which needs no platform RNG.
+#                               No exceptions, no suppressions anywhere.
 #
 # Note: UnsafeCallOnNullableType requires type resolution, so it only fires on the
 # detektMain/detektTest tasks. The convention plugin wires those tasks into `check`.

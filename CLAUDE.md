@@ -11,10 +11,10 @@ legal options; the first playable milestone is a full game of Mono-Red Madness v
 
 ## Two non-negotiables
 
-- **Seeded PRNG only (ADR-006).** All randomness flows through the match-owned seeded PRNG.
-  `kotlin.random.Random` / `java.util.Random` in `mtg-*` is a review-blocking defect and is
-  rejected by detekt. The sole exception is the PRNG wrapper in `mtg-core`, via explicit
-  `@Suppress`.
+- **Seeded PRNG only (ADR-006).** All randomness flows through the match-owned seeded PRNG —
+  `dev.mtgplay.core.random.Rng`, an in-repo pure splitmix64 whose algorithm is a frozen replay
+  contract. `kotlin.random.Random` / `java.util.Random` in `mtg-*` is a review-blocking defect
+  and is rejected by detekt; there are no exceptions and no suppressions anywhere.
 - **Enumerated actions only (ADR-005).** Agents pick engine-enumerated options by stable index;
   they never construct actions freeform.
 
@@ -25,7 +25,7 @@ card. Full dependency rules: PLAN.md §3.
 
 | Module | Purpose | Depends on |
 |---|---|---|
-| `mtg-core` | Vocabulary: ids, zones, mana, characteristics, `GameState` shape, PRNG wrapper, `GameEvent`. Types only, no game logic. | — |
+| `mtg-core` | Vocabulary: ids, zones, mana, characteristics, `GameState` shape, `Rng` (in-repo splitmix64), `GameEvent`. Types only, no game logic. | — |
 | `mtg-rules` | The engine: turn structure, priority, stack, casting, combat, SBAs, layers, trigger/replacement frameworks, effect primitives. | core |
 | `mtg-cards` | Card definitions in the DSL, plus the DSL builders. | core, rules |
 | `mtg-pauper` | Format: legal sets, banned list, deck validation, Scryfall ingestion. | core, cards |
