@@ -1,0 +1,36 @@
+# Shared detekt configuration for every mtg-* module.
+#
+# Layered on top of detekt's bundled defaults (`buildUponDefaultConfig = true` in the
+# convention plugin), so only deviations from the default are recorded here. The default
+# already sets `build.maxIssues: 0` — any finding fails the build, matching the project's
+# zero-warning policy (PLAN.md §4).
+#
+# Two project-specific enforcements live here; both are documented in CONVENTIONS.md:
+#   * UnsafeCallOnNullableType — bans the `!!` operator ("No `!!`").
+#   * ForbiddenImport         — bans kotlin.random.* and java.util.Random so all randomness
+#                               flows through the seeded match PRNG (ADR-006). The single
+#                               sanctioned exception is the PRNG wrapper in mtg-core, which
+#                               opts out with an explicit `@Suppress("ForbiddenImport")`.
+#
+# Note: UnsafeCallOnNullableType requires type resolution, so it only fires on the
+# detektMain/detektTest tasks. The convention plugin wires those tasks into `check`.
+
+build:
+  # Explicit for emphasis: no detekt finding is tolerated (also the bundled default).
+  maxIssues: 0
+
+potential-bugs:
+  UnsafeCallOnNullableType:
+    # Forbid `!!`. Default is already active; pinned here so the intent is explicit and
+    # survives any future default change.
+    active: true
+
+style:
+  ForbiddenImport:
+    # Enforces ADR-006 (determinism): no ad-hoc randomness in any mtg-* module.
+    active: true
+    imports:
+      - value: 'kotlin.random.*'
+        reason: 'ADR-006: draw randomness from the seeded match PRNG, not kotlin.random.'
+      - value: 'java.util.Random'
+        reason: 'ADR-006: draw randomness from the seeded match PRNG, not java.util.Random.'

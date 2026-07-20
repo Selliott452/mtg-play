@@ -1,3 +1,4 @@
+import io.gitlab.arturbosch.detekt.Detekt
 import org.gradle.api.artifacts.VersionCatalogsExtension
 import org.gradle.api.tasks.testing.Test
 import org.gradle.kotlin.dsl.the
@@ -37,4 +38,16 @@ tasks.withType<Test>().configureEach {
 
 detekt {
     buildUponDefaultConfig = true
+    // Single, version-controlled ruleset shared by every module, layered on detekt's defaults.
+    // Adds the project's two mechanical enforcements: no `!!` (UnsafeCallOnNullableType) and no
+    // ad-hoc randomness (ForbiddenImport, ADR-006). See config/detekt/detekt.yml.
+    config.setFrom(rootProject.files("config/detekt/detekt.yml"))
+}
+
+// UnsafeCallOnNullableType (and other type-dependent rules) only run under type resolution,
+// which lives on the detektMain/detektTest tasks — not the plain `detekt` task that `check`
+// wires in by default. Wire the type-resolving tasks into `check` (and therefore `build`) so
+// the ruleset actually enforces rather than merely being declared.
+tasks.named("check") {
+    dependsOn(tasks.withType<Detekt>().matching { it.name == "detektMain" || it.name == "detektTest" })
 }
