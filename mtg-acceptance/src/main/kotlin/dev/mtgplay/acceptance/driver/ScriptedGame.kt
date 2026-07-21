@@ -215,12 +215,12 @@ class ScriptedGame private constructor(
         }
 
         /**
-         * Resumes driving from a paused [initialState] — a state a test constructed (or doctored
-         * from an engine start, e.g. planting battlefield fixtures while the play-land action is
-         * still P2.2's). The pending request is re-derived from the state alone
-         * ([pendingRequestOf], ADR-004), the state is invariant-checked, and the baseline card
-         * census is captured *here* — conservation is measured against this state, exactly as a
-         * replay of the same scenario would measure it.
+         * Resumes driving from a paused [initialState] — a state a test constructed, or one a
+         * driver stored and reloaded (the ADR-004 resumability path Phase 7's protocol builds
+         * on). The pending request is re-derived from the state alone ([pendingRequestOf],
+         * ADR-004), the state is invariant-checked, and the baseline card census is captured
+         * *here* — conservation is measured against this state, exactly as a replay of the same
+         * scenario would measure it.
          */
         fun startFrom(
             initialState: GameState,

@@ -13,8 +13,8 @@ import java.security.MessageDigest
  * "final state hash" a replay asserts against (PLAN.md §2.2). The digest covers zones (each
  * object's id, printed card, and tapped status, in zone order), the stack entries' cast records
  * (controller and targets, CR 601.2), life totals, mana pools, priority standing, the
- * empty-draw flag, answered-decision counts, any cast gathering decisions, the turn position,
- * the object-id counter, and the PRNG state.
+ * empty-draw flag, answered-decision counts, any cast gathering decisions, the turn position
+ * and its land-drop count (CR 305.2), the object-id counter, and the PRNG state.
  *
  * The [event log][GameState.events] is deliberately excluded: events are derived observability
  * (ADR-006), so they are fingerprinted separately and compared on their own, keeping "the game
@@ -53,6 +53,8 @@ internal fun canonicalDescriptor(state: GameState): String =
         append('/').append(turn.number)
         append('/').append(turn.phase.name)
         append('/').append(turn.step?.name ?: "-")
+        // CR 305.2: the land-drop count is rules-relevant — it gates the play-land action.
+        append("|landsPlayed=").append(turn.landsPlayedThisTurn)
         append("|nextObjectId=").append(state.nextObjectId)
         append("|rng=").append(state.rng.state)
         val cast = state.pendingCast

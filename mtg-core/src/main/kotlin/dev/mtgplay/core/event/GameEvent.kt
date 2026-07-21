@@ -18,8 +18,9 @@ import dev.mtgplay.core.state.TurnStep
  *
  * Later packets grow this hierarchy *in this file* — events are nouns, so they live in core
  * even though the engine in `mtg-rules` emits them. Growth is strictly additive. The members
- * below are the P1.2 set (game lifecycle, turn structure, priority, zone moves) plus the P2.1
- * set (the CR 601 casting stages, mana, life, and CR 608 resolution) — enough for a readable
+ * below are the P1.2 set (game lifecycle, turn structure, priority, zone moves), the P2.1
+ * set (the CR 601 casting stages, mana, life, and CR 608 resolution), and the P2.2 set
+ * ([LandPlayed], [ObjectTapped], [ObjectUntapped], [DamageDealt]) — enough for a readable
  * game log, nothing speculative.
  */
 sealed interface GameEvent {
@@ -167,6 +168,50 @@ sealed interface GameEvent {
         val objectId: ObjectId,
         val card: CardRef,
         val graveyardObjectId: ObjectId,
+    ) : GameEvent
+
+    /**
+     * [player] played the land [card] (CR 115.2a, CR 305.1) — the CR 116.2a special action, not
+     * a cast: no stack, and the player retains priority afterward (CR 116.4). The hand card
+     * moved to the battlefield, becoming the new object [objectId] there (CR 400.7), untapped
+     * (CR 110.5a).
+     */
+    data class LandPlayed(
+        val player: PlayerId,
+        val objectId: ObjectId,
+        val card: CardRef,
+    ) : GameEvent
+
+    /**
+     * The battlefield object [objectId] became tapped (CR 701.21a). In P2.2 the only tapping is
+     * a mana ability's `{T}` cost (CR 605.1a), emitted between [ManaAbilityActivated] and
+     * [ManaAdded]; combat and other activated abilities add emission sites in later phases.
+     */
+    data class ObjectTapped(
+        val objectId: ObjectId,
+        val card: CardRef,
+    ) : GameEvent
+
+    /**
+     * The battlefield object [objectId] became untapped (CR 701.21a). In P2.2 the only
+     * untapping is the untap step's turn-based action (CR 502.2); the simultaneous untap emits
+     * one event per object, in battlefield order, for a deterministic log.
+     */
+    data class ObjectUntapped(
+        val objectId: ObjectId,
+        val card: CardRef,
+    ) : GameEvent
+
+    /**
+     * [amount] damage was dealt to [recipient] (CR 120). For a player recipient the damage's
+     * result is losing that much life (CR 120.3a), narrated by the [LifeChanged] that follows —
+     * the two events together are what distinguish damage from pure life loss (CR 119.3c),
+     * a distinction later phases' cards care about. Object recipients arrive with battlefield
+     * damage in Phase 3 as a new [dev.mtgplay.core.state.Target] member.
+     */
+    data class DamageDealt(
+        val recipient: Target,
+        val amount: Int,
     ) : GameEvent
 
     /** [player] lost the game (CR 104.3) for [reason]. */

@@ -62,4 +62,12 @@ enum class Invariant {
      * no status memory (CR 400.7).
      */
     TAP_STATUS_SCOPE,
+
+    /**
+     * The turn's land-drop count stays within the CR 305.2 bound: 0 or 1 in P2.x. Nothing in
+     * the MVP pool grants additional land plays, so a count above one is engine wrongness;
+     * when an additional-land-play effect first arrives, this invariant gains that declared
+     * exception alongside it.
+     */
+    LAND_DROP_BOUND,
 }

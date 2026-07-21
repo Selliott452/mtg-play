@@ -8,9 +8,10 @@ import dev.mtgplay.core.identity.ObjectId
  * priority may do (CR 117.1).
  *
  * The hierarchy is sealed so drivers handle every kind exhaustively. P1.2 shipped [Pass]; P2.1
- * adds [CastSpell] (CR 117.1a via the CR 601 pipeline); later phases add the remaining action
- * options — playing a land, activating an ability (CR 117.1b–c) — as new members, which is why
- * a priority window carries a list of typed options rather than a yes/no.
+ * added [CastSpell] (CR 117.1a via the CR 601 pipeline); P2.2 adds [PlayLand] (the CR 116.2a
+ * special action); later phases add the remaining action options — activating an ability
+ * (CR 117.1c) — as new members, which is why a priority window carries a list of typed options
+ * rather than a yes/no.
  */
 sealed interface PriorityOption {
     /**
@@ -30,6 +31,22 @@ sealed interface PriorityOption {
      *   a fresh id when the cast's pipeline runs (CR 400.7).
      */
     data class CastSpell(
+        val objectId: ObjectId,
+        val card: CardRef,
+    ) : PriorityOption
+
+    /**
+     * Play the land [objectId] from the deciding player's hand (CR 115.2a) — the CR 116.2a
+     * special action, not a spell: it uses no stack and the player retains priority afterward
+     * (CR 116.4). Enumerated only when the play is fully legal (ADR-005): the player's own
+     * turn, a main phase, the stack empty (CR 305.1 via CR 116.2a), and the turn's land drop
+     * still available (CR 305.2 — one land per turn).
+     *
+     * @property objectId the land object in the deciding player's hand.
+     * @property card the printed identity, for display; the object is reborn on the
+     *   battlefield with a fresh id when the action executes (CR 400.7).
+     */
+    data class PlayLand(
         val objectId: ObjectId,
         val card: CardRef,
     ) : PriorityOption

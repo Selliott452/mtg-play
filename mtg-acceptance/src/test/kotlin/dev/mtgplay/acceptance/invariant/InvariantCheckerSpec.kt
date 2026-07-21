@@ -214,6 +214,31 @@ class InvariantCheckerSpec :
             InvariantChecker.checkTapStatusScope(residences).shouldBeEmpty()
         }
 
+        // --- LAND_DROP_BOUND -----------------------------------------------------------------
+
+        "CR 305.2: a land-drop count above one is exactly one LAND_DROP_BOUND violation" {
+            val state =
+                twoPlayerState(
+                    turn = precombatMain.copy(landsPlayedThisTurn = 2),
+                    aliceState = playerWithZones(library = mountains(0L..2L, alice)),
+                    bobState = playerWithZones(library = mountains(10L..12L, bob)),
+                    nextObjectId = 100,
+                )
+            InvariantChecker.check(state).map { it.invariant } shouldContainExactly
+                listOf(Invariant.LAND_DROP_BOUND)
+        }
+
+        "land-drop bound: a count of one — the normal used drop — produces no violation" {
+            val state =
+                twoPlayerState(
+                    turn = precombatMain.copy(landsPlayedThisTurn = 1),
+                    aliceState = playerWithZones(library = mountains(0L..2L, alice)),
+                    bobState = playerWithZones(library = mountains(10L..12L, bob)),
+                    nextObjectId = 100,
+                )
+            InvariantChecker.check(state).shouldBeEmpty()
+        }
+
         // --- clean multi-invariant coverage -----------------------------------------------
 
         "a well-formed state with a baseline reports no violations at all" {

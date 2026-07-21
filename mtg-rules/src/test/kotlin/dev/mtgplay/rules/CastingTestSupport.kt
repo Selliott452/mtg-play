@@ -102,6 +102,21 @@ internal fun castDecision(
     return Decision.SingleSelect(request.id, index)
 }
 
+/** Selects the [PriorityOption.PlayLand] of the named [card] from a priority window (CR 116.2a). */
+internal fun playLandDecision(
+    request: DecisionRequest.ChooseAction,
+    card: String,
+): Decision.SingleSelect {
+    val index =
+        request.options.indexOfFirst { it is PriorityOption.PlayLand && it.card == CardRef(card) }
+    check(index >= 0) { "no PlayLand option for $card in ${request.options}" }
+    return Decision.SingleSelect(request.id, index)
+}
+
+/** Whether [request] enumerates any play-land option (CR 116.2a). */
+internal fun hasPlayLand(request: DecisionRequest.ChooseAction): Boolean =
+    request.options.any { it is PriorityOption.PlayLand }
+
 /** Selects the pass option from a priority window (CR 117.3d). */
 internal fun passDecision(request: DecisionRequest.ChooseAction): Decision.SingleSelect {
     val index = request.options.indexOfFirst { it is PriorityOption.Pass }

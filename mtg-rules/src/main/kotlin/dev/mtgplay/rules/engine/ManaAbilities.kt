@@ -10,8 +10,8 @@ import dev.mtgplay.rules.decision.SourceClassKey
  * Activates the tap-for-mana ability of the first untapped member of [sourceClass] in
  * battlefield order (CR 605.3): taps it, resolves the ability immediately — no stack, no
  * priority round, unlike every other activated ability (CR 605.3a–b) — and adds the chosen
- * [produced] mana to [player]'s pool. Emits [GameEvent.ManaAbilityActivated] then
- * [GameEvent.ManaAdded].
+ * [produced] mana to [player]'s pool. Emits [GameEvent.ManaAbilityActivated], then
+ * [GameEvent.ObjectTapped] for the `{T}` cost (CR 605.1a), then [GameEvent.ManaAdded].
  *
  * Which member taps is rules-irrelevant by construction — class members are
  * payment-equivalent (docs/design/mana-payment.md) — so the deterministic first-in-battlefield
@@ -48,5 +48,6 @@ internal fun resolveTapForMana(
                         battlefield = battlefield.removingAt(index).addingAt(index, source.copy(tapped = true)),
                     ),
             ).emit(GameEvent.ManaAbilityActivated(player, source.id, source.card))
+            .emit(GameEvent.ObjectTapped(source.id, source.card))
     return addManaToPool(tapped, player, produced)
 }

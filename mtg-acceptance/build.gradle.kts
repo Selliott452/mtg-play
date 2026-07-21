@@ -15,9 +15,10 @@ dependencies {
     api(project(":mtg-core"))
     api(project(":mtg-rules"))
 
-    // The remaining siblings stay test-only: the P1.3 acceptance suites drive lands-only games
-    // through mtg-rules alone, and no harness main-source type references them. Future acceptance
-    // suites (real decks, protocol round-trips) consume them from test source.
+    // The remaining siblings stay test-only: no harness main-source type references them —
+    // the harness stays card-agnostic. The P2.2 suites consume mtg-cards (`MvpCards`) from
+    // test source, which is where suites live; future suites (protocol round-trips) consume
+    // their modules the same way.
     testImplementation(project(":mtg-cards"))
     testImplementation(project(":mtg-pauper"))
     testImplementation(project(":mtg-protocol"))

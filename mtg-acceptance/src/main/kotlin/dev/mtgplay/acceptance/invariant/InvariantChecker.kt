@@ -55,7 +55,27 @@ object InvariantChecker {
             addAll(checkDrawFailureHonesty(state))
             addAll(checkManaPoolEmptiness(state))
             addAll(checkTapStatusScope(residences))
+            addAll(checkLandDropBound(state))
             if (expectedCards != null) addAll(checkCardConservation(state, expectedCards))
+        }
+    }
+
+    /**
+     * [Invariant.LAND_DROP_BOUND]: the turn's land-drop count is 0 or 1 (CR 305.2 — nothing in
+     * the MVP pool grants additional land plays). The lower bound is core-enforced at
+     * construction; the checker re-derives both ends anyway, per its phase-spanning charter.
+     */
+    internal fun checkLandDropBound(state: GameState): List<Violation> {
+        val count = state.turn.landsPlayedThisTurn
+        return if (count in 0..1) {
+            emptyList()
+        } else {
+            listOf(
+                Violation(
+                    Invariant.LAND_DROP_BOUND,
+                    "CR 305.2: $count lands played this turn; the P2.x bound is one",
+                ),
+            )
         }
     }
 
@@ -194,9 +214,9 @@ object InvariantChecker {
             )
         }
     }
-
-    private fun decisionCountsOf(state: GameState): List<SeatDecisionCount> =
-        state.players.entries
-            .sortedBy { it.key.seat }
-            .map { (seat, player) -> SeatDecisionCount(seat.seat, player.decisionsAnswered) }
 }
+
+private fun decisionCountsOf(state: GameState): List<SeatDecisionCount> =
+    state.players.entries
+        .sortedBy { it.key.seat }
+        .map { (seat, player) -> SeatDecisionCount(seat.seat, player.decisionsAnswered) }

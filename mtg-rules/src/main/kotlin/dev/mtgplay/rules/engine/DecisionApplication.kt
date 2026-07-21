@@ -38,6 +38,7 @@ private fun applyChosenAction(
     return when (val option = request.options[decision.index]) {
         PriorityOption.Pass -> applyPassPriority(state, request.seat)
         is PriorityOption.CastSpell -> beginCastGathering(state, request.seat, option.objectId)
+        is PriorityOption.PlayLand -> executePlayLand(state, request.seat, option.objectId)
     }
 }
 

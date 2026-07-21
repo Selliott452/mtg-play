@@ -1,5 +1,6 @@
 package dev.mtgplay.rules.engine
 
+import dev.mtgplay.core.event.GameEvent
 import dev.mtgplay.core.state.GameState
 import kotlinx.collections.immutable.toPersistentList
 
@@ -8,21 +9,24 @@ internal const val MAXIMUM_HAND_SIZE: Int = 7
 
 /**
  * The untap step's turn-based actions (CR 502): the active player untaps their tapped
- * permanents (CR 502.2, all at once), before anyone could receive priority (CR 502.4).
+ * permanents (CR 502.2, all at once), before anyone could receive priority (CR 502.4). The
+ * simultaneous untap emits one [GameEvent.ObjectUntapped] per object that was tapped, in
+ * battlefield order, for a deterministic log (P2.2).
  *
  * Controller is owner until control-changing effects exist (Phase 4+). Phasing (CR 502.1)
  * remains a documented gap: nothing in the MVP pool phases, and an unrepresentable status
- * cannot be silently mishandled. No event is emitted — the untap is fully visible in the
- * state (and the fingerprint); a dedicated event can join `GameEvent` when a driver needs the
- * narration.
+ * cannot be silently mishandled.
  */
 internal fun untapStepTurnBasedActions(state: GameState): GameState {
     val active = state.turn.activePlayer
+    val untapping = state.sharedZones.battlefield.filter { it.owner == active && it.tapped }
     val untapped =
         state.sharedZones.battlefield
             .map { obj -> if (obj.owner == active && obj.tapped) obj.copy(tapped = false) else obj }
             .toPersistentList()
-    return state.copy(sharedZones = state.sharedZones.copy(battlefield = untapped))
+    return untapping.fold(
+        state.copy(sharedZones = state.sharedZones.copy(battlefield = untapped)),
+    ) { current, obj -> current.emit(GameEvent.ObjectUntapped(obj.id, obj.card)) }
 }
 
 /**

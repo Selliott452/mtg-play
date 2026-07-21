@@ -117,15 +117,15 @@ class ActionEnumerationSpec :
             enumeratedCasts(windowOf(unpayable)).shouldBeEmpty()
         }
 
-        "no phantom options: every enumerated cast executes through the full pipeline, over every choice" {
+        "no phantom options: every enumerated option executes through its pipeline, over every choice" {
             val scenarios =
                 listOf(
                     SeatSetup(
-                        hand = listOf("Fixture Bolt", "Fixture Comet", "Fixture Meditation"),
+                        hand = listOf("Fixture Bolt", "Fixture Comet", "Fixture Meditation", "Fixture Mountain"),
                         battlefield = listOf("Fixture Mountain", "Fixture Mountain"),
                     ),
                     SeatSetup(
-                        hand = listOf("Fixture Bloom", "Fixture Gut Punch"),
+                        hand = listOf("Fixture Bloom", "Fixture Gut Punch", "Fixture Forest"),
                         battlefield = listOf("Fixture Forest", "Fixture Island", "Fixture Prism"),
                     ),
                     SeatSetup(hand = listOf("Fixture Gut Punch"), life = 2),
@@ -133,24 +133,36 @@ class ActionEnumerationSpec :
             scenarios.forEach { setup ->
                 val start = fixtureState(aliceSetup = setup, bobSetup = SeatSetup())
                 val window = windowOf(start)
-                window.options.filterIsInstance<PriorityOption.CastSpell>().forEach { option ->
-                    val optionIndex = window.options.indexOf(option)
+                window.options.forEachIndexed { optionIndex, option ->
+                    if (option is PriorityOption.Pass) return@forEachIndexed
                     var current = engine.advance(start, Decision.SingleSelect(window.id, optionIndex))
-                    // Walk every remaining gathering decision with its first option; the cast
-                    // must complete (a post-cast window, or a legitimate game over when a life
+                    // Walk every remaining gathering decision with its first option; the action
+                    // must complete (a follow-up window, or a legitimate game over when a life
                     // payment is lethal) — and never throw.
                     var guard = 0
                     while (current is AdvanceResult.NeedsDecision &&
                         current.request !is DecisionRequest.ChooseAction
                     ) {
-                        check(guard++ < 5) { "cast gathering did not converge for ${option.card.name}" }
+                        check(guard++ < 5) { "cast gathering did not converge for $option" }
                         current = engine.advance(current.state, Decision.SingleSelect(current.request.id, 0))
                     }
-                    when (val result = current) {
-                        is AdvanceResult.NeedsDecision ->
-                            result.state.sharedZones.stack.size shouldBeGreaterThanOrEqual 1
-                        is AdvanceResult.GameOver ->
-                            result.state.sharedZones.stack.size shouldBeGreaterThanOrEqual 1
+                    val produced =
+                        when (val result = current) {
+                            is AdvanceResult.NeedsDecision -> result.state
+                            is AdvanceResult.GameOver -> result.state
+                        }
+                    when (option) {
+                        PriorityOption.Pass -> error("unreachable: pass options are skipped above")
+                        is PriorityOption.CastSpell ->
+                            produced.sharedZones.stack.size shouldBeGreaterThanOrEqual 1
+                        is PriorityOption.PlayLand -> {
+                            // CR 116.2a: the land play completed — battlefield grew by the land,
+                            // the drop is spent (CR 305.2), and no stack object was created.
+                            produced.sharedZones.battlefield.size shouldBe
+                                start.sharedZones.battlefield.size + 1
+                            produced.turn.landsPlayedThisTurn shouldBe 1
+                            produced.sharedZones.stack.shouldBeEmpty()
+                        }
                     }
                 }
             }

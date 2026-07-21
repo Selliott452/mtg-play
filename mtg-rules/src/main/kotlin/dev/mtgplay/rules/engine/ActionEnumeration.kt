@@ -1,5 +1,7 @@
 package dev.mtgplay.rules.engine
 
+import dev.mtgplay.core.card.CardType
+import dev.mtgplay.core.definition.CardDefinition
 import dev.mtgplay.core.definition.SpellDefinition
 import dev.mtgplay.core.definition.TargetSpec
 import dev.mtgplay.core.definition.TimingClass
@@ -9,6 +11,9 @@ import dev.mtgplay.core.state.GameState
 import dev.mtgplay.core.state.TurnPhase
 import dev.mtgplay.rules.decision.PriorityOption
 
+/** The number of lands a player may normally play in a turn (CR 305.2). */
+internal const val LAND_PLAYS_PER_TURN: Int = 1
+
 /**
  * Enumerates the legal options for [seat], who holds priority in [state] (ADR-005) — the
  * single source of legality truth: what this returns is exactly what the engine will accept,
@@ -17,14 +22,18 @@ import dev.mtgplay.rules.decision.PriorityOption
  * [PriorityOption.Pass] is always present (CR 117.3d). A [PriorityOption.CastSpell] is
  * enumerated for each hand card that clears every gate (so CR 601.2 will succeed and choosing
  * the option never dead-ends):
- * - it has a castable definition — inert cards (no definition, or a non-spell one) are simply
- *   absent (architect decision, P2.1);
+ * - it has a castable definition — inert cards (no definition at all) are simply absent
+ *   (architect decision, P2.1);
  * - its timing class permits casting from this window (CR 117.1a, [timingPermitsCast]);
  * - each of its required targets has at least one legal choice (CR 601.2c);
  * - at least one payment plan exists for its cost (CR 601.2g, docs/design/mana-payment.md).
  *
- * Hand order fixes the option order, so indices are deterministic (ADR-006). Playing a land
- * (CR 117.1b) joins in P2.2; activating abilities (CR 117.1c) in Phase 5.
+ * A [PriorityOption.PlayLand] is enumerated for each land card in hand (CR 115.2a) exactly
+ * when the CR 116.2a special action is legal ([playLandIsLegal]). Land-ness is read from the
+ * card's definition, so an undefined land stays inert like any other undefined card.
+ *
+ * Hand order fixes the option order, so indices are deterministic (ADR-006). Activating
+ * abilities (CR 117.1c) joins in Phase 5.
  */
 internal fun legalPriorityOptions(
     state: GameState,
@@ -32,13 +41,33 @@ internal fun legalPriorityOptions(
 ): List<PriorityOption> =
     listOf<PriorityOption>(PriorityOption.Pass) +
         state.player(seat).hand.mapNotNull { obj ->
-            val definition = state.definitions[obj.card] as? SpellDefinition
-            if (definition != null && castIsLegal(state, seat, definition)) {
-                PriorityOption.CastSpell(obj.id, obj.card)
-            } else {
-                null
+            val definition = state.definitions[obj.card]
+            when {
+                definition is SpellDefinition && castIsLegal(state, seat, definition) ->
+                    PriorityOption.CastSpell(obj.id, obj.card)
+                definition.isLand() && playLandIsLegal(state, seat) ->
+                    PriorityOption.PlayLand(obj.id, obj.card)
+                else -> null
             }
         }
+
+/** Whether this definition describes a land card (CR 305.1); `false` for an undefined card. */
+internal fun CardDefinition?.isLand(): Boolean = this != null && CardType.LAND in characteristics.cardTypes
+
+/**
+ * Whether [seat] may take the play-land special action right now (CR 116.2a): they are the
+ * active player, in a main phase of their own turn, with the stack empty (CR 305.1), and the
+ * turn's land drop is still available (CR 305.2 — one land per turn). Priority is the caller's
+ * concern: options are only ever enumerated for the priority holder (CR 117.1).
+ */
+internal fun playLandIsLegal(
+    state: GameState,
+    seat: PlayerId,
+): Boolean =
+    seat == state.turn.activePlayer &&
+        (state.turn.phase == TurnPhase.PRECOMBAT_MAIN || state.turn.phase == TurnPhase.POSTCOMBAT_MAIN) &&
+        state.sharedZones.stack.isEmpty() &&
+        state.turn.landsPlayedThisTurn < LAND_PLAYS_PER_TURN
 
 /** Whether every CR 601.2 gate passes for [seat] casting a card defined by [definition] now. */
 private fun castIsLegal(
