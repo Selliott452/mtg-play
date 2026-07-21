@@ -15,14 +15,15 @@ import io.kotest.matchers.shouldBe
 // local run; CI keeps it small so every push stays fast.
 private const val SEED_COUNT: Int = 64
 
-// The real-card burn corpus (P2.2): 20 Mountains + 40 Lightning Bolts per seat forces constant
-// action, so bolt deaths (CR 704.5a) dominate these endings.
-private const val BURN_SEED_COUNT: Int = 50
+// The real-card burn corpus (P2.2; raised 50 -> 200 in P2.3 — burn games end fast, so the
+// whole corpus costs ~3s): 20 Mountains + 40 Lightning Bolts per seat forces constant action,
+// so bolt deaths (CR 704.5a) dominate these endings.
+private const val BURN_SEED_COUNT: Int = 200
 
-// The sublethal-corpus size: 2 Bolts per seat cannot reach 20 life (see SUBLETHAL_BOLT_COUNT),
-// so every one of these games must end as a deck-out (CR 704.5c) — which is how the corpus as
-// a whole is guaranteed to exhibit both ending kinds.
-private const val SUBLETHAL_SEED_COUNT: Int = 12
+// The sublethal-corpus size (raised 12 -> 24 in P2.3): 2 Bolts per seat cannot reach 20 life
+// (see SUBLETHAL_BOLT_COUNT), so every one of these games must end as a deck-out (CR 704.5c) —
+// which is how the corpus as a whole is guaranteed to exhibit both ending kinds.
+private const val SUBLETHAL_SEED_COUNT: Int = 24
 
 /**
  * The randomized-playout smoke: full games on real cards ([dev.mtgplay.cards.MvpCards]) driven
