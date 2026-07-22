@@ -3,6 +3,7 @@ package dev.mtgplay.core.card
 import dev.mtgplay.core.mana.Color
 import dev.mtgplay.core.mana.ManaCost
 import kotlinx.collections.immutable.PersistentSet
+import kotlinx.collections.immutable.persistentSetOf
 
 /**
  * A card's printed characteristics: name, mana cost, type line, and printed power/toughness
@@ -25,6 +26,10 @@ import kotlinx.collections.immutable.PersistentSet
  * @property subtypes the printed subtypes (CR 205.3), possibly empty.
  * @property powerToughness the printed power/toughness box; present exactly for creature cards
  *   (CR 208.1).
+ * @property keywords the printed keyword abilities (CR 702), possibly empty (additive, flagged,
+ *   P3.1). Printed values only — in-game keywords are computed by the layer system (CR 613,
+ *   layer 6) in Phase 4, which adds aura-granted keywords; combat reads these only through the
+ *   effective-keyword accessor in `mtg-rules`.
  */
 data class PrintedCharacteristics(
     val name: String,
@@ -33,6 +38,7 @@ data class PrintedCharacteristics(
     val cardTypes: PersistentSet<CardType>,
     val subtypes: PersistentSet<Subtype>,
     val powerToughness: PrintedPowerToughness?,
+    val keywords: PersistentSet<Keyword> = persistentSetOf(),
 ) {
     init {
         require(name.isNotBlank()) { "card name must not be blank" }

@@ -4,6 +4,8 @@ import dev.mtgplay.core.identity.CardRef
 import dev.mtgplay.core.identity.ObjectId
 import dev.mtgplay.core.identity.PlayerId
 import dev.mtgplay.core.mana.ManaType
+import dev.mtgplay.core.state.AttackerAssignment
+import dev.mtgplay.core.state.BlockAssignment
 import dev.mtgplay.core.state.Target
 import dev.mtgplay.core.state.TurnPhase
 import dev.mtgplay.core.state.TurnStep
@@ -203,15 +205,46 @@ sealed interface GameEvent {
     ) : GameEvent
 
     /**
-     * [amount] damage was dealt to [recipient] (CR 120). For a player recipient the damage's
-     * result is losing that much life (CR 120.3a), narrated by the [LifeChanged] that follows —
-     * the two events together are what distinguish damage from pure life loss (CR 119.3c),
-     * a distinction later phases' cards care about. Object recipients arrive with battlefield
-     * damage in Phase 3 as a new [dev.mtgplay.core.state.Target] member.
+     * [amount] damage was dealt to [recipient] (CR 120). For a [Target.Player] recipient the
+     * damage's result is losing that much life (CR 120.3a), narrated by the [LifeChanged] that
+     * follows — the two events together are what distinguish damage from pure life loss
+     * (CR 119.3c), a distinction later phases' cards care about. For a [Target.Permanent]
+     * recipient (P3.1) the result is marked damage (CR 120.3d): no [LifeChanged] follows,
+     * because a permanent has no life total — the damage sits on the object until cleanup
+     * (CR 514.2) or a lethal-damage state-based action (CR 704.5g, P3.2) acts on it.
      */
     data class DamageDealt(
         val recipient: Target,
         val amount: Int,
+    ) : GameEvent
+
+    /**
+     * The active player declared [attackers] as the declare-attackers step's turn-based action
+     * (CR 508.1). Additive, flagged (P3.1); possibly empty (CR 508.8 then skips the later combat
+     * steps). Each combat-damage point an attacker deals is narrated by its own [DamageDealt];
+     * this event records only the structural declaration.
+     */
+    data class AttackersDeclared(
+        val attackers: List<AttackerAssignment>,
+    ) : GameEvent
+
+    /**
+     * A defending player declared [blocks] as the declare-blockers step's turn-based action
+     * (CR 509.1). Additive, flagged (P3.1); possibly empty (blockers were declared and none
+     * chosen — distinct from the step being skipped).
+     */
+    data class BlockersDeclared(
+        val blocks: List<BlockAssignment>,
+    ) : GameEvent
+
+    /**
+     * The attacking player chose the damage-assignment [order] of [attacker]'s blockers
+     * (CR 509.2). Additive, flagged (P3.1); emitted once per attacker blocked by two or more
+     * creatures, and [order] is a permutation of that attacker's blockers.
+     */
+    data class BlockerOrderChosen(
+        val attacker: ObjectId,
+        val order: List<ObjectId>,
     ) : GameEvent
 
     /** [player] lost the game (CR 104.3) for [reason]. */

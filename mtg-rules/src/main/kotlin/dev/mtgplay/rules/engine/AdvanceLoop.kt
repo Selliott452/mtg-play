@@ -88,17 +88,29 @@ internal fun startGame(config: MatchConfig): AdvanceResult {
     return beginTurn(state, startingPlayer, 1)
 }
 
-/** Begins [activePlayer]'s turn number [number] (CR 500.1) at the untap step. */
+/**
+ * Begins [activePlayer]'s turn number [number] (CR 500.1) at the untap step, first clearing the
+ * summoning sickness of [activePlayer]'s permanents (CR 302.6): a creature they have controlled
+ * continuously since the start of this, their most recent turn, can now attack and pay `{T}`
+ * costs. Controller is owner in P3.1 (until control-changing effects arrive). A creature that
+ * enters later this turn is minted summoning sick (the [GameObject] default) and is untouched
+ * here, so it stays sick.
+ */
 internal fun beginTurn(
     state: GameState,
     activePlayer: PlayerId,
     number: Int,
 ): AdvanceResult {
-    val begun =
-        state
-            .copy(turn = Turn(activePlayer, number, TurnPhase.BEGINNING, TurnStep.UNTAP))
-            .emit(GameEvent.TurnBegan(activePlayer, number))
-    return beginPosition(begun)
+    val awakened =
+        state.sharedZones.battlefield
+            .map { obj -> if (obj.owner == activePlayer && obj.summoningSick) obj.copy(summoningSick = false) else obj }
+            .toPersistentList()
+    val refreshed =
+        state.copy(
+            sharedZones = state.sharedZones.copy(battlefield = awakened),
+            turn = Turn(activePlayer, number, TurnPhase.BEGINNING, TurnStep.UNTAP),
+        )
+    return beginPosition(refreshed.emit(GameEvent.TurnBegan(activePlayer, number)))
 }
 
 /**
@@ -122,12 +134,17 @@ internal fun beginPosition(state: GameState): AdvanceResult {
         TurnStep.UPKEEP -> grantPriorityRound(current)
         // CR 504.1: the active player draws, then priority is granted (CR 504.2).
         TurnStep.DRAW -> grantPriorityRound(drawStepTurnBasedAction(current))
-        // Combat turn-based actions (declaring attackers/blockers, dealing damage) are Phase 3;
-        // in P1.2 the combat steps exist and pass through with normal priority windows.
+        // CR 507: the beginning-of-combat step has no turn-based action in the MVP scope.
         TurnStep.BEGINNING_OF_COMBAT -> grantPriorityRound(current)
-        TurnStep.DECLARE_ATTACKERS -> grantPriorityRound(current)
-        TurnStep.DECLARE_BLOCKERS -> grantPriorityRound(current)
-        TurnStep.COMBAT_DAMAGE -> grantPriorityRound(current)
+        // CR 508.1 / CR 509.1: declaring attackers and blockers are turn-based actions that need a
+        // decision, surfaced by resumeCombat before the step's priority round (which it grants
+        // once the combat sub-actions are complete).
+        TurnStep.DECLARE_ATTACKERS -> resumeCombat(current)
+        TurnStep.DECLARE_BLOCKERS -> resumeCombat(current)
+        // CR 510: combat damage is dealt (no decision), then priority; re-entered for the second
+        // step when first strike split it (CR 510.5). A creature-less game engages no combat, so
+        // combatDamageStep grants a bare priority window there — exactly as before P3.1.
+        TurnStep.COMBAT_DAMAGE -> combatDamageStep(current)
         TurnStep.END_OF_COMBAT -> grantPriorityRound(current)
         TurnStep.END -> grantPriorityRound(current)
         TurnStep.CLEANUP -> cleanupStep(current)
@@ -184,7 +201,10 @@ internal fun advancePastCurrentPosition(state: GameState): AdvanceResult {
     return if (next == null) {
         beginTurn(eased, eased.seatAfter(eased.turn.activePlayer), eased.turn.number + 1)
     } else {
-        beginPosition(eased.copy(turn = eased.turn.copy(phase = next.phase, step = next.step)))
+        // CR 511.3: as the combat phase ends, combat state is discarded; the Turn shape also
+        // requires it absent outside the combat phase.
+        val combat = if (next.phase == TurnPhase.COMBAT) eased.turn.combat else null
+        beginPosition(eased.copy(turn = eased.turn.copy(phase = next.phase, step = next.step, combat = combat)))
     }
 }
 

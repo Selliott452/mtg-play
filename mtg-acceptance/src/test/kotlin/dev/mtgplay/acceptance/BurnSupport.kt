@@ -54,6 +54,12 @@ internal val BURN_OPPONENT: Responder =
             is DecisionRequest.ChoosePaymentPlan -> Decision.SingleSelect(request.id, 0)
             is DecisionRequest.ChooseDiscards ->
                 Decision.MultiSelect(request.id, (0 until request.count).toList())
+            // The burn decks hold no creatures: attack and block with nothing (CR 508.1 / 509.1);
+            // a blocker-order request (CR 509.2) is therefore unreachable.
+            is DecisionRequest.DeclareAttackers -> Decision.MultiSelect(request.id, emptyList())
+            is DecisionRequest.DeclareBlockers -> Decision.MultiSelect(request.id, emptyList())
+            is DecisionRequest.OrderBlockers ->
+                error("the burn policy never blocks, but a blocker-order request surfaced: $request")
         }
     }
 
@@ -183,6 +189,12 @@ internal val GRIND_TO_BOLT_RANGE: Responder =
             is DecisionRequest.ChoosePaymentPlan -> Decision.SingleSelect(request.id, 0)
             is DecisionRequest.ChooseDiscards ->
                 Decision.MultiSelect(request.id, (0 until request.count).toList())
+            // The burn decks hold no creatures: attack and block with nothing (CR 508.1 / 509.1);
+            // a blocker-order request (CR 509.2) is therefore unreachable.
+            is DecisionRequest.DeclareAttackers -> Decision.MultiSelect(request.id, emptyList())
+            is DecisionRequest.DeclareBlockers -> Decision.MultiSelect(request.id, emptyList())
+            is DecisionRequest.OrderBlockers ->
+                error("the grind policy never blocks, but a blocker-order request surfaced: $request")
         }
     }
 

@@ -40,8 +40,15 @@ internal fun drawStepTurnBasedAction(state: GameState): GameState = drawCard(sta
  * The cleanup step's simultaneous turn-based actions after the discard (CR 514.2): remove all
  * marked damage and end "until end of turn" / "this turn" effects.
  *
- * A documented no-op hook in P1.2: damage does not exist until Phase 3 and until-end-of-turn
- * effects until Phase 4. As with [untapStepTurnBasedActions], the slot is real so later phases
- * fill it in place.
+ * P3.1 fills in the damage half: all damage marked on battlefield objects (CR 120.3d) wears off
+ * at once. "Until end of turn" / "this turn" effects arrive in Phase 4 and end here too. No event
+ * narrates the wear-off — like the untap step's status change it is silent bookkeeping, and the
+ * acceptance invariant checker confirms no marked damage survives a completed turn.
  */
-internal fun cleanupRemoveDamageAndEndEffects(state: GameState): GameState = state
+internal fun cleanupRemoveDamageAndEndEffects(state: GameState): GameState {
+    val cleared =
+        state.sharedZones.battlefield
+            .map { obj -> if (obj.damageMarked != 0) obj.copy(damageMarked = 0) else obj }
+            .toPersistentList()
+    return state.copy(sharedZones = state.sharedZones.copy(battlefield = cleared))
+}

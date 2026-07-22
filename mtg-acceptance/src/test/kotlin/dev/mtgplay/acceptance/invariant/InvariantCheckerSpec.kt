@@ -8,16 +8,25 @@ import dev.mtgplay.acceptance.twoPlayerState
 import dev.mtgplay.core.identity.CardRef
 import dev.mtgplay.core.identity.ObjectId
 import dev.mtgplay.core.mana.ManaType
+import dev.mtgplay.core.random.Rng
+import dev.mtgplay.core.state.AttackerAssignment
+import dev.mtgplay.core.state.BlockAssignment
+import dev.mtgplay.core.state.CombatState
 import dev.mtgplay.core.state.GameObject
+import dev.mtgplay.core.state.GameState
 import dev.mtgplay.core.state.PriorityStatus
+import dev.mtgplay.core.state.SharedZones
 import dev.mtgplay.core.state.Turn
 import dev.mtgplay.core.state.TurnPhase
+import dev.mtgplay.core.state.TurnStep
 import dev.mtgplay.core.zone.ZoneId
 import io.kotest.core.spec.style.StringSpec
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
 import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.persistentMapOf
+import kotlinx.collections.immutable.toPersistentList
 
 /**
  * The invariant checker suite: each invariant gets a handcrafted violating input that yields
@@ -261,4 +270,95 @@ class InvariantCheckerSpec :
             // A lone-state check (no baseline) also finds nothing, and skips only card conservation.
             InvariantChecker.check(state) shouldBe emptyList()
         }
+
+        // --- MARKED_DAMAGE_SCOPE -----------------------------------------------------------
+
+        "CR 120.3d: marked damage off the battlefield is exactly one MARKED_DAMAGE_SCOPE violation" {
+            val marked = GameObject(ObjectId(1), CardRef("Bear"), alice, damageMarked = 2)
+            val residences = listOf(ZoneResidence(ZoneId.Graveyard(alice), marked))
+            checkMarkedDamageScope(residences).map { it.invariant } shouldContainExactly
+                listOf(Invariant.MARKED_DAMAGE_SCOPE)
+        }
+
+        "marked damage on the battlefield is within scope and clean" {
+            val marked = GameObject(ObjectId(1), CardRef("Bear"), alice, damageMarked = 2)
+            checkMarkedDamageScope(listOf(ZoneResidence(ZoneId.Battlefield, marked))).shouldBeEmpty()
+        }
+
+        // --- COMBAT_REFERENCES_VALID -------------------------------------------------------
+
+        "CR 508.1: a combat attacker not on the battlefield is one COMBAT_REFERENCES_VALID violation" {
+            val state =
+                combatState(
+                    battlefield = emptyList(),
+                    combat = CombatState(attackers = persistentListOf(AttackerAssignment(ObjectId(99), bob))),
+                )
+            checkCombatReferences(state).map { it.invariant } shouldContainExactly
+                listOf(Invariant.COMBAT_REFERENCES_VALID)
+        }
+
+        "CR 509.1: a combat blocker not on the battlefield is one COMBAT_REFERENCES_VALID violation" {
+            // The block's attacker is a real, declared attacker, so CombatState construction accepts
+            // it; only the checker's battlefield cross-reference catches the phantom blocker.
+            val giant = GameObject(ObjectId(1), CardRef("Giant"), alice)
+            val state =
+                combatState(
+                    battlefield = listOf(giant),
+                    combat =
+                        CombatState(
+                            attackers = persistentListOf(AttackerAssignment(ObjectId(1), bob)),
+                            blocks = persistentListOf(BlockAssignment(ObjectId(99), ObjectId(1))),
+                        ),
+                )
+            checkCombatReferences(state).map { it.invariant } shouldContainExactly
+                listOf(Invariant.COMBAT_REFERENCES_VALID)
+        }
+
+        "a combat referencing only real battlefield creatures with a valid order is clean" {
+            val giant = GameObject(ObjectId(1), CardRef("Giant"), alice)
+            val bear = GameObject(ObjectId(2), CardRef("Bear"), bob)
+            val ogre = GameObject(ObjectId(3), CardRef("Ogre"), bob)
+            val state =
+                combatState(
+                    battlefield = listOf(giant, bear, ogre),
+                    combat =
+                        CombatState(
+                            attackers = persistentListOf(AttackerAssignment(ObjectId(1), bob)),
+                            blocks =
+                                persistentListOf(
+                                    BlockAssignment(ObjectId(2), ObjectId(1)),
+                                    BlockAssignment(ObjectId(3), ObjectId(1)),
+                                ),
+                            blockerOrder = persistentMapOf(ObjectId(1) to persistentListOf(ObjectId(2), ObjectId(3))),
+                        ),
+                )
+            checkCombatReferences(state).shouldBeEmpty()
+        }
+
+        "no combat in progress yields no COMBAT_REFERENCES_VALID violation" {
+            checkCombatReferences(combatState(battlefield = emptyList(), combat = null)).shouldBeEmpty()
+        }
     })
+
+// A handcrafted state at the declare-attackers step with the given battlefield and (optional)
+// combat, for the combat-reference checks. The combat may reference ids the battlefield lacks —
+// which is exactly what checkCombatReferences catches, and what construction cannot.
+private fun combatState(
+    battlefield: List<GameObject>,
+    combat: CombatState?,
+): GameState {
+    val nextId = (battlefield.maxOfOrNull { it.id.value }?.plus(1)) ?: 1L
+    return GameState(
+        players = persistentMapOf(alice to playerWithZones(), bob to playerWithZones()),
+        turn = Turn(alice, 3, TurnPhase.COMBAT, TurnStep.DECLARE_ATTACKERS, combat = combat),
+        sharedZones =
+            SharedZones(
+                battlefield = battlefield.toPersistentList(),
+                stack = persistentListOf(),
+                exile = persistentListOf(),
+            ),
+        nextObjectId = nextId,
+        rng = Rng(0),
+        events = persistentListOf(),
+    )
+}

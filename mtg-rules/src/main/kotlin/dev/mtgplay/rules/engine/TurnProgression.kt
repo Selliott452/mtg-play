@@ -44,13 +44,23 @@ internal fun positionAfter(turn: Turn): TurnPosition? {
     return CANONICAL_TURN_POSITIONS.getOrNull(candidate)
 }
 
-// CR 103.8a: in a two-player game, the player who plays first skips the draw step of their
-// first turn. Skipping a step means it does not occur at all — no turn-based action, no
-// priority, no StepBegan event (CR 500.10).
+// Whether [position] is skipped for [turn]. Skipping a step means it does not occur at all — no
+// turn-based action, no priority, no StepBegan event (CR 500.10).
+// - CR 103.8a: in a two-player game, the player who plays first skips the draw step of their
+//   first turn (turn 1 is always the starting player's).
+// - CR 508.8: if no creatures were declared as attackers, the declare-blockers and combat-damage
+//   steps are skipped. Combat is engaged (non-null) with an empty attacker list precisely in that
+//   case, so the check is on the just-declared combat carried by the turn.
 private fun isSkipped(
     position: TurnPosition,
     turn: Turn,
-): Boolean = position.step == TurnStep.DRAW && turn.number == 1
+): Boolean =
+    (position.step == TurnStep.DRAW && turn.number == 1) ||
+        (position.step in COMBAT_STEPS_SKIPPED_WITHOUT_ATTACKERS && turn.combat?.attackers?.isEmpty() == true)
+
+// CR 508.8: the two steps skipped when no attackers are declared.
+private val COMBAT_STEPS_SKIPPED_WITHOUT_ATTACKERS: Set<TurnStep> =
+    setOf(TurnStep.DECLARE_BLOCKERS, TurnStep.COMBAT_DAMAGE)
 
 /**
  * Whether [position] is the first position of its phase — the moment the phase itself begins,

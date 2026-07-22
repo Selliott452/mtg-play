@@ -12,11 +12,14 @@ import dev.mtgplay.rules.decision.PriorityOption
  */
 object Responders {
     /**
-     * Passes every priority window and, when forced to discard down to maximum hand size
-     * (CR 514.1), discards the lowest-indexed cards. The deterministic baseline policy for driving
-     * lands-only games to deck-out and for [ScriptedGame.passUntil]. It never chooses to cast, so
-     * the casting requests (CR 601.2) are unreachable for it — reaching one fails loudly instead
-     * of guessing.
+     * Passes every priority window; when forced to discard down to maximum hand size (CR 514.1),
+     * discards the lowest-indexed cards; and in combat declares **no** attackers and **no**
+     * blockers (a passive, do-nothing combat policy — the flagged combat behaviour of this
+     * driver). The deterministic baseline policy for driving lands-only games to deck-out and for
+     * [ScriptedGame.passUntil]. It never casts and never attacks or blocks, so the casting
+     * requests (CR 601.2) and the blocker-ordering request (CR 509.2, reachable only after a
+     * block is declared) are all unreachable for it — reaching one fails loudly instead of
+     * guessing.
      */
     val PASS_AND_DISCARD_LOWEST: Responder =
         Responder { request, _ ->
@@ -30,10 +33,15 @@ object Responders {
                 }
                 is DecisionRequest.ChooseDiscards ->
                     Decision.MultiSelect(request.id, (0 until request.count).toList())
+                // CR 508.1 / CR 509.1: the empty selection declares no attackers / no blockers.
+                is DecisionRequest.DeclareAttackers -> Decision.MultiSelect(request.id, emptyList())
+                is DecisionRequest.DeclareBlockers -> Decision.MultiSelect(request.id, emptyList())
                 is DecisionRequest.ChooseTargets ->
                     error("the pass-everything responder never casts, but a targets request surfaced: $request")
                 is DecisionRequest.ChoosePaymentPlan ->
                     error("the pass-everything responder never casts, but a payment request surfaced: $request")
+                is DecisionRequest.OrderBlockers ->
+                    error("the pass-everything responder never blocks, but a blocker-order request surfaced: $request")
             }
         }
 }

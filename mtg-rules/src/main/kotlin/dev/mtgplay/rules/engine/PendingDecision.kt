@@ -80,7 +80,10 @@ internal fun pendingCastRequest(
  * 1. a cast gathering decisions — [GameState.pendingCast] is open (CR 601.2); the caster also
  *    holds priority throughout the gathering, so this check must precede the window's;
  * 2. some player holds priority (a [DecisionRequest.ChooseAction] window, CR 117.1);
- * 3. the cleanup step's discard-to-hand-size is due — the active player's hand exceeds the
+ * 3. a combat turn-based-action decision is due — declaring attackers/blockers or ordering
+ *    blockers, all of which happen *before* the step grants priority (CR 508.1, CR 509.1–2), so
+ *    they are only pending when no player holds priority (checked via [pendingCombatDecision]);
+ * 4. the cleanup step's discard-to-hand-size is due — the active player's hand exceeds the
  *    maximum with no priority round open (CR 514.1).
  */
 internal fun pendingDecisionRequest(state: GameState): DecisionRequest? {
@@ -100,8 +103,7 @@ internal fun pendingDecisionRequest(state: GameState): DecisionRequest? {
             pendingCastRequest(state, cast)
         }
         holder != null -> chooseActionRequest(state, holder)
-        cleanupDiscardDue(state) -> cleanupDiscardRequest(state)
-        else -> null
+        else -> pendingCombatDecision(state) ?: if (cleanupDiscardDue(state)) cleanupDiscardRequest(state) else null
     }
 }
 
@@ -141,8 +143,64 @@ internal fun validateDecision(
                 "discard indices ${decision.indices} out of range for ${request.options.size} hand card(s)"
             }
         }
+        is DecisionRequest.DeclareAttackers -> {
+            // CR 508.1: any subset of the eligible attackers is a legal declaration (the empty
+            // subset included); the only cross-option rule is distinctness.
+            validateDistinctSubset(request, decision, request.options.size, "attacker")
+        }
+        is DecisionRequest.DeclareBlockers -> {
+            validateDistinctSubset(request, decision, request.options.size, "block")
+            // CR 509.1a: a creature blocks at most one attacker, so no blocker may appear twice
+            // across the chosen pairings.
+            val blockers = decision.asMultiSelect(request).indices.map { request.options[it].blocker }
+            require(blockers.distinct().size == blockers.size) {
+                "CR 509.1a: a creature blocks at most one attacker, but a blocker was chosen twice: $blockers"
+            }
+        }
+        is DecisionRequest.OrderBlockers -> {
+            require(decision is Decision.MultiSelect) {
+                "an OrderBlockers request requires a MultiSelect decision, got ${decision::class.simpleName}"
+            }
+            // CR 509.2: the order is a permutation of exactly this attacker's blockers.
+            require(decision.indices.size == request.options.size) {
+                "CR 509.2: the order must permute all ${request.options.size} blockers, got ${decision.indices.size}"
+            }
+            require(decision.indices.distinct().size == decision.indices.size) {
+                "CR 509.2: a blocker order has no repeats, got ${decision.indices}"
+            }
+            require(decision.indices.all { it in request.options.indices }) {
+                "CR 509.2: order indices ${decision.indices} out of range for ${request.options.size} blocker(s)"
+            }
+        }
     }
 }
+
+/**
+ * Validates a multi-select answer as a distinct, in-range subset of [optionCount] options — of
+ * any size, including empty (CR 508.1 / CR 509.1 both permit declaring nothing). [noun] names the
+ * option kind in the failure message.
+ */
+private fun validateDistinctSubset(
+    request: DecisionRequest,
+    decision: Decision,
+    optionCount: Int,
+    noun: String,
+) {
+    require(decision is Decision.MultiSelect) {
+        "a ${request::class.simpleName} request requires a MultiSelect decision, got ${decision::class.simpleName}"
+    }
+    require(decision.indices.distinct().size == decision.indices.size) {
+        "$noun indices must be distinct, got ${decision.indices}"
+    }
+    require(decision.indices.all { it in 0 until optionCount }) {
+        "$noun indices ${decision.indices} out of range for $optionCount option(s)"
+    }
+}
+
+// The decision as a MultiSelect; only called after validateDistinctSubset has proven the shape.
+private fun Decision.asMultiSelect(request: DecisionRequest): Decision.MultiSelect =
+    this as? Decision.MultiSelect
+        ?: error("unreachable: ${request::class.simpleName} decision shape was validated to MultiSelect")
 
 private fun validateSingleSelect(
     request: DecisionRequest,

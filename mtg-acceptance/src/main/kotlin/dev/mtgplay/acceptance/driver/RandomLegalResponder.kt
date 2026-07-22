@@ -1,5 +1,6 @@
 package dev.mtgplay.acceptance.driver
 
+import dev.mtgplay.core.identity.ObjectId
 import dev.mtgplay.core.random.Rng
 import dev.mtgplay.core.random.shuffled
 import dev.mtgplay.core.state.GameState
@@ -46,6 +47,26 @@ class RandomLegalResponder(
             // engine-enumerated legal targets and payment plans (ADR-005).
             is DecisionRequest.ChooseTargets -> randomSingleSelect(request.id, request.options.size)
             is DecisionRequest.ChoosePaymentPlan -> randomSingleSelect(request.id, request.options.size)
+            // CR 508.1: attack with a random subset of the eligible attackers (each independently
+            // in or out) — the empty subset is legal, so the responder may declare no attackers.
+            is DecisionRequest.DeclareAttackers -> {
+                val (indices, next) = randomSubsetAnySize(request.options.size, rng)
+                rng = next
+                Decision.MultiSelect(request.id, indices)
+            }
+            // CR 509.1: a random legal block assignment — each blocker blocks nothing or one of
+            // the attackers it may legally block (CR 509.1a: at most one attacker per blocker).
+            is DecisionRequest.DeclareBlockers -> {
+                val (indices, next) = randomBlockAssignment(request.options, rng)
+                rng = next
+                Decision.MultiSelect(request.id, indices)
+            }
+            // CR 509.2: a uniformly random permutation of the blockers, via the frozen shuffle.
+            is DecisionRequest.OrderBlockers -> {
+                val (order, next) = (0 until request.options.size).toList().toPersistentList().shuffled(rng)
+                rng = next
+                Decision.MultiSelect(request.id, order)
+            }
         }
 
     private fun randomSingleSelect(
@@ -65,5 +86,41 @@ class RandomLegalResponder(
         // A partial Fisher-Yates via the frozen shuffle: uniformly pick `count` distinct indices.
         val (shuffled, next) = (0 until size).toList().toPersistentList().shuffled(generator)
         return shuffled.take(count) to next
+    }
+
+    // A subset of [0, size) of any size — each index included on an independent fair coin flip.
+    private fun randomSubsetAnySize(
+        size: Int,
+        generator: Rng,
+    ): Pair<List<Int>, Rng> {
+        var current = generator
+        val chosen =
+            (0 until size).filter { _ ->
+                val (bit, next) = current.nextInt(2)
+                current = next
+                bit == 0
+            }
+        return chosen to current
+    }
+
+    // For each blocker (in option order), choose to block nothing or exactly one of the attackers
+    // it may block (CR 509.1a) — a uniformly random legal block assignment, as option indices.
+    private fun randomBlockAssignment(
+        options: List<DecisionRequest.DeclareBlockers.Option>,
+        generator: Rng,
+    ): Pair<List<Int>, Rng> {
+        val optionsByBlocker = LinkedHashMap<ObjectId, MutableList<Int>>()
+        options.forEachIndexed { index, option ->
+            optionsByBlocker.getOrPut(option.blocker) { mutableListOf() }.add(index)
+        }
+        var current = generator
+        val chosen = mutableListOf<Int>()
+        for (blockerOptions in optionsByBlocker.values) {
+            // choices are: block via one of blockerOptions, or (the extra slot) don't block.
+            val (pick, next) = current.nextInt(blockerOptions.size + 1)
+            current = next
+            if (pick < blockerOptions.size) chosen.add(blockerOptions[pick])
+        }
+        return chosen to current
     }
 }

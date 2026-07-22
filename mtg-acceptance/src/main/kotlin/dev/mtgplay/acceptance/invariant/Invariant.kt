@@ -70,4 +70,21 @@ enum class Invariant {
      * exception alongside it.
      */
     LAND_DROP_BOUND,
+
+    /**
+     * Marked damage (CR 120.3d) is a non-negative, battlefield-only quantity: every object's
+     * [dev.mtgplay.core.state.GameObject.damageMarked] is at least zero, and any object off the
+     * battlefield has none — an object reborn off the battlefield carries no marked damage
+     * (CR 400.7), and cleanup wears it off at turn's end (CR 514.2). Added in P3.1.
+     */
+    MARKED_DAMAGE_SCOPE,
+
+    /**
+     * The combat state (CR 506–511), when present, references only real battlefield creatures and
+     * is internally consistent beyond what construction can check: every attacker and blocker is a
+     * battlefield object, every block names a declared attacker, and every recorded
+     * damage-assignment order is a permutation of exactly its attacker's blockers (CR 509.2).
+     * Absent outside the combat phase. Added in P3.1.
+     */
+    COMBAT_REFERENCES_VALID,
 }

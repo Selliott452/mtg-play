@@ -75,6 +75,9 @@ private fun targetPlayerLosesLife(amount: Int): ResolutionEffect =
     ResolutionEffect { state, context ->
         when (val target = context.targets.single()) {
             is Target.Player -> loseLife(state, target.id, amount)
+            // These fixtures target players only (TargetSpec.AnyTarget enumerates players in the
+            // P2.x pool); a permanent target reaching here is an engine defect, not a silent case.
+            is Target.Permanent -> error("fixture $target unexpectedly targeted a permanent")
         }
     }
 

@@ -126,4 +126,112 @@ sealed interface DecisionRequest {
             }
         }
     }
+
+    /**
+     * The declare-attackers turn-based action (CR 508.1): the active [seat] declares which of
+     * its eligible creatures attack, choosing a subset of [options] by index (a
+     * [Decision.MultiSelect]). Additive, flagged (P3.1).
+     *
+     * The empty selection is legal — the active player may attack with nothing (CR 508.8 then
+     * skips the declare-blockers and combat-damage steps) — so [options] itself may be empty and,
+     * unlike the casting requests, a surfaced request need not offer anything. Every option is an
+     * independently legal attacker (untapped, not summoning sick, CR 508.1a), so any subset is a
+     * legal declaration; the only cross-option rule is that indices are distinct.
+     *
+     * @property options one entry per eligible attacker, in battlefield order; indices stable
+     *   within this request (ADR-005).
+     */
+    data class DeclareAttackers(
+        override val id: DecisionRequestId,
+        val options: List<Option>,
+    ) : DecisionRequest {
+        /**
+         * One creature that may be declared as an attacker.
+         *
+         * @property attacker the eligible battlefield creature (CR 508.1a).
+         * @property card its printed identity, for display.
+         * @property defendingPlayer the player it would attack (CR 508.1) — the sole opponent in
+         *   a two-player game.
+         */
+        data class Option(
+            val attacker: ObjectId,
+            val card: CardRef,
+            val defendingPlayer: PlayerId,
+        )
+    }
+
+    /**
+     * The declare-blockers turn-based action (CR 509.1): the defending [seat] declares which of
+     * its creatures block which attackers, choosing a subset of the legal (blocker, attacker)
+     * pairings [options] by index (a [Decision.MultiSelect]). Additive, flagged (P3.1).
+     *
+     * The empty selection is legal (block nothing), so [options] may be empty. Every option is an
+     * independently legal block (an untapped defending creature, and — CR 509.1b — a flyer only
+     * where the attacker's evasion permits); the cross-option rule the engine enforces is that no
+     * blocker is chosen twice (CR 509.1a — a creature blocks at most one attacker in the MVP
+     * pool).
+     *
+     * @property options one entry per legal (blocker, attacker) pairing, in a deterministic order
+     *   (blocker battlefield order, then attacker declaration order); indices stable within this
+     *   request (ADR-005).
+     */
+    data class DeclareBlockers(
+        override val id: DecisionRequestId,
+        val options: List<Option>,
+    ) : DecisionRequest {
+        /**
+         * One legal block: [blocker] blocking [attacker].
+         *
+         * @property blocker the defending creature that would block (CR 509.1a).
+         * @property blockerCard the blocker's printed identity, for display.
+         * @property attacker the declared attacker it would block.
+         * @property attackerCard the attacker's printed identity, for display.
+         */
+        data class Option(
+            val blocker: ObjectId,
+            val blockerCard: CardRef,
+            val attacker: ObjectId,
+            val attackerCard: CardRef,
+        )
+    }
+
+    /**
+     * The damage-assignment-order choice for one multi-blocked attacker (CR 509.2): the
+     * attacking [seat] orders [attacker]'s blockers, answering with a [Decision.MultiSelect]
+     * whose indices are a **permutation** of all of [options] — the order damage will be
+     * assigned in (CR 510.1c). Additive, flagged (P3.1).
+     *
+     * Surfaced only for an attacker blocked by two or more creatures (CR 509.2); a single block
+     * needs no order. One request per such attacker, in attacker-declaration order.
+     *
+     * @property attacker the multi-blocked attacker whose blockers are being ordered.
+     * @property options that attacker's blockers, in a deterministic order; the answer permutes
+     *   them. Always two or more.
+     */
+    data class OrderBlockers(
+        override val id: DecisionRequestId,
+        val attacker: ObjectId,
+        val options: List<Option>,
+    ) : DecisionRequest {
+        init {
+            require(options.size >= MINIMUM_ORDERED_BLOCKERS) {
+                "CR 509.2: only an attacker blocked by two or more creatures is ordered, got ${options.size}"
+            }
+        }
+
+        /**
+         * One blocker of the attacker being ordered.
+         *
+         * @property blocker the blocking creature.
+         * @property card its printed identity, for display.
+         */
+        data class Option(
+            val blocker: ObjectId,
+            val card: CardRef,
+        )
+
+        private companion object {
+            const val MINIMUM_ORDERED_BLOCKERS: Int = 2
+        }
+    }
 }

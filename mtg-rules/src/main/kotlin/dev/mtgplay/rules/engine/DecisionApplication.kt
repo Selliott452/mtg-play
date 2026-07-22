@@ -26,6 +26,9 @@ internal fun applyDecision(
         is DecisionRequest.ChooseDiscards -> applyChosenDiscards(answered, request, decision)
         is DecisionRequest.ChooseTargets -> applyChosenTargets(answered, request, decision)
         is DecisionRequest.ChoosePaymentPlan -> applyChosenPaymentPlan(answered, request, decision)
+        is DecisionRequest.DeclareAttackers -> applyDeclareAttackers(answered, request, decision)
+        is DecisionRequest.DeclareBlockers -> applyDeclareBlockers(answered, request, decision)
+        is DecisionRequest.OrderBlockers -> applyOrderBlockers(answered, request, decision)
     }
 }
 

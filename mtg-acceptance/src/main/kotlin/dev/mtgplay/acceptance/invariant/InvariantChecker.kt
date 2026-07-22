@@ -56,6 +56,8 @@ object InvariantChecker {
             addAll(checkManaPoolEmptiness(state))
             addAll(checkTapStatusScope(residences))
             addAll(checkLandDropBound(state))
+            addAll(checkMarkedDamageScope(residences))
+            addAll(checkCombatReferences(state))
             if (expectedCards != null) addAll(checkCardConservation(state, expectedCards))
         }
     }
@@ -220,3 +222,89 @@ private fun decisionCountsOf(state: GameState): List<SeatDecisionCount> =
     state.players.entries
         .sortedBy { it.key.seat }
         .map { (seat, player) -> SeatDecisionCount(seat.seat, player.decisionsAnswered) }
+
+/**
+ * [Invariant.MARKED_DAMAGE_SCOPE]: marked damage is non-negative everywhere and zero off the
+ * battlefield (CR 120.3d). Operates on the residence list so corrupt placements are directly
+ * testable. The non-negativity re-derives a core construction guarantee, per the checker's
+ * phase-spanning charter. Top-level (like [decisionCountsOf]) so the checker object stays small.
+ */
+internal fun checkMarkedDamageScope(residences: List<ZoneResidence>): List<Violation> =
+    buildList {
+        residences
+            .filter { it.obj.damageMarked < 0 }
+            .forEach {
+                add(
+                    Violation(
+                        Invariant.MARKED_DAMAGE_SCOPE,
+                        "CR 120.3: object ${it.obj.id.value} has negative marked damage ${it.obj.damageMarked}",
+                    ),
+                )
+            }
+        residences
+            .filter { it.zone != ZoneId.Battlefield && it.obj.damageMarked != 0 }
+            .forEach {
+                add(
+                    Violation(
+                        Invariant.MARKED_DAMAGE_SCOPE,
+                        "CR 120.3d: object ${it.obj.id.value} has ${it.obj.damageMarked} marked damage in " +
+                            "${it.zone}, but marked damage is a battlefield-only status",
+                    ),
+                )
+            }
+    }
+
+/**
+ * [Invariant.COMBAT_REFERENCES_VALID]: the combat state, if present, references only battlefield
+ * objects and its blocker orders are permutations of the corresponding blocks (CR 508–509). A
+ * no-op when no combat is in progress. Top-level so the checker object stays small.
+ */
+internal fun checkCombatReferences(state: GameState): List<Violation> {
+    val combat = state.turn.combat ?: return emptyList()
+    val battlefieldIds =
+        state.sharedZones.battlefield
+            .map { it.id }
+            .toSet()
+    val declaredAttackers = combat.attackers.map { it.attacker }.toSet()
+    return buildList {
+        combat.attackers
+            .map { it.attacker }
+            .filter { it !in battlefieldIds }
+            .forEach {
+                add(Violation(Invariant.COMBAT_REFERENCES_VALID, "CR 508.1: attacker $it is not on the battlefield"))
+            }
+        combat.blocks.orEmpty().forEach { block ->
+            if (block.blocker !in battlefieldIds) {
+                add(
+                    Violation(
+                        Invariant.COMBAT_REFERENCES_VALID,
+                        "CR 509.1: blocker ${block.blocker} is not on the battlefield",
+                    ),
+                )
+            }
+            if (block.attacker !in declaredAttackers) {
+                add(
+                    Violation(
+                        Invariant.COMBAT_REFERENCES_VALID,
+                        "CR 509.1: block by ${block.blocker} names undeclared attacker ${block.attacker}",
+                    ),
+                )
+            }
+        }
+        combat.blockerOrder.forEach { (attacker, order) ->
+            val actual =
+                combat.blocks
+                    .orEmpty()
+                    .filter { it.attacker == attacker }
+                    .map { it.blocker }
+            if (order.size != actual.size || order.toSet() != actual.toSet()) {
+                add(
+                    Violation(
+                        Invariant.COMBAT_REFERENCES_VALID,
+                        "CR 509.2: $attacker's order $order is not a permutation of its blockers $actual",
+                    ),
+                )
+            }
+        }
+    }
+}

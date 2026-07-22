@@ -19,6 +19,11 @@ import dev.mtgplay.core.identity.PlayerId
  *   play a land at all (CR 305.1), so one per-turn counter suffices and resets itself when the
  *   next turn's [Turn] is constructed. An `Int`, not a flag, so effects granting additional
  *   land plays (outside the MVP pool) extend the *limit*, not this shape.
+ * @property combat the combat progress of the current combat phase (CR 506–511), or `null`
+ *   outside it (additive, flagged core, P3.1). Carried on the turn — like [landsPlayedThisTurn],
+ *   combat is a per-turn phenomenon that resets itself when the next turn's [Turn] is
+ *   constructed; see [CombatState]. Present only during the combat phase (CR 506.1), and only
+ *   once the declare-attackers turn-based action has engaged combat (CR 508.1).
  */
 data class Turn(
     val activePlayer: PlayerId,
@@ -26,11 +31,15 @@ data class Turn(
     val phase: TurnPhase,
     val step: TurnStep?,
     val landsPlayedThisTurn: Int = 0,
+    val combat: CombatState? = null,
 ) {
     init {
         require(number >= 1) { "turn numbers start at 1, was $number" }
         require(landsPlayedThisTurn >= 0) {
             "CR 305.2: lands played this turn must be non-negative, was $landsPlayedThisTurn"
+        }
+        require(combat == null || phase == TurnPhase.COMBAT) {
+            "CR 506.1: combat state exists only during the combat phase, not $phase"
         }
         val current = step
         if (phase.hasSteps) {

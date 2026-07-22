@@ -5,6 +5,7 @@ import dev.mtgplay.core.state.GameState
 import dev.mtgplay.core.state.Target
 import dev.mtgplay.rules.engine.changeLife
 import dev.mtgplay.rules.engine.emit
+import dev.mtgplay.rules.engine.markDamage
 
 /**
  * Effect primitive: a source deals [amount] damage to [recipient] (CR 120) — the published
@@ -18,9 +19,13 @@ import dev.mtgplay.rules.engine.emit
  * the state returns unchanged, with no event.
  *
  * The recipient is the [Target] sum shape because damage recipients and targetable things
- * coincide in this engine's scope: a player now, battlefield objects from Phase 3 — which adds
- * an object member to [Target] and thereby breaks this function's exhaustive `when` loudly,
- * forcing the marked-damage rules (CR 120.3d) to be implemented rather than approximated.
+ * coincide in this engine's scope. A [Target.Player] loses life as the damage's result
+ * (CR 120.3a). A [Target.Permanent] (P3.1) instead has the damage *marked* on it (CR 120.3d):
+ * [GameEvent.DamageDealt] is emitted, but no [GameEvent.LifeChanged] follows — a permanent has no
+ * life total — and the mark stays until cleanup (CR 514.2) or a lethal-damage state-based action
+ * (CR 704.5g, P3.2) acts on it. This is combat damage's recipient path (CR 510.2) as well as any
+ * future permanent-damaging spell's; combat damage does not target (CR 509.1), but recipient and
+ * target coincide here, so both reuse [Target.Permanent].
  *
  * Life may legally drop to 0 or below; the CR 704.5a state-based action ends the game at the
  * next check (CR 704.3) — an effect never ends the game itself.
@@ -38,6 +43,12 @@ fun dealDamage(
                 state.emit(GameEvent.DamageDealt(recipient, amount)),
                 recipient.id,
                 -amount,
+            )
+        is Target.Permanent ->
+            markDamage(
+                state.emit(GameEvent.DamageDealt(recipient, amount)),
+                recipient.id,
+                amount,
             )
     }
 }

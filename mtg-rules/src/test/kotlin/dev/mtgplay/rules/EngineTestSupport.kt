@@ -58,10 +58,15 @@ internal fun respondTo(request: DecisionRequest): Decision =
             Decision.SingleSelect(request.id, passIndex)
         }
         is DecisionRequest.ChooseDiscards -> Decision.MultiSelect(request.id, (0 until request.count).toList())
+        // CR 508.1 / CR 509.1: this policy attacks and blocks with nothing.
+        is DecisionRequest.DeclareAttackers -> Decision.MultiSelect(request.id, emptyList())
+        is DecisionRequest.DeclareBlockers -> Decision.MultiSelect(request.id, emptyList())
         is DecisionRequest.ChooseTargets ->
             error("the pass-everything responder never casts, but a targets request surfaced: $request")
         is DecisionRequest.ChoosePaymentPlan ->
             error("the pass-everything responder never casts, but a payment request surfaced: $request")
+        is DecisionRequest.OrderBlockers ->
+            error("the pass-everything responder never blocks, but a blocker-order request surfaced: $request")
     }
 
 /** One engine suspension observed while driving a game: the paused state and its request. */

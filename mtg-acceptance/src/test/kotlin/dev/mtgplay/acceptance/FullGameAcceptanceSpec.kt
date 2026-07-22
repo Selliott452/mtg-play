@@ -71,6 +71,8 @@ class FullGameAcceptanceSpec :
                     TurnPhase.POSTCOMBAT_MAIN,
                     TurnPhase.ENDING,
                 )
+            // A creature-less board never engages combat (P3.1), so every combat step still runs
+            // as a bare priority window and CR 508.8 does not apply — the P1.2 structure is intact.
             turnThree.filterIsInstance<GameEvent.StepBegan>().map { it.step } shouldContainInOrder
                 listOf(
                     TurnStep.UNTAP,

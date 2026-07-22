@@ -71,9 +71,13 @@ internal fun endOfPriorityRound(state: GameState): AdvanceResult {
     if (state.sharedZones.stack.isNotEmpty()) {
         return resolveTopOfStack(state)
     }
-    return if (state.turn.step == TurnStep.CLEANUP) {
-        beginPosition(emptyManaPoolsAtPositionEnd(state))
-    } else {
-        advancePastCurrentPosition(state)
+    return when {
+        state.turn.step == TurnStep.CLEANUP -> beginPosition(emptyManaPoolsAtPositionEnd(state))
+        // CR 510.5: after the first-strike combat-damage step, the phase gets a second
+        // combat-damage step instead of proceeding — re-enter the same position (the current
+        // step still ends, so mana pools empty, CR 500.4).
+        state.turn.step == TurnStep.COMBAT_DAMAGE && needsSecondCombatDamageStep(state) ->
+            beginPosition(emptyManaPoolsAtPositionEnd(state))
+        else -> advancePastCurrentPosition(state)
     }
 }

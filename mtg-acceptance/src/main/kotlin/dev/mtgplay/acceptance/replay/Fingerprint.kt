@@ -1,9 +1,11 @@
 package dev.mtgplay.acceptance.replay
 
 import dev.mtgplay.acceptance.invariant.ZoneResidence
+import dev.mtgplay.core.state.CombatState
 import dev.mtgplay.core.state.GameState
 import dev.mtgplay.core.state.StackEntry
 import dev.mtgplay.core.state.Target
+import dev.mtgplay.core.zone.ZoneId
 import java.security.MessageDigest
 
 /**
@@ -11,10 +13,11 @@ import java.security.MessageDigest
  *
  * Two states with equal fingerprints are equal in everything the rules care about; this is the
  * "final state hash" a replay asserts against (PLAN.md §2.2). The digest covers zones (each
- * object's id, printed card, and tapped status, in zone order), the stack entries' cast records
- * (controller and targets, CR 601.2), life totals, mana pools, priority standing, the
- * empty-draw flag, answered-decision counts, any cast gathering decisions, the turn position
- * and its land-drop count (CR 305.2), the object-id counter, and the PRNG state.
+ * object's id, printed card, tapped status, and — on the battlefield — marked damage and
+ * summoning sickness, in zone order), the stack entries' cast records (controller and targets,
+ * CR 601.2), life totals, mana pools, priority standing, the empty-draw flag, answered-decision
+ * counts, any cast gathering decisions, the turn position and its land-drop count (CR 305.2), the
+ * combat state (CR 506–511) when in combat, the object-id counter, and the PRNG state.
  *
  * The [event log][GameState.events] is deliberately excluded: events are derived observability
  * (ADR-006), so they are fingerprinted separately and compared on their own, keeping "the game
@@ -55,6 +58,8 @@ internal fun canonicalDescriptor(state: GameState): String =
         append('/').append(turn.step?.name ?: "-")
         // CR 305.2: the land-drop count is rules-relevant — it gates the play-land action.
         append("|landsPlayed=").append(turn.landsPlayedThisTurn)
+        // CR 506–511: combat progress is rules-relevant while in the combat phase; absent otherwise.
+        append("|combat=").append(turn.combat?.let(::renderCombat) ?: "-")
         append("|nextObjectId=").append(state.nextObjectId)
         append("|rng=").append(state.rng.state)
         val cast = state.pendingCast
@@ -81,6 +86,12 @@ internal fun canonicalDescriptor(state: GameState): String =
             append('=').append(residence.obj.id.value)
             append(':').append(residence.obj.card.name)
             if (residence.obj.tapped) append(":tapped")
+            // Marked damage (CR 120.3d) and summoning sickness (CR 302.6) are rules-relevant only
+            // on the battlefield; off it they are meaningless bookkeeping and left out.
+            if (residence.zone == ZoneId.Battlefield) {
+                if (residence.obj.damageMarked != 0) append(":dmg=").append(residence.obj.damageMarked)
+                if (residence.obj.summoningSick) append(":sick")
+            }
         }
         // The stack entries' cast records (CR 601.2): the entries' card objects are already
         // covered by the residences above; the controller and targets are covered here.
@@ -98,4 +109,23 @@ internal fun canonicalDescriptor(state: GameState): String =
 private fun renderTarget(target: Target): String =
     when (target) {
         is Target.Player -> "player${target.id.seat}"
+        is Target.Permanent -> "permanent${target.id.value}"
+    }
+
+// A canonical descriptor of the in-progress combat (CR 506–511): attackers (id>defender), blocks
+// (blocker>attacker), the per-attacker damage-assignment orders, and the two damage-step flags.
+private fun renderCombat(combat: CombatState): String =
+    buildString {
+        append("atk[")
+        append(combat.attackers.joinToString(",") { "${it.attacker.value}>${it.defendingPlayer.seat}" })
+        append("]blk[")
+        append(combat.blocks?.joinToString(",") { "${it.blocker.value}>${it.attacker.value}" } ?: "-")
+        append("]ord[")
+        append(
+            combat.blockerOrder.entries.joinToString(";") { (attacker, order) ->
+                "${attacker.value}:${order.joinToString(">") { it.value.toString() }}"
+            },
+        )
+        append("]fs=").append(combat.firstStrikeDamageDealt)
+        append(",rd=").append(combat.regularDamageDealt)
     }
