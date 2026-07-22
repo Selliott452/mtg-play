@@ -10,6 +10,9 @@ import dev.mtgplay.acceptance.playerWithZones
 import dev.mtgplay.acceptance.twoPlayerState
 import dev.mtgplay.core.event.GameEvent
 import dev.mtgplay.core.identity.CardRef
+import dev.mtgplay.core.identity.ObjectId
+import dev.mtgplay.core.state.GameObject
+import dev.mtgplay.core.state.SharedZones
 import dev.mtgplay.core.state.Turn
 import dev.mtgplay.core.state.TurnPhase
 import dev.mtgplay.rules.MatchConfig
@@ -89,5 +92,27 @@ class ReplaySpec :
             val hurt =
                 twoPlayerState(turn, playerWithZones(life = 19, library = library), opponent, nextObjectId = 100)
             fingerprint(hurt) shouldNotBe fingerprint(healthy)
+        }
+
+        "the fingerprint digests the attachment cause: states differing only in attachedTo differ (P4.1)" {
+            val turn = Turn(alice, 2, TurnPhase.PRECOMBAT_MAIN, null)
+            val base = twoPlayerState(turn, playerWithZones(), playerWithZones(), nextObjectId = 100)
+
+            fun withAttachment(attachedTo: ObjectId?) =
+                base.copy(
+                    sharedZones =
+                        SharedZones(
+                            battlefield =
+                                persistentListOf(
+                                    GameObject(ObjectId(0), CardRef("Grizzly Bears"), alice),
+                                    GameObject(ObjectId(1), CardRef("Rancor"), alice, attachedTo = attachedTo),
+                                ),
+                            stack = persistentListOf(),
+                            exile = persistentListOf(),
+                        ),
+                )
+            // The attachment cause is in the digest, so the same board with a different attachment
+            // fingerprints apart — how continuous-effect differences are told apart (§5).
+            fingerprint(withAttachment(ObjectId(0))) shouldNotBe fingerprint(withAttachment(null))
         }
     })

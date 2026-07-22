@@ -53,7 +53,7 @@ internal fun pendingCastRequest(
             id = id,
             cardObjectId = cast.cardObjectId,
             card = card.card,
-            options = legalTargets(state, definition.targetSpec),
+            options = legalTargets(state, definition.targetSpec, cast.caster),
         )
     } else {
         val cost =

@@ -96,9 +96,21 @@ enum class Invariant {
      * paused (decision-point or final) state — a lingering doomed creature means the death
      * state-based action failed to fire. Added in P3.2.
      *
-     * The check reads *printed* toughness, which equals in-game toughness in the P3.2 pool (no P/T
-     * modification exists until the layer system); when Phase 4 lands, it routes to the layered
-     * value alongside the combat rules, without reshaping this invariant.
+     * The check reads the **layered** toughness (CR 613 sublayer 7c) from P4.1 on — the same
+     * in-game value combat and the death SBA read — so an Aura-buffed creature is measured
+     * correctly; without a P/T modification it equals printed toughness.
      */
     CREATURE_LETHALITY_RESOLVED,
+
+    /**
+     * An Aura's attachment ([dev.mtgplay.core.state.GameObject.attachedTo]) is well-formed at every
+     * observed pause (CR 303.4, CR 704.5m). Added in P4.1. Three properties: attachment is a
+     * battlefield-only status (null off the battlefield, CR 400.7); a battlefield attachment names a
+     * current battlefield object; and only an Aura carries one. Because the checker sees only paused
+     * states — where state-based actions have run to quiescence (CR 704.3) — it tolerates no
+     * dangling attachment: a stale reference means the CR 704.5m fall-off failed to fire. The
+     * transient mid-transition dangle (between an enchanted creature's death and the next SBA check)
+     * is never observed.
+     */
+    ATTACHMENT_INTEGRITY,
 }

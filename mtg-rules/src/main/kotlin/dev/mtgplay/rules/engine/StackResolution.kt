@@ -8,6 +8,7 @@ import dev.mtgplay.core.identity.ObjectId
 import dev.mtgplay.core.state.GameObject
 import dev.mtgplay.core.state.GameState
 import dev.mtgplay.core.state.StackEntry
+import dev.mtgplay.core.state.Target
 import dev.mtgplay.rules.AdvanceResult
 
 /**
@@ -46,7 +47,7 @@ private fun resolveSpell(
     entry: StackEntry.Spell,
 ): AdvanceResult {
     val spec = entry.definition.targetSpec
-    val fizzles = spec != TargetSpec.None && entry.targets.none { isTargetLegal(state, spec, it) }
+    val fizzles = spec != TargetSpec.None && entry.targets.none { isTargetLegal(state, spec, it, entry.controller) }
     if (fizzles) {
         // CR 608.2b: a spell that does not resolve is put into its owner's graveyard and never
         // enters the battlefield, whatever its card type would have become.
@@ -57,11 +58,17 @@ private fun resolveSpell(
     }
     return if (isPermanentSpell(entry)) {
         val (entered, battlefieldId) = putResolvedSpellOntoBattlefield(state, entry)
-        grantPriorityRound(
-            entered.emit(
-                GameEvent.PermanentEntered(entry.controller, entry.obj.id, entry.obj.card, battlefieldId),
-            ),
-        )
+        val announced =
+            entered.emit(GameEvent.PermanentEntered(entry.controller, entry.obj.id, entry.obj.card, battlefieldId))
+        // CR 303.4f: an Aura enters attached; announce the attachment after it has entered.
+        val attachedTo = entered.battlefieldObject(battlefieldId).attachedTo
+        val withAura =
+            if (attachedTo == null) {
+                announced
+            } else {
+                announced.emit(GameEvent.AuraAttached(battlefieldId, attachedTo, entry.obj.card))
+            }
+        grantPriorityRound(withAura)
     } else {
         val resolved =
             entry.definition.resolution.resolve(state, ResolutionContext(entry.controller, entry.targets))
@@ -89,10 +96,11 @@ private fun isPermanentSpell(entry: StackEntry.Spell): Boolean {
 /**
  * The CR 608.3 move for a permanent spell: the resolving spell leaves the stack and enters the
  * battlefield under its controller's control as a **new** object (CR 400.7) — summoning sick
- * (CR 302.6), untapped, and with no marked damage (the [GameObject] defaults). Controller is owner
- * in P3.2 (control-changing effects are Phase 4). The vanilla-and-keyword-only creatures of the
- * pool have no enters-the-battlefield effect (Phase 5), so entering the battlefield is the whole
- * of resolution here.
+ * (CR 302.6), untapped, and with no marked damage (the [GameObject] defaults). An Aura enters
+ * **attached** to the object it targeted while on the stack (CR 303.4f, CR 601.2c); every other
+ * permanent spell attaches to nothing. Controller is owner in the MVP pool (control-changing effects
+ * are Phase 4). The vanilla-and-keyword-only creatures and the Auras of the pool have no
+ * enters-the-battlefield effect (Phase 5), so entering the battlefield is the whole of resolution.
  */
 private fun putResolvedSpellOntoBattlefield(
     state: GameState,
@@ -101,13 +109,28 @@ private fun putResolvedSpellOntoBattlefield(
     val stack = state.sharedZones.stack
     check(stack.lastOrNull() == entry) { "CR 608.1: only the topmost stack object may resolve" }
     val (id, allocated) = state.allocateObjectId()
-    val permanent = GameObject(id = id, card = entry.obj.card, owner = entry.obj.owner)
+    val permanent =
+        GameObject(id = id, card = entry.obj.card, owner = entry.obj.owner, attachedTo = auraAttachmentTargetOf(entry))
     val moved =
         allocated
             .updateStack { it.removingAt(it.lastIndex) }
             .updateBattlefield { it.adding(permanent) }
     return moved to id
 }
+
+/**
+ * The object an Aura enters attached to (CR 303.4f): the permanent it targeted while on the stack
+ * (CR 601.2c). A permanent spell that is not an Aura (no [TargetSpec.Enchantable]) attaches to
+ * nothing. Fails loudly if an Aura's settled target is not a permanent — the CR 608.2b re-check has
+ * already run, so reaching here with a gone/wrong target is an engine defect (ADR-005).
+ */
+private fun auraAttachmentTargetOf(entry: StackEntry.Spell): ObjectId? =
+    when (entry.definition.targetSpec) {
+        TargetSpec.None, TargetSpec.AnyTarget -> null
+        is TargetSpec.Enchantable ->
+            (entry.targets.singleOrNull() as? Target.Permanent)?.id
+                ?: error("CR 303.4f: an Aura must enter attached to its permanent target, got ${entry.targets}")
+    }
 
 /**
  * The CR 608.2m move for an instant or sorcery: the resolved (or fizzled) spell's card leaves

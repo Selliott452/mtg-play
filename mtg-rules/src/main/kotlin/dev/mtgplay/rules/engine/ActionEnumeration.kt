@@ -76,7 +76,7 @@ private fun castIsLegal(
     definition: SpellDefinition,
 ): Boolean =
     timingPermitsCast(state, seat, definition.timing) &&
-        targetsAvailable(state, definition.targetSpec) &&
+        targetsAvailable(state, definition.targetSpec, seat) &&
         enumeratePaymentPlans(state, seat, castableCost(definition)).isNotEmpty()
 
 /** The cost enumeration prices (CR 601.2f); loud on a castable definition with no mana cost. */
@@ -106,15 +106,17 @@ internal fun timingPermitsCast(
     }
 
 /**
- * Whether every target [spec] requires has at least one legal choice (CR 601.2c): a spell that
- * cannot be fully targeted cannot legally be cast, so it is excluded from enumeration
- * (ADR-005) rather than allowed to dead-end mid-pipeline.
+ * Whether every target [spec] requires has at least one legal choice for caster [seat] (CR 601.2c):
+ * a spell that cannot be fully targeted cannot legally be cast, so it is excluded from enumeration
+ * (ADR-005) rather than allowed to dead-end mid-pipeline. An Aura whose enchant restriction matches
+ * no battlefield object (CR 303.4a) is likewise uncastable.
  */
 internal fun targetsAvailable(
     state: GameState,
     spec: TargetSpec,
+    seat: PlayerId,
 ): Boolean =
     when (spec) {
         TargetSpec.None -> true
-        TargetSpec.AnyTarget -> legalTargets(state, spec).isNotEmpty()
+        TargetSpec.AnyTarget, is TargetSpec.Enchantable -> legalTargets(state, spec, seat).isNotEmpty()
     }

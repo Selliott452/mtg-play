@@ -1,9 +1,11 @@
 package dev.mtgplay.rules.engine
 
+import dev.mtgplay.core.definition.EnchantRestriction
 import dev.mtgplay.core.event.GameEvent
 import dev.mtgplay.core.event.LossReason
 import dev.mtgplay.core.identity.ObjectId
 import dev.mtgplay.core.identity.PlayerId
+import dev.mtgplay.core.state.GameObject
 import dev.mtgplay.core.state.GameState
 import dev.mtgplay.rules.MatchResult
 
@@ -11,8 +13,9 @@ import dev.mtgplay.rules.MatchResult
  * One applicable state-based action (CR 704.5): something the game itself does the moment its
  * condition holds, checked whenever a player would receive priority (CR 704.3).
  *
- * Sealed so the performer handles every kind exhaustively; Phase 3+ adds members (aura legality
- * 704.5m/n, …) next to the checks that detect them, without reshaping the check-and-repeat loop.
+ * Sealed so the performer handles every kind exhaustively; later phases add members next to the
+ * checks that detect them, without reshaping the check-and-repeat loop. CR 704.5n (the Equipment
+ * unattach analogue) has no member in the pool — the MVP has no Equipment.
  */
 internal sealed interface StateBasedAction {
     /**
@@ -33,12 +36,23 @@ internal sealed interface StateBasedAction {
         val objectId: ObjectId,
         val cause: CreatureDeathCause,
     ) : StateBasedAction
+
+    /**
+     * The Aura [objectId] is put into its owner's graveyard because it is attached to an illegal
+     * object or to nothing (CR 704.5m). Added in P4.1. It composes with the fresh-id rebirth rule:
+     * when an enchanted creature dies it is reborn in the graveyard with a new id (CR 400.7), the
+     * Aura's [dev.mtgplay.core.state.GameObject.attachedTo] then names no battlefield object, and
+     * this fires on the following check.
+     */
+    data class AuraFallsOff(
+        val objectId: ObjectId,
+    ) : StateBasedAction
 }
 
 /**
  * All state-based actions applicable to [state] right now (CR 704.5), in deterministic order:
- * player losses first, in seat order, then creature deaths in battlefield order. Later phases
- * append checks here.
+ * player losses first, in seat order, then creature deaths in battlefield order, then Aura
+ * fall-offs in battlefield order. Later phases append checks here.
  */
 internal fun applicableStateBasedActions(state: GameState): List<StateBasedAction> =
     buildList {
@@ -67,7 +81,31 @@ internal fun applicableStateBasedActions(state: GameState): List<StateBasedActio
                     add(StateBasedAction.CreatureDies(obj.id, CreatureDeathCause.LETHAL_DAMAGE))
             }
         }
+        for (obj in state.sharedZones.battlefield) {
+            val restriction = enchantRestrictionOf(state, obj) ?: continue
+            // CR 704.5m: an Aura attached to an illegal object or to nothing goes to its owner's
+            // graveyard. In the MVP the reachable case is a gone enchanted object (its creature
+            // died) — no type-changing effect makes a still-present object illegal.
+            if (!auraAttachmentIsLegal(state, obj, restriction)) {
+                add(StateBasedAction.AuraFallsOff(obj.id))
+            }
+        }
     }
+
+/**
+ * Whether [aura]'s attachment is legal right now (CR 704.5m): it is attached to a battlefield object
+ * that still satisfies the Aura's enchant [restriction]. Control is ownership in the MVP pool
+ * (docs/design/layer-system.md §4), so "you control" reads the Aura's owner.
+ */
+private fun auraAttachmentIsLegal(
+    state: GameState,
+    aura: GameObject,
+    restriction: EnchantRestriction,
+): Boolean {
+    val attachedTo = aura.attachedTo ?: return false
+    val target = state.sharedZones.battlefield.firstOrNull { it.id == attachedTo }
+    return target != null && satisfiesEnchantRestriction(state, restriction, target, aura.owner)
+}
 
 /** The result of one full state-based-action check (the CR 704.3 repeat-until-quiet loop). */
 internal sealed interface SbaOutcome {
@@ -108,9 +146,11 @@ internal fun performStateBasedActions(state: GameState): SbaOutcome {
 
 /**
  * Performs one batch of applicable state-based actions simultaneously (CR 704.3). Player losses
- * are resolved first: a loss ends the game (CR 104.2a), so any simultaneous creature deaths are
- * moot and left unperformed. With no loss this batch, every applicable action is a creature death
- * (CR 704.5f/g) — performed together as one move ([performCreatureDeaths]).
+ * are resolved first: a loss ends the game (CR 104.2a), so any simultaneous creature deaths or Aura
+ * fall-offs are moot and left unperformed. With no loss this batch, creature deaths (CR 704.5f/g)
+ * and Aura fall-offs (CR 704.5m) are performed together — an Aura and its enchanted creature never
+ * fall in the *same* batch (while the creature is still on the battlefield the Aura is legal), so
+ * these two moves never contend for the same object.
  */
 private fun performBatch(
     state: GameState,
@@ -118,18 +158,19 @@ private fun performBatch(
 ): SbaOutcome {
     val losses = mutableListOf<StateBasedAction.PlayerLoses>()
     val deaths = mutableListOf<StateBasedAction.CreatureDies>()
+    val fallOffs = mutableListOf<StateBasedAction.AuraFallsOff>()
     for (action in actions) {
         // Exhaustive over the sealed hierarchy: a new state-based-action kind must be sorted here.
         when (action) {
             is StateBasedAction.PlayerLoses -> losses += action
             is StateBasedAction.CreatureDies -> deaths += action
+            is StateBasedAction.AuraFallsOff -> fallOffs += action
         }
     }
     if (losses.isNotEmpty()) return performPlayerLoss(state, losses)
-    return SbaOutcome.Continued(
-        performCreatureDeaths(state, deaths.map(StateBasedAction.CreatureDies::objectId)),
-        performedWork = true,
-    )
+    val afterDeaths = performCreatureDeaths(state, deaths.map(StateBasedAction.CreatureDies::objectId))
+    val afterFallOffs = performAuraFallOffs(afterDeaths, fallOffs.map(StateBasedAction.AuraFallsOff::objectId))
+    return SbaOutcome.Continued(afterFallOffs, performedWork = true)
 }
 
 /**

@@ -55,20 +55,22 @@ internal fun manaSourceClasses(
 }
 
 /**
- * The production profile of [obj]: the canonical (WUBRG-then-colorless, CR 105.1) list of mana
- * types its tap-for-mana abilities can add, or `null` if it is no mana source — no definition,
- * or none with mana abilities. Phase 5 recomputes this through the continuous-effect layer
- * (granted abilities, Utopia Sprawl's tap trigger); the profile *shape* is already what the
- * equivalence relation keys on, so that lands here without reshaping.
+ * The production profile of the battlefield object [obj]: the canonical (WUBRG-then-colorless,
+ * CR 105.1) list of mana types its tap-for-mana abilities can add, or `null` if it is no mana source
+ * — no definition, or none with mana abilities. Reads the object's **layered** mana abilities
+ * ([layeredCharacteristics]), so a land granted "{T}: add one mana of any color" by an Abundant
+ * Growth (CR 613 layer 6) taps for the granted colors here (docs/design/layer-system.md §6). Utopia
+ * Sprawl's *triggered* mana ability (CR 605.1b) and its chosen colour remain Phase 5 — this seam
+ * carries only the plain, non-triggered layer-6 grant. The profile *shape* is what the payment
+ * equivalence relation keys on, so a grant changes an object's class without reshaping anything.
  */
 internal fun productionProfile(
     state: GameState,
     obj: GameObject,
 ): List<ManaType>? {
     val producible =
-        state.definitions[obj.card]
-            ?.manaAbilities
-            .orEmpty()
+        layeredCharacteristics(state, obj.id)
+            .manaAbilities
             .flatMap { it.options }
             .toSet()
     return if (producible.isEmpty()) null else ManaType.entries.filter { it in producible }

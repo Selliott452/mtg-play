@@ -38,7 +38,8 @@ internal fun beginCastGathering(
     val chosenTargets: PersistentList<Target>? =
         when (definition.targetSpec) {
             TargetSpec.None -> persistentListOf()
-            TargetSpec.AnyTarget -> null
+            // An Aura (CR 601.2c) and any-target both need a target choice before payment.
+            TargetSpec.AnyTarget, is TargetSpec.Enchantable -> null
         }
     val gathering = state.copy(pendingCast = PendingCast(caster, cardObjectId, chosenTargets))
     return pauseForNextCastDecision(gathering)

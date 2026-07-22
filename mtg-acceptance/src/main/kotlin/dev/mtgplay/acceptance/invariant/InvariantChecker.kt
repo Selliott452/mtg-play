@@ -1,9 +1,13 @@
 package dev.mtgplay.acceptance.invariant
 
 import dev.mtgplay.core.card.CardType
+import dev.mtgplay.core.definition.SpellDefinition
+import dev.mtgplay.core.definition.TargetSpec
+import dev.mtgplay.core.state.GameObject
 import dev.mtgplay.core.state.GameState
 import dev.mtgplay.core.state.PriorityStatus
 import dev.mtgplay.core.zone.ZoneId
+import dev.mtgplay.rules.engine.layeredToughness
 
 /**
  * The correctness rig's first line of defence (PLAN.md §2.3): a pure function that inspects a
@@ -60,6 +64,7 @@ object InvariantChecker {
             addAll(checkMarkedDamageScope(residences))
             addAll(checkCombatReferences(state))
             addAll(checkCreatureLethalityResolved(state))
+            addAll(checkAttachmentIntegrity(state))
             if (expectedCards != null) addAll(checkCardConservation(state, expectedCards))
         }
     }
@@ -314,14 +319,17 @@ internal fun checkCombatReferences(state: GameState): List<Violation> {
 /**
  * [Invariant.CREATURE_LETHALITY_RESOLVED]: no battlefield creature has a met death condition at an
  * observed pause (CR 704.5f/g) — toughness stays above 0 and marked damage stays below it, because
- * state-based actions run before any pause (CR 704.3). Reads printed toughness, which is in-game
- * toughness until Phase 4 (see the invariant's KDoc). Top-level so the checker object stays small.
+ * state-based actions run before any pause (CR 704.3). Reads the **layered** toughness
+ * ([layeredToughness]) so an Aura-buffed creature is measured at its in-game toughness (CR 613
+ * sublayer 7c) — the single source of truth combat and the death SBA also read
+ * (docs/design/layer-system.md §5). Top-level so the checker object stays small.
  */
 internal fun checkCreatureLethalityResolved(state: GameState): List<Violation> =
     state.sharedZones.battlefield.mapNotNull { obj ->
         val characteristics = state.definitions[obj.card]?.characteristics ?: return@mapNotNull null
         if (CardType.CREATURE !in characteristics.cardTypes) return@mapNotNull null
-        val toughness = characteristics.powerToughness?.toughness ?: return@mapNotNull null
+        if (characteristics.powerToughness == null) return@mapNotNull null
+        val toughness = layeredToughness(state, obj.id)
         val condition =
             when {
                 toughness <= 0 -> "CR 704.5f: toughness $toughness is 0 or less"
@@ -334,3 +342,66 @@ internal fun checkCreatureLethalityResolved(state: GameState): List<Violation> =
             "object ${obj.id.value} (${obj.card.name}) should already have died — $condition",
         )
     }
+
+/**
+ * [Invariant.ATTACHMENT_INTEGRITY]: an Aura's [GameObject.attachedTo] is well-formed at an observed
+ * pause. Precise tolerance (docs/design/layer-system.md §5): the checker only ever sees paused
+ * states (decision points and final states), where state-based actions have run to quiescence
+ * (CR 704.3), so it tolerates **no** dangling attachment — every non-null attachment names a
+ * current battlefield object, and a stale reference would mean the CR 704.5m fall-off failed to
+ * fire, exactly as a lingering lethal creature would mean CR 704.5g failed. Three properties:
+ * attachment is a battlefield-only status (null off the battlefield, CR 400.7, like tapped); a
+ * battlefield attachment names a battlefield object; and only an Aura (a permanent whose enchant
+ * ability is a [TargetSpec.Enchantable]) carries one (CR 303.4). The transient mid-transition state
+ * in which an attachment dangles between an enchanted creature's death and the next SBA check is
+ * never observed. Top-level so the checker object stays small.
+ */
+internal fun checkAttachmentIntegrity(state: GameState): List<Violation> {
+    val residences = ZoneResidence.of(state)
+    val battlefieldIds =
+        state.sharedZones.battlefield
+            .map { it.id }
+            .toSet()
+    return buildList {
+        residences
+            .filter { it.zone != ZoneId.Battlefield && it.obj.attachedTo != null }
+            .forEach {
+                add(
+                    Violation(
+                        Invariant.ATTACHMENT_INTEGRITY,
+                        "CR 303.4: object ${it.obj.id.value} is attached in ${it.zone}, but attachment is a " +
+                            "battlefield-only status",
+                    ),
+                )
+            }
+        state.sharedZones.battlefield.forEach { obj ->
+            val attachedTo = obj.attachedTo ?: return@forEach
+            if (attachedTo !in battlefieldIds) {
+                add(
+                    Violation(
+                        Invariant.ATTACHMENT_INTEGRITY,
+                        "CR 704.5m: battlefield object ${obj.id.value} is attached to ${attachedTo.value}, which is " +
+                            "not on the battlefield; a dangling attachment should have fallen off before this pause",
+                    ),
+                )
+            }
+            if (!isAura(state, obj)) {
+                add(
+                    Violation(
+                        Invariant.ATTACHMENT_INTEGRITY,
+                        "CR 303.4: battlefield object ${obj.id.value} carries an attachment but is not an Aura",
+                    ),
+                )
+            }
+        }
+    }
+}
+
+/** Whether [obj] is an Aura: a permanent whose enchant ability is a [TargetSpec.Enchantable]. */
+private fun isAura(
+    state: GameState,
+    obj: GameObject,
+): Boolean {
+    val definition = state.definitions[obj.card] as? SpellDefinition ?: return false
+    return definition.targetSpec is TargetSpec.Enchantable
+}

@@ -118,12 +118,13 @@ private fun establishTargets(
             }
             state
         }
-        TargetSpec.AnyTarget -> {
+        // Any-target and an Aura's enchant target (CR 303.4a) both demand exactly one legal target.
+        TargetSpec.AnyTarget, is TargetSpec.Enchantable -> {
             require(entry.targets.size == 1) {
-                "CR 601.2c: any-target demands exactly one target, got ${entry.targets}"
+                "CR 601.2c: ${entry.obj.card.name} demands exactly one target, got ${entry.targets}"
             }
             entry.targets.forEach { target ->
-                require(isTargetLegal(state, spec, target)) {
+                require(isTargetLegal(state, spec, target, entry.controller)) {
                     "CR 601.2c: $target is not a legal target for ${entry.obj.card.name}"
                 }
             }

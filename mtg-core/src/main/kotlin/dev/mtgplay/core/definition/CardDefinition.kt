@@ -35,4 +35,14 @@ interface CardDefinition {
      * engine's concern.
      */
     val manaAbilities: PersistentList<ManaAbility> get() = persistentListOf()
+
+    /**
+     * The continuous effects this card's static abilities generate (CR 604.3, CR 611.2); empty
+     * for a card with no static ability. Additive, flagged core (P4.1). Every one is active while
+     * this card is a battlefield permanent with the effect's affected set non-empty — for an Aura,
+     * while it is attached to a legal object; `mtg-rules` classifies each into its CR 613 layer and
+     * applies it (docs/design/layer-system.md §2). Card definitions carry the *declaration*; the
+     * layer engine carries the rules.
+     */
+    val staticContinuousEffects: PersistentList<StaticContinuousEffect> get() = persistentListOf()
 }

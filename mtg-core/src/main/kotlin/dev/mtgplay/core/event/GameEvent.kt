@@ -276,6 +276,29 @@ sealed interface GameEvent {
         val graveyardObjectId: ObjectId,
     ) : GameEvent
 
+    /**
+     * The Aura [aura] entered the battlefield attached to [attachedTo] (CR 303.4f): a permanent
+     * spell resolved and became attached to the object it targeted while on the stack (CR 601.2c).
+     * Added in P4.1. Follows the [PermanentEntered] of the same resolution.
+     */
+    data class AuraAttached(
+        val aura: ObjectId,
+        val attachedTo: ObjectId,
+        val card: CardRef,
+    ) : GameEvent
+
+    /**
+     * The Aura [objectId] fell off (CR 704.5m): a state-based action put it from the battlefield
+     * into its owner's graveyard as the new object [graveyardObjectId] (CR 400.7), because it was
+     * attached to an illegal object or to nothing — most often its enchanted creature had just
+     * died (CR 700.4). Added in P4.1.
+     */
+    data class AuraFellOff(
+        val objectId: ObjectId,
+        val card: CardRef,
+        val graveyardObjectId: ObjectId,
+    ) : GameEvent
+
     /** [player] lost the game (CR 104.3) for [reason]. */
     data class PlayerLost(
         val player: PlayerId,

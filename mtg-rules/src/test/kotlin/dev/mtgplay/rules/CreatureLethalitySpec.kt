@@ -161,9 +161,9 @@ class CreatureLethalitySpec :
                     nextObjectId = 1,
                     definitions = persistentMapOf(ref to creatureBody("Bear", 2, 2)),
                 )
-            legalTargets(state, TargetSpec.AnyTarget) shouldContainExactly
+            legalTargets(state, TargetSpec.AnyTarget, alice) shouldContainExactly
                 listOf(Target.Player(alice), Target.Player(bob), Target.Permanent(creatureId))
-            isTargetLegal(state, TargetSpec.AnyTarget, Target.Permanent(creatureId)).shouldBeTrue()
+            isTargetLegal(state, TargetSpec.AnyTarget, Target.Permanent(creatureId), alice).shouldBeTrue()
         }
 
         "CR 608.2b: a targeted creature stops being a legal target the moment it leaves the battlefield" {
@@ -175,14 +175,14 @@ class CreatureLethalitySpec :
                     nextObjectId = 1,
                     definitions = persistentMapOf(ref to creatureBody("Bear", 2, 2)),
                 )
-            isTargetLegal(onBattlefield, TargetSpec.AnyTarget, Target.Permanent(creatureId)).shouldBeTrue()
+            isTargetLegal(onBattlefield, TargetSpec.AnyTarget, Target.Permanent(creatureId), alice).shouldBeTrue()
 
             // The same creature, gone from the battlefield: no longer in the legal enumeration.
             val gone =
                 onBattlefield.copy(
                     sharedZones = onBattlefield.sharedZones.copy(battlefield = persistentListOf()),
                 )
-            isTargetLegal(gone, TargetSpec.AnyTarget, Target.Permanent(creatureId)).shouldBeFalse()
+            isTargetLegal(gone, TargetSpec.AnyTarget, Target.Permanent(creatureId), alice).shouldBeFalse()
         }
     })
 

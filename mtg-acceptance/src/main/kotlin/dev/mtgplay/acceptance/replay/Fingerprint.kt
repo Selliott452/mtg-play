@@ -13,11 +13,18 @@ import java.security.MessageDigest
  *
  * Two states with equal fingerprints are equal in everything the rules care about; this is the
  * "final state hash" a replay asserts against (PLAN.md §2.2). The digest covers zones (each
- * object's id, printed card, tapped status, and — on the battlefield — marked damage and
- * summoning sickness, in zone order), the stack entries' cast records (controller and targets,
- * CR 601.2), life totals, mana pools, priority standing, the empty-draw flag, answered-decision
- * counts, any cast gathering decisions, the turn position and its land-drop count (CR 305.2), the
- * combat state (CR 506–511) when in combat, the object-id counter, and the PRNG state.
+ * object's id, printed card, tapped status, and — on the battlefield — marked damage, summoning
+ * sickness, and Aura attachment, in zone order), the stack entries' cast records (controller and
+ * targets, CR 601.2), life totals, mana pools, priority standing, the empty-draw flag,
+ * answered-decision counts, any cast gathering decisions, the turn position and its land-drop count
+ * (CR 305.2), the combat state (CR 506–511) when in combat, the object-id counter, and the PRNG
+ * state.
+ *
+ * Continuous-effect (CR 613) characteristics are digested by their **cause** — an object's
+ * attachment — not their computed values: computed P/T and keywords are a pure function of state
+ * the digest already covers, so two states with different continuous effects already differ in
+ * which Auras are attached where and thus hash apart, without re-implementing layer logic here
+ * (docs/design/layer-system.md §5).
  *
  * The [event log][GameState.events] is deliberately excluded: events are derived observability
  * (ADR-006), so they are fingerprinted separately and compared on their own, keeping "the game
@@ -91,6 +98,11 @@ internal fun canonicalDescriptor(state: GameState): String =
             if (residence.zone == ZoneId.Battlefield) {
                 if (residence.obj.damageMarked != 0) append(":dmg=").append(residence.obj.damageMarked)
                 if (residence.obj.summoningSick) append(":sick")
+                // The attachment *cause* (CR 303.4), not the computed continuous-effect values it
+                // implies: two states differing in continuous effects necessarily differ in which
+                // Auras are attached where, so they hash apart without re-implementing layer logic
+                // (docs/design/layer-system.md §5).
+                residence.obj.attachedTo?.let { append(":att=").append(it.value) }
             }
         }
         // The stack entries' cast records (CR 601.2): the entries' card objects are already

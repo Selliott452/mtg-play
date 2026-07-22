@@ -21,4 +21,17 @@ sealed interface TargetSpec {
      * Phase 3 extends the *enumeration*, not this type.
      */
     data object AnyTarget : TargetSpec
+
+    /**
+     * An Aura's enchant ability (CR 303.4a, CR 601.2c): the one object it may be attached to,
+     * restricted by [restriction]. Additive, flagged core (P4.1). An Aura spell targets the object
+     * it will enchant while on the stack (CR 601.2c) and enters the battlefield attached to it
+     * (CR 303.4f); the engine enumerates the legal choices from [restriction] (ADR-005) and
+     * re-checks the target on resolution (CR 608.2b), fizzling if it is gone or illegal.
+     *
+     * @property restriction which objects the Aura may enchant (CR 303.4a).
+     */
+    data class Enchantable(
+        val restriction: EnchantRestriction,
+    ) : TargetSpec
 }
