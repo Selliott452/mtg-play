@@ -175,6 +175,58 @@ internal fun mixedMatchupConfig(seed: Long): MatchConfig =
         startingPlayer = null,
     )
 
+/**
+ * A GW-Auras-style deck (CR 100.1) for the P4.2 aura corpus: Grizzly Bears bodies to enchant, the
+ * full spread of the seven Bogles Auras, a Lightning Bolt removal package (which kills enchanted
+ * creatures, exercising the CR 704.5m aura fall-off), and a three-colour Forest/Plains/Mountain mana
+ * base. Tuned (with [boglesAuraConfig]) so a random-legal corpus reliably enchants creatures, kills
+ * some of them while enchanted (fall-off), and terminates. `MvpCards` definitions only.
+ */
+internal fun boglesAuraDeck(size: Int = DECK_SIZE): List<CardRef> {
+    val bears = List(AURA_DECK_BEARS) { CardRef("Grizzly Bears") }
+    val auras =
+        listOf(
+            "Rancor" to 3,
+            "Ethereal Armor" to 3,
+            "Armadillo Cloak" to 2,
+            "Cartouche of Solidarity" to 2,
+            "Sentinel's Eyes" to 2,
+            "Ancestral Mask" to 2,
+            "Abundant Growth" to 2,
+        ).flatMap { (name, count) -> List(count) { CardRef(name) } }
+    val bolts = List(AURA_DECK_BOLTS) { CardRef("Lightning Bolt") }
+    val forests = List(AURA_DECK_FORESTS) { CardRef("Forest") }
+    val plains = List(AURA_DECK_PLAINS) { CardRef("Plains") }
+    val fixedCount = bears.size + auras.size + bolts.size + forests.size + plains.size
+    val mountains = List(size - fixedCount) { CardRef("Mountain") }
+    return bears + auras + bolts + forests + plains + mountains
+}
+
+/** Grizzly Bears in the aura deck (the bodies that carry, and lose, the Auras). */
+internal const val AURA_DECK_BEARS: Int = 12
+
+/** Lightning Bolts in the aura deck (removal that kills enchanted creatures -> CR 704.5m fall-off). */
+internal const val AURA_DECK_BOLTS: Int = 8
+
+/** Forests in the aura deck (the green half of the mana base: Rancor, Ancestral Mask, bears). */
+internal const val AURA_DECK_FORESTS: Int = 10
+
+/** Plains in the aura deck (the white half: Cartouche, Sentinel's Eyes, Ethereal Armor). */
+internal const val AURA_DECK_PLAINS: Int = 8
+
+/**
+ * A symmetric two-player P4.2 aura config: both seats on [boglesAuraDeck]s, `MvpCards` definitions,
+ * seed-determined (ADR-006). The starting player is seed-chosen. The corpus this drives is where the
+ * real Bogles Auras get cast, attached, and torn off dying creatures across random-legal playouts.
+ */
+internal fun boglesAuraConfig(seed: Long): MatchConfig =
+    MatchConfig(
+        seed = seed,
+        libraries = mapOf(alice to boglesAuraDeck(), bob to boglesAuraDeck()),
+        definitions = MvpCards.definitions,
+        startingPlayer = null,
+    )
+
 /** Generous turn cap for real-card playouts; a no-death game decks out near turn 108. */
 internal const val REAL_CARD_TURN_CAP: Int = 130
 

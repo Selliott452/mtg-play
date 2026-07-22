@@ -317,15 +317,31 @@ internal fun checkCombatReferences(state: GameState): List<Violation> {
 }
 
 /**
- * [Invariant.CREATURE_LETHALITY_RESOLVED]: no battlefield creature has a met death condition at an
- * observed pause (CR 704.5f/g) — toughness stays above 0 and marked damage stays below it, because
+ * Whether a player-loss state-based action (CR 704.5a: life 0 or less; CR 704.5c: an attempted draw
+ * from an empty library) is applicable in [state] — the signal that the game is ending. A player
+ * loss ends the game immediately (CR 104.2a), and the same batch's creature-death (CR 704.5f/g) and
+ * Aura-fall-off (CR 704.5m) actions are then left unperformed (the loss is resolved first — see
+ * `StateBasedActions.performBatch`). The two SBA-quiescence invariants below are therefore no-ops
+ * while a loss is pending: their premise ("SBAs ran before the pause") does not hold for a game-over
+ * state. The checker only ever observes paused or final states, and a pending loss ends the game
+ * rather than yielding a decision point, so in practice this holds exactly of the final state.
+ */
+private fun aPlayerLossIsPending(state: GameState): Boolean =
+    state.players.values.any { it.life <= 0 || it.attemptedDrawFromEmptyLibrary }
+
+/**
+ * [Invariant.CREATURE_LETHALITY_RESOLVED]: no battlefield creature has a met death condition at a
+ * non-final pause (CR 704.5f/g) — toughness stays above 0 and marked damage stays below it, because
  * state-based actions run before any pause (CR 704.3). Reads the **layered** toughness
  * ([layeredToughness]) so an Aura-buffed creature is measured at its in-game toughness (CR 613
  * sublayer 7c) — the single source of truth combat and the death SBA also read
- * (docs/design/layer-system.md §5). Top-level so the checker object stays small.
+ * (docs/design/layer-system.md §5). A no-op once a player loss is pending ([aPlayerLossIsPending]):
+ * a lethal creature in the final game-over state is correct, not a failed SBA. Top-level so the
+ * checker object stays small.
  */
-internal fun checkCreatureLethalityResolved(state: GameState): List<Violation> =
-    state.sharedZones.battlefield.mapNotNull { obj ->
+internal fun checkCreatureLethalityResolved(state: GameState): List<Violation> {
+    if (aPlayerLossIsPending(state)) return emptyList()
+    return state.sharedZones.battlefield.mapNotNull { obj ->
         val characteristics = state.definitions[obj.card]?.characteristics ?: return@mapNotNull null
         if (CardType.CREATURE !in characteristics.cardTypes) return@mapNotNull null
         if (characteristics.powerToughness == null) return@mapNotNull null
@@ -342,6 +358,7 @@ internal fun checkCreatureLethalityResolved(state: GameState): List<Violation> =
             "object ${obj.id.value} (${obj.card.name}) should already have died — $condition",
         )
     }
+}
 
 /**
  * [Invariant.ATTACHMENT_INTEGRITY]: an Aura's [GameObject.attachedTo] is well-formed at an observed
@@ -354,9 +371,12 @@ internal fun checkCreatureLethalityResolved(state: GameState): List<Violation> =
  * battlefield attachment names a battlefield object; and only an Aura (a permanent whose enchant
  * ability is a [TargetSpec.Enchantable]) carries one (CR 303.4). The transient mid-transition state
  * in which an attachment dangles between an enchanted creature's death and the next SBA check is
- * never observed. Top-level so the checker object stays small.
+ * never observed. A no-op once a player loss is pending ([aPlayerLossIsPending]): a dangling Aura in
+ * the final game-over state is correct — its fall-off was left moot when the game ended (CR 104.2a).
+ * Top-level so the checker object stays small.
  */
 internal fun checkAttachmentIntegrity(state: GameState): List<Violation> {
+    if (aPlayerLossIsPending(state)) return emptyList()
     val residences = ZoneResidence.of(state)
     val battlefieldIds =
         state.sharedZones.battlefield

@@ -202,12 +202,19 @@ class MvpCardsSpec :
         "the registry maps every definition under its printed name, ready for MatchConfig" {
             MvpCards.definitions.keys shouldBe
                 setOf(
+                    CardRef("Abundant Growth"),
+                    CardRef("Ancestral Mask"),
+                    CardRef("Armadillo Cloak"),
+                    CardRef("Cartouche of Solidarity"),
+                    CardRef("Ethereal Armor"),
                     CardRef("Forest"),
                     CardRef("Grizzly Bears"),
                     CardRef("Hill Giant"),
                     CardRef("Lightning Bolt"),
                     CardRef("Mountain"),
                     CardRef("Plains"),
+                    CardRef("Rancor"),
+                    CardRef("Sentinel's Eyes"),
                     CardRef("Standing Troops"),
                     CardRef("Wind Drake"),
                     CardRef("Youthful Knight"),

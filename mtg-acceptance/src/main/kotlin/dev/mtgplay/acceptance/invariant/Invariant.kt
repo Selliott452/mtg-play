@@ -93,12 +93,22 @@ enum class Invariant {
      * every creature has toughness greater than 0 and marked damage strictly below its toughness.
      * State-based actions run to quiescence *before* any player receives priority (CR 704.3), so a
      * creature that would die has already gone to its graveyard by the time the checker sees a
-     * paused (decision-point or final) state — a lingering doomed creature means the death
-     * state-based action failed to fire. Added in P3.2.
+     * decision-point state — a lingering doomed creature means the death state-based action failed
+     * to fire. Added in P3.2.
      *
      * The check reads the **layered** toughness (CR 613 sublayer 7c) from P4.1 on — the same
      * in-game value combat and the death SBA read — so an Aura-buffed creature is measured
      * correctly; without a P/T modification it equals printed toughness.
+     *
+     * **Game-over exemption (P4.2).** This premise holds only while the game is still running. When
+     * a player-loss state-based action is applicable (CR 704.5a life 0 or less, CR 704.5c empty-
+     * library draw), the game ends immediately (CR 104.2a) and that same check's creature-death
+     * actions are left unperformed — the loss is resolved first and the deaths are moot
+     * (StateBasedActions.performBatch). A combat-damage step that drops a player to 0 *and* leaves a
+     * blocked creature with lethal marked damage in the same batch is exactly this case (surfaced by
+     * the P4.2 aura corpus, where trample + dynamic toughness make it common). So the check is a
+     * no-op once a player loss is pending: a lethal creature in the final game-over state is correct,
+     * not a failed SBA. It still fires on every non-final pause, where a lethal creature is a real bug.
      */
     CREATURE_LETHALITY_RESOLVED,
 
@@ -111,6 +121,12 @@ enum class Invariant {
      * dangling attachment: a stale reference means the CR 704.5m fall-off failed to fire. The
      * transient mid-transition dangle (between an enchanted creature's death and the next SBA check)
      * is never observed.
+     *
+     * **Game-over exemption (P4.2).** Like [CREATURE_LETHALITY_RESOLVED], the quiescence premise
+     * holds only while the game is still running: once a player-loss state-based action is applicable
+     * the game ends (CR 104.2a) and a batch's Aura fall-offs are left unperformed alongside the
+     * creature deaths, so a dangling Aura in the final game-over state is correct. The check is a
+     * no-op once a player loss is pending, and fires on every non-final pause as before.
      */
     ATTACHMENT_INTEGRITY,
 }
