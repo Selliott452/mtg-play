@@ -5,6 +5,7 @@ import dev.mtgplay.acceptance.bob
 import dev.mtgplay.acceptance.mountains
 import dev.mtgplay.acceptance.playerWithZones
 import dev.mtgplay.acceptance.twoPlayerState
+import dev.mtgplay.cards.MvpCards
 import dev.mtgplay.core.identity.CardRef
 import dev.mtgplay.core.identity.ObjectId
 import dev.mtgplay.core.mana.ManaType
@@ -27,6 +28,7 @@ import io.kotest.matchers.shouldBe
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.persistentMapOf
 import kotlinx.collections.immutable.toPersistentList
+import kotlinx.collections.immutable.toPersistentMap
 
 /**
  * The invariant checker suite: each invariant gets a handcrafted violating input that yields
@@ -338,6 +340,28 @@ class InvariantCheckerSpec :
         "no combat in progress yields no COMBAT_REFERENCES_VALID violation" {
             checkCombatReferences(combatState(battlefield = emptyList(), combat = null)).shouldBeEmpty()
         }
+
+        // --- CREATURE_LETHALITY_RESOLVED ---------------------------------------------------
+
+        "CR 704.5g: a battlefield creature with lethal marked damage is one CREATURE_LETHALITY_RESOLVED violation" {
+            // Grizzly Bears is 2/2; 2 marked damage is lethal, so at a pause it should already have
+            // died — a lingering one means the death state-based action failed to run (CR 704.3).
+            val bears = GameObject(ObjectId(1), CardRef("Grizzly Bears"), alice, damageMarked = 2)
+            checkCreatureLethalityResolved(lethalityState(listOf(bears))).map { it.invariant } shouldContainExactly
+                listOf(Invariant.CREATURE_LETHALITY_RESOLVED)
+        }
+
+        "creature lethality: sublethal marked damage on a battlefield creature is clean" {
+            val bears = GameObject(ObjectId(1), CardRef("Grizzly Bears"), alice, damageMarked = 1)
+            checkCreatureLethalityResolved(lethalityState(listOf(bears))).shouldBeEmpty()
+        }
+
+        "creature lethality: a definitionless creature card is inert and never a violation" {
+            // No registry entry: the card is inert (architect decision, P2.1), not a creature to the
+            // checker, so its marked damage cannot make it a lingering-death violation.
+            val phantom = GameObject(ObjectId(1), CardRef("Grizzly Bears"), alice, damageMarked = 9)
+            checkCreatureLethalityResolved(lethalityState(listOf(phantom), withDefinitions = false)).shouldBeEmpty()
+        }
     })
 
 // A handcrafted state at the declare-attackers step with the given battlefield and (optional)
@@ -362,3 +386,25 @@ private fun combatState(
         events = persistentListOf(),
     )
 }
+
+// A handcrafted main-phase state with the given battlefield, for the creature-lethality check.
+// [withDefinitions] carries the real MvpCards registry (so a Grizzly Bears is a known 2/2 creature)
+// or none (so the same card is inert and unrecognised as a creature).
+private fun lethalityState(
+    battlefield: List<GameObject>,
+    withDefinitions: Boolean = true,
+): GameState =
+    GameState(
+        players = persistentMapOf(alice to playerWithZones(), bob to playerWithZones()),
+        turn = Turn(alice, 3, TurnPhase.PRECOMBAT_MAIN, null),
+        sharedZones =
+            SharedZones(
+                battlefield = battlefield.toPersistentList(),
+                stack = persistentListOf(),
+                exile = persistentListOf(),
+            ),
+        nextObjectId = (battlefield.maxOfOrNull { it.id.value }?.plus(1)) ?: 1L,
+        rng = Rng(0),
+        events = persistentListOf(),
+        definitions = if (withDefinitions) MvpCards.definitions.toPersistentMap() else persistentMapOf(),
+    )

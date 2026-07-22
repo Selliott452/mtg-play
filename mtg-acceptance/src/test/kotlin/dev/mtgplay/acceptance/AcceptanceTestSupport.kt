@@ -77,6 +77,46 @@ internal fun burnConfig(
 internal const val STANDARD_BOLT_COUNT: Int = 40
 
 /**
+ * A creature-combat deck (CR 100.1): Grizzly Bears (`{1}{G}` 2/2) and Lightning Bolts (`{R}`) on a
+ * Forest/Mountain mana base — the P3.2 corpus deck. The mix is tuned so the random corpus reliably
+ * exhibits all three P3.2 death paths: cheap 2/2 bodies come down and trade in combat (each 2/2
+ * kills the other, CR 704.5g), Bolts finish 2/2s (3 ≥ 2, CR 704.5g) and go to the face, and a Bolt
+ * aimed at a creature that a response Bolt then kills fizzles (CR 608.2b). Both colours are needed
+ * every game, but with 24 lands a colour screw is rare.
+ */
+internal fun creatureDeck(size: Int = DECK_SIZE): List<CardRef> {
+    val bolts = List(CREATURE_DECK_BOLTS) { CardRef("Lightning Bolt") }
+    val bears = List(CREATURE_DECK_BEARS) { CardRef("Grizzly Bears") }
+    val forests = List(CREATURE_DECK_FORESTS) { CardRef("Forest") }
+    val mountainCount = size - CREATURE_DECK_BOLTS - CREATURE_DECK_BEARS - CREATURE_DECK_FORESTS
+    return bolts + bears + forests + List(mountainCount) { CardRef("Mountain") }
+}
+
+/** Lightning Bolts per creature-combat deck (bolt kills, face damage, and the fizzle response). */
+internal const val CREATURE_DECK_BOLTS: Int = 30
+
+/** Grizzly Bears per creature-combat deck (the bodies that trade in combat). */
+internal const val CREATURE_DECK_BEARS: Int = 8
+
+/** Forests per creature-combat deck (the green half of the mana base). */
+internal const val CREATURE_DECK_FORESTS: Int = 10
+
+/**
+ * A two-player creature-combat config: both seats on [creatureDeck]s, `MvpCards` definitions,
+ * seed-determined (ADR-006). [startingPlayer] `null` lets the seed pick who starts.
+ */
+internal fun creatureConfig(
+    seed: Long,
+    startingPlayer: PlayerId? = null,
+): MatchConfig =
+    MatchConfig(
+        seed = seed,
+        libraries = mapOf(alice to creatureDeck(), bob to creatureDeck()),
+        definitions = MvpCards.definitions,
+        startingPlayer = startingPlayer,
+    )
+
+/**
  * A sublethal Bolt count: with 2 Bolts per deck even every Bolt in the game aimed at one
  * player totals 12 damage < 20 starting life, so a bolt death is impossible and every game
  * must end as a deck-out (CR 704.5c) — the corpus half that guarantees deck-out endings.

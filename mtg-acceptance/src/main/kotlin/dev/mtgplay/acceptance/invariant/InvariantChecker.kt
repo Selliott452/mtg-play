@@ -1,5 +1,6 @@
 package dev.mtgplay.acceptance.invariant
 
+import dev.mtgplay.core.card.CardType
 import dev.mtgplay.core.state.GameState
 import dev.mtgplay.core.state.PriorityStatus
 import dev.mtgplay.core.zone.ZoneId
@@ -58,6 +59,7 @@ object InvariantChecker {
             addAll(checkLandDropBound(state))
             addAll(checkMarkedDamageScope(residences))
             addAll(checkCombatReferences(state))
+            addAll(checkCreatureLethalityResolved(state))
             if (expectedCards != null) addAll(checkCardConservation(state, expectedCards))
         }
     }
@@ -308,3 +310,27 @@ internal fun checkCombatReferences(state: GameState): List<Violation> {
         }
     }
 }
+
+/**
+ * [Invariant.CREATURE_LETHALITY_RESOLVED]: no battlefield creature has a met death condition at an
+ * observed pause (CR 704.5f/g) — toughness stays above 0 and marked damage stays below it, because
+ * state-based actions run before any pause (CR 704.3). Reads printed toughness, which is in-game
+ * toughness until Phase 4 (see the invariant's KDoc). Top-level so the checker object stays small.
+ */
+internal fun checkCreatureLethalityResolved(state: GameState): List<Violation> =
+    state.sharedZones.battlefield.mapNotNull { obj ->
+        val characteristics = state.definitions[obj.card]?.characteristics ?: return@mapNotNull null
+        if (CardType.CREATURE !in characteristics.cardTypes) return@mapNotNull null
+        val toughness = characteristics.powerToughness?.toughness ?: return@mapNotNull null
+        val condition =
+            when {
+                toughness <= 0 -> "CR 704.5f: toughness $toughness is 0 or less"
+                obj.damageMarked >= toughness ->
+                    "CR 704.5g: marked damage ${obj.damageMarked} is lethal to toughness $toughness"
+                else -> return@mapNotNull null
+            }
+        Violation(
+            Invariant.CREATURE_LETHALITY_RESOLVED,
+            "object ${obj.id.value} (${obj.card.name}) should already have died — $condition",
+        )
+    }

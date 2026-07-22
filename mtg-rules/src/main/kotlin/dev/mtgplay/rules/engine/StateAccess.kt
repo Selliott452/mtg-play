@@ -3,6 +3,7 @@ package dev.mtgplay.rules.engine
 import dev.mtgplay.core.event.GameEvent
 import dev.mtgplay.core.identity.PlayerId
 import dev.mtgplay.core.state.CombatState
+import dev.mtgplay.core.state.GameObject
 import dev.mtgplay.core.state.GameState
 import dev.mtgplay.core.state.PlayerState
 import dev.mtgplay.core.state.StackEntry
@@ -28,6 +29,11 @@ internal fun GameState.opponentOf(seat: PlayerId): PlayerId =
 /** Replaces the stack via [transform]; the last element stays the top (CR 405). */
 internal fun GameState.updateStack(transform: (PersistentList<StackEntry>) -> PersistentList<StackEntry>): GameState =
     copy(sharedZones = sharedZones.copy(stack = transform(sharedZones.stack)))
+
+/** Replaces the battlefield via [transform] (CR 403); insertion order is kept for determinism. */
+internal fun GameState.updateBattlefield(
+    transform: (PersistentList<GameObject>) -> PersistentList<GameObject>,
+): GameState = copy(sharedZones = sharedZones.copy(battlefield = transform(sharedZones.battlefield)))
 
 /** This seat's state; fails loudly if [id] is not seated — the engine never guesses. */
 internal fun GameState.player(id: PlayerId): PlayerState = players[id] ?: error("player $id is not seated in this game")

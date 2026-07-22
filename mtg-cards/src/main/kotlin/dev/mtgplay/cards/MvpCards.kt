@@ -4,8 +4,10 @@ import dev.mtgplay.core.definition.CardDefinition
 import dev.mtgplay.core.identity.CardRef
 
 /**
- * The registry of every card `mtg-cards` defines so far — the P2.2 pool: the basic lands
- * [mountain], [forest], and [plains], and [lightningBolt].
+ * The registry of every card `mtg-cards` defines so far. The P2.2 pool: the basic lands
+ * [mountain], [forest], and [plains], and [lightningBolt]. The P3.2 pool adds the first real
+ * creatures (CR 302): [grizzlyBears], [hillGiant], [windDrake], [youthfulKnight], and
+ * [standingTroops].
  *
  * [definitions] is shaped for direct `MatchConfig.definitions` consumption: the engine carries
  * it into `GameState` in canonical name-sorted order regardless of this map's own order
@@ -15,6 +17,15 @@ import dev.mtgplay.core.identity.CardRef
 object MvpCards {
     /** Every defined card, keyed by its printed-name [CardRef] (CR 201). */
     val definitions: Map<CardRef, CardDefinition> =
-        listOf(forest, lightningBolt, mountain, plains)
-            .associateBy { CardRef(it.characteristics.name) }
+        listOf(
+            forest,
+            grizzlyBears,
+            hillGiant,
+            lightningBolt,
+            mountain,
+            plains,
+            standingTroops,
+            windDrake,
+            youthfulKnight,
+        ).associateBy { CardRef(it.characteristics.name) }
 }

@@ -62,6 +62,10 @@ internal val combatDefinitions: Map<CardRef, CardDefinition> =
         creature("Ogre", 3, 3),
         creature("Giant", 4, 4),
         creature("Colossus", 6, 6),
+        // A high-toughness, modest-power body: survives being ganged (its toughness exceeds its
+        // blockers' combined power) so a damage-assignment-order scenario stays observable — the
+        // attacker lives to show which blocker its assignment killed (P3.2).
+        creature("Behemoth", 4, 8),
         creature("Wall", 0, 4),
         creature("Flyer", 2, 2, Keyword.FLYING),
         creature("Raptor", 3, 3, Keyword.FLYING),

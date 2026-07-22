@@ -87,4 +87,18 @@ enum class Invariant {
      * Absent outside the combat phase. Added in P3.1.
      */
     COMBAT_REFERENCES_VALID,
+
+    /**
+     * No battlefield creature sits at an observed pause with a met death condition (CR 704.5f/g):
+     * every creature has toughness greater than 0 and marked damage strictly below its toughness.
+     * State-based actions run to quiescence *before* any player receives priority (CR 704.3), so a
+     * creature that would die has already gone to its graveyard by the time the checker sees a
+     * paused (decision-point or final) state — a lingering doomed creature means the death
+     * state-based action failed to fire. Added in P3.2.
+     *
+     * The check reads *printed* toughness, which equals in-game toughness in the P3.2 pool (no P/T
+     * modification exists until the layer system); when Phase 4 lands, it routes to the layered
+     * value alongside the combat rules, without reshaping this invariant.
+     */
+    CREATURE_LETHALITY_RESOLVED,
 }

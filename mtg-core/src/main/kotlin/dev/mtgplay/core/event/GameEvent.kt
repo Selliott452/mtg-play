@@ -173,6 +173,21 @@ sealed interface GameEvent {
     ) : GameEvent
 
     /**
+     * The permanent spell [objectId], controlled by [controller], resolved and entered the
+     * battlefield (CR 608.3, CR 400.7): the resolving spell becomes a permanent under its
+     * controller's control as the new battlefield object [battlefieldObjectId], summoning sick
+     * (CR 302.6), untapped, with no marked damage. Added in P3.2 — the first permanent spells are
+     * creatures; a permanent spell has no CR 608.2c resolution effect of its own in the MVP pool
+     * (enters-the-battlefield triggers are Phase 5).
+     */
+    data class PermanentEntered(
+        val controller: PlayerId,
+        val objectId: ObjectId,
+        val card: CardRef,
+        val battlefieldObjectId: ObjectId,
+    ) : GameEvent
+
+    /**
      * [player] played the land [card] (CR 115.2a, CR 305.1) — the CR 116.2a special action, not
      * a cast: no stack, and the player retains priority afterward (CR 116.4). The hand card
      * moved to the battlefield, becoming the new object [objectId] there (CR 400.7), untapped
@@ -245,6 +260,20 @@ sealed interface GameEvent {
     data class BlockerOrderChosen(
         val attacker: ObjectId,
         val order: List<ObjectId>,
+    ) : GameEvent
+
+    /**
+     * The creature [objectId] died (CR 700.4): a state-based action put it from the battlefield
+     * into its owner's graveyard as the new object [graveyardObjectId] (CR 400.7) — either because
+     * it had lethal marked damage and was destroyed (CR 704.5g) or because its toughness was 0 or
+     * less (CR 704.5f). Added in P3.2. The two causes are one event here (both are "dies"); the
+     * distinction that matters for regeneration (CR 704.5g is destruction, CR 704.5f is not) is
+     * carried by the state-based action in `mtg-rules`, not the observability log.
+     */
+    data class CreatureDied(
+        val objectId: ObjectId,
+        val card: CardRef,
+        val graveyardObjectId: ObjectId,
     ) : GameEvent
 
     /** [player] lost the game (CR 104.3) for [reason]. */

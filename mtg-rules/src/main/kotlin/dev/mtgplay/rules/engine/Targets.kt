@@ -15,9 +15,12 @@ import dev.mtgplay.core.state.Target
  * Every legal target for [spec] in [state], in deterministic enumeration order (ADR-005).
  *
  * [TargetSpec.AnyTarget] (CR 115.4) enumerates the players in turn order — a player may target
- * themself — and nothing else until targetable objects exist on the battlefield (Phase 3
- * extends this enumeration, not the spec). [TargetSpec.None] enumerates nothing: an untargeted
- * spell never surfaces a target decision.
+ * themself — followed by every creature on the battlefield in battlefield order (P3.2: the
+ * "creature" half of "any target", now that creatures exist as targetable permanents; CR 302.1).
+ * Planeswalkers and battles are not in the MVP pool, so they never enter this enumeration. No
+ * targeting restriction (hexproof, protection) is granted by any card in the pool yet, so every
+ * seated player and every battlefield creature is a legal choice. [TargetSpec.None] enumerates
+ * nothing: an untargeted spell never surfaces a target decision.
  */
 internal fun legalTargets(
     state: GameState,
@@ -25,15 +28,21 @@ internal fun legalTargets(
 ): List<Target> =
     when (spec) {
         TargetSpec.None -> emptyList()
-        TargetSpec.AnyTarget -> state.players.keys.map { Target.Player(it) }
+        TargetSpec.AnyTarget ->
+            state.players.keys.map { Target.Player(it) } +
+                state.sharedZones.battlefield
+                    .filter { isCreature(state, it) }
+                    .map { Target.Permanent(it.id) }
     }
 
 /**
  * Whether [target] is (still) a legal choice for [spec] in [state] — the CR 608.2b re-check,
  * defined as membership in the current legal-target enumeration so legality has a single
- * source of truth (ADR-005). In P2.1 a targeted player only stops being legal by not being
- * seated (nothing grants protection or hexproof yet), which no reachable state exhibits in a
- * two-player game; the check is honest anyway and unit-tested directly.
+ * source of truth (ADR-005). A targeted creature stops being legal the moment it leaves the
+ * battlefield — most often by dying to a state-based action (CR 704.5g/f) — which makes the
+ * CR 608.2b fizzle genuinely reachable from P3.2 on (a spell whose only target has died does not
+ * resolve). A targeted player only stops being legal by leaving the game, which in a two-player
+ * game is the game ending (CR 104.2a), so the players-only fizzle stays unreachable end-to-end.
  */
 internal fun isTargetLegal(
     state: GameState,

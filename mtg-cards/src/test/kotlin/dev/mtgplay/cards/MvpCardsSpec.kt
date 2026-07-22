@@ -1,6 +1,8 @@
 package dev.mtgplay.cards
 
 import dev.mtgplay.core.card.CardType
+import dev.mtgplay.core.card.Keyword
+import dev.mtgplay.core.card.PrintedPowerToughness
 import dev.mtgplay.core.card.Subtype
 import dev.mtgplay.core.card.Supertype
 import dev.mtgplay.core.definition.ManaAbility
@@ -21,6 +23,7 @@ import dev.mtgplay.core.state.Target
 import dev.mtgplay.core.state.Turn
 import dev.mtgplay.core.state.TurnPhase
 import io.kotest.core.spec.style.StringSpec
+import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
@@ -28,6 +31,7 @@ import io.kotest.matchers.types.shouldNotBeInstanceOf
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.persistentMapOf
 import kotlinx.collections.immutable.persistentSetOf
+import kotlinx.collections.immutable.toPersistentSet
 
 /**
  * The first real definitions: printed characteristics against the oracle card (CR 201–208),
@@ -120,14 +124,102 @@ class MvpCardsSpec :
                 )
         }
 
+        "CR 302: each P3.2 creature is a sorcery-speed, untargeted permanent spell with its printed box" {
+            data class Expected(
+                val name: String,
+                val cost: String,
+                val power: Int,
+                val toughness: Int,
+                val subtypes: Set<Subtype>,
+                val keywords: Set<Keyword>,
+            )
+
+            val creatures =
+                listOf(
+                    grizzlyBears to Expected("Grizzly Bears", "{1}{G}", 2, 2, setOf(Subtype("Bear")), emptySet()),
+                    hillGiant to Expected("Hill Giant", "{3}{R}", 3, 3, setOf(Subtype("Giant")), emptySet()),
+                    windDrake to
+                        Expected("Wind Drake", "{2}{U}", 2, 2, setOf(Subtype("Drake")), setOf(Keyword.FLYING)),
+                    youthfulKnight to
+                        Expected(
+                            "Youthful Knight",
+                            "{1}{W}",
+                            2,
+                            2,
+                            setOf(Subtype("Human"), Subtype("Knight")),
+                            setOf(Keyword.FIRST_STRIKE),
+                        ),
+                    standingTroops to
+                        Expected(
+                            "Standing Troops",
+                            "{2}{W}",
+                            1,
+                            4,
+                            setOf(Subtype("Soldier")),
+                            setOf(Keyword.VIGILANCE),
+                        ),
+                )
+            creatures.forEach { (definition, expected) ->
+                with(definition.characteristics) {
+                    name shouldBe expected.name
+                    manaCost?.render() shouldBe expected.cost
+                    cardTypes shouldBe persistentSetOf(CardType.CREATURE)
+                    supertypes shouldBe persistentSetOf<Supertype>()
+                    subtypes shouldBe expected.subtypes.toPersistentSet()
+                    powerToughness shouldBe PrintedPowerToughness(expected.power, expected.toughness)
+                    keywords shouldBe expected.keywords.toPersistentSet()
+                }
+                // CR 302.1: a creature spell is cast at sorcery speed and targets nothing.
+                definition.timing shouldBe TimingClass.SORCERY_SPEED
+                definition.targetSpec shouldBe TargetSpec.None
+                // No intrinsic mana abilities (CR 605.1a): a vanilla creature is not a mana source.
+                definition.manaAbilities.shouldBeEmpty()
+            }
+        }
+
+        "CR 608.3: a creature's resolution effect performs no instructions — the engine moves it to the battlefield" {
+            val alice = PlayerId(0)
+            val bob = PlayerId(1)
+            val state =
+                GameState(
+                    players = persistentMapOf(alice to playerAt20(), bob to playerAt20()),
+                    turn = Turn(alice, 3, TurnPhase.PRECOMBAT_MAIN, null),
+                    sharedZones =
+                        SharedZones(
+                            battlefield = persistentListOf(),
+                            stack = persistentListOf(),
+                            exile = persistentListOf(),
+                        ),
+                    nextObjectId = 0,
+                    rng = Rng(0),
+                    events = persistentListOf(),
+                )
+            // The permanent-spell resolution move is the engine's (CR 608.3); the effect is a no-op,
+            // so resolving it returns the state unchanged — no zone changes, no events.
+            grizzlyBears.resolution.resolve(state, ResolutionContext(alice, persistentListOf())) shouldBe state
+        }
+
         "the registry maps every definition under its printed name, ready for MatchConfig" {
             MvpCards.definitions.keys shouldBe
-                setOf(CardRef("Forest"), CardRef("Lightning Bolt"), CardRef("Mountain"), CardRef("Plains"))
+                setOf(
+                    CardRef("Forest"),
+                    CardRef("Grizzly Bears"),
+                    CardRef("Hill Giant"),
+                    CardRef("Lightning Bolt"),
+                    CardRef("Mountain"),
+                    CardRef("Plains"),
+                    CardRef("Standing Troops"),
+                    CardRef("Wind Drake"),
+                    CardRef("Youthful Knight"),
+                )
             MvpCards.definitions.forEach { (ref, definition) ->
                 definition.characteristics.name shouldBe ref.name
             }
             MvpCards.definitions
                 .getValue(CardRef("Lightning Bolt"))
+                .shouldBeInstanceOf<SpellDefinition>()
+            MvpCards.definitions
+                .getValue(CardRef("Grizzly Bears"))
                 .shouldBeInstanceOf<SpellDefinition>()
             MvpCards.definitions
                 .getValue(CardRef("Mountain"))
