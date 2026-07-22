@@ -1,0 +1,55 @@
+name: Nightly fuzz
+
+# Nightly, large-seed run of the P3.3 fuzz rig. The push/PR CI (ci.yml) runs the corpora at their
+# fast defaults so every push stays quick; this scheduled job scales every corpus to a large seed
+# count via the `-PfuzzSeeds` knob so rare invariant violations, enumeration-completeness probe
+# failures, and non-terminating games get many more chances to surface overnight.
+#
+# Seed count math (measured per-seed cost at the shipped probe stride, P3.3 packet report):
+# the two deck-out corpora dominate (~160 ms/seed lands-only, ~130 ms/seed sublethal), plus
+# ~14 ms burn, ~31 ms creatures, ~40 ms mixed — ~0.375 s per seed-unit summed across the five
+# corpora. At 2000 seeds each that is ~12-13 min of test execution, comfortably within a nightly.
+
+on:
+  # 04:17 UTC daily (off the hour to avoid the top-of-hour scheduler crush).
+  schedule:
+    - cron: "17 4 * * *"
+  # Allow a maintainer to trigger a large run on demand.
+  workflow_dispatch:
+    inputs:
+      fuzzSeeds:
+        description: "Seeds per corpus"
+        required: false
+        default: "2000"
+
+jobs:
+  fuzz:
+    name: Fuzz (JDK 21, ${{ github.event.inputs.fuzzSeeds || '2000' }} seeds/corpus)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Fuzz corpora at scale
+        run: |
+          chmod +x ./gradlew
+          ./gradlew :mtg-acceptance:test -PfuzzSeeds=${{ github.event.inputs.fuzzSeeds || '2000' }} --no-daemon --stacktrace
+
+      # A failed seed persists a self-contained repro (P3.3, deliverable 3); keep them so a nightly
+      # failure is reproducible from the run's artifacts.
+      - name: Upload fuzz-failure repros
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fuzz-failures
+          path: mtg-acceptance/build/fuzz-failures/
+          if-no-files-found: ignore

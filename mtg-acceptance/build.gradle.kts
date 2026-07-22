@@ -24,3 +24,14 @@ dependencies {
     testImplementation(project(":mtg-protocol"))
     testImplementation(project(":mtg-cli"))
 }
+
+// P3.3 fuzz-corpus scaling knob. `-PfuzzSeeds=N` overrides every fuzz corpus' default seed count,
+// surfaced to the suites as the `fuzzSeeds` system property (read by `fuzzSeedCount`). Absent, each
+// corpus keeps its fast default so `./gradlew build` runtime stays ~current; nightly CI passes a
+// large N (see .github/workflows/nightly.yml). Declared as a task input so a changed value
+// re-invalidates the otherwise-up-to-date test task and forces a re-run.
+tasks.withType<Test>().configureEach {
+    val fuzzSeeds = (project.findProperty("fuzzSeeds") as String?)?.takeIf { it.isNotBlank() }
+    inputs.property("fuzzSeeds", fuzzSeeds.orEmpty())
+    if (fuzzSeeds != null) systemProperty("fuzzSeeds", fuzzSeeds)
+}

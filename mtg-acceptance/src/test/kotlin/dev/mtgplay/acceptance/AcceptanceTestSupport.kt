@@ -25,6 +25,19 @@ import kotlinx.collections.immutable.toPersistentList
 internal val alice = PlayerId(0)
 internal val bob = PlayerId(1)
 
+/**
+ * The seed count for a fuzz corpus, honouring the `-PfuzzSeeds` Gradle property (P3.3 scaling
+ * knob). The acceptance build surfaces the property as the `fuzzSeeds` system property; when it is
+ * absent (the `./gradlew build` case) each corpus keeps its fast [default] so the default runtime
+ * stays ~current, and nightly CI passes a large value to scale every corpus at once. A non-positive
+ * or unparseable value falls back to [default].
+ */
+internal fun fuzzSeedCount(default: Int): Int =
+    System.getProperty("fuzzSeeds")?.toIntOrNull()?.takeIf { it > 0 } ?: default
+
+/** The seeds `0 until fuzzSeedCount(default)` as Longs — the corpus a suite plays (ADR-006). */
+internal fun fuzzSeeds(default: Int): List<Long> = (0L until fuzzSeedCount(default).toLong()).toList()
+
 internal const val DECK_SIZE: Int = 60
 internal const val OPENING_HAND_SIZE: Int = 7
 internal const val MAXIMUM_HAND_SIZE: Int = 7
@@ -122,6 +135,45 @@ internal fun creatureConfig(
  * must end as a deck-out (CR 704.5c) — the corpus half that guarantees deck-out endings.
  */
 internal const val SUBLETHAL_BOLT_COUNT: Int = 2
+
+/**
+ * A creature-aggro deck (CR 100.1) for the asymmetric mixed-matchup corpus (P3.3): a heavy body
+ * count — Grizzly Bears on a Forest/Mountain base with a light Bolt package — so it reliably floods
+ * the board and can win by combat, while its Bolts let it also close (and interact) via burn. Tuned
+ * (with [mixedMatchupConfig]) so that, against the creatureless burn deck across the corpus, both
+ * win paths occur: creatures connect for lethal combat damage (CR 704.5g never applies to the
+ * blocker-less defender — every point lands) and Bolts deal lethal face damage (CR 704.5a).
+ */
+internal fun creatureAggroDeck(size: Int = DECK_SIZE): List<CardRef> {
+    val bears = List(AGGRO_DECK_BEARS) { CardRef("Grizzly Bears") }
+    val bolts = List(AGGRO_DECK_BOLTS) { CardRef("Lightning Bolt") }
+    val forests = List(AGGRO_DECK_FORESTS) { CardRef("Forest") }
+    val mountainCount = size - AGGRO_DECK_BEARS - AGGRO_DECK_BOLTS - AGGRO_DECK_FORESTS
+    return bears + bolts + forests + List(mountainCount) { CardRef("Mountain") }
+}
+
+/** Grizzly Bears in the creature-aggro deck (the bodies that carry the combat-kill win path). */
+internal const val AGGRO_DECK_BEARS: Int = 12
+
+/** Lightning Bolts in the creature-aggro deck (the burn package and its removal/fizzle interaction). */
+internal const val AGGRO_DECK_BOLTS: Int = 10
+
+/** Forests in the creature-aggro deck (the green half of the mana base for {1}{G} bears). */
+internal const val AGGRO_DECK_FORESTS: Int = 16
+
+/**
+ * The asymmetric mixed-matchup config (P3.3): [alice] on a pure burn deck (no creatures at all,
+ * [burnDeck]) versus [bob] on a [creatureAggroDeck], `MvpCards` definitions, seed-determined
+ * (ADR-006). The starting player is seed-chosen. This is the corpus that exercises both archetype
+ * win paths against each other — burn racing an aggressive creature board.
+ */
+internal fun mixedMatchupConfig(seed: Long): MatchConfig =
+    MatchConfig(
+        seed = seed,
+        libraries = mapOf(alice to burnDeck(STANDARD_BOLT_COUNT), bob to creatureAggroDeck()),
+        definitions = MvpCards.definitions,
+        startingPlayer = null,
+    )
 
 /** Generous turn cap for real-card playouts; a no-death game decks out near turn 108. */
 internal const val REAL_CARD_TURN_CAP: Int = 130
