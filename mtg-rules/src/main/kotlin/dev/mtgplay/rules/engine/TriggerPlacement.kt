@@ -44,7 +44,9 @@ internal fun placePendingTriggers(state: GameState): AdvanceResult {
         AdvanceResult.NeedsDecision(state, orderTriggersRequest(state, controller, group))
     } else {
         val placed = putTriggerOnStack(state, group.single())
-        priorityTo(placed, placed.turn.activePlayer)
+        // CR 601.2i: resume toward the recorded recipient (the caster after a cast trigger), not
+        // blindly the active player.
+        priorityTo(placed, priorityRecipient(placed))
     }
 }
 
@@ -132,15 +134,18 @@ internal fun applyOrderTriggers(
 ): AdvanceResult {
     val group = state.pendingTriggers.filter { it.controller == controller }
     val placed = order.fold(state) { current, index -> putTriggerOnStack(current, group[index]) }
-    return priorityTo(placed, placed.turn.activePlayer)
+    // CR 601.2i: resume toward the recorded recipient (preserved as the priority holder across the
+    // ordering suspension), not blindly the active player.
+    return priorityTo(placed, priorityRecipient(placed))
 }
 
 /** A short human description of a pending trigger, for the ordering decision's display (ADR-005). */
 private fun triggerDescription(trigger: PendingTrigger): String =
-    when (trigger.ability.condition) {
+    when (val condition = trigger.ability.condition) {
         TriggerCondition.EnteredBattlefieldSelf -> "enters-the-battlefield"
         TriggerCondition.PutIntoGraveyardFromBattlefieldSelf -> "leaves-the-battlefield"
         TriggerCondition.EnchantedCreatureDealsDamage -> "enchanted-creature-deals-damage"
-        TriggerCondition.SpellCast -> "spell-cast"
+        is TriggerCondition.SpellCast -> "spell-cast"
         TriggerCondition.MadnessCast -> "madness-may-cast"
+        is TriggerCondition.DrewNthCardThisTurn -> "drew-card-number-${condition.n}"
     }

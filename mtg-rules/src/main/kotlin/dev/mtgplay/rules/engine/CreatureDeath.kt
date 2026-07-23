@@ -68,9 +68,9 @@ private fun moveDeadCreatureToGraveyard(
  * combat never references an object that has left the battlefield.
  *
  * A no-op when no combat is in progress (a creature Bolted in a main phase) or when no dead object
- * was in combat.
+ * was in combat. Also reused when a permanent leaves the battlefield by sacrifice (CR 506.4).
  */
-private fun clearCombatReferences(
+internal fun clearCombatReferences(
     state: GameState,
     dead: Set<ObjectId>,
 ): GameState {

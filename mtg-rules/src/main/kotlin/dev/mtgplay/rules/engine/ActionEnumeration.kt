@@ -36,12 +36,14 @@ internal const val LAND_PLAYS_PER_TURN: Int = 1
  * A **cast-from-elsewhere** option (docs/decklists.md) is enumerated for each castable permission that
  * is legal right now (ADR-005 both directions): a flashback or escape spell in the graveyard whose
  * cost, additional cost, timing, and targets all check out appears; the same card in hand casts
- * normally, a distinct option. Madness is *not* here — it is offered only as its reflexive trigger
- * resolves (CR 702.35b). Plot's cast-from-exile (CR 702.140) slots into the exile scan when P6 adds
- * the permission; no MVP mainboard card plots, so the exile scan currently yields nothing.
+ * normally, a distinct option. A **hand alternative cost** (Fireblast's "sacrifice two Mountains
+ * rather than pay this spell's mana cost", CR 118.9) is likewise a distinct hand option, offered
+ * beside the normal cast. Madness is *not* here — it is offered only as its reflexive trigger resolves
+ * (CR 702.35b). Plot's cast-from-exile (CR 702.140) slots into the exile scan when its permission
+ * exists; no MVP mainboard card plots, so the exile scan currently yields nothing.
  *
- * Hand order fixes the option order, then graveyard then exile permission casts, so indices are
- * deterministic (ADR-006). Activating abilities (CR 117.1c) joins in a later phase.
+ * Option order is fixed for deterministic indices (ADR-006): the pass, then hand normal casts and land
+ * plays in hand order, then graveyard, exile, and hand permission casts in that order.
  */
 internal fun legalPriorityOptions(
     state: GameState,
@@ -52,7 +54,7 @@ internal fun legalPriorityOptions(
         state.player(seat).hand.forEach { obj ->
             val definition = state.definitions[obj.card]
             when {
-                definition is SpellDefinition && castIsLegal(state, seat, definition) ->
+                definition is SpellDefinition && castIsLegal(state, seat, definition, obj.id) ->
                     add(PriorityOption.CastSpell(obj.id, obj.card))
                 definition.isLand() && playLandIsLegal(state, seat) ->
                     add(PriorityOption.PlayLand(obj.id, obj.card))
@@ -61,6 +63,11 @@ internal fun legalPriorityOptions(
         }
         addAll(permissionCastOptions(state, seat, CastSource.GRAVEYARD))
         addAll(permissionCastOptions(state, seat, CastSource.EXILE))
+        addAll(permissionCastOptions(state, seat, CastSource.HAND))
+        // CR 702.140: the plot special action, offered like a land play (sorcery timing).
+        addAll(plotOptions(state, seat))
+        // CR 602.1: activated abilities of the seat's permanents and (landcycling) hand cards.
+        addAll(activationOptions(state, seat))
     }
 
 /**
@@ -102,14 +109,20 @@ internal fun playLandIsLegal(
         state.sharedZones.stack.isEmpty() &&
         state.turn.landsPlayedThisTurn < LAND_PLAYS_PER_TURN
 
-/** Whether every CR 601.2 gate passes for [seat] casting a card defined by [definition] now. */
+/**
+ * Whether every CR 601.2 gate passes for [seat] casting the hand card [castObjectId] defined by
+ * [definition] normally: timing, targets, an affordable printed cost, and any intrinsic additional
+ * discard cost (Grab the Prize).
+ */
 private fun castIsLegal(
     state: GameState,
     seat: PlayerId,
     definition: SpellDefinition,
+    castObjectId: dev.mtgplay.core.identity.ObjectId,
 ): Boolean =
     timingPermitsCast(state, seat, definition.timing) &&
         targetsAvailable(state, definition.targetSpec, seat) &&
+        additionalDiscardSatisfiable(state, seat, definition, castObjectId, CastSource.HAND) &&
         enumeratePaymentPlans(state, seat, castableCost(definition)).isNotEmpty()
 
 /** The cost enumeration prices (CR 601.2f); loud on a castable definition with no mana cost. */

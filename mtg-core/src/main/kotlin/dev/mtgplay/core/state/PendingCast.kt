@@ -33,6 +33,16 @@ import kotlinx.collections.immutable.PersistentList
  * @property additionalExileCost the objects chosen to satisfy an additional "exile N other cards" cost
  *   (escape, CR 702.139a): `null` before the selection is answered when the permission demands one, an
  *   (empty) list once settled or when no such cost applies.
+ * @property sacrificeCost the battlefield permanents chosen to satisfy a non-mana sacrifice cost
+ *   (Fireblast's two Mountains, Lava Dart's Mountain — CR 601.2h): `null` before the selection is
+ *   answered when the permission demands one, an (empty) list once settled or when no such cost
+ *   applies. Additive, flagged core (P6.2a). The permanents are sacrificed only when the cast executes
+ *   (CR 601.2h), atomically with everything else.
+ * @property additionalDiscard the hand cards chosen to satisfy an additional discard cost (Grab the
+ *   Prize's "discard a card" — CR 601.2b): `null` before the selection is answered when the definition
+ *   demands one, an (empty) list once settled or when no such cost applies. Additive, flagged core
+ *   (P6.2a). The cards are discarded only when the cast executes (CR 601.2h), through the CR 614/616
+ *   framework so madness intercepts them.
  */
 data class PendingCast(
     val caster: PlayerId,
@@ -41,4 +51,6 @@ data class PendingCast(
     val source: CastSource,
     val castingPermission: CastingPermission?,
     val additionalExileCost: PersistentList<ObjectId>?,
+    val sacrificeCost: PersistentList<ObjectId>? = null,
+    val additionalDiscard: PersistentList<ObjectId>? = null,
 )

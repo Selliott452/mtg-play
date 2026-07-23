@@ -111,9 +111,15 @@ internal fun beginTurn(
         state.sharedZones.battlefield
             .map { obj -> if (obj.owner == activePlayer && obj.summoningSick) obj.copy(summoningSick = false) else obj }
             .toPersistentList()
+    // CR 603.2: "in a turn" resets for every player as the new turn begins, so a per-turn draw trigger
+    // (Sneaky Snacker) counts only draws made during the turn now starting.
+    val counted =
+        state.players.keys.fold(state) { current, seat ->
+            current.updatePlayer(seat) { it.copy(drawsThisTurn = 0) }
+        }
     val refreshed =
-        state.copy(
-            sharedZones = state.sharedZones.copy(battlefield = awakened),
+        counted.copy(
+            sharedZones = counted.sharedZones.copy(battlefield = awakened),
             turn = Turn(activePlayer, number, TurnPhase.BEGINNING, TurnStep.UNTAP),
         )
     return beginPosition(refreshed.emit(GameEvent.TurnBegan(activePlayer, number)))

@@ -1,5 +1,6 @@
 package dev.mtgplay.rules.engine
 
+import dev.mtgplay.core.definition.AdditionalCost
 import dev.mtgplay.core.definition.CastSource
 import dev.mtgplay.core.definition.CastingPermission
 import dev.mtgplay.core.definition.SpellDefinition
@@ -50,9 +51,25 @@ internal fun beginCastGathering(
     // An additional "exile N others" cost (escape) needs a selection; every other cast settles it empty.
     val additionalExileCost: PersistentList<ObjectId>? =
         if ((permission?.additionalExileCount ?: 0) > 0) null else persistentListOf()
+    // A non-mana sacrifice cost (Fireblast, Lava Dart) needs a selection; every other cast settles empty.
+    val sacrificeCost: PersistentList<ObjectId>? =
+        if (permission?.sacrifice != null) null else persistentListOf()
+    // An additional discard cost (Grab the Prize) needs a selection; every other cast settles empty.
+    val additionalDiscard: PersistentList<ObjectId>? =
+        if (definition.additionalCost is AdditionalCost.DiscardCards) null else persistentListOf()
     val gathering =
         state.copy(
-            pendingCast = PendingCast(caster, cardObjectId, chosenTargets, source, permission, additionalExileCost),
+            pendingCast =
+                PendingCast(
+                    caster,
+                    cardObjectId,
+                    chosenTargets,
+                    source,
+                    permission,
+                    additionalExileCost,
+                    sacrificeCost,
+                    additionalDiscard,
+                ),
         )
     return pauseForNextCastDecision(gathering)
 }
@@ -91,6 +108,38 @@ internal fun applyChosenExileCost(
     require(cast.additionalExileCost == null) { "CR 601.2b: this cast's additional exile cost is already chosen" }
     return pauseForNextCastDecision(
         state.copy(pendingCast = cast.copy(additionalExileCost = exileObjectIds.toPersistentList())),
+    )
+}
+
+/**
+ * Records the permanents chosen to pay a non-mana sacrifice cost (Fireblast, Lava Dart — CR 601.2h) on
+ * the open [PendingCast] and suspends for the payment choice. The permanents are sacrificed only when
+ * the cast executes (CR 601.2h), atomically with everything else.
+ */
+internal fun applyChosenSacrifices(
+    state: GameState,
+    sacrificeObjectIds: List<ObjectId>,
+): AdvanceResult {
+    val cast = state.pendingCast ?: error("no cast is gathering decisions")
+    require(cast.sacrificeCost == null) { "CR 601.2h: this cast's sacrifice cost is already chosen" }
+    return pauseForNextCastDecision(
+        state.copy(pendingCast = cast.copy(sacrificeCost = sacrificeObjectIds.toPersistentList())),
+    )
+}
+
+/**
+ * Records the hand cards chosen to pay an additional discard cost (Grab the Prize — CR 601.2b) on the
+ * open [PendingCast] and suspends for the payment choice. The cards are discarded only when the cast
+ * executes (CR 601.2h), through the CR 614/616 framework so madness intercepts them.
+ */
+internal fun applyChosenAdditionalDiscard(
+    state: GameState,
+    discardObjectIds: List<ObjectId>,
+): AdvanceResult {
+    val cast = state.pendingCast ?: error("no cast is gathering decisions")
+    require(cast.additionalDiscard == null) { "CR 601.2b: this cast's additional discard cost is already chosen" }
+    return pauseForNextCastDecision(
+        state.copy(pendingCast = cast.copy(additionalDiscard = discardObjectIds.toPersistentList())),
     )
 }
 

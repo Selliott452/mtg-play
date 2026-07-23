@@ -59,6 +59,21 @@ import kotlinx.collections.immutable.persistentMapOf
  * @property pendingMulligan the pre-game London-mulligan phase's progress (CR 103.4/103.5), or `null`
  *   once turn 1 has begun. Additive, flagged core (P6.1). Non-null only during the mulligan phase,
  *   where no player holds priority and the stack is empty — see [PendingMulligan].
+ * @property pendingPlot a plot special action gathering its payment (CR 702.140), or `null`. Additive,
+ *   flagged core (P6.2a). Non-null only at that payment pause, where the plotting player holds priority
+ *   and the card is still in their hand — see [PendingPlot].
+ * @property pendingColorChoice an "as this permanent enters, choose a colour" choice gathered
+ *   mid-resolution (CR 614.12), or `null`. Additive, flagged core (P6.2a). Non-null only at that pause,
+ *   where the resolving permanent spell is still on top of the stack — see [PendingColorChoice].
+ * @property pendingActivation an activated ability gathering its cost selections (CR 602.2), or `null`.
+ *   Additive, flagged core (P6.2a). Non-null only while gathering, where the activating player holds
+ *   priority — see [PendingActivation].
+ * @property pendingRevealSelection a "reveal top N, keep one" selection gathered mid-resolution
+ *   (CR 701.16), or `null`. Additive, flagged core (P6.2a). Non-null only at that pause, where the
+ *   resolving spell is on top of the stack — see [PendingRevealSelection].
+ * @property pendingOptionalDiscardDraw an optional "you may discard a card; if you do, draw N" clause
+ *   the engine is resolving (CR 601.3b), or `null`. Additive, flagged core (P6.2a). Non-null only at the
+ *   yes/no or the following discard-selection pause — see [PendingOptionalDiscardDraw].
  */
 data class GameState(
     val players: PersistentMap<PlayerId, PlayerState>,
@@ -73,6 +88,11 @@ data class GameState(
     val pendingMadness: PendingMadness? = null,
     val pendingReplacement: PendingReplacement? = null,
     val pendingMulligan: PendingMulligan? = null,
+    val pendingPlot: PendingPlot? = null,
+    val pendingColorChoice: PendingColorChoice? = null,
+    val pendingActivation: PendingActivation? = null,
+    val pendingRevealSelection: PendingRevealSelection? = null,
+    val pendingOptionalDiscardDraw: PendingOptionalDiscardDraw? = null,
 ) {
     init {
         require(players.isNotEmpty()) { "a game has at least one seated player" }
@@ -106,6 +126,23 @@ data class GameState(
             require(sourceZone.any { it.id == cast.cardObjectId }) {
                 "CR 601.2: a pending cast's card must still be in its source zone ${cast.source} until the " +
                     "pipeline executes; ${cast.cardObjectId} is not there for ${cast.caster}"
+            }
+        }
+        val plot = pendingPlot
+        if (plot != null) {
+            val caster = players[plot.caster]
+            requireNotNull(caster) { "pending plot names unseated caster ${plot.caster}" }
+            require(caster.hand.any { it.id == plot.cardObjectId }) {
+                "CR 702.140: a pending plot's card must still be in the caster's hand until it executes; " +
+                    "${plot.cardObjectId} is not there for ${plot.caster}"
+            }
+        }
+        val activation = pendingActivation
+        if (activation != null) {
+            val activator = players[activation.activator]
+            requireNotNull(activator) { "pending activation names unseated activator ${activation.activator}" }
+            require(activation.abilityIndex >= 0) {
+                "CR 602: a pending activation's ability index is non-negative, was ${activation.abilityIndex}"
             }
         }
     }

@@ -1,9 +1,13 @@
 package dev.mtgplay.core.state
 
+import dev.mtgplay.core.definition.ActivatedAbility
 import dev.mtgplay.core.definition.CastingPermission
 import dev.mtgplay.core.definition.SpellDefinition
+import dev.mtgplay.core.identity.CardRef
+import dev.mtgplay.core.identity.ObjectId
 import dev.mtgplay.core.identity.PlayerId
 import kotlinx.collections.immutable.PersistentList
+import kotlinx.collections.immutable.persistentListOf
 
 /**
  * One object waiting on the stack (CR 405.2): the typed shape of
@@ -40,6 +44,11 @@ sealed interface StackEntry {
      *   normal cast. Part of the cast record (P5.2) because it governs how the spell leaves the stack:
      *   a spell cast via a permission with [CastingPermission.exilesOnLeaveStack] (flashback) is exiled
      *   instead of going to a graveyard (CR 702.34e), covering resolution, countering, and fizzling.
+     * @property discardedForCost the printed identities of the cards discarded to an additional discard
+     *   cost (CR 601.2b), in the order discarded; empty for a spell with no such cost. Additive, flagged
+     *   core (P6.2a): the **linked information** the resolution reads (Grab the Prize's "if the discarded
+     *   card wasn't a land card"), captured on the cast record because cost-payment results are part of
+     *   the spell's record (docs/decklists.md).
      */
     data class Spell(
         val obj: GameObject,
@@ -47,6 +56,7 @@ sealed interface StackEntry {
         val targets: PersistentList<Target>,
         val definition: SpellDefinition,
         val castVia: CastingPermission? = null,
+        val discardedForCost: PersistentList<CardRef> = persistentListOf(),
     ) : StackEntry
 
     /**
@@ -62,6 +72,25 @@ sealed interface StackEntry {
     data class Ability(
         val trigger: PendingTrigger,
     ) : StackEntry
+
+    /**
+     * An activated ability on the stack (CR 602.2, CR 113.3b): an ability an active player put on the
+     * stack by paying its cost, now waiting to resolve. Added in P6.2a. Like [Ability] it carries no card
+     * object — an ability on the stack is not a card (CR 113.7a) — and on resolution it performs its
+     * effect and ceases to exist (CR 113.7a). Everything the resolution needs rides here: the source's
+     * last-known [sourceId]/[sourceCard], the [controller], and the [ability] itself.
+     *
+     * @property sourceId the source object's id when the ability was activated (CR 602.2, CR 113.7c LKI).
+     * @property sourceCard the source's printed identity.
+     * @property controller the player who activated and controls the ability (CR 602.2).
+     * @property ability the activated ability itself (CR 602): its cost and its resolution effect.
+     */
+    data class ActivatedAbilityOnStack(
+        val sourceId: ObjectId,
+        val sourceCard: CardRef,
+        val controller: PlayerId,
+        val ability: ActivatedAbility,
+    ) : StackEntry
 }
 
 /**
@@ -74,4 +103,5 @@ val StackEntry.cardObject: GameObject?
         when (this) {
             is StackEntry.Spell -> obj
             is StackEntry.Ability -> null
+            is StackEntry.ActivatedAbilityOnStack -> null
         }

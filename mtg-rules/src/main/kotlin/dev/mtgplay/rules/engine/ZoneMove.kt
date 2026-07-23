@@ -17,6 +17,12 @@ import dev.mtgplay.core.state.GameState
  * Draws a card (CR 504.1's and CR 103.5's operation): the top card of [player]'s library is put
  * into their hand as a new object (CR 400.7), emitting [GameEvent.CardDrawn].
  *
+ * A **successful** draw increments [player]'s per-turn draw count
+ * ([dev.mtgplay.core.state.PlayerState.drawsThisTurn], reset each turn by [beginTurn]) and then fires
+ * any "when you draw your Nth card in a turn" triggers whose threshold this draw crossed (CR 603.2,
+ * [detectDrawCountTriggers]) — Sneaky Snacker's graveyard trigger. A failed draw counts nothing (no
+ * card was drawn).
+ *
  * If the library is empty the draw **fails**: nothing moves, and the attempt is recorded on
  * [dev.mtgplay.core.state.PlayerState.attemptedDrawFromEmptyLibrary] as an explicit fact — the
  * CR 704.5c state-based action acts on that fact at the next check, never on library emptiness
@@ -31,9 +37,17 @@ internal fun drawCard(
             ?: return state.updatePlayer(player) { it.copy(attemptedDrawFromEmptyLibrary = true) }
     val (id, allocated) = state.allocateObjectId()
     val drawn = top.copy(id = id)
-    return allocated
-        .updatePlayer(player) { it.copy(library = it.library.removingAt(0), hand = it.hand.adding(drawn)) }
-        .emit(GameEvent.CardDrawn(player, id, drawn.card))
+    val moved =
+        allocated
+            .updatePlayer(player) {
+                it.copy(
+                    library = it.library.removingAt(0),
+                    hand = it.hand.adding(drawn),
+                    drawsThisTurn = it.drawsThisTurn + 1,
+                )
+            }.emit(GameEvent.CardDrawn(player, id, drawn.card))
+    // CR 603.2: a per-turn draw trigger fires the instant its ordinal is reached, never on later draws.
+    return detectDrawCountTriggers(moved, player)
 }
 
 /**

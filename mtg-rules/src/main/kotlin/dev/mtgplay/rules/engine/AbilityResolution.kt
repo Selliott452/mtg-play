@@ -25,9 +25,10 @@ internal fun resolveAbility(
     entry: StackEntry.Ability,
 ): AdvanceResult {
     check(state.sharedZones.stack.lastOrNull() == entry) { "CR 608.1: only the topmost stack object may resolve" }
-    // CR 702.35b: madness's reflexive "you may cast it" ability is not a plain effect — it offers the
-    // owner a yes/no cast from exile, handled by the reflexive-cast path.
-    if (entry.trigger.ability.condition == TriggerCondition.MadnessCast) return resolveMadnessTrigger(state, entry)
+    // Two triggered "you may" clauses are engine-orchestrated flows rather than plain effects: madness's
+    // reflexive cast (CR 702.35b) and the optional discard-then-draw (CR 601.3b, Melded Moxite).
+    val orchestrated = resolveOrchestratedTrigger(state, entry)
+    if (orchestrated != null) return orchestrated
     val trigger = entry.trigger
     val context =
         ResolutionContext(
@@ -46,3 +47,18 @@ internal fun resolveAbility(
         ceased.emit(GameEvent.TriggeredAbilityResolved(trigger.controller, trigger.sourceCard)),
     )
 }
+
+/**
+ * The engine-orchestrated resolution of a triggered "you may" clause, or `null` for a plain effect: a
+ * madness reflexive cast (CR 702.35b) or an optional discard-then-draw (CR 601.3b). Split out so
+ * [resolveAbility] has a single early return.
+ */
+private fun resolveOrchestratedTrigger(
+    state: GameState,
+    entry: StackEntry.Ability,
+): AdvanceResult? =
+    when {
+        entry.trigger.ability.condition == TriggerCondition.MadnessCast -> resolveMadnessTrigger(state, entry)
+        entry.trigger.ability.optionalDiscardDraw != null -> resolveOptionalDiscardDrawTrigger(state, entry)
+        else -> null
+    }

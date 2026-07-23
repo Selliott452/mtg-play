@@ -436,6 +436,64 @@ sealed interface GameEvent {
         val exiled: List<ObjectId>,
     ) : GameEvent
 
+    /**
+     * An activated ability was put on the stack (CR 602.2): [controller] paid the cost of [sourceCard]'s
+     * activated ability, which now waits on the stack as a
+     * [dev.mtgplay.core.state.StackEntry.ActivatedAbilityOnStack]. Added in P6.2a.
+     */
+    data class AbilityActivated(
+        val controller: PlayerId,
+        val sourceId: ObjectId,
+        val sourceCard: CardRef,
+    ) : GameEvent
+
+    /**
+     * An activated ability resolved (CR 608.2, CR 113.7a): [sourceCard]'s activated ability, controlled
+     * by [controller], performed its effect and ceased to exist — no card moved. Added in P6.2a. Any zone
+     * changes the effect made are narrated by their own events.
+     */
+    data class AbilityResolved(
+        val controller: PlayerId,
+        val sourceCard: CardRef,
+    ) : GameEvent
+
+    /**
+     * Cards were revealed from the top of a library (CR 701.16): [player] revealed [cards] (their
+     * printed identities, top-first) as part of a resolving effect — Malevolent Rumble's "reveal the top
+     * four cards". Added in P6.2a. Public information: the revealed identities are recorded here (they are
+     * shown to all players), unlike a hidden library. The subsequent moves to hand/graveyard are narrated
+     * by their own events.
+     */
+    data class CardsRevealed(
+        val player: PlayerId,
+        val cards: List<CardRef>,
+    ) : GameEvent
+
+    /**
+     * A card was plotted (CR 702.140): [player] paid its plot cost and exiled [card] from their hand as
+     * the new exile object [objectId] (CR 400.7), marked plotted this turn
+     * ([dev.mtgplay.core.state.GameObject.plottedTurn]). Added in P6.2a — the card may be cast for free
+     * on a later turn. The plot cost's mana payment is narrated by the usual mana events.
+     */
+    data class CardPlotted(
+        val player: PlayerId,
+        val objectId: ObjectId,
+        val card: CardRef,
+    ) : GameEvent
+
+    /**
+     * A permanent was sacrificed to pay a cost (CR 601.2h, CR 701.17): [player] sacrificed the
+     * battlefield object [objectId] ([card]) while casting a spell — Fireblast's two Mountains, Lava
+     * Dart's Mountain — and it went to its owner's graveyard as the new object [graveyardObjectId]
+     * (CR 400.7). Added in P6.2a. One event per sacrificed permanent.
+     */
+    data class PermanentSacrificed(
+        val player: PlayerId,
+        val objectId: ObjectId,
+        val card: CardRef,
+        val graveyardObjectId: ObjectId,
+    ) : GameEvent
+
     /** [player] lost the game (CR 104.3) for [reason]. */
     data class PlayerLost(
         val player: PlayerId,

@@ -7,6 +7,7 @@ import dev.mtgplay.core.event.GameEvent
 import dev.mtgplay.core.identity.ObjectId
 import dev.mtgplay.core.state.GameObject
 import dev.mtgplay.core.state.GameState
+import dev.mtgplay.core.state.PendingColorChoice
 import dev.mtgplay.core.state.StackEntry
 import dev.mtgplay.core.state.Target
 import dev.mtgplay.rules.AdvanceResult
@@ -22,6 +23,7 @@ internal fun resolveTopOfStack(state: GameState): AdvanceResult {
     return when (top) {
         is StackEntry.Spell -> resolveSpell(state, top)
         is StackEntry.Ability -> resolveAbility(state, top)
+        is StackEntry.ActivatedAbilityOnStack -> resolveActivatedAbility(state, top)
     }
 }
 
@@ -58,30 +60,50 @@ private fun resolveSpell(
         return grantPriorityRound(narrateLeaveStackExile(fizzled, entry, finalId, exiled))
     }
     return if (isPermanentSpell(entry)) {
-        val (entered, battlefieldId) = putResolvedSpellOntoBattlefield(state, entry)
-        val announced =
-            entered.emit(GameEvent.PermanentEntered(entry.controller, entry.obj.id, entry.obj.card, battlefieldId))
-        // CR 303.4f: an Aura enters attached; announce the attachment after it has entered.
-        val attachedTo = entered.battlefieldObject(battlefieldId).attachedTo
-        val withAura =
-            if (attachedTo == null) {
-                announced
-            } else {
-                announced.emit(GameEvent.AuraAttached(battlefieldId, attachedTo, entry.obj.card))
-            }
-        // CR 603.6a: the permanent's own enters-the-battlefield triggers fire now (Cartouche, Abundant
-        // Growth); they are placed on the stack at the priority grant that follows (CR 603.3b).
-        grantPriorityRound(detectEnterBattlefieldTriggers(withAura, battlefieldId))
+        // CR 614.12: a permanent that chooses a colour as it enters (Utopia Sprawl) pauses here for the
+        // choice before it enters; the spell stays on top of the stack until the colour arrives.
+        if (entry.definition.choosesColorAsItEnters && state.pendingColorChoice == null) {
+            val paused = state.copy(pendingColorChoice = PendingColorChoice(entry.controller))
+            AdvanceResult.NeedsDecision(paused, pendingColorChoiceRequest(paused))
+        } else {
+            enterResolvedPermanent(state, entry, chosenColor = null)
+        }
     } else {
         val resolved =
-            entry.definition.resolution.resolve(state, ResolutionContext(entry.controller, entry.targets))
+            entry.definition.resolution.resolve(
+                state,
+                ResolutionContext(
+                    controller = entry.controller,
+                    targets = entry.targets,
+                    discardedForCost = entry.discardedForCost,
+                ),
+            )
         require(resolved.sharedZones.stack == state.sharedZones.stack) {
             "CR 608.2m: a resolution effect must not move the resolving spell — that is the engine's move"
         }
-        val (finished, finalId, exiled) = putResolvedSpellOffStack(resolved, entry)
-        val narrated = finished.emit(GameEvent.SpellResolved(entry.controller, entry.obj.id, entry.obj.card, finalId))
-        grantPriorityRound(narrateLeaveStackExile(narrated, entry, finalId, exiled))
+        // CR 701.16: a "reveal top N, keep one" clause (Malevolent Rumble) runs last and may pause for
+        // the keep-one selection; otherwise the spell simply leaves the stack now.
+        val reveal = entry.definition.libraryReveal
+        if (reveal != null) {
+            orchestrateLibraryReveal(resolved, entry, reveal)
+        } else {
+            completeInstantSorceryResolution(resolved, entry)
+        }
     }
+}
+
+/**
+ * Finishes an instant or sorcery resolution (CR 608.2m): puts the spell's card off the stack — to its
+ * owner's graveyard, or to exile for a flashback spell (CR 702.34e) — narrates it, and grants a fresh
+ * priority round. Shared by the ordinary path and the resume after a library-reveal selection.
+ */
+internal fun completeInstantSorceryResolution(
+    state: GameState,
+    entry: StackEntry.Spell,
+): AdvanceResult {
+    val (finished, finalId, exiled) = putResolvedSpellOffStack(state, entry)
+    val narrated = finished.emit(GameEvent.SpellResolved(entry.controller, entry.obj.id, entry.obj.card, finalId))
+    return grantPriorityRound(narrateLeaveStackExile(narrated, entry, finalId, exiled))
 }
 
 /** Emits the flashback exile-instead event (CR 702.34e) when the resolved spell left the stack to exile. */
@@ -119,15 +141,23 @@ private fun isPermanentSpell(entry: StackEntry.Spell): Boolean {
  * are Phase 4). The vanilla-and-keyword-only creatures and the Auras of the pool have no
  * enters-the-battlefield effect (Phase 5), so entering the battlefield is the whole of resolution.
  */
-private fun putResolvedSpellOntoBattlefield(
+internal fun putResolvedSpellOntoBattlefield(
     state: GameState,
     entry: StackEntry.Spell,
+    chosenColor: dev.mtgplay.core.mana.Color?,
 ): Pair<GameState, ObjectId> {
     val stack = state.sharedZones.stack
     check(stack.lastOrNull() == entry) { "CR 608.1: only the topmost stack object may resolve" }
     val (id, allocated) = state.allocateObjectId()
     val permanent =
-        GameObject(id = id, card = entry.obj.card, owner = entry.obj.owner, attachedTo = auraAttachmentTargetOf(entry))
+        GameObject(
+            id = id,
+            card = entry.obj.card,
+            owner = entry.obj.owner,
+            attachedTo = auraAttachmentTargetOf(entry),
+            // CR 614.12: the colour chosen as this object entered (Utopia Sprawl), or null.
+            chosenColor = chosenColor,
+        )
     val moved =
         allocated
             .updateStack { it.removingAt(it.lastIndex) }

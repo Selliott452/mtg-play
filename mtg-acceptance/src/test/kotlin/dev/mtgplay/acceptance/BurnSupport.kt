@@ -66,10 +66,16 @@ internal val BURN_OPPONENT: Responder =
                 error("the burn policy fires no triggers, but a trigger-order request surfaced: $request")
             is DecisionRequest.ChooseYesNo ->
                 error("the burn policy casts no madness cards, but a yes/no request surfaced: $request")
-            is DecisionRequest.ChooseCardsToExile ->
-                error("the burn policy casts no escape cards, but an exile-cost request surfaced: $request")
+            // ChooseDiscards is handled above; the other sized selections are cost/ability choices the burn
+            // policy never reaches.
+            is DecisionRequest.SizedSelection ->
+                error("the burn policy pays no cost selections, but a sized-selection request surfaced: $request")
             is DecisionRequest.ChooseReplacement ->
                 error("the burn policy discards no two-replacement cards, but one surfaced: $request")
+            is DecisionRequest.ChooseColor ->
+                error("the burn policy casts no colour-choosing permanents, but a colour request surfaced: $request")
+            is DecisionRequest.ChooseFromRevealed ->
+                error("the burn policy resolves no reveal effects, but a reveal request surfaced: $request")
             is DecisionRequest.MulliganRequest ->
                 error("the burn policy runs mulligan-free games, but a mulligan request surfaced: $request")
         }
@@ -213,10 +219,16 @@ internal val GRIND_TO_BOLT_RANGE: Responder =
                 error("the grind policy fires no triggers, but a trigger-order request surfaced: $request")
             is DecisionRequest.ChooseYesNo ->
                 error("the grind policy casts no madness cards, but a yes/no request surfaced: $request")
-            is DecisionRequest.ChooseCardsToExile ->
-                error("the grind policy casts no escape cards, but an exile-cost request surfaced: $request")
+            // ChooseDiscards is handled above; the other sized selections are cost/ability choices the grind
+            // policy never reaches.
+            is DecisionRequest.SizedSelection ->
+                error("the grind policy pays no cost selections, but a sized-selection request surfaced: $request")
             is DecisionRequest.ChooseReplacement ->
                 error("the grind policy discards no two-replacement cards, but one surfaced: $request")
+            is DecisionRequest.ChooseColor ->
+                error("the grind policy casts no colour-choosing permanents, but a colour request surfaced: $request")
+            is DecisionRequest.ChooseFromRevealed ->
+                error("the grind policy resolves no reveal effects, but a reveal request surfaced: $request")
             is DecisionRequest.MulliganRequest ->
                 error("the grind policy runs mulligan-free games, but a mulligan request surfaced: $request")
         }

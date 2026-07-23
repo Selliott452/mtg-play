@@ -3,6 +3,7 @@ package dev.mtgplay.core.state
 import dev.mtgplay.core.identity.CardRef
 import dev.mtgplay.core.identity.ObjectId
 import dev.mtgplay.core.identity.PlayerId
+import dev.mtgplay.core.mana.Color
 
 /**
  * One game object (CR 109): a card existing in a zone.
@@ -52,6 +53,17 @@ import dev.mtgplay.core.identity.PlayerId
  *   exile or put into its owner's graveyard). `false` everywhere but exile, and the fresh object born
  *   of any zone move carries none (CR 400.7); the acceptance invariant checker enforces both the scope
  *   and that a marked object always has a matching pending reflexive trigger.
+ * @property plottedTurn the turn number on which this exiled card was plotted (CR 702.140), or `null`
+ *   when it was not plotted. Additive, flagged core (P6.2a): an exile-only marker recording *when* the
+ *   card was plotted, because a plotted card may be cast for free from exile at sorcery speed but **not
+ *   the turn it was plotted** — the free cast is legal only on a later turn (`mtg-rules` compares this
+ *   to the current turn). `null` everywhere but a plotted exile card, and the fresh object born of any
+ *   zone move carries none (CR 400.7); the acceptance invariant checker enforces the scope.
+ * @property chosenColor the colour this permanent chose as it entered the battlefield (CR 614.12), or
+ *   `null` when it made no such choice. Additive, flagged core (P6.2a): a battlefield-only linked choice
+ *   — Utopia Sprawl's "As this Aura enters, choose a colour", read by its triggered mana ability. Set as
+ *   the object enters and fixed thereafter; `null` off the battlefield and on the fresh object born of
+ *   any zone move (CR 400.7).
  */
 data class GameObject(
     val id: ObjectId,
@@ -62,9 +74,12 @@ data class GameObject(
     val summoningSick: Boolean = true,
     val attachedTo: ObjectId? = null,
     val awaitingMadness: Boolean = false,
+    val plottedTurn: Int? = null,
+    val chosenColor: Color? = null,
 ) {
     init {
         require(damageMarked >= 0) { "CR 120.3: marked damage is non-negative, was $damageMarked" }
         require(attachedTo != id) { "CR 303.4: an Aura cannot be attached to itself ($id)" }
+        require(plottedTurn == null || plottedTurn >= 1) { "CR 702.140: a plotted turn is a real turn number" }
     }
 }

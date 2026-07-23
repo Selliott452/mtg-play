@@ -19,11 +19,21 @@ import kotlinx.collections.immutable.PersistentList
  * docs/design/mana-payment.md), so definitions should list options in WUBRG-then-colorless
  * order.
  *
+ * The activation cost is `{T}` by default; [viaSacrifice] flips it to "Sacrifice this permanent"
+ * instead (CR 605.1a) — Malevolent Rumble's Eldrazi Spawn token, "Sacrifice this token: Add {C}". A
+ * sacrifice-cost mana ability is still a mana ability (no stack, CR 605.3) and is payable during
+ * payment enumeration like tap-for-mana; the engine sacrifices the source rather than tapping it, and
+ * such a source is usable whether or not it is tapped.
+ *
  * @property options the mana types the activator may choose to add, exactly one per
  *   activation; never empty, no duplicates.
+ * @property viaSacrifice whether activating this ability sacrifices the source instead of tapping it
+ *   (CR 605.1a) — Eldrazi Spawn's `{C}`. Additive, flagged core (P6.2a). `false` for an ordinary `{T}`
+ *   mana ability.
  */
 data class ManaAbility(
     val options: PersistentList<ManaType>,
+    val viaSacrifice: Boolean = false,
 ) {
     init {
         require(options.isNotEmpty()) { "CR 605.1a: a mana ability adds mana; options cannot be empty" }

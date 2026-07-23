@@ -66,22 +66,22 @@ internal fun respondTo(request: DecisionRequest): Decision =
         // CR 508.1 / CR 509.1: this policy attacks and blocks with nothing.
         is DecisionRequest.DeclareAttackers -> Decision.MultiSelect(request.id, emptyList())
         is DecisionRequest.DeclareBlockers -> Decision.MultiSelect(request.id, emptyList())
-        is DecisionRequest.ChooseTargets ->
-            error("the pass-everything responder never casts, but a targets request surfaced: $request")
-        is DecisionRequest.ChoosePaymentPlan ->
-            error("the pass-everything responder never casts, but a payment request surfaced: $request")
-        is DecisionRequest.OrderBlockers ->
-            error("the pass-everything responder never blocks, but a blocker-order request surfaced: $request")
-        is DecisionRequest.AssignTrampleDamage ->
-            error("the pass-everything responder never attacks, but a trample-assignment request surfaced: $request")
+        // This policy never casts, blocks a multi-blocker, or activates, so these never arise.
+        is DecisionRequest.ChooseTargets,
+        is DecisionRequest.ChoosePaymentPlan,
+        is DecisionRequest.OrderBlockers,
+        is DecisionRequest.AssignTrampleDamage,
+        is DecisionRequest.SizedSelection,
+        is DecisionRequest.ChooseReplacement,
+        is DecisionRequest.ChooseColor,
+        ->
+            error("the pass-everything responder never reaches a cast/block/activation request: $request")
         // CR 603.3b: order any simultaneous triggers in the deterministic identity permutation.
         is DecisionRequest.OrderTriggers -> Decision.MultiSelect(request.id, request.options.indices.toList())
+        is DecisionRequest.ChooseFromRevealed ->
+            error("the pass-everything responder never resolves a reveal effect, but one surfaced: $request")
         // CR 702.35b: a passive game may still discard a madness card at cleanup; decline the reflexive cast.
         is DecisionRequest.ChooseYesNo -> Decision.SingleSelect(request.id, DecisionRequest.ChooseYesNo.DECLINE)
-        is DecisionRequest.ChooseCardsToExile ->
-            error("the pass-everything responder never casts, but an exile-cost request surfaced: $request")
-        is DecisionRequest.ChooseReplacement ->
-            error("the pass-everything responder never discards two-replacement cards, but one surfaced: $request")
         // CR 103.4/103.5: the engine specs run mulligan-free (mountainConfig sets mulligansEnabled = false),
         // so a mulligan request is unreachable here and fails loudly rather than guessing.
         is DecisionRequest.MulliganRequest ->

@@ -3,6 +3,7 @@ package dev.mtgplay.rules.decision
 import dev.mtgplay.core.identity.CardRef
 import dev.mtgplay.core.identity.ObjectId
 import dev.mtgplay.core.identity.PlayerId
+import dev.mtgplay.core.mana.Color
 import dev.mtgplay.core.state.Target
 
 /**
@@ -22,6 +23,31 @@ sealed interface DecisionRequest {
 
     /** The seat that must decide; only this player's answer is meaningful. */
     val seat: PlayerId get() = id.seat
+
+    /**
+     * A [Decision.MultiSelect] request asking for a fixed-size distinct subset of its options — the
+     * shape shared by every "choose exactly N cards/permanents" cost or discard selection (CR 601.2b/h,
+     * CR 602.2b, CR 514.1). Grouping them under one sub-interface lets drivers and the enumeration probe
+     * handle "a sized selection" uniformly rather than one branch per request kind. [optionCount] is the
+     * number of options and [requiredCount] the exact number that must be chosen.
+     */
+    sealed interface SizedSelection : DecisionRequest {
+        /** How many options this selection offers. */
+        val optionCount: Int
+
+        /** Exactly how many must be chosen. */
+        val requiredCount: Int
+    }
+
+    /**
+     * A [Decision.MultiSelect] request answered with a **permutation** of all of its options — a full
+     * ordering (CR 509.2 blocker order, CR 603.3b trigger order). Grouping them lets drivers and the
+     * probe handle "an ordering" uniformly. [permutationSize] is how many options the answer permutes.
+     */
+    sealed interface PermutationSelection : DecisionRequest {
+        /** How many options the answer must permute. */
+        val permutationSize: Int
+    }
 
     /**
      * A priority window (CR 117): [seat] holds priority and must pick one of [options] by
@@ -53,7 +79,10 @@ sealed interface DecisionRequest {
         override val id: DecisionRequestId,
         val options: List<Option>,
         val count: Int,
-    ) : DecisionRequest {
+    ) : SizedSelection {
+        override val optionCount: Int get() = options.size
+        override val requiredCount: Int get() = count
+
         init {
             require(count in 1..options.size) {
                 "CR 514.1: discard count must be between 1 and hand size ${options.size}, was $count"
@@ -212,7 +241,9 @@ sealed interface DecisionRequest {
         override val id: DecisionRequestId,
         val attacker: ObjectId,
         val options: List<Option>,
-    ) : DecisionRequest {
+    ) : PermutationSelection {
+        override val permutationSize: Int get() = options.size
+
         init {
             require(options.size >= MINIMUM_ORDERED_BLOCKERS) {
                 "CR 509.2: only an attacker blocked by two or more creatures is ordered, got ${options.size}"
@@ -298,7 +329,9 @@ sealed interface DecisionRequest {
     data class OrderTriggers(
         override val id: DecisionRequestId,
         val options: List<Option>,
-    ) : DecisionRequest {
+    ) : PermutationSelection {
+        override val permutationSize: Int get() = options.size
+
         init {
             require(options.size >= MINIMUM_ORDERED_TRIGGERS) {
                 "CR 603.3b: only two or more simultaneous triggers are ordered, got ${options.size}"
@@ -375,7 +408,10 @@ sealed interface DecisionRequest {
         val card: CardRef,
         val options: List<Option>,
         val count: Int,
-    ) : DecisionRequest {
+    ) : SizedSelection {
+        override val optionCount: Int get() = options.size
+        override val requiredCount: Int get() = count
+
         init {
             require(count in 1..options.size) {
                 "CR 601.2b: exile count must be between 1 and available ${options.size}, was $count"
@@ -386,6 +422,98 @@ sealed interface DecisionRequest {
          * One card that may be exiled to pay the cost.
          *
          * @property objectId the object that would be exiled.
+         * @property card its printed identity, for display.
+         */
+        data class Option(
+            val objectId: ObjectId,
+            val card: CardRef,
+        )
+    }
+
+    /**
+     * A non-mana sacrifice cost selection (CR 601.2h): [seat] is casting [card] via a cost that
+     * sacrifices [count] permanents matching a predicate (Fireblast's two Mountains, Lava Dart's
+     * Mountain), and picks exactly [count] of [options] by index (a [Decision.MultiSelect]). Additive,
+     * flagged (P6.2a).
+     *
+     * Surfaced only when at least [count] matching permanents are available (the cast is otherwise not
+     * enumerated, ADR-005), so a legal selection always exists; every option is independently
+     * sacrificeable, so any distinct subset of size [count] is legal.
+     *
+     * @property cardObjectId the object being cast (still in its source zone — see
+     *   [dev.mtgplay.core.state.PendingCast]).
+     * @property card the printed identity, for display.
+     * @property options the permanents that may be sacrificed to pay the cost, in battlefield order;
+     *   indices stable within this request (ADR-005).
+     * @property count how many must be sacrificed.
+     */
+    data class ChooseSacrifices(
+        override val id: DecisionRequestId,
+        val cardObjectId: ObjectId,
+        val card: CardRef,
+        val options: List<Option>,
+        val count: Int,
+    ) : SizedSelection {
+        override val optionCount: Int get() = options.size
+        override val requiredCount: Int get() = count
+
+        init {
+            require(count in 1..options.size) {
+                "CR 601.2h: sacrifice count must be between 1 and available ${options.size}, was $count"
+            }
+        }
+
+        /**
+         * One permanent that may be sacrificed to pay the cost.
+         *
+         * @property objectId the battlefield object that would be sacrificed.
+         * @property card its printed identity, for display.
+         */
+        data class Option(
+            val objectId: ObjectId,
+            val card: CardRef,
+        )
+    }
+
+    /**
+     * An additional discard cost selection (CR 601.2b): [seat] is casting [card] via a cost that
+     * discards [count] cards (Grab the Prize's "discard a card"), and picks exactly [count] of
+     * [options] — their remaining hand — by index (a [Decision.MultiSelect]). Additive, flagged
+     * (P6.2a).
+     *
+     * Surfaced only when at least [count] cards are available (the card being cast has already moved to
+     * the stack, so it is not among the options; the cast is otherwise not enumerated, ADR-005), so a
+     * legal selection always exists. Every option is independently discardable, so any distinct subset
+     * of size [count] is legal. A discarded card with madness is exiled instead (CR 702.35a), routing
+     * through the same discard framework as the cleanup discard.
+     *
+     * @property cardObjectId the object being cast (already on the stack when the cost is paid — see
+     *   [dev.mtgplay.core.state.PendingCast]).
+     * @property card the printed identity, for display.
+     * @property options the hand cards that may be discarded to pay the cost, in hand order; indices
+     *   stable within this request (ADR-005).
+     * @property count how many must be discarded.
+     */
+    data class ChooseCardsToDiscardForCost(
+        override val id: DecisionRequestId,
+        val cardObjectId: ObjectId,
+        val card: CardRef,
+        val options: List<Option>,
+        val count: Int,
+    ) : SizedSelection {
+        override val optionCount: Int get() = options.size
+        override val requiredCount: Int get() = count
+
+        init {
+            require(count in 1..options.size) {
+                "CR 601.2b: discard count must be between 1 and available ${options.size}, was $count"
+            }
+        }
+
+        /**
+         * One hand card that may be discarded to pay the cost.
+         *
+         * @property objectId the hand object that would be discarded.
          * @property card its printed identity, for display.
          */
         data class Option(
@@ -465,6 +593,145 @@ sealed interface DecisionRequest {
          * One card in the deciding player's hand that may be put on the bottom of the library.
          *
          * @property objectId the hand object that would be bottomed.
+         * @property card its printed identity, for display.
+         */
+        data class Option(
+            val objectId: ObjectId,
+            val card: CardRef,
+        )
+    }
+
+    /**
+     * A "discard a card" cost selection of an activated ability (CR 602.2b): [seat] is activating an
+     * ability of [sourceObjectId] whose cost discards [count] cards (Blood token's "Discard a card"), and
+     * picks exactly [count] of [options] — their hand — by index (a [Decision.MultiSelect]). Additive,
+     * flagged (P6.2a).
+     *
+     * Surfaced only when at least [count] cards are available (the activation is otherwise not
+     * enumerated, ADR-005). A discarded card with madness is exiled instead (CR 702.35a), routing through
+     * the same discard framework as every cost discard.
+     *
+     * @property sourceObjectId the ability's source, for display.
+     * @property card the source's printed identity, for display.
+     * @property options the hand cards that may be discarded to pay the cost, in hand order.
+     * @property count how many must be discarded.
+     */
+    data class ChooseAbilityDiscard(
+        override val id: DecisionRequestId,
+        val sourceObjectId: ObjectId,
+        val card: CardRef,
+        val options: List<Option>,
+        val count: Int,
+    ) : SizedSelection {
+        override val optionCount: Int get() = options.size
+        override val requiredCount: Int get() = count
+
+        init {
+            require(count in 1..options.size) {
+                "CR 602.2b: discard count must be between 1 and available ${options.size}, was $count"
+            }
+        }
+
+        /**
+         * One hand card that may be discarded to pay the ability's cost.
+         *
+         * @property objectId the hand object that would be discarded.
+         * @property card its printed identity, for display.
+         */
+        data class Option(
+            val objectId: ObjectId,
+            val card: CardRef,
+        )
+    }
+
+    /**
+     * An "as this permanent enters, choose a colour" choice (CR 614.12): [seat] is resolving a
+     * permanent that chooses a colour as it enters (Utopia Sprawl) and picks one of [options] — the
+     * five colours in WUBRG order — by index (a [Decision.SingleSelect]). Additive, flagged (P6.2a).
+     * The chosen colour is stored on the entering object and read by its triggered mana ability. Both
+     * (all five) answers are always legal.
+     *
+     * @property cardObjectId the resolving object (the top of the stack) the choice concerns, for display.
+     * @property card the printed identity, for display.
+     * @property options the choosable colours, in WUBRG order (CR 105.1); the answer's index selects one.
+     */
+    data class ChooseColor(
+        override val id: DecisionRequestId,
+        val cardObjectId: ObjectId,
+        val card: CardRef,
+        val options: List<Color>,
+    ) : DecisionRequest {
+        init {
+            require(options.isNotEmpty()) { "CR 614.12: a colour choice offers at least one colour" }
+        }
+    }
+
+    /**
+     * The discard selection of an accepted optional "you may discard a card; if you do, draw N" clause
+     * (CR 601.3b, CR 701.8): [seat] accepted the "may" and picks exactly [count] card(s) — Melded
+     * Moxite's one — from their hand [options] by index (a [Decision.MultiSelect]). Additive, flagged
+     * (P6.2a). A discarded card with madness is exiled instead (CR 702.35a), routing through the same
+     * discard framework as every cost discard.
+     *
+     * @property options the hand cards that may be discarded, in hand order; indices stable (ADR-005).
+     * @property count how many must be discarded.
+     */
+    data class ChooseOptionalDiscard(
+        override val id: DecisionRequestId,
+        val options: List<Option>,
+        val count: Int,
+    ) : SizedSelection {
+        override val optionCount: Int get() = options.size
+        override val requiredCount: Int get() = count
+
+        init {
+            require(count in 1..options.size) {
+                "CR 701.8: discard count must be between 1 and hand size ${options.size}, was $count"
+            }
+        }
+
+        /**
+         * One hand card that may be discarded.
+         *
+         * @property objectId the hand object that would be discarded.
+         * @property card its printed identity, for display.
+         */
+        data class Option(
+            val objectId: ObjectId,
+            val card: CardRef,
+        )
+    }
+
+    /**
+     * A "put one of these revealed cards into your hand, or none" choice (CR 701.16): [seat] revealed
+     * cards from the top of their library and may keep up to one matching card (Malevolent Rumble's
+     * permanent card). Answered with a [Decision.SingleSelect] whose index is one of [options] to keep
+     * that card, or the extra "keep none" index ([options].size). Additive, flagged (P6.2a). Surfaced
+     * only when at least one matching card was revealed; keeping none is always legal ("you may").
+     *
+     * @property options the revealed cards that may be put into the hand, in reveal (top-first) order;
+     *   index `options.size` means "keep none".
+     */
+    data class ChooseFromRevealed(
+        override val id: DecisionRequestId,
+        val options: List<Option>,
+    ) : DecisionRequest {
+        init {
+            require(options.isNotEmpty()) {
+                "CR 701.16: a keep-one choice is surfaced only when a matching card was revealed"
+            }
+        }
+
+        /** How many selectable indices this request has: one per keepable card, plus the "keep none" index. */
+        val choiceCount: Int get() = options.size + 1
+
+        /** The [Decision.SingleSelect] index meaning "keep none of the revealed cards". */
+        val keepNoneIndex: Int get() = options.size
+
+        /**
+         * One revealed card that may be put into the hand.
+         *
+         * @property objectId the revealed library object that would move to the hand.
          * @property card its printed identity, for display.
          */
         data class Option(

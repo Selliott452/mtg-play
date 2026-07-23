@@ -55,4 +55,31 @@ interface CardDefinition {
      * *declaration*; the trigger framework carries the rules.
      */
     val triggeredAbilities: PersistentList<TriggeredAbility> get() = persistentListOf()
+
+    /**
+     * The triggered **mana** abilities this card has (CR 605.1b); empty for a card with none. Additive,
+     * flagged core (P6.2a). Utopia Sprawl's "whenever enchanted Forest is tapped for mana, add an
+     * additional one mana of the chosen colour" is the one member the MVP pool needs; `mtg-rules`
+     * resolves these inside a mana-ability resolution, no stack and no priority (CR 605.3).
+     */
+    val triggeredManaAbilities: PersistentList<TriggeredManaAbility> get() = persistentListOf()
+
+    /**
+     * Whether this permanent chooses a colour as it enters the battlefield (CR 614.12) — Utopia
+     * Sprawl's "As this Aura enters, choose a colour". Additive, flagged core (P6.2a). `mtg-rules`
+     * surfaces the colour decision during the permanent's resolution and stores the choice on the
+     * entering object ([dev.mtgplay.core.state.GameObject.chosenColor]), where the card's
+     * [triggeredManaAbilities] read it. `false` for every card that makes no such choice.
+     */
+    val choosesColorAsItEnters: Boolean get() = false
+
+    /**
+     * The activated abilities this card has (CR 602); empty for a card with none. Additive, flagged core
+     * (P6.2a). Each names its composite cost, the zone it functions from, and its resolution effect
+     * ([ActivatedAbility]); `mtg-rules` enumerates it when payable (ADR-005), gathers any cost selection,
+     * puts it on the stack, and resolves it. Blood token's "{1}, {T}, Discard a card, Sacrifice this
+     * token: Draw a card", Melded Moxite's "{3}, Sacrifice this artifact: Create a token", and Ash
+     * Barrens' basic landcycling all live here.
+     */
+    val activatedAbilities: PersistentList<ActivatedAbility> get() = persistentListOf()
 }

@@ -1,9 +1,11 @@
 package dev.mtgplay.core.definition
 
+import dev.mtgplay.core.identity.CardRef
 import dev.mtgplay.core.identity.ObjectId
 import dev.mtgplay.core.identity.PlayerId
 import dev.mtgplay.core.state.Target
 import kotlinx.collections.immutable.PersistentList
+import kotlinx.collections.immutable.persistentListOf
 
 /**
  * What a resolving spell or ability knows beyond the game state (CR 608.2): who controls it, what
@@ -27,10 +29,15 @@ import kotlinx.collections.immutable.PersistentList
  * @property subject a specific object the effect acts on beyond its targets (CR 603.10), e.g. the
  *   graveyard object Rancor returns to its owner's hand; `null` when the effect acts on no such
  *   object (every spell in the pool).
+ * @property discardedForCost the printed identities of the cards discarded to an additional discard
+ *   cost (CR 601.2b), in the order discarded; empty for a spell with no such cost. Additive, flagged
+ *   core (P6.2a). The linked information Grab the Prize's resolution reads ("if the discarded card
+ *   wasn't a land card"); supplied from [dev.mtgplay.core.state.StackEntry.Spell.discardedForCost].
  */
 data class ResolutionContext(
     val controller: PlayerId,
     val targets: PersistentList<Target>,
     val amount: Int = 0,
     val subject: ObjectId? = null,
+    val discardedForCost: PersistentList<CardRef> = persistentListOf(),
 )

@@ -41,8 +41,10 @@ class RandomLegalResponder(
     ): Decision =
         when (request) {
             is DecisionRequest.ChooseAction -> randomSingleSelect(request.id, request.options.size)
-            is DecisionRequest.ChooseDiscards -> {
-                val (indices, next) = randomSubset(request.options.size, request.count, rng)
+            // CR 514.1 / 601.2b/h / 602.2b: any fixed-size subset selection (discards, exile, sacrifice,
+            // ability discard) is a random correctly-sized subset of its options.
+            is DecisionRequest.SizedSelection -> {
+                val (indices, next) = randomSubset(request.optionCount, request.requiredCount, rng)
                 rng = next
                 Decision.MultiSelect(request.id, indices)
             }
@@ -64,31 +66,24 @@ class RandomLegalResponder(
                 rng = next
                 Decision.MultiSelect(request.id, indices)
             }
-            // CR 509.2: a uniformly random permutation of the blockers, via the frozen shuffle.
-            is DecisionRequest.OrderBlockers -> {
-                val (order, next) = (0 until request.options.size).toList().toPersistentList().shuffled(rng)
+            // CR 509.2 / 603.3b: a uniformly random permutation of the options, via the frozen shuffle —
+            // shared by the blocker order and the trigger order.
+            is DecisionRequest.PermutationSelection -> {
+                val (order, next) = (0 until request.permutationSize).toList().toPersistentList().shuffled(rng)
                 rng = next
                 Decision.MultiSelect(request.id, order)
             }
             // CR 702.19e: a uniformly random legal trample assignment — any amount in 0..excess is
             // legal (each keeps every blocker at its lethal), so the option index is a uniform pick.
             is DecisionRequest.AssignTrampleDamage -> randomSingleSelect(request.id, request.options.size)
-            // CR 603.3b: a uniformly random permutation of the controller's simultaneous triggers.
-            is DecisionRequest.OrderTriggers -> {
-                val (order, next) = (0 until request.options.size).toList().toPersistentList().shuffled(rng)
-                rng = next
-                Decision.MultiSelect(request.id, order)
-            }
             // CR 702.35b: a fair coin decides whether to accept a "you may" (madness reflexive cast).
             is DecisionRequest.ChooseYesNo -> randomSingleSelect(request.id, DecisionRequest.ChooseYesNo.OPTION_COUNT)
-            // CR 601.2b: a random correctly-sized selection of cards to exile for an additional cost (escape).
-            is DecisionRequest.ChooseCardsToExile -> {
-                val (indices, next) = randomSubset(request.options.size, request.count, rng)
-                rng = next
-                Decision.MultiSelect(request.id, indices)
-            }
             // CR 616.1: a uniform pick among the applicable replacements to apply first.
             is DecisionRequest.ChooseReplacement -> randomSingleSelect(request.id, request.options.size)
+            // CR 614.12: a uniform pick among the offered colours for an as-enters choice (Utopia Sprawl).
+            is DecisionRequest.ChooseColor -> randomSingleSelect(request.id, request.options.size)
+            // CR 701.16: a uniform pick among the keepable revealed cards plus "keep none" (Malevolent Rumble).
+            is DecisionRequest.ChooseFromRevealed -> randomSingleSelect(request.id, request.choiceCount)
             // CR 103.4/103.5: mulligan with a modest probability (so playouts terminate quickly), and
             // bottom a random correctly-sized selection of the hand.
             is DecisionRequest.MulliganRequest -> randomMulligan(request)

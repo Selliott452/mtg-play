@@ -4,6 +4,7 @@ import dev.mtgplay.core.definition.TriggerCondition
 import dev.mtgplay.core.definition.TriggerZoneScope
 import dev.mtgplay.core.definition.TriggeredAbility
 import dev.mtgplay.core.identity.ObjectId
+import dev.mtgplay.core.identity.PlayerId
 import dev.mtgplay.core.state.GameObject
 import dev.mtgplay.core.state.GameState
 import dev.mtgplay.core.state.PendingTrigger
@@ -41,6 +42,45 @@ private fun battlefieldTriggersOf(
         ?.triggeredAbilities
         ?.filter { it.zoneScope == TriggerZoneScope.Battlefield && it.condition == condition }
         .orEmpty()
+
+/**
+ * Detects "when you draw your Nth card in a turn" triggers (CR 603.2) for [player], who has just
+ * drawn — scanning [player]'s graveyard for [TriggerZoneScope.Graveyard]-scoped
+ * [TriggerCondition.DrewNthCardThisTurn] abilities whose ordinal equals [player]'s post-draw
+ * [dev.mtgplay.core.state.PlayerState.drawsThisTurn]. The threshold is checked for exact equality, so
+ * the ability fires only on the draw that crosses it, never on a later draw the same turn. Sneaky
+ * Snacker fires here; its fired trigger carries the graveyard object as both source and subject
+ * (CR 603.10), the object its return-to-battlefield effect acts on. A no-op when the player controls
+ * no such graveyard card at this count.
+ */
+internal fun detectDrawCountTriggers(
+    state: GameState,
+    player: PlayerId,
+): GameState {
+    val draws = state.player(player).drawsThisTurn
+    return state.player(player).graveyard.fold(state) { current, graveyardCard ->
+        val abilities =
+            state.definitions[graveyardCard.card]
+                ?.triggeredAbilities
+                ?.filter {
+                    it.zoneScope == TriggerZoneScope.Graveyard &&
+                        it.condition is TriggerCondition.DrewNthCardThisTurn &&
+                        (it.condition as TriggerCondition.DrewNthCardThisTurn).n == draws
+                }.orEmpty()
+        abilities.fold(current) { inner, ability ->
+            enqueuePendingTrigger(
+                inner,
+                PendingTrigger(
+                    sourceId = graveyardCard.id,
+                    sourceCard = graveyardCard.card,
+                    controller = graveyardCard.owner,
+                    ability = ability,
+                    subject = graveyardCard.id,
+                ),
+            )
+        }
+    }
+}
 
 /**
  * Detects enters-the-battlefield-self triggers (CR 603.6a) for the object [enteredId] that just
@@ -112,19 +152,39 @@ internal fun fireEnchantedDamageTriggers(
 }
 
 /**
- * Detects cast triggers (CR 603.2, CR 601.2i) when a spell finishes casting: each battlefield
- * permanent carrying a [TriggerCondition.SpellCast] ability fires for its controller. The cast-trigger
- * seam (P5.1): no MVP mainboard card carries this condition, so this fires nothing in real games; it
- * is the hook Guttersnipe's "whenever you cast an instant or sorcery" refines in P6. The bare form
- * here fires on every cast, watching every battlefield source.
+ * Detects cast triggers (CR 603.2, CR 601.2i) when the spell [castEntry] finishes casting: each
+ * battlefield permanent carrying a [TriggerCondition.SpellCast] ability whose filters match the cast
+ * fires for its controller. Guttersnipe's "whenever you cast an instant or sorcery spell" fires here.
+ * The two filters (P6.2a):
+ * - [TriggerCondition.SpellCast.spellTypes]: the cast spell's printed card types must include one of
+ *   them (empty set = any spell);
+ * - [TriggerCondition.SpellCast.controlledByYou]: the cast's controller must be the source's
+ *   controller (control is ownership in the MVP pool).
+ *
+ * A source's fired trigger carries the source as last-known information; the cast spell itself is not
+ * carried (Guttersnipe's effect deals damage to each opponent, needing only its own controller).
  */
-internal fun detectCastTriggers(state: GameState): GameState =
-    state.sharedZones.battlefield.fold(state) { current, source ->
-        battlefieldTriggersOf(current, source.card, TriggerCondition.SpellCast)
-            .fold(current) { inner, ability ->
-                enqueuePendingTrigger(
-                    inner,
-                    PendingTrigger(source.id, source.card, source.owner, ability),
-                )
-            }
+internal fun detectCastTriggers(
+    state: GameState,
+    castEntry: dev.mtgplay.core.state.StackEntry.Spell,
+): GameState {
+    val castTypes = castEntry.definition.characteristics.cardTypes
+    return state.sharedZones.battlefield.fold(state) { current, source ->
+        val abilities =
+            current.definitions[source.card]
+                ?.triggeredAbilities
+                ?.filter { ability ->
+                    val condition = ability.condition
+                    ability.zoneScope == TriggerZoneScope.Battlefield &&
+                        condition is TriggerCondition.SpellCast &&
+                        (condition.spellTypes.isEmpty() || condition.spellTypes.any { it in castTypes }) &&
+                        (!condition.controlledByYou || source.owner == castEntry.controller)
+                }.orEmpty()
+        abilities.fold(current) { inner, ability ->
+            enqueuePendingTrigger(
+                inner,
+                PendingTrigger(source.id, source.card, source.owner, ability),
+            )
+        }
     }
+}

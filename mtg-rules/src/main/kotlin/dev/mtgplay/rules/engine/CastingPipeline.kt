@@ -12,10 +12,10 @@ import dev.mtgplay.core.state.PendingCast
 import dev.mtgplay.core.state.StackEntry
 import dev.mtgplay.core.state.Target
 import dev.mtgplay.rules.AdvanceResult
-import dev.mtgplay.rules.decision.ManaSourceChoice
 import dev.mtgplay.rules.decision.PaymentPlan
-import dev.mtgplay.rules.decision.SymbolPayment
 import kotlinx.collections.immutable.PersistentList
+import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.toPersistentList
 
 /*
  * The CR 601 casting pipeline, in two halves.
@@ -58,8 +58,10 @@ internal fun executeCastPipeline(
     val moded = chooseModes(proposed)
     val targeted = establishTargets(moded, entry)
     val withAdditional = payAdditionalCosts(targeted, cast)
+    val withSacrifice = paySacrificeCosts(withAdditional, cast)
+    val withDiscard = payAdditionalDiscardCost(withSacrifice, cast)
     val totalCost = determineTotalCost(entry)
-    val paid = payCosts(withAdditional, entry, totalCost, plan)
+    val paid = payCosts(withDiscard, entry, totalCost, plan)
     val complete = completeCast(paid, entry)
     return priorityAfterCast(complete, cast)
 }
@@ -103,6 +105,18 @@ private fun proposeSpell(
             ?: error("CR 601.2a: object ${cast.cardObjectId} is not in ${cast.caster}'s ${cast.source} zone")
     val definition = spellDefinitionOf(state, zoneObject.card)
     val (id, allocated) = state.allocateObjectId()
+    // CR 601.2b: the printed identities of the additional-discard cards, captured now (still in hand,
+    // discarded at payment) as the resolution's linked information (Grab the Prize).
+    val discardedForCost =
+        (cast.additionalDiscard ?: persistentListOf())
+            .map { discardId ->
+                state
+                    .player(cast.caster)
+                    .hand
+                    .firstOrNull { it.id == discardId }
+                    ?.card
+                    ?: error("CR 601.2b: additional-discard card $discardId is not in ${cast.caster}'s hand")
+            }.toPersistentList()
     // CR 400.7: the object on the stack is a fresh object with no zone-status memory (no madness marker).
     val entry =
         StackEntry.Spell(
@@ -111,6 +125,7 @@ private fun proposeSpell(
             targets = targets,
             definition = definition,
             castVia = cast.castingPermission,
+            discardedForCost = discardedForCost,
         )
     val proposed =
         removeFromZone(allocated, cast.caster, cast.source, cast.cardObjectId)
@@ -218,24 +233,7 @@ private fun payCosts(
     entry: StackEntry.Spell,
     cost: ManaCost,
     plan: PaymentPlan,
-): GameState {
-    validatePlanShape(cost, plan)
-    return plan.payments.fold(state) { current, payment ->
-        when (payment) {
-            is SymbolPayment.WithMana ->
-                when (val source = payment.source) {
-                    ManaSourceChoice.FromPool ->
-                        removeManaFromPool(current, entry.controller, payment.mana)
-                    is ManaSourceChoice.ByTapping -> {
-                        val produced = resolveTapForMana(current, entry.controller, source.sourceClass, payment.mana)
-                        removeManaFromPool(produced, entry.controller, payment.mana)
-                    }
-                }
-            SymbolPayment.WithTwoLife ->
-                changeLife(current, entry.controller, -PHYREXIAN_LIFE_COST)
-        }
-    }
-}
+): GameState = payManaPlan(state, entry.controller, cost, plan)
 
 /**
  * Stage CR 601.2i — the cast completes: the spell is cast, and "when a player casts a spell"
@@ -247,4 +245,5 @@ private fun payCosts(
 private fun completeCast(
     state: GameState,
     entry: StackEntry.Spell,
-): GameState = detectCastTriggers(state.emit(GameEvent.SpellCast(entry.controller, entry.obj.id, entry.obj.card)))
+): GameState =
+    detectCastTriggers(state.emit(GameEvent.SpellCast(entry.controller, entry.obj.id, entry.obj.card)), entry)

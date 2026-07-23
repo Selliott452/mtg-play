@@ -71,8 +71,22 @@ sealed interface ManaSourceChoice {
  * @property card the printed card every member shares.
  * @property profile the canonical list of mana types a member's tap can add, in
  *   WUBRG-then-colorless order (CR 105.1); the load-bearing half of equivalence.
+ * @property bonus the extra mana a member's tap adds *in addition to* its primary production, from a
+ *   triggered mana ability that fires when it is tapped for mana (CR 605.1b) — Utopia Sprawl's chosen
+ *   colour on an enchanted Forest. Additive, flagged (P6.2a); empty for an ordinary source. Part of the
+ *   equivalence key so an enchanted Forest forms a **distinct** source class from a bare Forest (their
+ *   taps leave genuinely different pools), but it is *not* a candidate payment — the primary [profile]
+ *   still fixes what the tap pays toward the cost; the bonus floats into the pool (docs/design/
+ *   mana-payment.md §"Triggered mana abilities mid-payment").
+ * @property viaSacrifice whether a member is **sacrificed** to produce its mana rather than tapped
+ *   (CR 605.1a) — an Eldrazi Spawn's "Sacrifice this token: Add {C}". Additive, flagged (P6.2a); `false`
+ *   for a tap source. Part of the equivalence key so a sacrifice source never collapses with a tap
+ *   source of the same production (their activations leave genuinely different battlefields), and a
+ *   sacrifice source is usable whether or not it is tapped.
  */
 data class SourceClassKey(
     val card: CardRef,
     val profile: List<ManaType>,
+    val bonus: List<ManaType> = emptyList(),
+    val viaSacrifice: Boolean = false,
 )

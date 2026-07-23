@@ -163,6 +163,13 @@ class ActionEnumerationSpec :
                             produced.turn.landsPlayedThisTurn shouldBe 1
                             produced.sharedZones.stack.shouldBeEmpty()
                         }
+                        // No fixture in this spec plots, so a plot option is never enumerated here.
+                        is PriorityOption.PlotCard -> error("unreachable: no fixture in this spec is plottable")
+                        // No fixture in this spec has an activated ability.
+                        is PriorityOption.ActivateAbility ->
+                            error(
+                                "unreachable: no fixture in this spec has an activated ability",
+                            )
                     }
                 }
             }

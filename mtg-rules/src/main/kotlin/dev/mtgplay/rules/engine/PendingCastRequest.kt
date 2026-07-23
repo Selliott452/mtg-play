@@ -1,0 +1,125 @@
+package dev.mtgplay.rules.engine
+
+import dev.mtgplay.core.definition.AdditionalCost
+import dev.mtgplay.core.identity.CardRef
+import dev.mtgplay.core.state.GameState
+import dev.mtgplay.core.state.PendingCast
+import dev.mtgplay.rules.decision.DecisionRequest
+import dev.mtgplay.rules.decision.DecisionRequestId
+
+/*
+ * The pending decision a cast in progress is waiting on (CR 601.2), split from PendingDecision.kt so
+ * each file stays within its function budget. The gathering order is fixed: targets (601.2c), then the
+ * additional-exile / sacrifice / additional-discard cost selections (601.2b/h), then the payment plan
+ * (601.2g) — always surfaced, even with a single plan, so replay logs stay canonical (P2.1).
+ */
+
+/**
+ * The request the open [cast] is waiting on (CR 601.2). A pure function of the state (ADR-004): each
+ * gathered-so-far choice on [cast] settles one stage, and this re-derives the next unanswered one.
+ */
+internal fun pendingCastRequest(
+    state: GameState,
+    cast: PendingCast,
+): DecisionRequest {
+    val card =
+        objectInZone(state, cast.caster, cast.source, cast.cardObjectId)
+            ?: error("CR 601.2: pending cast's card ${cast.cardObjectId} is not in ${cast.caster}'s ${cast.source}")
+    val definition = spellDefinitionOf(state, card.card)
+    val id = DecisionRequestId(cast.caster, state.player(cast.caster).decisionsAnswered)
+    return when {
+        // CR 601.2c: targets first.
+        cast.chosenTargets == null ->
+            DecisionRequest.ChooseTargets(
+                id = id,
+                cardObjectId = cast.cardObjectId,
+                card = card.card,
+                options = legalTargets(state, definition.targetSpec, cast.caster),
+            )
+        // CR 601.2b: then any additional "exile N other cards" cost selection (escape).
+        cast.additionalExileCost == null -> chooseCardsToExileRequest(state, cast, card.card, id)
+        // CR 601.2h: then any non-mana sacrifice cost selection (Fireblast, Lava Dart).
+        cast.sacrificeCost == null -> chooseSacrificesRequest(state, cast, card.card, id)
+        // CR 601.2b: then any additional discard cost selection (Grab the Prize).
+        cast.additionalDiscard == null -> chooseDiscardForCostRequest(state, cast, definition, card.card, id)
+        // CR 601.2g: finally the payment plan for the (possibly alternative) mana cost.
+        else -> {
+            val cost =
+                cast.castingPermission?.cost
+                    ?: definition.manaCost
+                    ?: error("CR 601.2f: ${card.card.name} has no mana cost and no alternative cost")
+            DecisionRequest.ChoosePaymentPlan(
+                id = id,
+                cardObjectId = cast.cardObjectId,
+                card = card.card,
+                options = enumeratePaymentPlans(state, cast.caster, cost),
+            )
+        }
+    }
+}
+
+// CR 601.2b/702.139a: every card in the source zone other than the one being cast is exilable (escape).
+private fun chooseCardsToExileRequest(
+    state: GameState,
+    cast: PendingCast,
+    card: CardRef,
+    id: DecisionRequestId,
+): DecisionRequest.ChooseCardsToExile {
+    val permission =
+        cast.castingPermission ?: error("CR 601.2b: an additional exile cost requires a casting permission")
+    return DecisionRequest.ChooseCardsToExile(
+        id = id,
+        cardObjectId = cast.cardObjectId,
+        card = card,
+        options =
+            objectsInZone(state, cast.caster, cast.source)
+                .filter { it.id != cast.cardObjectId }
+                .map { DecisionRequest.ChooseCardsToExile.Option(it.id, it.card) },
+        count = permission.additionalExileCount,
+    )
+}
+
+// CR 601.2h: every matching permanent the caster controls is a sacrifice option (Fireblast, Lava Dart).
+private fun chooseSacrificesRequest(
+    state: GameState,
+    cast: PendingCast,
+    card: CardRef,
+    id: DecisionRequestId,
+): DecisionRequest.ChooseSacrifices {
+    val requirement =
+        cast.castingPermission?.sacrifice ?: error("CR 601.2h: a sacrifice cost requires a casting permission")
+    return DecisionRequest.ChooseSacrifices(
+        id = id,
+        cardObjectId = cast.cardObjectId,
+        card = card,
+        options =
+            sacrificeableFor(state, cast.caster, requirement)
+                .map { DecisionRequest.ChooseSacrifices.Option(it.id, it.card) },
+        count = requirement.count,
+    )
+}
+
+// CR 601.2b: every card in the caster's hand except the one being cast is a discard-cost option (Grab the Prize).
+private fun chooseDiscardForCostRequest(
+    state: GameState,
+    cast: PendingCast,
+    definition: dev.mtgplay.core.definition.SpellDefinition,
+    card: CardRef,
+    id: DecisionRequestId,
+): DecisionRequest.ChooseCardsToDiscardForCost {
+    val additional =
+        definition.additionalCost as? AdditionalCost.DiscardCards
+            ?: error("CR 601.2b: an additional discard cost requires a discard additional cost")
+    return DecisionRequest.ChooseCardsToDiscardForCost(
+        id = id,
+        cardObjectId = cast.cardObjectId,
+        card = card,
+        options =
+            state
+                .player(cast.caster)
+                .hand
+                .filter { it.id != cast.cardObjectId }
+                .map { DecisionRequest.ChooseCardsToDiscardForCost.Option(it.id, it.card) },
+        count = additional.count,
+    )
+}

@@ -40,6 +40,12 @@ import kotlinx.collections.immutable.persistentListOf
  * @property decisionsAnswered how many decisions this seat has answered so far (ADR-004). With
  *   the seat it forms the stable identity of the seat's next decision request, which is what
  *   makes a recorded decision log unambiguous on replay (ADR-006).
+ * @property drawsThisTurn how many cards this player has drawn in the current turn (CR 121.1 /
+ *   CR 500). Additive, flagged core (P6.2a): the count "in a turn" a per-turn draw trigger watches —
+ *   Sneaky Snacker's "when you draw your third card in a turn" (CR 603.2). Incremented by each
+ *   successful draw and reset to 0 for every player when a turn begins (`mtg-rules`); a per-player
+ *   counter because any player may draw on any turn (an opponent's-turn draw effect still counts
+ *   toward *that* player's per-turn total). Non-negative.
  */
 data class PlayerState(
     val life: Int,
@@ -50,8 +56,10 @@ data class PlayerState(
     val priorityStatus: PriorityStatus = PriorityStatus.NONE,
     val attemptedDrawFromEmptyLibrary: Boolean = false,
     val decisionsAnswered: Int = 0,
+    val drawsThisTurn: Int = 0,
 ) {
     init {
         require(decisionsAnswered >= 0) { "answered-decision count must be non-negative, was $decisionsAnswered" }
+        require(drawsThisTurn >= 0) { "CR 121.1: draws this turn must be non-negative, was $drawsThisTurn" }
     }
 }

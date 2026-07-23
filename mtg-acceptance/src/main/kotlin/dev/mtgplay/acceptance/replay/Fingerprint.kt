@@ -1,11 +1,8 @@
 package dev.mtgplay.acceptance.replay
 
 import dev.mtgplay.acceptance.invariant.ZoneResidence
-import dev.mtgplay.core.state.CombatState
 import dev.mtgplay.core.state.GameState
-import dev.mtgplay.core.state.PendingTrigger
 import dev.mtgplay.core.state.StackEntry
-import dev.mtgplay.core.state.Target
 import dev.mtgplay.core.zone.ZoneId
 import java.security.MessageDigest
 
@@ -72,42 +69,83 @@ internal fun canonicalDescriptor(state: GameState): String =
         append("|combat=").append(turn.combat?.let(::renderCombat) ?: "-")
         append("|nextObjectId=").append(state.nextObjectId)
         append("|rng=").append(state.rng.state)
-        val cast = state.pendingCast
-        append("|pendingCast=")
-        if (cast == null) {
-            append('-')
-        } else {
-            append(cast.caster.seat)
-            append(':').append(cast.cardObjectId.value)
-            append(':').append(cast.chosenTargets?.joinToString(",") { renderTarget(it) } ?: "-")
-            // Cast-from-elsewhere (P5.2): the source zone, the permission (by cause), and the settled
-            // additional-exile selection are all rules-relevant to how the pipeline will execute.
-            append(':').append(cast.source.name)
-            append(':').append(cast.castingPermission?.let { it::class.simpleName } ?: "-")
-            append(':').append(cast.additionalExileCost?.joinToString("+") { it.value.toString() } ?: "-")
-        }
-        // The resolved-madness yes/no and the CR 616.1 replacement choice are pause points digested by
-        // cause (which card, whose choice), not by any computed value.
-        append("|pendingMadness=")
-        append(state.pendingMadness?.let { "${it.owner.seat}:${it.exiledObjectId.value}" } ?: "-")
-        append("|pendingReplacement=")
-        append(state.pendingReplacement?.let { "${it.player.seat}:${it.objectId.value}" } ?: "-")
-        // The pre-game mulligan phase (CR 103.4/103.5) is a rules-relevant pause position digested by
-        // cause: whose decision, how many mulligans taken, and which of the two stages is open.
-        append("|pendingMulligan=").append(renderPendingMulligan(state))
-        state.players.entries
-            .sortedBy { it.key.seat }
-            .forEach { (seat, player) ->
-                append("|seat=").append(seat.seat)
-                append(",life=").append(player.life)
-                append(",manaPool=").append(player.manaPool.joinToString("+") { it.name })
-                append(",priority=").append(player.priorityStatus.name)
-                append(",drewFromEmpty=").append(player.attemptedDrawFromEmptyLibrary)
-                append(",answered=").append(player.decisionsAnswered)
-            }
+        appendPendingPositions(state)
+        appendSeats(state)
         ZoneResidence.of(state).forEach { appendResidence(it) }
         appendStackAndTriggers(state)
     }
+
+// Digests every gathering/pause position by cause (which card, whose choice), never by a computed value.
+private fun StringBuilder.appendPendingPositions(state: GameState) {
+    appendPendingCast(state.pendingCast)
+    // The resolved-madness yes/no and the CR 616.1 replacement choice are pause points by cause.
+    append("|pendingMadness=")
+    append(state.pendingMadness?.let { "${it.owner.seat}:${it.exiledObjectId.value}" } ?: "-")
+    append("|pendingReplacement=")
+    append(state.pendingReplacement?.let { "${it.player.seat}:${it.objectId.value}" } ?: "-")
+    // The plot special action's payment pause (P6.2a): whose action, which card.
+    append("|pendingPlot=")
+    append(state.pendingPlot?.let { "${it.caster.seat}:${it.cardObjectId.value}" } ?: "-")
+    appendP62aPendingPositions(state)
+    // The pre-game mulligan phase (CR 103.4/103.5): whose decision, count, and stage.
+    append("|pendingMulligan=").append(renderPendingMulligan(state))
+}
+
+// The P6.2a mid-resolution / gathering pauses, each digested by cause (whose choice, which object).
+private fun StringBuilder.appendP62aPendingPositions(state: GameState) {
+    append("|pendingColour=").append(state.pendingColorChoice?.let { it.decider.seat.toString() } ?: "-")
+    append("|pendingActivation=")
+    append(
+        state.pendingActivation?.let {
+            "${it.activator.seat}:${it.sourceObjectId.value}:${it.abilityIndex}:" +
+                (it.chosenDiscard?.joinToString("+") { id -> id.value.toString() } ?: "-")
+        } ?: "-",
+    )
+    append("|pendingOptDiscard=")
+    append(
+        state.pendingOptionalDiscardDraw?.let { "${it.decider.seat}:${it.drawCount}:${it.awaitingDiscard}" } ?: "-",
+    )
+    append("|pendingReveal=")
+    append(
+        state.pendingRevealSelection?.let {
+            "${it.decider.seat}:${it.revealedIds.joinToString("+") { id -> id.value.toString() }}"
+        } ?: "-",
+    )
+}
+
+// Digests the in-progress cast's gathered-so-far choices (CR 601.2), which govern how the pipeline runs.
+private fun StringBuilder.appendPendingCast(cast: dev.mtgplay.core.state.PendingCast?) {
+    append("|pendingCast=")
+    if (cast == null) {
+        append('-')
+        return
+    }
+    append(cast.caster.seat)
+    append(':').append(cast.cardObjectId.value)
+    append(':').append(cast.chosenTargets?.joinToString(",") { renderTarget(it) } ?: "-")
+    // Cast-from-elsewhere (P5.2) and the P6.2a cost selections all shape how the pipeline executes.
+    append(':').append(cast.source.name)
+    append(':').append(cast.castingPermission?.let { it::class.simpleName } ?: "-")
+    append(':').append(cast.additionalExileCost?.joinToString("+") { it.value.toString() } ?: "-")
+    append(':').append(cast.sacrificeCost?.joinToString("+") { it.value.toString() } ?: "-")
+    append(':').append(cast.additionalDiscard?.joinToString("+") { it.value.toString() } ?: "-")
+}
+
+// Digests each seat's rules-relevant scalars in ascending seat order.
+private fun StringBuilder.appendSeats(state: GameState) {
+    state.players.entries
+        .sortedBy { it.key.seat }
+        .forEach { (seat, player) ->
+            append("|seat=").append(seat.seat)
+            append(",life=").append(player.life)
+            append(",manaPool=").append(player.manaPool.joinToString("+") { it.name })
+            append(",priority=").append(player.priorityStatus.name)
+            append(",drewFromEmpty=").append(player.attemptedDrawFromEmptyLibrary)
+            append(",answered=").append(player.decisionsAnswered)
+            // CR 603.2: the per-turn draw count gates a per-turn draw trigger (Sneaky Snacker).
+            append(",drawsThisTurn=").append(player.drawsThisTurn)
+        }
+}
 
 // Digests one object's residence line: its zone, id, and printed card, plus its battlefield-only
 // statuses (tapped, marked damage, summoning sickness, and the Aura-attachment cause, §5).
@@ -125,9 +163,14 @@ private fun StringBuilder.appendResidence(residence: ZoneResidence) {
         // two states differing in continuous effects necessarily differ in which Auras are attached
         // where, so they hash apart without re-implementing layer logic (docs/design/layer-system.md §5).
         residence.obj.attachedTo?.let { append(":att=").append(it.value) }
+        // The as-enters chosen colour (CR 614.12) is rules-relevant — it fixes a triggered mana ability's
+        // output (Utopia Sprawl).
+        residence.obj.chosenColor?.let { append(":colour=").append(it.name) }
     }
     // The madness marker (CR 702.35a) is an exile-only status — a card waiting on its reflexive cast.
     if (residence.zone == ZoneId.Exile && residence.obj.awaitingMadness) append(":madness")
+    // The plotted-turn marker (CR 702.140) is an exile-only status gating the free cast.
+    if (residence.zone == ZoneId.Exile) residence.obj.plottedTurn?.let { append(":plotted=").append(it) }
 }
 
 // Digests the stack entries and the fired-but-unplaced triggers (CR 405.2, CR 603.3b): a spell's card
@@ -143,59 +186,18 @@ private fun StringBuilder.appendStackAndTriggers(state: GameState) {
                 // The permission a spell was cast via (P5.2) governs how it leaves the stack (flashback's
                 // exile-instead), so it is part of the cast record the fingerprint covers.
                 append(":via=").append(entry.castVia?.let { it::class.simpleName } ?: "-")
+                // The additional-discard linked information (P6.2a) the resolution reads (Grab the Prize).
+                append(":disc=").append(entry.discardedForCost.joinToString("+") { it.name })
             }
             is StackEntry.Ability -> append("|ability=").append(renderTrigger(entry.trigger))
+            is StackEntry.ActivatedAbilityOnStack ->
+                append("|activated=")
+                    .append(entry.sourceCard.name)
+                    .append('@')
+                    .append(entry.sourceId.value)
+                    .append(':')
+                    .append(entry.controller.seat)
         }
     }
     state.pendingTriggers.forEach { append("|pending=").append(renderTrigger(it)) }
 }
-
-// A canonical descriptor of a fired triggered ability (CR 603.3): its source, controller, condition,
-// and the trigger's linked information — never the resolution effect, which has reference identity
-// only (ADR-009) and is excluded from the digest like every card definition.
-private fun renderTrigger(trigger: PendingTrigger): String =
-    buildString {
-        append(trigger.sourceCard.name)
-        append('@').append(trigger.sourceId.value)
-        append(':').append(trigger.controller.seat)
-        append(':').append(trigger.ability.condition::class.simpleName ?: "?")
-        append(":amt=").append(trigger.amount)
-        append(":subj=").append(trigger.subject?.value ?: "-")
-    }
-
-// The pre-game mulligan phase (CR 103.4/103.5) by cause: whose decision, count, and stage, or "-".
-private fun renderPendingMulligan(state: GameState): String =
-    state.pendingMulligan?.let { "${it.deciding.seat}:${it.mulliganCount}:${it.stage.name}" } ?: "-"
-
-private fun renderTarget(target: Target): String =
-    when (target) {
-        is Target.Player -> "player${target.id.seat}"
-        is Target.Permanent -> "permanent${target.id.value}"
-    }
-
-// A canonical descriptor of the in-progress combat (CR 506–511): attackers (id>defender), blocks
-// (blocker>attacker), the blocked-attacker set (CR 509.1h), the per-attacker damage-assignment
-// orders, the recorded trample assignments (CR 702.19), and the two damage-step flags.
-private fun renderCombat(combat: CombatState): String =
-    buildString {
-        append("atk[")
-        append(combat.attackers.joinToString(",") { "${it.attacker.value}>${it.defendingPlayer.seat}" })
-        append("]blk[")
-        append(combat.blocks?.joinToString(",") { "${it.blocker.value}>${it.attacker.value}" } ?: "-")
-        append("]blocked[")
-        append(combat.blockedAttackers.joinToString(",") { it.value.toString() })
-        append("]ord[")
-        append(
-            combat.blockerOrder.entries.joinToString(";") { (attacker, order) ->
-                "${attacker.value}:${order.joinToString(">") { it.value.toString() }}"
-            },
-        )
-        append("]trample[")
-        append(
-            combat.trampleAssignments.entries.joinToString(";") { (attacker, toPlayer) ->
-                "${attacker.value}:$toPlayer"
-            },
-        )
-        append("]fs=").append(combat.firstStrikeDamageDealt)
-        append(",rd=").append(combat.regularDamageDealt)
-    }

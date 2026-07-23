@@ -1,5 +1,6 @@
 package dev.mtgplay.rules.decision
 
+import dev.mtgplay.core.definition.AbilityZoneScope
 import dev.mtgplay.core.definition.CastSource
 import dev.mtgplay.core.definition.CastingPermission
 import dev.mtgplay.core.identity.CardRef
@@ -62,5 +63,41 @@ sealed interface PriorityOption {
     data class PlayLand(
         val objectId: ObjectId,
         val card: CardRef,
+    ) : PriorityOption
+
+    /**
+     * Plot the card [objectId] from the deciding player's hand (CR 702.140) — the CR 116.2g special
+     * action: pay the card's plot cost and exile it face-up, keeping priority afterward (CR 116.4).
+     * Additive, flagged (P6.2a). Choosing it opens a payment gathering for the plot cost (a
+     * [ChoosePaymentPlan]); once paid, the card is exiled with a plotted-turn marker and may be cast
+     * for free on a later turn. Enumerated only when fully legal (ADR-005): the player's own main
+     * phase with the stack empty (sorcery timing), and the plot cost affordable.
+     *
+     * @property objectId the plottable object in the deciding player's hand.
+     * @property card the printed identity, for display; the object is reborn in exile with a fresh id
+     *   when the action executes (CR 400.7).
+     */
+    data class PlotCard(
+        val objectId: ObjectId,
+        val card: CardRef,
+    ) : PriorityOption
+
+    /**
+     * Activate the [abilityIndex]th activated ability of the source [objectId] (CR 602.1, CR 117.1c).
+     * Additive, flagged (P6.2a). Choosing it begins gathering the ability's cost (any discard selection,
+     * then a payment plan); once the cost is paid the ability goes on the stack. Enumerated only when the
+     * cost is fully payable right now (ADR-005) — so choosing it never dead-ends. The source may be a
+     * battlefield permanent or (landcycling) a card in hand.
+     *
+     * @property objectId the source object whose ability is activated (in its ability's zone).
+     * @property card the source's printed identity, for display.
+     * @property abilityIndex which of the source definition's activated abilities this option activates.
+     * @property scope the zone the ability functions from (CR 113.6) — battlefield or hand.
+     */
+    data class ActivateAbility(
+        val objectId: ObjectId,
+        val card: CardRef,
+        val abilityIndex: Int,
+        val scope: AbilityZoneScope,
     ) : PriorityOption
 }

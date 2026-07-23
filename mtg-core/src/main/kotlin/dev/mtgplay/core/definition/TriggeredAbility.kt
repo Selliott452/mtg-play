@@ -22,9 +22,16 @@ package dev.mtgplay.core.definition
  * @property effect what the ability does when it resolves (CR 608.2); reuses [ResolutionEffect].
  * @property zoneScope the zone the ability functions from (CR 113.6); [TriggerZoneScope.Battlefield]
  *   for every MVP triggered half.
+ * @property optionalDiscardDraw an optional "you may discard a card; if you do, draw N" clause the
+ *   engine orchestrates on resolution (CR 603.2, CR 601.3b), or `null` for an ability with none.
+ *   Additive, flagged core (P6.2a). Melded Moxite's enters-the-battlefield "you may discard a card. If
+ *   you do, draw two cards." Because it needs a mid-resolution yes/no and discard selection, the engine
+ *   runs it instead of [effect] (they are mutually exclusive in the MVP pool); the discard routes
+ *   through the CR 614/616 framework so madness intercepts it.
  */
 data class TriggeredAbility(
     val condition: TriggerCondition,
     val effect: ResolutionEffect,
     val zoneScope: TriggerZoneScope = TriggerZoneScope.Battlefield,
+    val optionalDiscardDraw: OptionalDiscardDraw? = null,
 )

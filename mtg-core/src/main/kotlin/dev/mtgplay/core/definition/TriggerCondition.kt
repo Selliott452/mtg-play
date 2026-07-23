@@ -1,5 +1,9 @@
 package dev.mtgplay.core.definition
 
+import dev.mtgplay.core.card.CardType
+import kotlinx.collections.immutable.PersistentSet
+import kotlinx.collections.immutable.persistentSetOf
+
 /**
  * The event pattern that fires a [TriggeredAbility] (CR 603.2) — the "when/whenever/at" condition,
  * expressed as card-definition data. Additive, flagged core (P5.1).
@@ -44,14 +48,45 @@ sealed interface TriggerCondition {
     data object EnchantedCreatureDealsDamage : TriggerCondition
 
     /**
-     * "Whenever a spell is cast" (CR 603.2, CR 601.2i) — the cast-trigger seam. No MVP mainboard card
-     * uses it; it exists so the [dev.mtgplay.core.definition.CardDefinition] SPI can express the
-     * cast-trigger shape Guttersnipe needs in P6, and so the `completeCast` hook (`mtg-rules`) has a
-     * pattern to detect against. A card carrying this trigger fires it as any spell finishes casting.
-     * Refinements Guttersnipe needs — "an instant or sorcery spell you control" (CR 603.2e) — are the
-     * sealed extension point (P6); this bare form fires on every cast.
+     * "Whenever a spell is cast" (CR 603.2, CR 601.2i) — the cast-trigger seam, now filterable
+     * (P6.2a). A card carrying this fires as a spell finishes casting (CR 601.2i) **iff** the cast
+     * spell matches both filters:
+     * - [spellTypes]: the cast spell's printed card types must include at least one of these
+     *   (CR 205.2); an **empty** set matches any spell (the bare "whenever a spell is cast").
+     * - [controlledByYou]: when `true`, the spell's controller must be the trigger source's
+     *   controller (CR 603.2e "a spell you control") — control is ownership in the MVP pool; when
+     *   `false` any player's cast matches.
+     *
+     * Guttersnipe's "whenever you cast an instant or sorcery spell" is `SpellCast(spellTypes =
+     * {INSTANT, SORCERY}, controlledByYou = true)`. `mtg-rules` applies both filters at the
+     * `completeCast` detection site; the fired ability's [TriggeredAbility.effect] runs on resolution.
+     *
+     * @property spellTypes the printed card types that qualify a cast (any one suffices); empty means
+     *   any spell.
+     * @property controlledByYou whether the cast spell must be controlled by the trigger's controller.
      */
-    data object SpellCast : TriggerCondition
+    data class SpellCast(
+        val spellTypes: PersistentSet<CardType> = persistentSetOf(),
+        val controlledByYou: Boolean = false,
+    ) : TriggerCondition
+
+    /**
+     * "When you draw your [n]th card in a turn" (CR 603.2) — a per-turn draw-count trigger. Sneaky
+     * Snacker's "when you draw your third card in a turn, return this card from your graveyard to the
+     * battlefield tapped" is [DrewNthCardThisTurn]`(3)`, functioning from [TriggerZoneScope.Graveyard].
+     * "You" is the ability's controller — the card's owner in the MVP pool — so the trigger fires only
+     * when *that* player's [dev.mtgplay.core.state.PlayerState.drawsThisTurn] reaches exactly [n]
+     * (`mtg-rules` detects it at the draw that crosses the threshold, never re-firing on later draws).
+     *
+     * @property n which draw of the turn fires the ability (Sneaky Snacker's is 3); at least 1.
+     */
+    data class DrewNthCardThisTurn(
+        val n: Int,
+    ) : TriggerCondition {
+        init {
+            require(n >= 1) { "CR 603.2: the draw ordinal a per-turn draw trigger watches is at least 1, was $n" }
+        }
+    }
 
     /**
      * Madness's reflexive "when this card is discarded this way, its owner may cast it" ability

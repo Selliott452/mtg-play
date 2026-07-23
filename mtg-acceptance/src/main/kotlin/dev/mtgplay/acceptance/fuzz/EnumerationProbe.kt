@@ -101,9 +101,10 @@ object EnumerationProbe {
                 }
             is DecisionRequest.ChoosePaymentPlan ->
                 singleSelectPerOption(request.id, request.options.size, "payment")
-            // A correctly-sized (CR 514.1) discard that includes each card in turn.
-            is DecisionRequest.ChooseDiscards ->
-                sizedSelectionIncludingEach(request.id, request.options.size, request.count, "discard-including")
+            // Any fixed-size subset selection (CR 514.1 / 601.2b/h / 602.2b): a correctly-sized selection
+            // that includes each option in turn (discards, exile, sacrifice, ability discard).
+            is DecisionRequest.SizedSelection ->
+                sizedSelectionIncludingEach(request.id, request.optionCount, request.requiredCount, "sized-including")
             is DecisionRequest.DeclareAttackers ->
                 // Declaring nothing is always legal (CR 508.8); each eligible attacker is legal as a
                 // singleton (any subset is a legal declaration, CR 508.1a).
@@ -119,28 +120,19 @@ object EnumerationProbe {
                     request.options.indices.map { index ->
                         ProbeCandidate("block-only[$index]", Decision.MultiSelect(request.id, listOf(index)))
                     }
-            is DecisionRequest.OrderBlockers ->
-                // A blocker order is a permutation of *all* the options (CR 509.2); the identity
-                // permutation is one representative valid answer that exercises every option at once.
+            is DecisionRequest.PermutationSelection ->
+                // A blocker/trigger order is a permutation of *all* the options (CR 509.2 / 603.3b); the
+                // identity permutation is one representative valid answer exercising every option at once.
                 listOf(
                     ProbeCandidate(
                         "order-identity",
-                        Decision.MultiSelect(request.id, request.options.indices.toList()),
+                        Decision.MultiSelect(request.id, (0 until request.permutationSize).toList()),
                     ),
                 )
             is DecisionRequest.AssignTrampleDamage ->
                 // Every amount in 0..excess is an independently legal trample assignment (CR 702.19e):
                 // one single-select probe per option, the index being the amount to the player.
                 singleSelectPerOption(request.id, request.options.size, "trample")
-            is DecisionRequest.OrderTriggers ->
-                // A trigger order is a permutation of *all* the options (CR 603.3b); the identity
-                // permutation is one representative valid answer that exercises every option at once.
-                listOf(
-                    ProbeCandidate(
-                        "trigger-order-identity",
-                        Decision.MultiSelect(request.id, request.options.indices.toList()),
-                    ),
-                )
             is DecisionRequest.ChooseYesNo ->
                 // Both the decline (0) and the accept (1) of a "you may" are legal (CR 702.35b): the
                 // request is surfaced only when accepting is playable, so both are probed.
@@ -154,12 +146,15 @@ object EnumerationProbe {
                         Decision.SingleSelect(request.id, DecisionRequest.ChooseYesNo.ACCEPT),
                     ),
                 )
-            // Each card that may be exiled (CR 601.2b) probed inside a correctly-sized selection.
-            is DecisionRequest.ChooseCardsToExile ->
-                sizedSelectionIncludingEach(request.id, request.options.size, request.count, "exile-including")
             // Each applicable replacement (CR 616.1) is a legal choice to apply first.
             is DecisionRequest.ChooseReplacement ->
                 singleSelectPerOption(request.id, request.options.size, "replacement")
+            // Each offered colour (CR 614.12) is an independently legal as-enters choice (Utopia Sprawl).
+            is DecisionRequest.ChooseColor ->
+                singleSelectPerOption(request.id, request.options.size, "colour")
+            // Each keepable revealed card plus "keep none" (CR 701.16) is an independently legal choice.
+            is DecisionRequest.ChooseFromRevealed ->
+                singleSelectPerOption(request.id, request.choiceCount, "keep-revealed")
             // CR 103.4/103.5: both keep and mulligan are always legal; each bottom card is probed
             // inside a correctly-sized selection.
             is DecisionRequest.MulliganRequest -> mulliganCandidates(request)

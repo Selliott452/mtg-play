@@ -35,6 +35,15 @@ sealed interface CastingPermission {
     val additionalExileCount: Int get() = 0
 
     /**
+     * A non-mana sacrifice cost component of casting this way (CR 601.2h), or `null` for a permission
+     * with none (madness, escape, plain flashback). Lava Dart's flashback ([Flashback.sacrifice]) is
+     * "Sacrifice a Mountain"; Fireblast's [AlternativeCost] is "sacrifice two Mountains rather than pay
+     * the mana cost". The engine surfaces the selection decision (which matching permanents) and
+     * performs the sacrifice during payment (CR 601.2h), alongside the mana [cost].
+     */
+    val sacrifice: SacrificeRequirement? get() = null
+
+    /**
      * Whether a spell cast via this permission is **exiled instead of** being put into a graveyard as
      * it leaves the stack (CR 702.34e / CR 614) — the flashback replacement, covering resolution,
      * countering, and fizzling. `false` for madness, escape, and plot: their spells leave the stack
@@ -64,15 +73,39 @@ sealed interface CastingPermission {
     }
 
     /**
-     * Flashback (CR 702.34): the card may be cast from the graveyard for its flashback [cost], and if
-     * that spell would leave the stack it is exiled instead (CR 702.34e — [exilesOnLeaveStack]). Cast
-     * from [CastSource.GRAVEYARD] at the card's own timing.
+     * Flashback (CR 702.34): the card may be cast from the graveyard for its flashback [cost] plus an
+     * optional non-mana [sacrifice] cost component (CR 702.34c — a flashback cost may include more than
+     * mana), and if that spell would leave the stack it is exiled instead (CR 702.34e —
+     * [exilesOnLeaveStack]). Cast from [CastSource.GRAVEYARD] at the card's own timing. Faithless
+     * Looting's flashback is `Flashback({2}{R})`; Lava Dart's is `Flashback({0}, sacrifice a Mountain)`.
+     *
+     * @property sacrifice the non-mana part of the flashback cost (Lava Dart's "Sacrifice a Mountain"),
+     *   or `null` when the flashback cost is mana only.
      */
     data class Flashback(
         override val cost: ManaCost,
+        override val sacrifice: SacrificeRequirement? = null,
     ) : CastingPermission {
         override val source: CastSource = CastSource.GRAVEYARD
         override val exilesOnLeaveStack: Boolean = true
+    }
+
+    /**
+     * A generic alternative cost cast from the hand (CR 118.9, CR 601.2f): the card may be cast for
+     * [cost] plus an optional [sacrifice] instead of its printed mana cost. Fireblast's "You may
+     * sacrifice two Mountains rather than pay this spell's mana cost" is
+     * `AlternativeCost({0}, sacrifice = two Mountains)`. Offered at a priority window like a normal
+     * cast (the same card is also castable normally, a distinct option); the alternative cost replaces
+     * the printed mana cost entirely (CR 118.9).
+     *
+     * @property sacrifice the non-mana part of the alternative cost (Fireblast's two Mountains), or
+     *   `null` when the alternative cost is mana only.
+     */
+    data class AlternativeCost(
+        override val cost: ManaCost,
+        override val sacrifice: SacrificeRequirement? = null,
+    ) : CastingPermission {
+        override val source: CastSource = CastSource.HAND
     }
 
     /**
@@ -90,5 +123,25 @@ sealed interface CastingPermission {
     ) : CastingPermission {
         override val source: CastSource = CastSource.GRAVEYARD
         override val additionalExileCount: Int = exileOthers
+    }
+
+    /**
+     * Plot (CR 702.140): the card was plotted — paid its [plotCost] and exiled from hand face-up as a
+     * special action ([dev.mtgplay.core.state.GameObject.plottedTurn] records the turn) — and may now be
+     * cast **without paying its mana cost** ([cost] is `{0}`) from [CastSource.EXILE], but only as a
+     * sorcery and **not the turn it was plotted** (`mtg-rules` checks the plotted-turn marker against the
+     * current turn). Highway Robbery's is `Plot({1}{R})`.
+     *
+     * The [plotCost] is paid when the card is plotted (the plot special action), not when it is later
+     * cast; the free cast is what this permission enumerates from exile.
+     *
+     * @property plotCost the mana cost paid to plot the card (CR 702.140a), e.g. Highway Robbery's `{1}{R}`.
+     */
+    data class Plot(
+        val plotCost: ManaCost,
+    ) : CastingPermission {
+        // CR 702.140: cast without paying its mana cost — a {0} cost yields a single empty payment plan.
+        override val cost: ManaCost = ManaCost.parse("{0}")
+        override val source: CastSource = CastSource.EXILE
     }
 }

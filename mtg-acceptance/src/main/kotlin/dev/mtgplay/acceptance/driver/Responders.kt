@@ -51,10 +51,16 @@ object Responders {
                     error("the pass-everything responder never blocks, but a blocker-order request surfaced: $request")
                 is DecisionRequest.AssignTrampleDamage ->
                     error("the pass-everything responder never attacks, but a trample request surfaced: $request")
-                is DecisionRequest.ChooseCardsToExile ->
-                    error("the pass-everything responder never casts, but an exile-cost request surfaced: $request")
+                // ChooseDiscards is handled above; the other sized selections are cost/ability choices this
+                // policy never reaches (it never casts or activates).
+                is DecisionRequest.SizedSelection ->
+                    error("the pass-everything responder never pays cost selections, but one surfaced: $request")
                 is DecisionRequest.ChooseReplacement ->
                     error("the pass-everything responder never orders replacements: $request")
+                is DecisionRequest.ChooseColor ->
+                    error("the pass-everything responder never casts colour-choosing permanents: $request")
+                is DecisionRequest.ChooseFromRevealed ->
+                    error("the pass-everything responder never resolves a reveal effect: $request")
                 // CR 103.4/103.5: the passive policy keeps every hand at seven — so no bottoming ever
                 // follows — but bottoms the lowest indices if a mulligan game is ever driven this way.
                 is DecisionRequest.MulliganRequest -> keepAtSeven(request)

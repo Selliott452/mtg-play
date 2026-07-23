@@ -26,8 +26,17 @@ sealed interface TriggerZoneScope {
      * exile: the card was exiled by the discard replacement (CR 702.35a) and its owner may cast it as
      * the reflexive trigger resolves. This is a *synthesized* ability the madness replacement creates
      * on the exiled card, not a printed one, so the battlefield trigger detector never matches it; it
-     * is placed on the stack and resolved by the reflexive-cast path (`mtg-rules`). Sneaky Snacker's
-     * graveyard trigger and landcycling from hand (P6) add the graveyard and hand scopes here next.
+     * is placed on the stack and resolved by the reflexive-cast path (`mtg-rules`).
      */
     data object Exile : TriggerZoneScope
+
+    /**
+     * The ability functions from the graveyard (CR 113.6, CR 404) — the P6.2a extension point. Sneaky
+     * Snacker's "when you draw your third card in a turn, return this card from your graveyard to the
+     * battlefield tapped" (CR 603.2) functions from the graveyard: the trigger is watched while the
+     * card sits in its owner's graveyard, and `mtg-rules` fires it against the graveyard object as its
+     * source and subject (CR 603.10). A graveyard-scoped trigger is never fired by the battlefield
+     * detector; its own detection site scans graveyards.
+     */
+    data object Graveyard : TriggerZoneScope
 }

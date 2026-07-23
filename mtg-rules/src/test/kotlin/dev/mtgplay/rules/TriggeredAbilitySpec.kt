@@ -134,7 +134,7 @@ class TriggeredAbilitySpec :
 
         "CR 601.2i: the cast-trigger seam fires a fixture cast trigger onto the stack after the cast" {
             val watcher = CardRef("Cast Watcher")
-            val watcherDef = triggerCard(watcher, TriggerCondition.SpellCast, gainLifeAbility(2))
+            val watcherDef = triggerCard(watcher, TriggerCondition.SpellCast(), gainLifeAbility(2))
             val registry = fixtureDefinitions + (watcher to watcherDef)
             val state =
                 castState(

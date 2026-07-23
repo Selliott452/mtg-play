@@ -30,6 +30,14 @@ internal fun clearPriorityRound(state: GameState): GameState =
  * stack in APNAP order (CR 603.3b, [placePendingTriggers]). Placing triggers may itself suspend for an
  * ordering choice, or add ability objects the [seat] can now respond to; once the queue is empty the
  * window opens.
+ *
+ * **The recipient is recorded before placement (P6.2a, CR 601.2i "retained priority").** [seat] is
+ * marked [PriorityStatus.HOLDS_PRIORITY] *before* the pending-trigger check, so that when trigger
+ * placement suspends for an ordering choice, or resumes across several controllers, the player who
+ * will receive priority once the queue drains ([priorityRecipient]) is a pure function of the state
+ * (ADR-004) rather than blindly the active player. This is what returns priority to a **caster** who
+ * cast a spell on an opponent's turn after their cast trigger is placed (Guttersnipe), not to the
+ * active player.
  */
 internal fun priorityTo(
     state: GameState,
@@ -37,16 +45,29 @@ internal fun priorityTo(
 ): AdvanceResult =
     when (val outcome = performStateBasedActions(state)) {
         is SbaOutcome.Loss -> AdvanceResult.GameOver(outcome.state, outcome.result)
-        is SbaOutcome.Continued ->
-            if (outcome.state.pendingTriggers.isNotEmpty()) {
+        is SbaOutcome.Continued -> {
+            // Record the recipient in the state (CR 601.2i): it survives an ordering-choice suspension.
+            val marked = outcome.state.updatePlayer(seat) { it.copy(priorityStatus = PriorityStatus.HOLDS_PRIORITY) }
+            if (marked.pendingTriggers.isNotEmpty()) {
                 // CR 603.3b: put fired triggers on the stack before any player receives priority.
-                placePendingTriggers(outcome.state)
+                placePendingTriggers(marked)
             } else {
-                val paused =
-                    outcome.state.updatePlayer(seat) { it.copy(priorityStatus = PriorityStatus.HOLDS_PRIORITY) }
-                AdvanceResult.NeedsDecision(paused, chooseActionRequest(paused, seat))
+                AdvanceResult.NeedsDecision(marked, chooseActionRequest(marked, seat))
             }
+        }
     }
+
+/**
+ * The player who will receive priority once the pending-trigger queue drains (CR 603.3b, CR 601.2i):
+ * the [PriorityStatus.HOLDS_PRIORITY] holder [priorityTo] recorded before placement, defaulting to the
+ * active player when none is recorded. This keeps "who gets priority after these triggers" a pure
+ * function of the state (ADR-004) across an order-triggers (CR 603.3b) suspension.
+ */
+internal fun priorityRecipient(state: GameState): PlayerId =
+    state.players.entries
+        .firstOrNull { it.value.priorityStatus == PriorityStatus.HOLDS_PRIORITY }
+        ?.key
+        ?: state.turn.activePlayer
 
 /**
  * Applies [seat]'s pass of priority (CR 117.3d): the next player in turn order receives

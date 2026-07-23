@@ -50,4 +50,22 @@ interface SpellDefinition : CardDefinition {
      * so this list holds only replacements intrinsic to the card wherever it sits.
      */
     val replacementEffects: PersistentList<ReplacementEffect> get() = persistentListOf()
+
+    /**
+     * The additional cost intrinsic to casting this spell (CR 601.2b), or `null` for a card with none.
+     * Additive, flagged core (P6.2a). Grab the Prize's "As an additional cost to cast this spell,
+     * discard a card" is [AdditionalCost.DiscardCards]`(1)`; the engine surfaces the selection, checks
+     * payability, and performs the discard through the CR 614/616 framework (so madness intercepts it)
+     * during payment (CR 601.2h). The discarded card's identity is recorded on the cast record as
+     * linked information for the resolution.
+     */
+    val additionalCost: AdditionalCost? get() = null
+
+    /**
+     * A "reveal top N, put one into hand, rest into graveyard" part of this spell's resolution
+     * (CR 701.16), or `null` for a spell with none. Additive, flagged core (P6.2a). Malevolent Rumble's
+     * reveal-four clause. Because it needs a mid-resolution selection, the engine runs it after the
+     * ordinary [resolution] effect (the two clauses are independent), pausing for the choice.
+     */
+    val libraryReveal: LibraryReveal? get() = null
 }

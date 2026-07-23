@@ -45,14 +45,56 @@ internal fun manaSourceClasses(
 ): List<SourceClass> {
     val classes = LinkedHashMap<SourceClassKey, MutableList<ObjectId>>()
     state.sharedZones.battlefield
-        .filter { it.owner == seat && !it.tapped }
+        // A tap source must be untapped; a sacrifice source (Eldrazi Spawn) is usable tapped or not.
+        .filter { it.owner == seat && (!it.tapped || isSacrificeSource(state, it.id)) }
         .forEach { obj ->
             productionProfile(state, obj)?.let { profile ->
-                classes.getOrPut(SourceClassKey(obj.card, profile)) { mutableListOf() }.add(obj.id)
+                val bonus = triggeredManaBonus(state, obj.id)
+                val key = SourceClassKey(obj.card, profile, bonus, isSacrificeSource(state, obj.id))
+                classes.getOrPut(key) { mutableListOf() }.add(obj.id)
             }
         }
     return classes.map { (key, members) -> SourceClass(key, members.toList()) }
 }
+
+/**
+ * Whether the battlefield source [id] produces mana by being **sacrificed** rather than tapped
+ * (CR 605.1a) — an Eldrazi Spawn's "Sacrifice this token: Add {C}". True when its layered mana
+ * abilities are non-empty and every one is a sacrifice ability; the MVP pool never mixes tap and
+ * sacrifice mana abilities on one source, so this all-or-nothing test is exact.
+ */
+internal fun isSacrificeSource(
+    state: GameState,
+    id: ObjectId,
+): Boolean {
+    val abilities = layeredCharacteristics(state, id).manaAbilities
+    return abilities.isNotEmpty() && abilities.all { it.viaSacrifice }
+}
+
+/**
+ * The extra mana a tap of the battlefield source [sourceId] adds *in addition to* its primary
+ * production (CR 605.1b): the [dev.mtgplay.core.definition.TriggeredManaAbility]s of every Aura attached
+ * to it — Utopia Sprawl's "add one mana of the chosen colour" on an enchanted Forest — expanded to
+ * [ManaType]s, in battlefield-then-ability order. Empty for a source with no such Aura. This is the
+ * [SourceClassKey.bonus] that keeps an enchanted Forest a distinct source class, and the mana
+ * [resolveTapForMana] floats into the pool after the primary mana.
+ */
+internal fun triggeredManaBonus(
+    state: GameState,
+    sourceId: ObjectId,
+): List<ManaType> =
+    state.sharedZones.battlefield
+        .filter { it.attachedTo == sourceId }
+        .flatMap { aura ->
+            state.definitions[aura.card]?.triggeredManaAbilities.orEmpty().flatMap { ability ->
+                when (ability) {
+                    is dev.mtgplay.core.definition.TriggeredManaAbility.AddChosenColor -> {
+                        val color = aura.chosenColor
+                        if (color == null) emptyList() else List(ability.amount) { manaTypeOf(color) }
+                    }
+                }
+            }
+        }
 
 /**
  * The production profile of the battlefield object [obj]: the canonical (WUBRG-then-colorless,

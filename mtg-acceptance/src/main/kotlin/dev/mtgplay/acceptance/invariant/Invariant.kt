@@ -178,4 +178,22 @@ enum class Invariant {
      * the mulligan pause can never be confused with an in-game one.
      */
     MULLIGAN_PHASE_SANITY,
+
+    /**
+     * The plotted-turn marker ([dev.mtgplay.core.state.GameObject.plottedTurn]) is an **exile-only**
+     * status (CR 702.140). Added in P6.2a. A plotted card waits in exile until it is cast for free on a
+     * later turn; the marker records when it was plotted and is meaningless anywhere else — an object
+     * reborn off exile carries none (CR 400.7), like the madness marker. A set marker off exile is a
+     * leaked status.
+     */
+    PLOT_MARKER_SCOPE,
+
+    /**
+     * The as-enters chosen colour ([dev.mtgplay.core.state.GameObject.chosenColor]) is a
+     * **battlefield-only** status (CR 614.12). Added in P6.2a. The colour Utopia Sprawl chose as it
+     * entered is fixed on the battlefield permanent and read by its triggered mana ability; an object
+     * reborn off the battlefield carries none (CR 400.7), like tapped and attachment. A set colour off
+     * the battlefield is a leaked status.
+     */
+    CHOSEN_COLOUR_SCOPE,
 }
