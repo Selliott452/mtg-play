@@ -30,6 +30,10 @@ import kotlinx.collections.immutable.persistentSetOf
  *   P3.1). Printed values only — in-game keywords are computed by the layer system (CR 613,
  *   layer 6) in Phase 4, which adds aura-granted keywords; combat reads these only through the
  *   effective-keyword accessor in `mtg-rules`.
+ * @property evasions the printed evasion abilities that are ability text rather than named keywords
+ *   (CR 509.1b), possibly empty (additive, flagged, P5.3). Silhana Ledgewalker's "can't be blocked
+ *   except by creatures with flying" lives here; nothing in the MVP pool grants or removes an
+ *   evasion, so combat reads these straight from the printed characteristics.
  */
 data class PrintedCharacteristics(
     val name: String,
@@ -39,6 +43,7 @@ data class PrintedCharacteristics(
     val subtypes: PersistentSet<Subtype>,
     val powerToughness: PrintedPowerToughness?,
     val keywords: PersistentSet<Keyword> = persistentSetOf(),
+    val evasions: PersistentSet<Evasion> = persistentSetOf(),
 ) {
     init {
         require(name.isNotBlank()) { "card name must not be blank" }

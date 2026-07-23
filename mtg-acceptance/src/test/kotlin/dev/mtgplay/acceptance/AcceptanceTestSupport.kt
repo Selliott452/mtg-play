@@ -227,6 +227,55 @@ internal fun boglesAuraConfig(seed: Long): MatchConfig =
         startingPlayer = null,
     )
 
+/**
+ * A GW-Bogles keyword deck (CR 100.1) for the P5.3 corpus: the three real hexproof one-drops
+ * (Gladecover Scout, Slippery Bogle, Silhana Ledgewalker) plus Grizzly Bears bodies, a heavy Rancor
+ * package (grants trample and +2/+0, so a blocked Rancor'd attacker surfaces the trample-assignment
+ * decision), and a small Lightning Bolt package on a Forest/Mountain base. Tuned (with
+ * [boglesKeywordConfig]) so a random-legal corpus reliably (a) has opponents holding hexproof
+ * creatures the enumerator must route targeting around, and (b) produces real trample assignments.
+ */
+internal fun boglesKeywordDeck(size: Int = DECK_SIZE): List<CardRef> {
+    val hexproof =
+        listOf("Gladecover Scout", "Slippery Bogle", "Silhana Ledgewalker")
+            .flatMap { name -> List(KEYWORD_DECK_HEXPROOF_EACH) { CardRef(name) } }
+    val bears = List(KEYWORD_DECK_BEARS) { CardRef("Grizzly Bears") }
+    val rancors = List(KEYWORD_DECK_RANCORS) { CardRef("Rancor") }
+    val bolts = List(KEYWORD_DECK_BOLTS) { CardRef("Lightning Bolt") }
+    val mountains = List(KEYWORD_DECK_MOUNTAINS) { CardRef("Mountain") }
+    val fixed = hexproof.size + bears.size + rancors.size + bolts.size + mountains.size
+    val forests = List(size - fixed) { CardRef("Forest") }
+    return hexproof + bears + rancors + bolts + mountains + forests
+}
+
+/** Copies of each hexproof one-drop in the keyword deck. */
+internal const val KEYWORD_DECK_HEXPROOF_EACH: Int = 4
+
+/** Grizzly Bears in the keyword deck (bodies to attack, block, and wear Rancor). */
+internal const val KEYWORD_DECK_BEARS: Int = 8
+
+/** Rancors in the keyword deck (the trample grant that makes blocked attackers surface the choice). */
+internal const val KEYWORD_DECK_RANCORS: Int = 8
+
+/** Lightning Bolts in the keyword deck (opponent targeting the hexproof enumerator must route around). */
+internal const val KEYWORD_DECK_BOLTS: Int = 6
+
+/** Mountains in the keyword deck (the red half of the mana base for the Bolts). */
+internal const val KEYWORD_DECK_MOUNTAINS: Int = 6
+
+/**
+ * A symmetric two-player P5.3 keyword config: both seats on [boglesKeywordDeck]s, `MvpCards`
+ * definitions, seed-determined (ADR-006). The corpus this drives exercises hexproof targeting
+ * exclusion and real trample-assignment decisions across random-legal playouts.
+ */
+internal fun boglesKeywordConfig(seed: Long): MatchConfig =
+    MatchConfig(
+        seed = seed,
+        libraries = mapOf(alice to boglesKeywordDeck(), bob to boglesKeywordDeck()),
+        definitions = MvpCards.definitions,
+        startingPlayer = null,
+    )
+
 /** Generous turn cap for real-card playouts; a no-death game decks out near turn 108. */
 internal const val REAL_CARD_TURN_CAP: Int = 130
 

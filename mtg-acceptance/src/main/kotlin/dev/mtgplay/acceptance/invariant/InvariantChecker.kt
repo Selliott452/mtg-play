@@ -312,13 +312,22 @@ internal fun checkCombatReferences(state: GameState): List<Violation> {
                     .filter { it.attacker == attacker }
                     .map { it.blocker }
             if (order.size != actual.size || order.toSet() != actual.toSet()) {
-                add(
-                    Violation(
-                        Invariant.COMBAT_REFERENCES_VALID,
-                        "CR 509.2: $attacker's order $order is not a permutation of its blockers $actual",
-                    ),
-                )
+                val message = "CR 509.2: $attacker's order $order is not a permutation of its blockers $actual"
+                add(Violation(Invariant.COMBAT_REFERENCES_VALID, message))
             }
+        }
+        // CR 509.1h / 702.19: a blocked attacker (not battlefield-scoped — a blocked attacker whose
+        // blockers all died still sits in it) and any trample assignment name a declared attacker.
+        combat.blockedAttackers.filter { it !in declaredAttackers }.forEach {
+            add(Violation(Invariant.COMBAT_REFERENCES_VALID, "CR 509.1h: blocked attacker $it was not declared"))
+        }
+        combat.trampleAssignments.keys.filter { it !in combat.blockedAttackers }.forEach {
+            add(
+                Violation(
+                    Invariant.COMBAT_REFERENCES_VALID,
+                    "CR 702.19: trample assignment $it is not a blocked attacker",
+                ),
+            )
         }
     }
 }

@@ -67,6 +67,8 @@ internal fun respondTo(request: DecisionRequest): Decision =
             error("the pass-everything responder never casts, but a payment request surfaced: $request")
         is DecisionRequest.OrderBlockers ->
             error("the pass-everything responder never blocks, but a blocker-order request surfaced: $request")
+        is DecisionRequest.AssignTrampleDamage ->
+            error("the pass-everything responder never attacks, but a trample-assignment request surfaced: $request")
         // CR 603.3b: order any simultaneous triggers in the deterministic identity permutation.
         is DecisionRequest.OrderTriggers -> Decision.MultiSelect(request.id, request.options.indices.toList())
         // CR 702.35b: a passive game may still discard a madness card at cleanup; decline the reflexive cast.

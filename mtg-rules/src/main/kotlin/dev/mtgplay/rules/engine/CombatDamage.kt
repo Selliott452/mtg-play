@@ -2,6 +2,7 @@ package dev.mtgplay.rules.engine
 
 import dev.mtgplay.core.card.Keyword
 import dev.mtgplay.core.identity.ObjectId
+import dev.mtgplay.core.state.AttackerAssignment
 import dev.mtgplay.core.state.CombatState
 import dev.mtgplay.core.state.GameState
 import dev.mtgplay.core.state.Target
@@ -9,24 +10,27 @@ import dev.mtgplay.rules.AdvanceResult
 import dev.mtgplay.rules.effect.dealDamage
 
 /*
- * The combat-damage step (CR 510), a turn-based action with no decision.
+ * The combat-damage step (CR 510) — its orchestration and damage assembly. The trample-assignment
+ * decision lives in TrampleAssignment.kt; lifelink and the enchanted-creature-deals-damage triggers,
+ * both post-damage results of this step, live in CombatDamageResults.kt.
  *
- * ARCHITECT DECISION (P3.1): there is no damage-assignment decision. Damage is assigned by the
- * deterministic Comprehensive-Rules minimum — unblocked attackers hit the defending player; a
- * blocked attacker assigns lethal to each of its blockers in the chosen order and dumps the rest
- * on the last one, where excess is WASTED (trample, CR 702.19, is P5). Blockers hit the attacker
- * they block. The player-facing damage-assignment choice (CR 510.1c "the attacking player may
- * assign the rest as they choose") arrives with trample in P5.
+ * ARCHITECT DECISION (P3.1, refined P5.3): the step is deterministic except for trample. An
+ * unblocked attacker hits the defending player; a blocked attacker assigns at least lethal to each
+ * of its surviving blockers in the chosen order (CR 510.1c). For an attacker *without* trample the
+ * whole assignment is deterministic — where the above-lethal overkill lands is outcome-irrelevant,
+ * so it is collapsed onto the last blocker rather than surfaced as a choice. Only trample
+ * (CR 702.19) makes the above-lethal excess matter: [pendingTrampleDecision] surfaces the choice
+ * before this step's damage is dealt. A blocked trampler whose blockers all left combat assigns all
+ * its damage to the player (CR 702.19g); a blocked non-trampler in that spot assigns none
+ * (CR 510.1c).
  *
- * First strike (CR 510.5) is scaffolded: if any combatant has first strike as the step begins,
- * the phase runs two combat-damage steps — first-strikers deal in the first, everyone else in the
- * second — tracked by the two flags on [CombatState]. There is no double strike in the pool, so a
- * first-striker never deals in the second step. Nothing dies from marked damage in P3.1: the
- * lethal-damage state-based action (CR 704.5g) that would destroy a creature is P3.2, and hooks in
- * at the priority grant that follows each damage step (see [grantPriorityRound]).
+ * First strike (CR 510.5): if any combatant has first strike as the step begins, the phase runs two
+ * combat-damage steps — first-strikers deal in the first, everyone else in the second — tracked by
+ * the two flags on [CombatState]. There is no double strike in the pool, so a first-striker never
+ * deals in the second step, and its trample assignment (if any) happens in the first step.
  */
 
-private enum class DamageStep {
+internal enum class DamageStep {
     /** CR 510.5: only first-strike (and, from a later pool, double-strike) creatures deal. */
     FIRST_STRIKE,
 
@@ -34,25 +38,38 @@ private enum class DamageStep {
     REGULAR,
 }
 
+/** One creature's combat-damage assignment: [source] deals [amount] to [recipient] (CR 510.1). */
+internal data class DamageAssignment(
+    val source: ObjectId,
+    val recipient: Target,
+    val amount: Int,
+)
+
 /**
- * Performs the combat-damage step (CR 510): deals this step's combat damage and grants the
+ * Performs the combat-damage step (CR 510): first surfaces any pending trample-assignment decision
+ * ([pendingTrampleDecision]); once none remains, deals this step's combat damage and grants the
  * following priority round (CR 510.4). Re-entered for the second combat-damage step when first
  * strike split it in two (see [needsSecondCombatDamageStep]); the two [CombatState] flags record
  * which steps have happened so the re-entry deals the *regular* damage.
  *
- * A creature-less game engages no combat, so this step is a bare priority window there (P3.1) —
- * the same passthrough it was before combat existed.
+ * A creature-less game engages no combat, so this step is a bare priority window there (P3.1).
  */
 internal fun combatDamageStep(state: GameState): AdvanceResult {
     val combat = state.turn.combat ?: return grantPriorityRound(state)
-    return when {
-        combatHasFirstStriker(state, combat) && !combat.firstStrikeDamageDealt ->
-            grantPriorityRound(dealCombatDamage(state, DamageStep.FIRST_STRIKE))
-        !combat.regularDamageDealt ->
-            grantPriorityRound(dealCombatDamage(state, DamageStep.REGULAR))
-        else -> error("CR 510: the combat-damage step was re-entered after all combat damage was dealt")
-    }
+    return pendingTrampleDecision(state, combat)?.let { AdvanceResult.NeedsDecision(state, it) }
+        ?: dealCurrentDamageStep(state, combat)
 }
+
+// Deals this step's damage and grants the following priority round (CR 510.4), or fails loudly if
+// the step was re-entered after all combat damage of this combat has already been dealt.
+private fun dealCurrentDamageStep(
+    state: GameState,
+    combat: CombatState,
+): AdvanceResult =
+    when (val step = currentDamageStep(state, combat)) {
+        DamageStep.FIRST_STRIKE, DamageStep.REGULAR -> grantPriorityRound(dealCombatDamage(state, step))
+        null -> error("CR 510: the combat-damage step was re-entered after all combat damage was dealt")
+    }
 
 /**
  * Whether a second combat-damage step is due (CR 510.5): the first-strike step happened and the
@@ -64,6 +81,21 @@ internal fun needsSecondCombatDamageStep(state: GameState): Boolean {
     return combat.firstStrikeDamageDealt && !combat.regularDamageDealt
 }
 
+/**
+ * The combat-damage step about to be dealt (CR 510.5), or `null` when all combat damage of this
+ * combat is done: the first-strike step while a first-striker is present and it has not run, else
+ * the regular step while it has not run.
+ */
+internal fun currentDamageStep(
+    state: GameState,
+    combat: CombatState,
+): DamageStep? =
+    when {
+        combatHasFirstStriker(state, combat) && !combat.firstStrikeDamageDealt -> DamageStep.FIRST_STRIKE
+        !combat.regularDamageDealt -> DamageStep.REGULAR
+        else -> null
+    }
+
 /** Whether any attacker or blocker has first strike as the combat-damage step begins (CR 510.5). */
 private fun combatHasFirstStriker(
     state: GameState,
@@ -73,14 +105,8 @@ private fun combatHasFirstStriker(
     return combatants.any { Keyword.FIRST_STRIKE in effectiveKeywords(state, it) }
 }
 
-// One creature's combat-damage assignment: [source] deals [amount] to [recipient] (CR 510.1).
-private data class DamageAssignment(
-    val source: ObjectId,
-    val recipient: Target,
-    val amount: Int,
-)
-
-// Deals one combat-damage step's damage simultaneously (CR 510.2) and records the step as done.
+// Deals one combat-damage step's damage simultaneously (CR 510.2), applies lifelink, fires the
+// enchanted-creature-deals-damage triggers, and records the step as done.
 private fun dealCombatDamage(
     state: GameState,
     step: DamageStep,
@@ -93,16 +119,7 @@ private fun dealCombatDamage(
     val assignments =
         buildList {
             for (assignment in combat.attackers) {
-                if (!dealsThisStep(state, assignment.attacker, step)) continue
-                val blockers = orderedBlockersOf(combat, assignment.attacker)
-                if (blockers.isEmpty()) {
-                    // CR 510.1c: an unblocked attacker assigns its combat damage to the player it
-                    // is attacking.
-                    val amount = effectivePower(state, assignment.attacker)
-                    add(DamageAssignment(assignment.attacker, Target.Player(assignment.defendingPlayer), amount))
-                } else {
-                    addAll(assignToBlockers(state, assignment.attacker, blockers))
-                }
+                if (dealsThisStep(state, assignment.attacker, step)) addAll(attackerDamage(state, combat, assignment))
             }
             for (block in combat.blocks.orEmpty()) {
                 if (!dealsThisStep(state, block.blocker, step)) continue
@@ -117,7 +134,10 @@ private fun dealCombatDamage(
             }
         }
     val damaged = assignments.fold(state) { current, a -> dealDamage(current, a.recipient, a.amount) }
-    val triggered = fireCombatDamageTriggers(damaged, assignments)
+    // CR 702.15: lifelink is a result of the damage, applied in this same transition, before any
+    // trigger is placed — so it can never race the Armadillo Cloak "gain that much life" trigger.
+    val lifelinked = applyCombatLifelink(damaged, assignments)
+    val triggered = fireCombatDamageTriggers(lifelinked, assignments)
     return triggered.updateCombat {
         when (step) {
             DamageStep.FIRST_STRIKE -> it.copy(firstStrikeDamageDealt = true)
@@ -127,25 +147,35 @@ private fun dealCombatDamage(
 }
 
 /**
- * Fires the enchanted-creature-deals-damage triggers (CR 603.2) for a combat-damage step. Combat
- * damage is one event (CR 510.2), so a creature that split its damage among several recipients dealt
- * damage *once*: [assignments] are aggregated per source, and each source's total is what its Aura's
- * "gain that much life" sees (Armadillo Cloak). The aggregation order is source-first-appearance for a
- * deterministic pending-trigger queue (ADR-006).
+ * The combat damage one attacker assigns (CR 510.1c): an unblocked attacker hits the defending
+ * player; a blocked attacker assigns to its surviving blockers, and — if it has trample (CR 702.19)
+ * — the recorded excess to the player ([assignBlockedDamage]); a blocked attacker whose blockers all
+ * left combat assigns all its damage to the player if it has trample (CR 702.19g), or none if it does
+ * not (CR 510.1c).
  */
-private fun fireCombatDamageTriggers(
+private fun attackerDamage(
     state: GameState,
-    assignments: List<DamageAssignment>,
-): GameState =
-    assignments
-        .groupBy(DamageAssignment::source)
-        .mapValues { (_, list) -> list.sumOf(DamageAssignment::amount) }
-        .entries
-        .fold(state) { current, (source, total) -> fireEnchantedDamageTriggers(current, source, total) }
+    combat: CombatState,
+    assignment: AttackerAssignment,
+): List<DamageAssignment> {
+    val attacker = assignment.attacker
+    val toDefender =
+        DamageAssignment(attacker, Target.Player(assignment.defendingPlayer), effectivePower(state, attacker))
+    val survivors = orderedBlockersOf(combat, attacker)
+    val hasTrample = Keyword.TRAMPLE in effectiveKeywords(state, attacker)
+    return when {
+        attacker !in combat.blockedAttackers -> listOf(toDefender)
+        survivors.isEmpty() -> if (hasTrample) listOf(toDefender) else emptyList()
+        else -> {
+            val toPlayer = if (hasTrample) combat.trampleAssignments[attacker] ?: 0 else 0
+            assignBlockedDamage(state, attacker, survivors, assignment.defendingPlayer, toPlayer)
+        }
+    }
+}
 
 // Whether [id] assigns combat damage in [step] (CR 510.5): first-strikers in the first step,
 // everyone else in the second (no double strike in the pool means a first-striker never deals twice).
-private fun dealsThisStep(
+internal fun dealsThisStep(
     state: GameState,
     id: ObjectId,
     step: DamageStep,
@@ -157,34 +187,12 @@ private fun dealsThisStep(
     }
 }
 
-// CR 510.1c deterministic minimum: lethal to each blocker in order, remainder wasted on the last.
-private fun assignToBlockers(
-    state: GameState,
-    attacker: ObjectId,
-    orderedBlockers: List<ObjectId>,
-): List<DamageAssignment> {
-    var remaining = effectivePower(state, attacker)
-    return orderedBlockers.mapIndexed { index, blocker ->
-        val amount =
-            if (index == orderedBlockers.lastIndex) {
-                // The last blocker absorbs the whole remainder; excess is wasted (no trample, P5).
-                remaining
-            } else {
-                // CR 510.1c: lethal is toughness minus damage already marked, never negative.
-                val alreadyMarked = state.battlefieldObject(blocker).damageMarked
-                val lethal = (effectiveToughness(state, blocker) - alreadyMarked).coerceAtLeast(0)
-                minOf(remaining, lethal)
-            }
-        remaining -= amount
-        DamageAssignment(attacker, Target.Permanent(blocker), amount)
-    }
-}
-
 /**
  * The blockers of [attacker] in the order combat damage is assigned to them (CR 509.2): the
  * attacker's declaration-order block list when singly (or un-) blocked, otherwise the attacking
- * player's chosen order. Fails loudly if a multi-blocked attacker has no recorded order — the
- * engine never guesses an order.
+ * player's chosen order. The list holds only *surviving* blockers — a dead blocker was removed from
+ * the block list when it left the battlefield (CR 506.4, clearCombatReferences). Fails loudly if a
+ * multi-blocked attacker has no recorded order — the engine never guesses an order.
  */
 internal fun orderedBlockersOf(
     combat: CombatState,

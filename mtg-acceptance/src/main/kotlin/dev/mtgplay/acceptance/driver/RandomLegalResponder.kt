@@ -67,6 +67,9 @@ class RandomLegalResponder(
                 rng = next
                 Decision.MultiSelect(request.id, order)
             }
+            // CR 702.19e: a uniformly random legal trample assignment — any amount in 0..excess is
+            // legal (each keeps every blocker at its lethal), so the option index is a uniform pick.
+            is DecisionRequest.AssignTrampleDamage -> randomSingleSelect(request.id, request.options.size)
             // CR 603.3b: a uniformly random permutation of the controller's simultaneous triggers.
             is DecisionRequest.OrderTriggers -> {
                 val (order, next) = (0 until request.options.size).toList().toPersistentList().shuffled(rng)

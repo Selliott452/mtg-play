@@ -31,6 +31,11 @@ internal fun applyDecision(
         is DecisionRequest.DeclareAttackers -> applyDeclareAttackers(answered, request, decision)
         is DecisionRequest.DeclareBlockers -> applyDeclareBlockers(answered, request, decision)
         is DecisionRequest.OrderBlockers -> applyOrderBlockers(answered, request, decision)
+        is DecisionRequest.AssignTrampleDamage -> {
+            check(decision is Decision.SingleSelect) { "unreachable: decision shape was validated against the request" }
+            // The option index *is* the amount assigned to the defending player (options are 0..excess).
+            applyTrampleAssignment(answered, request, request.options[decision.index])
+        }
         is DecisionRequest.OrderTriggers -> applyChosenTriggerOrder(answered, request, decision)
         is DecisionRequest.ChooseYesNo -> applyChosenYesNo(answered, request, decision)
         is DecisionRequest.ChooseCardsToExile -> applyChosenCardsToExile(answered, request, decision)

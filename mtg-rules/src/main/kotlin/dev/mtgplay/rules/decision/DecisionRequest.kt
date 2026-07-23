@@ -236,6 +236,50 @@ sealed interface DecisionRequest {
     }
 
     /**
+     * The trample damage-assignment choice for one blocked trampling attacker (CR 702.19e): the
+     * attacking [seat] chooses how much of [attacker]'s combat damage above lethal is dealt to the
+     * defending player, answering a [Decision.SingleSelect] whose index **is** the amount assigned
+     * to the player. Additive, flagged (P5.3).
+     *
+     * Surfaced only for an attacker that is blocked, has at least one surviving blocker, has trample
+     * among its effective keywords, and has strictly positive above-lethal excess — so the choice is
+     * real (a range of two or more). The engine has already committed at least lethal to every
+     * surviving blocker (CR 510.1c), so only the excess is the player's to give: the options are the
+     * integers `0..excess`, and whatever is not assigned to the player overkills a blocker
+     * (outcome-irrelevant, collapsed deterministically). A blocked trampler with **no** surviving
+     * blockers assigns all its damage to the player with no choice (CR 702.19g), so no request is
+     * surfaced there. One request per such attacker, in attacker-declaration order, per combat-damage
+     * step (a first-striker's trample assignment happens in its step).
+     *
+     * @property attacker the blocked trampling attacker whose excess is being assigned.
+     * @property attackerCard the attacker's printed identity, for display.
+     * @property defendingPlayer the player the excess may be assigned to (CR 508.1's defender).
+     * @property options the assignable amounts to the player, the integers `0..excess` in order; the
+     *   answer's index is the chosen amount. Always two or more (excess is positive when surfaced).
+     */
+    data class AssignTrampleDamage(
+        override val id: DecisionRequestId,
+        val attacker: ObjectId,
+        val attackerCard: CardRef,
+        val defendingPlayer: PlayerId,
+        val options: List<Int>,
+    ) : DecisionRequest {
+        init {
+            require(options == options.indices.toList()) {
+                "CR 702.19e: trample options are the amounts 0..excess in order, got $options"
+            }
+            require(options.size >= MINIMUM_TRAMPLE_OPTIONS) {
+                "CR 702.19e: a trample assignment is surfaced only with positive excess, got ${options.size} option(s)"
+            }
+        }
+
+        private companion object {
+            /** Surfaced only when both 0 and at least 1 are assignable (positive excess). */
+            const val MINIMUM_TRAMPLE_OPTIONS: Int = 2
+        }
+    }
+
+    /**
      * The order-simultaneous-triggers choice (CR 603.3b): [seat] controls two or more triggered
      * abilities that fired at once and must choose the order to put them on the stack, answering with
      * a [Decision.MultiSelect] whose indices are a **permutation** of all of [options]. Additive,

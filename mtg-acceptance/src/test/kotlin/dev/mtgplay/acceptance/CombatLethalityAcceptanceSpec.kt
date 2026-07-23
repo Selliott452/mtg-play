@@ -106,6 +106,8 @@ private val ALL_OUT_ATTACK: Responder =
                 error("the all-out-attack policy never casts, but a payment request surfaced: $request")
             is DecisionRequest.OrderBlockers ->
                 error("the all-out-attack policy never blocks, but a blocker-order request surfaced: $request")
+            is DecisionRequest.AssignTrampleDamage ->
+                error("the all-out-attack policy has no tramplers, but a trample-assignment request surfaced: $request")
             is DecisionRequest.OrderTriggers ->
                 error("the all-out-attack policy fires no triggers, but a trigger-order request surfaced: $request")
             is DecisionRequest.ChooseYesNo ->

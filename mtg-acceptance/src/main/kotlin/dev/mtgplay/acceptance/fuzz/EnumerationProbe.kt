@@ -128,6 +128,10 @@ object EnumerationProbe {
                         Decision.MultiSelect(request.id, request.options.indices.toList()),
                     ),
                 )
+            is DecisionRequest.AssignTrampleDamage ->
+                // Every amount in 0..excess is an independently legal trample assignment (CR 702.19e):
+                // one single-select probe per option, the index being the amount to the player.
+                singleSelectPerOption(request.id, request.options.size, "trample")
             is DecisionRequest.OrderTriggers ->
                 // A trigger order is a permutation of *all* the options (CR 603.3b); the identity
                 // permutation is one representative valid answer that exercises every option at once.

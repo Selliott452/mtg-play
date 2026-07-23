@@ -1,5 +1,6 @@
 package dev.mtgplay.rules.engine
 
+import dev.mtgplay.core.card.Evasion
 import dev.mtgplay.core.card.Keyword
 import dev.mtgplay.core.identity.ObjectId
 import dev.mtgplay.core.identity.PlayerId
@@ -44,8 +45,7 @@ internal fun eligibleAttackers(state: GameState): List<GameObject> {
  * Every legal (blocker, attacker) pairing (CR 509.1), ordered by blocker battlefield order then
  * attacker declaration order. A blocker is a creature the defending player controls that is
  * untapped (CR 509.1a); a pairing is legal only if the blocker can block that attacker's evasion
- * — the sole evasion in the pool is flying (CR 509.1b): a flying attacker can be blocked only by a
- * creature with flying (no reach exists in the pool).
+ * (CR 509.1b, [canBlock]).
  */
 internal fun eligibleBlockPairings(
     state: GameState,
@@ -74,17 +74,39 @@ internal fun eligibleBlockPairings(
     }
 }
 
-// CR 509.1b: a flying attacker can be blocked only by a creature with flying (no reach in pool).
+/**
+ * Whether [blocker] may legally block [attacker] given the attacker's evasion (CR 509.1b). Two
+ * evasions in the pool require a flying blocker: flying itself (a flying attacker is blockable only
+ * by a flyer, no reach exists) and Silhana Ledgewalker's "can't be blocked except by creatures with
+ * flying" ([Evasion.BLOCKABLE_ONLY_BY_FLYING]). They impose the identical requirement, so they
+ * compose here — either one demands the blocker have flying; otherwise any creature may block.
+ */
 private fun canBlock(
     state: GameState,
     blocker: ObjectId,
     attacker: ObjectId,
 ): Boolean =
-    if (Keyword.FLYING in effectiveKeywords(state, attacker)) {
+    if (requiresFlyingBlocker(state, attacker)) {
         Keyword.FLYING in effectiveKeywords(state, blocker)
     } else {
         true
     }
+
+// Whether [attacker]'s evasion demands a flying blocker (CR 509.1b): it has flying, or it prints the
+// "blockable only by flying" evasion. The evasion is a printed characteristic no MVP effect grants
+// or removes, so it is read straight from the definition (like the printed type read).
+private fun requiresFlyingBlocker(
+    state: GameState,
+    attacker: ObjectId,
+): Boolean {
+    if (Keyword.FLYING in effectiveKeywords(state, attacker)) return true
+    val evasions =
+        state.definitions[state.battlefieldObject(attacker).card]
+            ?.characteristics
+            ?.evasions
+            .orEmpty()
+    return Evasion.BLOCKABLE_ONLY_BY_FLYING in evasions
+}
 
 /** The single defending player of [combat] (two-player); fails loudly on a multiplayer combat. */
 internal fun defendingPlayerOf(combat: CombatState): PlayerId =
@@ -136,6 +158,9 @@ internal fun pendingCombatDecision(state: GameState): DecisionRequest? {
                 combat.blocks == null -> declareBlockersRequest(state, combat)
                 else -> orderBlockersRequestOrNull(state, combat)
             }
+        // CR 510.1c / 702.19e: a blocked trampler with positive excess needs its assignment chosen
+        // before this step's damage is dealt; every other combat-damage step needs no decision.
+        TurnStep.COMBAT_DAMAGE -> if (combat == null) null else pendingTrampleDecision(state, combat)
         else -> null
     }
 }

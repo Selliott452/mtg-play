@@ -14,10 +14,9 @@ package dev.mtgplay.core.card
  * (never by reading a definition directly), so Phase 4 can reroute the read without touching the
  * combat rules.
  *
- * In P3.1 only [FLYING], [FIRST_STRIKE], and [VIGILANCE] change engine behaviour; [TRAMPLE],
- * [HEXPROOF], and [LIFELINK] are printed vocabulary whose combat/targeting effects land in later
- * packets (trample P5, hexproof P5.2, lifelink P5.2) — present now so the enum never has to
- * shift underneath cards that already print them.
+ * All six now change engine behaviour: [FLYING], [FIRST_STRIKE], and [VIGILANCE] since P3.1;
+ * [TRAMPLE], [HEXPROOF], and [LIFELINK] since P5.3 (the trample assignment decision, the targeting
+ * restriction on enumeration, and the damage-result lifegain, respectively).
  */
 enum class Keyword {
     /** Flying (CR 702.9): can be blocked only by creatures with flying or reach. */
@@ -30,21 +29,23 @@ enum class Keyword {
     VIGILANCE,
 
     /**
-     * Trample (CR 702.19): excess combat damage may be assigned to the defending player. Inert
-     * in P3.1 (the deterministic minimum wastes excess on the last blocker); the assignment
-     * decision arrives in P5.
+     * Trample (CR 702.19): a blocked attacker's controller may assign to the defending player any
+     * combat damage above what is lethal to its blockers. Surfaces the P5.3 trample-assignment
+     * decision; a blocked trampler whose blockers all left combat assigns all its damage to the
+     * player (CR 702.19g).
      */
     TRAMPLE,
 
     /**
-     * Hexproof (CR 702.11): can't be the target of spells or abilities an opponent controls.
-     * Inert in P3.1 (a targeting restriction on enumeration, P5.2).
+     * Hexproof (CR 702.11): can't be the target of spells or abilities an *opponent* controls. Its
+     * controller's own spells and abilities target it freely. A targeting restriction on
+     * enumeration (P5.3): an opponent's target enumeration excludes it.
      */
     HEXPROOF,
 
     /**
-     * Lifelink (CR 702.15): damage this creature deals also causes its controller to gain that
-     * much life. Inert in P3.1 (a damage-result modification, P5.2).
+     * Lifelink (CR 702.15): damage this creature deals also causes its controller to gain that much
+     * life, as a result of the damage — not a triggered ability, no stack (P5.3).
      */
     LIFELINK,
 }

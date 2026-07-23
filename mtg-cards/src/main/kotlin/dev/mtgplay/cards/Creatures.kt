@@ -1,6 +1,7 @@
 package dev.mtgplay.cards
 
 import dev.mtgplay.core.card.CardType
+import dev.mtgplay.core.card.Evasion
 import dev.mtgplay.core.card.Keyword
 import dev.mtgplay.core.card.PrintedCharacteristics
 import dev.mtgplay.core.card.PrintedPowerToughness
@@ -50,17 +51,26 @@ private fun creatureCard(
     subtypes: Set<Subtype>,
     keywords: Set<Keyword> = emptySet(),
 ): SpellDefinition =
+    creatureSpell(
+        PrintedCharacteristics(
+            name = name,
+            manaCost = ManaCost.parse(manaCost),
+            supertypes = persistentSetOf(),
+            cardTypes = persistentSetOf(CardType.CREATURE),
+            subtypes = subtypes.toPersistentSet(),
+            powerToughness = powerToughness,
+            keywords = keywords.toPersistentSet(),
+        ),
+    )
+
+/**
+ * A creature spell (CR 302, CR 608.3) from its printed [characteristics]: sorcery-speed, untargeted,
+ * with the documented no-op enter-the-battlefield resolution. The single-argument primitive both
+ * [creatureCard] and the one card that prints an evasion (Silhana Ledgewalker) build on.
+ */
+private fun creatureSpell(characteristics: PrintedCharacteristics): SpellDefinition =
     object : SpellDefinition {
-        override val characteristics =
-            PrintedCharacteristics(
-                name = name,
-                manaCost = ManaCost.parse(manaCost),
-                supertypes = persistentSetOf(),
-                cardTypes = persistentSetOf(CardType.CREATURE),
-                subtypes = subtypes.toPersistentSet(),
-                powerToughness = powerToughness,
-                keywords = keywords.toPersistentSet(),
-            )
+        override val characteristics = characteristics
 
         // CR 302.1: a creature spell is cast at sorcery speed (it is not an instant).
         override val timing = TimingClass.SORCERY_SPEED
@@ -129,4 +139,58 @@ val standingTroops: SpellDefinition =
         powerToughness = PrintedPowerToughness(power = 1, toughness = 4),
         subtypes = setOf(Subtype("Soldier")),
         keywords = setOf(Keyword.VIGILANCE),
+    )
+
+/*
+ * The three real GW-Bogles hexproof one-drops (docs/decklists.md). Each is a 1/1 with hexproof
+ * (CR 702.11): an opponent's spells and abilities can't target it, but its own controller enchants
+ * it freely — the deck's whole plan of stacking Auras on an untouchable body. Slippery Bogle is the
+ * pool's first hybrid-cost card ({G/U}); Silhana Ledgewalker adds a printed evasion.
+ */
+
+/**
+ * Gladecover Scout — `{G}` Creature — Elf Scout, a 1/1 with hexproof (CR 702.11): can't be the
+ * target of spells or abilities an opponent controls.
+ */
+val gladecoverScout: SpellDefinition =
+    creatureCard(
+        name = "Gladecover Scout",
+        manaCost = "{G}",
+        powerToughness = PrintedPowerToughness(power = 1, toughness = 1),
+        subtypes = setOf(Subtype("Elf"), Subtype("Scout")),
+        keywords = setOf(Keyword.HEXPROOF),
+    )
+
+/**
+ * Slippery Bogle — `{G/U}` Creature — Beast, a 1/1 with hexproof (CR 702.11). The MVP pool's first
+ * hybrid-cost card: its `{G/U}` symbol is payable with either green or blue mana (CR 107.4), so
+ * payment enumeration offers both a green plan and a blue plan when both colours are available.
+ */
+val slipperyBogle: SpellDefinition =
+    creatureCard(
+        name = "Slippery Bogle",
+        manaCost = "{G/U}",
+        powerToughness = PrintedPowerToughness(power = 1, toughness = 1),
+        subtypes = setOf(Subtype("Beast")),
+        keywords = setOf(Keyword.HEXPROOF),
+    )
+
+/**
+ * Silhana Ledgewalker — `{1}{G}` Creature — Elf Rogue, a 1/1 with hexproof (CR 702.11) and the
+ * evasion "This creature can't be blocked except by creatures with flying"
+ * ([Evasion.BLOCKABLE_ONLY_BY_FLYING], CR 509.1b) — a printed evasion the block-legality seam reads
+ * beside flying.
+ */
+val silhanaLedgewalker: SpellDefinition =
+    creatureSpell(
+        PrintedCharacteristics(
+            name = "Silhana Ledgewalker",
+            manaCost = ManaCost.parse("{1}{G}"),
+            supertypes = persistentSetOf(),
+            cardTypes = persistentSetOf(CardType.CREATURE),
+            subtypes = persistentSetOf(Subtype("Elf"), Subtype("Rogue")),
+            powerToughness = PrintedPowerToughness(power = 1, toughness = 1),
+            keywords = persistentSetOf(Keyword.HEXPROOF),
+            evasions = persistentSetOf(Evasion.BLOCKABLE_ONLY_BY_FLYING),
+        ),
     )

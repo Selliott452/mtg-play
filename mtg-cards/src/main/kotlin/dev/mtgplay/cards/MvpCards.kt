@@ -10,6 +10,9 @@ import dev.mtgplay.core.identity.CardRef
  * [standingTroops]. The P4.2 pool adds the seven real Bogles continuous-effect Auras (CR 303):
  * [rancor], [armadilloCloak], [cartoucheOfSolidarity], [sentinelsEyes], [etherealArmor],
  * [ancestralMask], and [abundantGrowth] — each encoded to its P4 static half (docs/design/layer-system.md).
+ * The P5.3 pool adds the three real Bogles hexproof one-drops (CR 702.11): [gladecoverScout],
+ * [slipperyBogle] (the first hybrid-cost card), and [silhanaLedgewalker] (with its blockable-only-by-flying
+ * evasion).
  *
  * [definitions] is shaped for direct `MatchConfig.definitions` consumption: the engine carries
  * it into `GameState` in canonical name-sorted order regardless of this map's own order
@@ -26,6 +29,7 @@ object MvpCards {
             cartoucheOfSolidarity,
             etherealArmor,
             forest,
+            gladecoverScout,
             grizzlyBears,
             hillGiant,
             lightningBolt,
@@ -33,6 +37,8 @@ object MvpCards {
             plains,
             rancor,
             sentinelsEyes,
+            silhanaLedgewalker,
+            slipperyBogle,
             standingTroops,
             windDrake,
             youthfulKnight,

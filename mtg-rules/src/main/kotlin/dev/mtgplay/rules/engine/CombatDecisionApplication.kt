@@ -11,6 +11,7 @@ import dev.mtgplay.rules.AdvanceResult
 import dev.mtgplay.rules.decision.Decision
 import dev.mtgplay.rules.decision.DecisionRequest
 import kotlinx.collections.immutable.toPersistentList
+import kotlinx.collections.immutable.toPersistentSet
 
 /*
  * Applying the three combat decisions (CR 508–509). Each records its choice into the turn's
@@ -69,9 +70,11 @@ private fun tapPermanent(
 }
 
 /**
- * Applies the declare-blockers choice (CR 509.1): records the chosen blocks and continues — which
- * next surfaces a [DecisionRequest.OrderBlockers] for any attacker blocked by two or more
- * creatures (CR 509.2), or grants priority when none need ordering.
+ * Applies the declare-blockers choice (CR 509.1): records the chosen blocks — and the set of
+ * attackers that thereby became blocked (CR 509.1h; each stays blocked for the rest of combat even
+ * if its blockers later leave) — then continues, which next surfaces a [DecisionRequest.OrderBlockers]
+ * for any attacker blocked by two or more creatures (CR 509.2), or grants priority when none need
+ * ordering.
  */
 internal fun applyDeclareBlockers(
     state: GameState,
@@ -84,7 +87,8 @@ internal fun applyDeclareBlockers(
             .map { request.options[it] }
             .map { BlockAssignment(it.blocker, it.attacker) }
             .toPersistentList()
-    val blocked = state.updateCombat { it.copy(blocks = blocks) }
+    val blockedAttackers = blocks.map(BlockAssignment::attacker).toPersistentSet()
+    val blocked = state.updateCombat { it.copy(blocks = blocks, blockedAttackers = blockedAttackers) }
     return resumeCombat(blocked.emit(GameEvent.BlockersDeclared(blocks.toList())))
 }
 

@@ -4,7 +4,9 @@ import dev.mtgplay.core.identity.ObjectId
 import dev.mtgplay.core.identity.PlayerId
 import kotlinx.collections.immutable.PersistentList
 import kotlinx.collections.immutable.PersistentMap
+import kotlinx.collections.immutable.PersistentSet
 import kotlinx.collections.immutable.persistentMapOf
+import kotlinx.collections.immutable.persistentSetOf
 
 /**
  * One attacker's declaration (CR 508.1): the attacking creature and the player it is attacking.
@@ -52,9 +54,21 @@ data class BlockAssignment(
  * @property blocks the declared blocks, or `null` while the declare-blockers turn-based action
  *   is still pending (CR 509.1). A non-null empty list means blockers were declared and none
  *   were chosen — distinct from `null`, which means the choice has not happened yet.
+ * @property blockedAttackers the attackers that became blocked when blockers were declared
+ *   (CR 509.1h). Additive, flagged core (P5.3): a creature "remains blocked" for the whole combat
+ *   even if every creature blocking it later leaves combat, which is what distinguishes a
+ *   blocked-with-no-surviving-blockers attacker (assigns damage only with trample, CR 702.19g)
+ *   from a never-blocked one (assigns to the player). A subset of the declared attackers; empty
+ *   until the declare-blockers action records it, and it is *not* pruned when a blocker dies (the
+ *   blocked status persists), only when the attacker itself leaves combat.
  * @property blockerOrder the attacking player's damage-assignment order per attacker (CR 509.2),
  *   present only for an attacker blocked by two or more creatures; single-blocked and unblocked
  *   attackers need no explicit order. Each value is a permutation of that attacker's blockers.
+ * @property trampleAssignments how much combat damage each trampling blocked attacker's controller
+ *   assigned to the defending player above what is lethal to its blockers (CR 702.19). Additive,
+ *   flagged core (P5.3): a per-attacker non-negative amount, recorded by the trample-assignment
+ *   decision before the combat-damage step deals it, keyed by attacker and defined only for an
+ *   attacker in [blockedAttackers]. Empty when no trample assignment is pending or has been made.
  * @property firstStrikeDamageDealt whether the first combat-damage step has been performed — the
  *   step in which first-strike (and, in later packets, double-strike) creatures deal damage
  *   (CR 510.5). `false` when no such step is needed.
@@ -65,7 +79,9 @@ data class BlockAssignment(
 data class CombatState(
     val attackers: PersistentList<AttackerAssignment>,
     val blocks: PersistentList<BlockAssignment>? = null,
+    val blockedAttackers: PersistentSet<ObjectId> = persistentSetOf(),
     val blockerOrder: PersistentMap<ObjectId, PersistentList<ObjectId>> = persistentMapOf(),
+    val trampleAssignments: PersistentMap<ObjectId, Int> = persistentMapOf(),
     val firstStrikeDamageDealt: Boolean = false,
     val regularDamageDealt: Boolean = false,
 ) {
@@ -75,6 +91,15 @@ data class CombatState(
             "CR 508.1: each attacker is declared at most once, got $attackerIds"
         }
         val declared = attackerIds.toSet()
+        require(blockedAttackers.all { it in declared }) {
+            "CR 509.1h: a blocked attacker must be a declared attacker, got $blockedAttackers for $declared"
+        }
+        trampleAssignments.forEach { (attacker, amount) ->
+            require(attacker in blockedAttackers) {
+                "CR 702.19: a trample assignment names $attacker, which is not a blocked attacker $blockedAttackers"
+            }
+            require(amount >= 0) { "CR 702.19: a trample assignment to the player is non-negative, was $amount" }
+        }
         val currentBlocks = blocks
         if (currentBlocks != null) {
             val blockerIds = currentBlocks.map(BlockAssignment::blocker)

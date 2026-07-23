@@ -7,6 +7,7 @@ import dev.mtgplay.core.state.GameObject
 import dev.mtgplay.core.state.GameState
 import kotlinx.collections.immutable.toPersistentList
 import kotlinx.collections.immutable.toPersistentMap
+import kotlinx.collections.immutable.toPersistentSet
 
 /*
  * The consequence of a creature-death state-based action (CR 704.5f/g, detected in
@@ -91,9 +92,23 @@ private fun clearCombatReferences(
                 if (survivors.size >= MINIMUM_ORDERED_BLOCKERS) attacker to survivors else null
             }.toMap()
             .toPersistentMap()
+    // CR 509.1h: a blocked attacker stays blocked when its blockers die — only a dead *attacker*
+    // drops its blocked status and any recorded trample assignment (both keyed by attacker).
+    val blockedAttackers = combat.blockedAttackers.filter { it in survivingAttackers }.toPersistentSet()
+    val trampleAssignments =
+        combat.trampleAssignments.entries
+            .filter { (attacker, _) -> attacker in survivingAttackers }
+            .associate { (attacker, amount) -> attacker to amount }
+            .toPersistentMap()
 
     return state.updateCombat {
-        it.copy(attackers = attackers, blocks = blocks, blockerOrder = blockerOrder)
+        it.copy(
+            attackers = attackers,
+            blocks = blocks,
+            blockedAttackers = blockedAttackers,
+            blockerOrder = blockerOrder,
+            trampleAssignments = trampleAssignments,
+        )
     }
 }
 

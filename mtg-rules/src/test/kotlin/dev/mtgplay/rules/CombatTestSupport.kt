@@ -1,13 +1,25 @@
 package dev.mtgplay.rules
 
 import dev.mtgplay.core.card.CardType
+import dev.mtgplay.core.card.Evasion
 import dev.mtgplay.core.card.Keyword
 import dev.mtgplay.core.card.PrintedCharacteristics
 import dev.mtgplay.core.card.PrintedPowerToughness
+import dev.mtgplay.core.card.Subtype
 import dev.mtgplay.core.definition.CardDefinition
+import dev.mtgplay.core.definition.EnchantRestriction
+import dev.mtgplay.core.definition.Magnitude
+import dev.mtgplay.core.definition.ResolutionEffect
+import dev.mtgplay.core.definition.SpellDefinition
+import dev.mtgplay.core.definition.StaticContinuousEffect
+import dev.mtgplay.core.definition.TargetSpec
+import dev.mtgplay.core.definition.TimingClass
+import dev.mtgplay.core.definition.TriggerCondition
+import dev.mtgplay.core.definition.TriggeredAbility
 import dev.mtgplay.core.identity.CardRef
 import dev.mtgplay.core.identity.ObjectId
 import dev.mtgplay.core.identity.PlayerId
+import dev.mtgplay.core.mana.ManaCost
 import dev.mtgplay.core.random.Rng
 import dev.mtgplay.core.state.GameObject
 import dev.mtgplay.core.state.GameState
@@ -19,11 +31,13 @@ import dev.mtgplay.core.state.TurnPhase
 import dev.mtgplay.core.state.TurnStep
 import dev.mtgplay.rules.decision.Decision
 import dev.mtgplay.rules.decision.DecisionRequest
+import dev.mtgplay.rules.effect.gainLife
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.persistentMapOf
 import kotlinx.collections.immutable.persistentSetOf
 import kotlinx.collections.immutable.toPersistentList
 import kotlinx.collections.immutable.toPersistentMap
+import kotlinx.collections.immutable.toPersistentSet
 
 /*
  * Handcrafted-battlefield support for the P3.1 combat scenario suite. Creatures reach the
@@ -35,12 +49,14 @@ import kotlinx.collections.immutable.toPersistentMap
  * name-based decision helpers unambiguous.
  */
 
-// A synthetic creature definition: creature-typed, with printed [power]/[toughness] and [keywords].
+// A synthetic creature definition: creature-typed, with printed [power]/[toughness], [keywords], and
+// [evasions] (P5.3; Silhana Ledgewalker's blockable-only-by-flying is the only member).
 private fun creature(
     name: String,
     power: Int,
     toughness: Int,
-    vararg keywords: Keyword,
+    keywords: Set<Keyword> = emptySet(),
+    evasions: Set<Evasion> = emptySet(),
 ): CardDefinition =
     object : CardDefinition {
         override val characteristics =
@@ -51,8 +67,34 @@ private fun creature(
                 cardTypes = persistentSetOf(CardType.CREATURE),
                 subtypes = persistentSetOf(),
                 powerToughness = PrintedPowerToughness(power, toughness),
-                keywords = persistentSetOf(*keywords),
+                keywords = keywords.toPersistentSet(),
+                evasions = evasions.toPersistentSet(),
             )
+    }
+
+// An Aura fixture (P5.3): an enchant-creature permanent spell whose static ability generates
+// [effect] (omitted for a trigger-only Aura, so the layer loud gate never sees an empty effect) and
+// whose triggered abilities are [triggers]. Sorcery-speed, no-op resolution.
+private fun aura(
+    name: String,
+    effect: StaticContinuousEffect? = null,
+    triggers: List<TriggeredAbility> = emptyList(),
+): SpellDefinition =
+    object : SpellDefinition {
+        override val characteristics =
+            PrintedCharacteristics(
+                name = name,
+                manaCost = ManaCost.parse("{G}"),
+                supertypes = persistentSetOf(),
+                cardTypes = persistentSetOf(CardType.ENCHANTMENT),
+                subtypes = persistentSetOf(Subtype("Aura")),
+                powerToughness = null,
+            )
+        override val timing = TimingClass.SORCERY_SPEED
+        override val targetSpec = TargetSpec.Enchantable(EnchantRestriction.CREATURE)
+        override val resolution = ResolutionEffect { state, _ -> state }
+        override val staticContinuousEffects = listOfNotNull(effect).toPersistentList()
+        override val triggeredAbilities = triggers.toPersistentList()
     }
 
 /** The scenario creature catalog, keyed by ref (the registry combat scenarios build states with). */
@@ -67,10 +109,46 @@ internal val combatDefinitions: Map<CardRef, CardDefinition> =
         // attacker lives to show which blocker its assignment killed (P3.2).
         creature("Behemoth", 4, 8),
         creature("Wall", 0, 4),
-        creature("Flyer", 2, 2, Keyword.FLYING),
-        creature("Raptor", 3, 3, Keyword.FLYING),
-        creature("Striker", 2, 2, Keyword.FIRST_STRIKE),
-        creature("Sentinel", 2, 2, Keyword.VIGILANCE),
+        creature("Flyer", 2, 2, setOf(Keyword.FLYING)),
+        creature("Raptor", 3, 3, setOf(Keyword.FLYING)),
+        creature("Striker", 2, 2, setOf(Keyword.FIRST_STRIKE)),
+        creature("Sentinel", 2, 2, setOf(Keyword.VIGILANCE)),
+        // P5.3 keyword bodies. Trampler 5/5: over a 2/2 blocker its excess is 3; Charger 4/4 has
+        // first strike too, so its trample assignment happens in the first-strike step. Lifelinker
+        // 3/3. Skulker prints Silhana's evasion. Warden prints hexproof.
+        creature("Trampler", 5, 5, setOf(Keyword.TRAMPLE)),
+        creature("Charger", 4, 4, setOf(Keyword.FIRST_STRIKE, Keyword.TRAMPLE)),
+        creature("Lifelinker", 3, 3, setOf(Keyword.LIFELINK)),
+        // A 0-power lifelink body: an unblocked attack deals no damage, so lifelink gains nothing
+        // (CR 702.15f — no damage dealt).
+        creature("Meek", 0, 1, setOf(Keyword.LIFELINK)),
+        creature("Skulker", 1, 1, evasions = setOf(Evasion.BLOCKABLE_ONLY_BY_FLYING)),
+        creature("Warden", 2, 2, setOf(Keyword.HEXPROOF)),
+        // P5.3 keyword-granting Auras (layer 6): hexproof, lifelink, and trample-with-+2/+0
+        // (Rancor's shape). "Bloodfeast" is the Armadillo-Cloak analogue: a damage-triggered
+        // gain-that-much-life for the Aura's controller — a trigger, distinct from the lifelink grant.
+        aura("Hex Aura", StaticContinuousEffect(grantedKeywords = persistentSetOf(Keyword.HEXPROOF))),
+        aura("Vamp Aura", StaticContinuousEffect(grantedKeywords = persistentSetOf(Keyword.LIFELINK))),
+        aura(
+            "Fixture Rancor",
+            StaticContinuousEffect(grantedKeywords = persistentSetOf(Keyword.TRAMPLE), powerMod = Magnitude.Fixed(2)),
+        ),
+        aura(
+            "Bloodfeast",
+            triggers =
+                listOf(
+                    TriggeredAbility(
+                        condition = TriggerCondition.EnchantedCreatureDealsDamage,
+                        effect =
+                            ResolutionEffect {
+                                state,
+                                context,
+                                ->
+                                gainLife(state, context.controller, context.amount)
+                            },
+                    ),
+                ),
+        ),
     ).associateBy { CardRef(it.characteristics.name) }
 
 /**
@@ -158,6 +236,71 @@ internal fun attackStep(
 
 /** A sampled turn number that is neither turn 1 (no draw-step skip interactions) nor a boundary. */
 internal const val TURN_NUMBER: Int = 3
+
+/**
+ * A battlefield object over [combatDefinitions] — the escape hatch for the P5.3 keyword scenarios
+ * that need Auras attached to creatures, which [handcraftedCombat]'s creature-only field lists cannot
+ * express. Not summoning sick by default (combat scenarios want ready attackers).
+ */
+internal fun combatObject(
+    id: Long,
+    name: String,
+    owner: PlayerId,
+    attachedTo: Long? = null,
+    summoningSick: Boolean = false,
+): GameObject =
+    GameObject(
+        id = ObjectId(id),
+        card = CardRef(name),
+        owner = owner,
+        summoningSick = summoningSick,
+        attachedTo = attachedTo?.let(::ObjectId),
+    )
+
+/**
+ * A paused two-player [GameState] over [combatDefinitions] with [battlefield] in place, both seats at
+ * 20 life. [holder] (if given) is mid-priority. The id counter sits just past the highest id. Used by
+ * the P5.3 targeting and aura-attached combat scenarios; [turn] defaults to a precombat main.
+ */
+internal fun keywordState(
+    battlefield: List<GameObject>,
+    turn: Turn = Turn(alice, TURN_NUMBER, TurnPhase.PRECOMBAT_MAIN, null),
+    holder: PlayerId? = null,
+): GameState {
+    var nextId = (battlefield.maxOfOrNull { it.id.value } ?: -1L) + 1
+
+    fun seat(owner: PlayerId) =
+        PlayerState(
+            life = STARTING_LIFE,
+            library =
+                List(3) { GameObject(ObjectId(nextId++), CardRef("Mountain"), owner) }.toPersistentList(),
+            hand = persistentListOf(),
+            graveyard = persistentListOf(),
+            priorityStatus = if (owner == holder) PriorityStatus.HOLDS_PRIORITY else PriorityStatus.NONE,
+        )
+    val alicePlayer = seat(alice)
+    val bobPlayer = seat(bob)
+    return GameState(
+        players = persistentMapOf(alice to alicePlayer, bob to bobPlayer),
+        turn = turn,
+        sharedZones =
+            SharedZones(
+                battlefield = battlefield.toPersistentList(),
+                stack = persistentListOf(),
+                exile = persistentListOf(),
+            ),
+        nextObjectId = nextId,
+        rng = Rng(0),
+        events = persistentListOf(),
+        definitions = combatDefinitions.toPersistentMap(),
+    )
+}
+
+/** The battlefield object with card [name] owned by [owner] (P5.3 scenarios place same-card objects per seat). */
+internal fun GameState.creatureOf(
+    name: String,
+    owner: PlayerId,
+): GameObject = sharedZones.battlefield.first { it.card == CardRef(name) && it.owner == owner }
 
 // --- Decision helpers (name-based; scenario creature names are distinct within a request) ---
 

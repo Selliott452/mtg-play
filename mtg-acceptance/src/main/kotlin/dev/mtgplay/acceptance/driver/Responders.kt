@@ -49,6 +49,8 @@ object Responders {
                     error("the pass-everything responder never casts, but a payment request surfaced: $request")
                 is DecisionRequest.OrderBlockers ->
                     error("the pass-everything responder never blocks, but a blocker-order request surfaced: $request")
+                is DecisionRequest.AssignTrampleDamage ->
+                    error("the pass-everything responder never attacks, but a trample request surfaced: $request")
                 is DecisionRequest.ChooseCardsToExile ->
                     error("the pass-everything responder never casts, but an exile-cost request surfaced: $request")
                 is DecisionRequest.ChooseReplacement ->

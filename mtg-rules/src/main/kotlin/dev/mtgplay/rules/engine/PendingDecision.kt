@@ -178,6 +178,8 @@ internal fun validateDecision(
                 "CR 509.1a: a creature blocks at most one attacker, but a blocker was chosen twice: $blockers"
             }
         }
+        // CR 702.19e: the trample assignment is a single amount in 0..excess.
+        is DecisionRequest.AssignTrampleDamage -> validateSingleSelect(request, decision, request.options.size)
         // CR 509.2: the order is a permutation of exactly this attacker's blockers.
         is DecisionRequest.OrderBlockers ->
             validatePermutation(
