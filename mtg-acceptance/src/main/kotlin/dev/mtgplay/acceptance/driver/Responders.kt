@@ -61,6 +61,10 @@ object Responders {
                     error("the pass-everything responder never casts colour-choosing permanents: $request")
                 is DecisionRequest.ChooseFromRevealed ->
                     error("the pass-everything responder never resolves a reveal effect: $request")
+                is DecisionRequest.ChooseCostMode ->
+                    error("the pass-everything responder never resolves a cost-then-draw spell: $request")
+                is DecisionRequest.ChooseFromLibrary ->
+                    error("the pass-everything responder never activates a library search: $request")
                 // CR 103.4/103.5: the passive policy keeps every hand at seven — so no bottoming ever
                 // follows — but bottoms the lowest indices if a mulligan game is ever driven this way.
                 is DecisionRequest.MulliganRequest -> keepAtSeven(request)

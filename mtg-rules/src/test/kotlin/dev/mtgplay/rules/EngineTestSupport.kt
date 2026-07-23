@@ -74,6 +74,8 @@ internal fun respondTo(request: DecisionRequest): Decision =
         is DecisionRequest.SizedSelection,
         is DecisionRequest.ChooseReplacement,
         is DecisionRequest.ChooseColor,
+        is DecisionRequest.ChooseCostMode,
+        is DecisionRequest.ChooseFromLibrary,
         ->
             error("the pass-everything responder never reaches a cast/block/activation request: $request")
         // CR 603.3b: order any simultaneous triggers in the deterministic identity permutation.

@@ -1,5 +1,6 @@
 package dev.mtgplay.rules.decision
 
+import dev.mtgplay.core.definition.OptionalCostMode
 import dev.mtgplay.core.identity.CardRef
 import dev.mtgplay.core.identity.ObjectId
 import dev.mtgplay.core.identity.PlayerId
@@ -47,6 +48,20 @@ sealed interface DecisionRequest {
     sealed interface PermutationSelection : DecisionRequest {
         /** How many options the answer must permute. */
         val permutationSize: Int
+    }
+
+    /**
+     * A [Decision.SingleSelect] request whose answer is one of some real options **or** a single extra
+     * "opt-out" index at the end — the shape shared by every "keep/find/pay one, or none" choice (CR 701.16
+     * keep-one, CR 601.3b cost-mode, CR 701.18 find-one). Grouping them lets drivers and the enumeration
+     * probe handle "a choice-count select" uniformly (a uniform pick over `0 until choiceCount`), exactly as
+     * [SizedSelection] groups the fixed-size subset selections. [choiceCount] is the total number of legal
+     * indices — the real options plus the one opt-out. Application still dispatches per leaf, since each
+     * opt-out (keep none / decline / find none) resolves differently.
+     */
+    sealed interface ChoiceCountSelection : DecisionRequest {
+        /** The number of legal indices: the real options plus the one trailing opt-out index. */
+        val choiceCount: Int
     }
 
     /**
@@ -715,7 +730,7 @@ sealed interface DecisionRequest {
     data class ChooseFromRevealed(
         override val id: DecisionRequestId,
         val options: List<Option>,
-    ) : DecisionRequest {
+    ) : ChoiceCountSelection {
         init {
             require(options.isNotEmpty()) {
                 "CR 701.16: a keep-one choice is surfaced only when a matching card was revealed"
@@ -723,7 +738,7 @@ sealed interface DecisionRequest {
         }
 
         /** How many selectable indices this request has: one per keepable card, plus the "keep none" index. */
-        val choiceCount: Int get() = options.size + 1
+        override val choiceCount: Int get() = options.size + 1
 
         /** The [Decision.SingleSelect] index meaning "keep none of the revealed cards". */
         val keepNoneIndex: Int get() = options.size
@@ -773,5 +788,145 @@ sealed interface DecisionRequest {
         private companion object {
             const val MINIMUM_ORDERED_REPLACEMENTS: Int = 2
         }
+    }
+
+    /**
+     * The mode choice of an optional cost-then-draw clause at spell resolution (CR 601.3b): [seat] may
+     * decline, or choose one of [options] — the performable cost modes (Highway Robbery's discard-a-card or
+     * sacrifice-a-land) — answering a [Decision.SingleSelect] whose index names a mode, or the extra decline
+     * index ([options].size). Additive, flagged (P6.2c). Surfaced only when at least one mode is performable;
+     * declining is always legal ("you may").
+     *
+     * @property prompt a short human description of the choice, for display (ADR-005).
+     * @property options the performable cost modes, in the clause's printed order; index [options].size
+     *   declines.
+     */
+    data class ChooseCostMode(
+        override val id: DecisionRequestId,
+        val prompt: String,
+        val options: List<OptionalCostMode>,
+    ) : ChoiceCountSelection {
+        init {
+            require(options.isNotEmpty()) {
+                "CR 601.3b: a cost-mode choice is surfaced only when a mode is performable"
+            }
+        }
+
+        /** How many selectable indices this request has: one per performable mode, plus the decline index. */
+        override val choiceCount: Int get() = options.size + 1
+
+        /** The [Decision.SingleSelect] index meaning "decline the optional cost" (CR 601.3b "may"). */
+        val declineIndex: Int get() = options.size
+    }
+
+    /**
+     * The cost-object selection of an accepted optional cost-then-draw mode (CR 601.3b): [seat] chose to
+     * discard a card or sacrifice a land (Highway Robbery) and picks exactly one of [options] — their hand
+     * cards, or their controlled lands — by index (a [Decision.MultiSelect]). Additive, flagged (P6.2c). A
+     * discarded madness card is exiled instead (CR 702.35a), routing through the same discard framework as
+     * every cost discard. Surfaced only when the chosen cost is performable, so a legal selection exists.
+     *
+     * @property options the objects that may pay the chosen cost, in zone order; indices stable (ADR-005).
+     */
+    data class ChooseOptionalCostObject(
+        override val id: DecisionRequestId,
+        val options: List<Option>,
+    ) : SizedSelection {
+        override val optionCount: Int get() = options.size
+        override val requiredCount: Int get() = 1
+
+        init {
+            require(options.isNotEmpty()) {
+                "CR 601.3b: a cost-object selection is surfaced only when the chosen cost is performable"
+            }
+        }
+
+        /**
+         * One object that may pay the chosen cost — a hand card to discard, or a controlled land to sacrifice.
+         *
+         * @property objectId the object that would be discarded or sacrificed.
+         * @property card its printed identity, for display.
+         */
+        data class Option(
+            val objectId: ObjectId,
+            val card: CardRef,
+        )
+    }
+
+    /**
+     * The mandatory resolution-time discard of a "draw N, then discard M" spell (CR 601.2c, CR 701.8): [seat]
+     * must discard exactly [count] cards from [options] — their hand — by index (a [Decision.MultiSelect]).
+     * Additive, flagged (P6.2c). Faithless Looting's "then discard two cards". A discarded madness card is
+     * exiled instead (CR 702.35a), routing through the same discard framework as the cleanup discard. Unlike
+     * the cleanup discard this fires mid-resolution while the spell is on the stack; unlike the optional
+     * discard-then-draw it is not optional and may remove more than one card.
+     *
+     * @property options one entry per card in [seat]'s hand, in hand order; indices stable (ADR-005).
+     * @property count how many cards must be discarded — the clause's M, clamped to the current hand size.
+     */
+    data class ChooseResolutionDiscards(
+        override val id: DecisionRequestId,
+        val options: List<Option>,
+        val count: Int,
+    ) : SizedSelection {
+        override val optionCount: Int get() = options.size
+        override val requiredCount: Int get() = count
+
+        init {
+            require(count in 1..options.size) {
+                "CR 601.2c: resolution discard count must be between 1 and hand size ${options.size}, was $count"
+            }
+        }
+
+        /**
+         * One hand card that must be discarded to the resolution.
+         *
+         * @property objectId the hand object that would be discarded.
+         * @property card its printed identity, for display.
+         */
+        data class Option(
+            val objectId: ObjectId,
+            val card: CardRef,
+        )
+    }
+
+    /**
+     * A "put one of these library cards into your hand, or find none" choice of a library search (CR 701.18):
+     * [seat] searched their library and may find up to one matching card (Ash Barrens' basic land card).
+     * Answered with a [Decision.SingleSelect] whose index is one of [options] to find that card, or the extra
+     * "find none" index ([options].size). Additive, flagged (P6.2c). Surfaced only when at least one matching
+     * card is in the library; failing to find is always legal (a search of your own library, CR 701.18b). The
+     * found card is revealed (public, [dev.mtgplay.core.event.GameEvent.CardsRevealed]); the library is
+     * shuffled through the match PRNG afterwards (ADR-006).
+     *
+     * @property options the matching library cards that may be found, in library (top-first) order; index
+     *   [options].size means "find none".
+     */
+    data class ChooseFromLibrary(
+        override val id: DecisionRequestId,
+        val options: List<Option>,
+    ) : ChoiceCountSelection {
+        init {
+            require(options.isNotEmpty()) {
+                "CR 701.18: a find-one choice is surfaced only when a matching card is in the library"
+            }
+        }
+
+        /** How many selectable indices this request has: one per findable card, plus the "find none" index. */
+        override val choiceCount: Int get() = options.size + 1
+
+        /** The [Decision.SingleSelect] index meaning "find none of the matching cards" (CR 701.18b). */
+        val findNoneIndex: Int get() = options.size
+
+        /**
+         * One library card that may be found and put into the hand.
+         *
+         * @property objectId the library object that would move to the hand.
+         * @property card its printed identity, for display (a search reveals the found card, CR 701.18).
+         */
+        data class Option(
+            val objectId: ObjectId,
+            val card: CardRef,
+        )
     }
 }

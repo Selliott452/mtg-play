@@ -15,6 +15,7 @@ import dev.mtgplay.core.state.BlockAssignment
 import dev.mtgplay.core.state.CombatState
 import dev.mtgplay.core.state.GameObject
 import dev.mtgplay.core.state.GameState
+import dev.mtgplay.core.state.PendingResolutionDiscard
 import dev.mtgplay.core.state.PriorityStatus
 import dev.mtgplay.core.state.SharedZones
 import dev.mtgplay.core.state.Turn
@@ -361,6 +362,32 @@ class InvariantCheckerSpec :
             // checker, so its marked damage cannot make it a lingering-death violation.
             val phantom = GameObject(ObjectId(1), CardRef("Grizzly Bears"), alice, damageMarked = 9)
             checkCreatureLethalityResolved(lethalityState(listOf(phantom), withDefinitions = false)).shouldBeEmpty()
+        }
+
+        // --- PENDING_RESOLUTION_SANITY -----------------------------------------------------
+
+        "CR 608.1: a resolution-discard pause with an empty stack is one PENDING_RESOLUTION_SANITY violation" {
+            // A "draw N, then discard M" pause hangs on the resolving spell; an empty stack means it is gone.
+            val paused =
+                twoPlayerState(
+                    turn = precombatMain,
+                    aliceState = playerWithZones(),
+                    bobState = playerWithZones(),
+                    nextObjectId = 1,
+                ).copy(pendingResolutionDiscard = PendingResolutionDiscard(alice, 1))
+            checkPendingResolutionSanity(paused).map { it.invariant } shouldContainExactly
+                listOf(Invariant.PENDING_RESOLUTION_SANITY)
+        }
+
+        "pending-resolution sanity: no open resolution pause produces no violation" {
+            val clean =
+                twoPlayerState(
+                    turn = precombatMain,
+                    aliceState = playerWithZones(),
+                    bobState = playerWithZones(),
+                    nextObjectId = 1,
+                )
+            checkPendingResolutionSanity(clean).shouldBeEmpty()
         }
     })
 

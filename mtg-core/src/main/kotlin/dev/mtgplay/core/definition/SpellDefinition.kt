@@ -68,4 +68,22 @@ interface SpellDefinition : CardDefinition {
      * ordinary [resolution] effect (the two clauses are independent), pausing for the choice.
      */
     val libraryReveal: LibraryReveal? get() = null
+
+    /**
+     * An optional "you may [discard a card | sacrifice a land]; if you do, draw N" part of this spell's
+     * resolution (CR 601.3b), or `null` for a spell with none. Additive, flagged core (P6.2c). Highway
+     * Robbery's clause. Because it needs a mode choice and then a cost-object selection, the engine runs it
+     * after the ordinary [resolution] effect, pausing for those decisions — the spell-resolution generalizer
+     * of the trigger-scoped [OptionalDiscardDraw], plus the sacrifice-a-land alternative mode.
+     */
+    val optionalCostThenDraw: OptionalCostThenDraw? get() = null
+
+    /**
+     * A mandatory "draw N cards, then discard M cards" part of this spell's resolution (CR 601.2c), or
+     * `null` for a spell with none. Additive, flagged core (P6.2c). Faithless Looting's "Draw two cards,
+     * then discard two cards." The engine runs it as the resolution — it draws, then pauses for the
+     * mandatory discard-M selection (routed through the CR 614/616 framework, so a discarded madness card is
+     * exiled instead), then the spell leaves the stack.
+     */
+    val drawThenDiscard: DrawThenDiscard? get() = null
 }

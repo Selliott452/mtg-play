@@ -8,10 +8,14 @@ import dev.mtgplay.acceptance.mountainConfig
 import dev.mtgplay.acceptance.mountains
 import dev.mtgplay.acceptance.playerWithZones
 import dev.mtgplay.acceptance.twoPlayerState
+import dev.mtgplay.core.definition.OptionalCostMode
 import dev.mtgplay.core.event.GameEvent
 import dev.mtgplay.core.identity.CardRef
 import dev.mtgplay.core.identity.ObjectId
 import dev.mtgplay.core.state.GameObject
+import dev.mtgplay.core.state.PendingLibrarySearch
+import dev.mtgplay.core.state.PendingOptionalCostDraw
+import dev.mtgplay.core.state.PendingResolutionDiscard
 import dev.mtgplay.core.state.SharedZones
 import dev.mtgplay.core.state.Turn
 import dev.mtgplay.core.state.TurnPhase
@@ -115,5 +119,28 @@ class ReplaySpec :
             // The attachment cause is in the digest, so the same board with a different attachment
             // fingerprints apart — how continuous-effect differences are told apart (§5).
             fingerprint(withAttachment(ObjectId(0))) shouldNotBe fingerprint(withAttachment(null))
+        }
+
+        "the fingerprint digests the P6.2c mid-resolution pauses (cost-then-draw, resolution discard, search)" {
+            val base =
+                twoPlayerState(
+                    turn = Turn(alice, 2, TurnPhase.PRECOMBAT_MAIN, null),
+                    aliceState = playerWithZones(library = mountains(0L..5L, alice)),
+                    bobState = playerWithZones(library = mountains(10L..15L, bob)),
+                    nextObjectId = 100,
+                )
+            // Optional cost-then-draw (Highway Robbery): present vs absent, and mode-chosen vs mode-pending.
+            val modePending = base.copy(pendingOptionalCostDraw = PendingOptionalCostDraw(alice))
+            val objectPending =
+                base.copy(pendingOptionalCostDraw = PendingOptionalCostDraw(alice, OptionalCostMode.DiscardCard))
+            fingerprint(modePending) shouldNotBe fingerprint(base)
+            fingerprint(objectPending) shouldNotBe fingerprint(modePending)
+            // Mandatory resolution discard (Faithless Looting): present vs absent, and differing counts.
+            fingerprint(base.copy(pendingResolutionDiscard = PendingResolutionDiscard(alice, 1))) shouldNotBe
+                fingerprint(base)
+            fingerprint(base.copy(pendingResolutionDiscard = PendingResolutionDiscard(alice, 2))) shouldNotBe
+                fingerprint(base.copy(pendingResolutionDiscard = PendingResolutionDiscard(alice, 1)))
+            // Library search (Ash Barrens): present vs absent.
+            fingerprint(base.copy(pendingLibrarySearch = PendingLibrarySearch(alice))) shouldNotBe fingerprint(base)
         }
     })

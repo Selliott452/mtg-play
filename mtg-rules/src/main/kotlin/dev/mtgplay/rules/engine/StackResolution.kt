@@ -81,13 +81,18 @@ private fun resolveSpell(
         require(resolved.sharedZones.stack == state.sharedZones.stack) {
             "CR 608.2m: a resolution effect must not move the resolving spell — that is the engine's move"
         }
-        // CR 701.16: a "reveal top N, keep one" clause (Malevolent Rumble) runs last and may pause for
-        // the keep-one selection; otherwise the spell simply leaves the stack now.
+        // A resolution post-effect hook may run last and pause for a mid-resolution decision; otherwise the
+        // spell simply leaves the stack now. CR 701.16: reveal top N, keep one (Malevolent Rumble). CR 601.3b:
+        // an optional "you may discard/sacrifice; if you do, draw" cost-then-draw (Highway Robbery). CR 601.2c:
+        // a mandatory "draw N, then discard M" (Faithless Looting). At most one such clause per MVP spell.
         val reveal = entry.definition.libraryReveal
-        if (reveal != null) {
-            orchestrateLibraryReveal(resolved, entry, reveal)
-        } else {
-            completeInstantSorceryResolution(resolved, entry)
+        val costDraw = entry.definition.optionalCostThenDraw
+        val drawDiscard = entry.definition.drawThenDiscard
+        when {
+            reveal != null -> orchestrateLibraryReveal(resolved, entry, reveal)
+            costDraw != null -> orchestrateOptionalCostDraw(resolved, entry, costDraw)
+            drawDiscard != null -> orchestrateDrawThenDiscard(resolved, entry, drawDiscard)
+            else -> completeInstantSorceryResolution(resolved, entry)
         }
     }
 }

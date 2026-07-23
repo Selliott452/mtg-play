@@ -76,6 +76,10 @@ internal val BURN_OPPONENT: Responder =
                 error("the burn policy casts no colour-choosing permanents, but a colour request surfaced: $request")
             is DecisionRequest.ChooseFromRevealed ->
                 error("the burn policy resolves no reveal effects, but a reveal request surfaced: $request")
+            is DecisionRequest.ChooseCostMode ->
+                error("the burn policy resolves no cost-then-draw spells, but a cost-mode request surfaced: $request")
+            is DecisionRequest.ChooseFromLibrary ->
+                error("the burn policy activates no library searches, but a find-library request surfaced: $request")
             is DecisionRequest.MulliganRequest ->
                 error("the burn policy runs mulligan-free games, but a mulligan request surfaced: $request")
         }
@@ -229,6 +233,10 @@ internal val GRIND_TO_BOLT_RANGE: Responder =
                 error("the grind policy casts no colour-choosing permanents, but a colour request surfaced: $request")
             is DecisionRequest.ChooseFromRevealed ->
                 error("the grind policy resolves no reveal effects, but a reveal request surfaced: $request")
+            is DecisionRequest.ChooseCostMode ->
+                error("the grind policy resolves no cost-then-draw spells, but a cost-mode request surfaced: $request")
+            is DecisionRequest.ChooseFromLibrary ->
+                error("the grind policy activates no library searches, but a find-library request surfaced: $request")
             is DecisionRequest.MulliganRequest ->
                 error("the grind policy runs mulligan-free games, but a mulligan request surfaced: $request")
         }

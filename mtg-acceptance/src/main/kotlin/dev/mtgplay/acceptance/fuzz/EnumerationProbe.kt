@@ -152,9 +152,10 @@ object EnumerationProbe {
             // Each offered colour (CR 614.12) is an independently legal as-enters choice (Utopia Sprawl).
             is DecisionRequest.ChooseColor ->
                 singleSelectPerOption(request.id, request.options.size, "colour")
-            // Each keepable revealed card plus "keep none" (CR 701.16) is an independently legal choice.
-            is DecisionRequest.ChooseFromRevealed ->
-                singleSelectPerOption(request.id, request.choiceCount, "keep-revealed")
+            // Each index of a "choose one, or opt out" choice (CR 701.16 keep-one, CR 601.3b cost-mode,
+            // CR 701.18 find-one) — the real options plus the opt-out — is independently legal.
+            is DecisionRequest.ChoiceCountSelection ->
+                singleSelectPerOption(request.id, request.choiceCount, "choice")
             // CR 103.4/103.5: both keep and mulligan are always legal; each bottom card is probed
             // inside a correctly-sized selection.
             is DecisionRequest.MulliganRequest -> mulliganCandidates(request)

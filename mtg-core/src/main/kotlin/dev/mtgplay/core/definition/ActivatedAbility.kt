@@ -19,14 +19,20 @@ import kotlinx.collections.immutable.PersistentList
  * activated ability targets.
  *
  * @property cost the ability's composite activation cost (CR 602.1), in printed order; never empty.
- * @property effect what the ability does when it resolves (CR 608.2); reuses [ResolutionEffect].
+ * @property effect what the ability does when it resolves (CR 608.2); reuses [ResolutionEffect]. A no-op for
+ *   an ability whose whole effect is a [librarySearch] (Ash Barrens), which the engine orchestrates instead.
  * @property zoneScope the zone the ability functions from (CR 113.6); [AbilityZoneScope.Battlefield]
  *   for most, [AbilityZoneScope.Hand] for landcycling.
+ * @property librarySearch a "search your library, put one into hand, then shuffle" part of this ability's
+ *   resolution (CR 701.18), or `null` for an ability with none. Additive, flagged core (P6.2c). Ash Barrens'
+ *   basic landcycling. Because it needs a mid-resolution selection and a seeded shuffle, `mtg-rules` runs it
+ *   after the ordinary [effect], pausing for the find-one choice.
  */
 data class ActivatedAbility(
     val cost: PersistentList<AbilityCost>,
     val effect: ResolutionEffect,
     val zoneScope: AbilityZoneScope = AbilityZoneScope.Battlefield,
+    val librarySearch: LibrarySearch? = null,
 ) {
     init {
         require(cost.isNotEmpty()) { "CR 602.1: an activated ability has a cost" }

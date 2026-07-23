@@ -1,9 +1,11 @@
 package dev.mtgplay.acceptance
 
 import dev.mtgplay.acceptance.driver.ScriptedGame
+import dev.mtgplay.acceptance.replay.fingerprint
 import dev.mtgplay.cards.MvpCards
 import dev.mtgplay.core.definition.CastSource
 import dev.mtgplay.core.definition.CastingPermission
+import dev.mtgplay.core.definition.OptionalCostMode
 import dev.mtgplay.core.event.GameEvent
 import dev.mtgplay.core.identity.CardRef
 import dev.mtgplay.core.identity.ObjectId
@@ -25,7 +27,9 @@ import dev.mtgplay.rules.decision.PriorityOption
 import io.kotest.core.spec.style.StringSpec
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldContain
+import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.persistentMapOf
@@ -33,14 +37,14 @@ import kotlinx.collections.immutable.toPersistentList
 import kotlinx.collections.immutable.toPersistentMap
 
 /**
- * The P6.2b headline behaviours of the thirteen cards, each driven end-to-end through the real engine by
- * [ScriptedGame] (which invariant-checks every transition, deliverable 2): the flagship madness-off-a-Grab
- * combo, Guttersnipe's filtered ping, Fireblast's and Lava Dart's non-mana costs, Utopia Sprawl's ramp
- * mana in a real payment, the ETB/activated token makers, Malevolent Rumble's reveal, Sneaky Snacker's
- * third-draw return, and Highway Robbery's plot. Every state is a valid engine input by construction
- * (ADR-004). The three STOP-flagged resolutions (Highway Robbery/Faithless Looting resolution, Ash Barrens
- * search) are pinned as loud failures in the `mtg-cards` unit specs; here their working halves (plot,
- * flashback, landcycling enumeration) are driven.
+ * The headline behaviours of the MVP cards, each driven end-to-end through the real engine by [ScriptedGame]
+ * (which invariant-checks every transition, deliverable 2): the flagship madness-off-a-Grab combo, the Blood
+ * token's loot, Guttersnipe's filtered ping, Fireblast's and Lava Dart's non-mana costs, Utopia Sprawl's
+ * ramp mana in a real payment, the ETB/activated token makers, Malevolent Rumble's reveal, Sneaky Snacker's
+ * third-draw return, Highway Robbery's plot and both cost-then-draw modes, the flagship Faithless-Looting-
+ * into-Fiery-Temper madness line, and Ash Barrens' end-to-end landcycling search. As of P6.2c every card
+ * action runs for real — the four architect gaps are closed and nothing is gap-avoided. Every state is a
+ * valid engine input by construction (ADR-004).
  */
 class MvpCardsAcceptanceSpec :
     StringSpec({
@@ -269,6 +273,50 @@ class MvpCardsAcceptanceSpec :
                 .count { it.card == CardRef("Blood") } shouldBe 1
         }
 
+        "CR 602 / CR 702.35: Voldaren Epicure's Blood token loots — pitching Fiery Temper exiles it by madness" {
+            // Epicure makes a Blood token; its "{1}, {T}, Discard a card, Sacrifice this token: Draw a card"
+            // ability cycles — the discarded Fiery Temper (madness) is exiled instead of graveyarded, and
+            // the token draws a fresh card. One Mountain casts the {R} Epicure, the other pays the Blood {1}.
+            val game =
+                gameFrom(
+                    alice =
+                        MvpBoard(
+                            hand = listOf(obj(10, "Voldaren Epicure"), obj(11, "Fiery Temper")),
+                            battlefield = listOf(obj(0, "Mountain"), obj(1, "Mountain")),
+                            library = listOf(obj(20, "Mountain")),
+                        ),
+                )
+            game.castOption("Voldaren Epicure")
+            game.payFirstPlan()
+            game.driveUntil {
+                game.state.sharedZones.battlefield
+                    .any { it.card == CardRef("Blood") }
+            }
+            // Activate the Blood token's loot: discard Fiery Temper, pay {1}.
+            game.activateAbility("Blood")
+            val discard = game.pendingRequest.shouldBeInstanceOf<DecisionRequest.ChooseAbilityDiscard>()
+            val temperIndex = discard.options.indexOfFirst { it.card == CardRef("Fiery Temper") }
+            game.apply(Decision.MultiSelect(discard.id, listOf(temperIndex)))
+            game.payFirstPlan()
+            // Both Mountains are now tapped, so the {R} madness cast is unaffordable — the reflexive trigger
+            // graveyards Fiery Temper with no yes/no. The pitch was still an exile-by-madness; the loot draws.
+            game.driveUntil {
+                game.state.sharedZones.stack
+                    .isEmpty()
+            }
+            // The Blood token was sacrificed, Fiery Temper was exiled by madness, and alice drew a fresh card.
+            game.state.sharedZones.battlefield
+                .none { it.card == CardRef("Blood") }
+                .shouldBeTrue()
+            game.state.events
+                .filterIsInstance<GameEvent.CardExiledByMadness>()
+                .any { it.card == CardRef("Fiery Temper") }
+                .shouldBeTrue()
+            game.state.players
+                .getValue(alice)
+                .drawsThisTurn shouldBe 1
+        }
+
         "CR 602 / CR 707.2: Melded Moxite's {3}, sacrifice ability creates a tapped Robot token" {
             val game =
                 gameFrom(
@@ -371,7 +419,90 @@ class MvpCardsAcceptanceSpec :
                 .none { it.card == CardRef("Sneaky Snacker") } shouldBe true
         }
 
-        "CR 702.140: Highway Robbery is plotted for {1}{R}, exiled this turn, and free-cast the next" {
+        "CR 601.3b: Highway Robbery's discard mode discards a card and draws two" {
+            val game =
+                gameFrom(
+                    alice =
+                        MvpBoard(
+                            hand = listOf(obj(10, "Highway Robbery"), obj(11, "Mountain")),
+                            battlefield = listOf(obj(0, "Mountain"), obj(1, "Mountain")),
+                            library = listOf(obj(20, "Mountain"), obj(21, "Mountain")),
+                        ),
+                )
+            game.castOption("Highway Robbery")
+            game.payFirstPlan()
+            game.resolveCostThenDraw(OptionalCostMode.DiscardCard)
+            // Drew two off the paid discard; the discarded Mountain and the resolved Robbery are in the graveyard.
+            game.state.players
+                .getValue(alice)
+                .drawsThisTurn shouldBe 2
+            game.state.players
+                .getValue(alice)
+                .graveyard
+                .map { it.card } shouldContain CardRef("Highway Robbery")
+        }
+
+        "CR 601.3b / CR 701.17: Highway Robbery's sacrifice-a-land mode sacrifices a land and draws two" {
+            val game =
+                gameFrom(
+                    alice =
+                        MvpBoard(
+                            hand = listOf(obj(10, "Highway Robbery")),
+                            battlefield = listOf(obj(0, "Mountain"), obj(1, "Mountain"), obj(2, "Forest")),
+                            library = listOf(obj(20, "Mountain"), obj(21, "Mountain")),
+                        ),
+                )
+            game.castOption("Highway Robbery")
+            game.payFirstPlan()
+            game.driveUntil { game.pendingRequest is DecisionRequest.ChooseCostMode }
+            val modes = game.pendingRequest.shouldBeInstanceOf<DecisionRequest.ChooseCostMode>()
+            game.apply(Decision.SingleSelect(modes.id, modes.options.indexOf(OptionalCostMode.SacrificeLand)))
+            val sacrifice = game.pendingRequest.shouldBeInstanceOf<DecisionRequest.ChooseOptionalCostObject>()
+            val forestIndex = sacrifice.options.indexOfFirst { it.card == CardRef("Forest") }
+            game.apply(Decision.MultiSelect(sacrifice.id, listOf(forestIndex)))
+            game.driveUntil {
+                game.state.sharedZones.stack
+                    .isEmpty()
+            }
+            // Drew two off the sacrifice; the Forest left the battlefield for the graveyard.
+            game.state.players
+                .getValue(alice)
+                .drawsThisTurn shouldBe 2
+            game.state.sharedZones.battlefield
+                .none { it.card == CardRef("Forest") }
+                .shouldBeTrue()
+        }
+
+        "CR 601.3b: Highway Robbery may decline the optional cost, drawing nothing" {
+            val game =
+                gameFrom(
+                    alice =
+                        MvpBoard(
+                            hand = listOf(obj(10, "Highway Robbery"), obj(11, "Mountain")),
+                            battlefield = listOf(obj(0, "Mountain"), obj(1, "Mountain")),
+                            library = listOf(obj(20, "Mountain")),
+                        ),
+                )
+            game.castOption("Highway Robbery")
+            game.payFirstPlan()
+            game.driveUntil { game.pendingRequest is DecisionRequest.ChooseCostMode }
+            val modes = game.pendingRequest.shouldBeInstanceOf<DecisionRequest.ChooseCostMode>()
+            game.apply(Decision.SingleSelect(modes.id, modes.declineIndex))
+            game.driveUntil {
+                game.state.sharedZones.stack
+                    .isEmpty()
+            }
+            // No cost, no draw; the library card is untouched.
+            game.state.players
+                .getValue(alice)
+                .drawsThisTurn shouldBe 0
+            game.state.players
+                .getValue(alice)
+                .library
+                .size shouldBe 1
+        }
+
+        "CR 702.140 / CR 601.3b: Highway Robbery is plotted for {1}{R}, then free-cast and resolved a later turn" {
             val game =
                 gameFrom(
                     alice =
@@ -394,36 +525,144 @@ class MvpCardsAcceptanceSpec :
                 .filterIsInstance<PriorityOption.CastSpell>()
                 .none { it.permission is CastingPermission.Plot } shouldBe true
 
-            // On a later turn the free cast from exile is enumerated (its resolution is STOP-flagged, so we
-            // assert the option exists rather than resolve it).
-            val nextTurn =
-                ScriptedGame.startFrom(
-                    plottedExileState(plottedTurn = 3, currentTurn = 4),
-                )
-            nextTurn
-                .action()
-                .options
-                .filterIsInstance<PriorityOption.CastSpell>()
-                .any { it.card == CardRef("Highway Robbery") && it.permission is CastingPermission.Plot } shouldBe true
+            // On a later turn the free cast from exile resolves through the cost-then-draw (discard, draw two).
+            val later = ScriptedGame.startFrom(plottedResolveState(plottedTurn = 3, currentTurn = 4))
+            later.castPlotFree("Highway Robbery")
+            later.payFirstPlan()
+            later.resolveCostThenDraw(OptionalCostMode.DiscardCard)
+            later.state.players
+                .getValue(alice)
+                .drawsThisTurn shouldBe 2
+            later.state.sharedZones.exile
+                .none { it.card == CardRef("Highway Robbery") }
+                .shouldBeTrue()
         }
 
-        "CR 113.6c: Ash Barrens' basic landcycling is enumerated from the hand when {1} is available" {
+        "CR 601.2c / CR 702.35: Faithless Looting loots, pitching Fiery Temper to exile then madness-casts it" {
+            // The Madness deck's flagship line: loot with Faithless Looting, pitch Fiery Temper to its
+            // mandatory discard — the discard→exile replacement fires, and the reflexive {R} cast bolts bob.
             val game =
                 gameFrom(
                     alice =
                         MvpBoard(
-                            hand = listOf(obj(10, "Ash Barrens")),
-                            battlefield = listOf(obj(0, "Mountain")),
-                            library = listOf(obj(20, "Mountain")),
+                            hand = listOf(obj(10, "Faithless Looting"), obj(11, "Fiery Temper"), obj(12, "Mountain")),
+                            battlefield = listOf(obj(0, "Mountain"), obj(1, "Mountain")),
+                            library = listOf(obj(20, "Mountain"), obj(21, "Mountain")),
                         ),
                 )
-            // The hand-scoped landcycling activation is offered (its search effect is STOP-flagged, so we
-            // assert enumeration rather than activate it).
-            game
-                .action()
-                .options
-                .filterIsInstance<PriorityOption.ActivateAbility>()
-                .any { it.card == CardRef("Ash Barrens") } shouldBe true
+            game.castOption("Faithless Looting")
+            game.payFirstPlan()
+            // Resolution draws two, then the mandatory discard of two — pitch Fiery Temper and a spare card.
+            game.driveUntil { game.pendingRequest is DecisionRequest.ChooseResolutionDiscards }
+            val discard = game.pendingRequest.shouldBeInstanceOf<DecisionRequest.ChooseResolutionDiscards>()
+            val temperIndex = discard.options.indexOfFirst { it.card == CardRef("Fiery Temper") }
+            val spareIndex = discard.options.indexOfFirst { it.card != CardRef("Fiery Temper") }
+            game.apply(Decision.MultiSelect(discard.id, listOf(temperIndex, spareIndex)))
+            // The reflexive madness trigger offers the {R} cast (a Mountain is still untapped) — take it at bob.
+            game.driveUntil { game.pendingRequest is DecisionRequest.ChooseYesNo }
+            val yesNo = game.pendingRequest.shouldBeInstanceOf<DecisionRequest.ChooseYesNo>()
+            game.apply(Decision.SingleSelect(yesNo.id, DecisionRequest.ChooseYesNo.ACCEPT))
+            val targets = game.pendingRequest.shouldBeInstanceOf<DecisionRequest.ChooseTargets>()
+            game.apply(Decision.SingleSelect(targets.id, targets.options.indexOf(Target.Player(bob))))
+            game.payFirstPlan()
+            game.driveUntil {
+                game.state.sharedZones.stack
+                    .isEmpty()
+            }
+            // Fiery Temper was exiled by madness (not graveyarded), then cast for {R} and dealt 3 to bob.
+            game.state.events
+                .filterIsInstance<GameEvent.CardExiledByMadness>()
+                .any { it.card == CardRef("Fiery Temper") }
+                .shouldBeTrue()
+            game.state.players
+                .getValue(bob)
+                .life shouldBe STARTING_LIFE - 3
+            game.state.players
+                .getValue(alice)
+                .drawsThisTurn shouldBe 2
+        }
+
+        "CR 702.34: Faithless Looting is flashed back from the graveyard, resolves its loot, and is exiled" {
+            val game =
+                gameFrom(
+                    alice =
+                        MvpBoard(
+                            hand = listOf(obj(12, "Mountain")),
+                            battlefield = listOf(obj(0, "Mountain"), obj(1, "Mountain"), obj(2, "Mountain")),
+                            library = listOf(obj(20, "Mountain"), obj(21, "Mountain")),
+                            graveyard = listOf(obj(5, "Faithless Looting")),
+                        ),
+                )
+            game.castFlashback("Faithless Looting")
+            game.payFirstPlan()
+            // Draw two, then discard two Mountains (no madness), and the flashback spell is exiled off the stack.
+            game.driveUntil { game.pendingRequest is DecisionRequest.ChooseResolutionDiscards }
+            val discard = game.pendingRequest.shouldBeInstanceOf<DecisionRequest.ChooseResolutionDiscards>()
+            game.apply(Decision.MultiSelect(discard.id, listOf(0, 1)))
+            game.driveUntil {
+                game.state.sharedZones.stack
+                    .isEmpty()
+            }
+            game.state.players
+                .getValue(alice)
+                .drawsThisTurn shouldBe 2
+            // CR 702.34e: the flashback spell is in exile, not the graveyard.
+            game.state.sharedZones.exile
+                .count { it.card == CardRef("Faithless Looting") } shouldBe 1
+            game.state.players
+                .getValue(alice)
+                .graveyard
+                .none { it.card == CardRef("Faithless Looting") }
+                .shouldBeTrue()
+        }
+
+        "CR 701.18: Ash Barrens landcycles — finds a basic land, puts it in hand, shuffles, and replays identically" {
+            // Activate the hand-scoped basic landcycling ({1}, discard Ash Barrens), search for a basic land,
+            // find the Forest, and shuffle. The scripted sequence is a pure decision log (ADR-006), so a
+            // second identical run reproduces the same final state — the seeded shuffle included.
+            fun playCycle(): ScriptedGame {
+                val game =
+                    gameFrom(
+                        alice =
+                            MvpBoard(
+                                hand = listOf(obj(10, "Ash Barrens")),
+                                battlefield = listOf(obj(0, "Mountain")),
+                                library = listOf(obj(20, "Forest"), obj(21, "Mountain"), obj(22, "Lightning Bolt")),
+                            ),
+                    )
+                game.activateAbility("Ash Barrens")
+                game.payFirstPlan()
+                game.driveUntil { game.pendingRequest is DecisionRequest.ChooseFromLibrary }
+                val find = game.pendingRequest.shouldBeInstanceOf<DecisionRequest.ChooseFromLibrary>()
+                // Only the basic lands (Forest, Mountain) are findable — the Lightning Bolt is not.
+                find.options
+                    .map { it.card }
+                    .shouldContainExactlyInAnyOrder(CardRef("Forest"), CardRef("Mountain"))
+                val forestIndex = find.options.indexOfFirst { it.card == CardRef("Forest") }
+                game.apply(Decision.SingleSelect(find.id, forestIndex))
+                return game.driveUntil {
+                    game.state.sharedZones.stack
+                        .isEmpty()
+                }
+            }
+            val game = playCycle()
+            // The found Forest is in hand; Ash Barrens was discarded to the cost; the library lost the found card.
+            game.state.players
+                .getValue(alice)
+                .hand
+                .map { it.card } shouldContain CardRef("Forest")
+            game.state.players
+                .getValue(alice)
+                .graveyard
+                .map { it.card } shouldContain CardRef("Ash Barrens")
+            game.state.players
+                .getValue(alice)
+                .library
+                .size shouldBe 2
+            // The shuffle drew from the seeded PRNG (ADR-006), so its state advanced from the initial Rng(0).
+            game.state.rng.state shouldNotBe Rng(0).state
+            // Replay: the identical scripted sequence reproduces the identical final state (shuffle included).
+            fingerprint(playCycle().state) shouldBe fingerprint(game.state)
         }
     })
 
@@ -466,6 +705,34 @@ private fun ScriptedGame.activateAbility(name: String): ScriptedGame {
     val index = window.options.indexOfFirst { it is PriorityOption.ActivateAbility && it.card == CardRef(name) }
     check(index >= 0) { "no ActivateAbility option for $name in ${window.options}" }
     return apply(Decision.SingleSelect(window.id, index))
+}
+
+private fun ScriptedGame.castPlotFree(name: String): ScriptedGame {
+    val window = action()
+    val index =
+        window.options.indexOfFirst {
+            it is PriorityOption.CastSpell && it.card == CardRef(name) && it.permission is CastingPermission.Plot
+        }
+    check(index >= 0) { "no plot free-cast for $name in ${window.options}" }
+    return apply(Decision.SingleSelect(window.id, index))
+}
+
+/**
+ * Drives a resolving optional cost-then-draw (CR 601.3b, Highway Robbery): chooses [mode], pays it with the
+ * first eligible object, and resolves the spell off the stack.
+ */
+private fun ScriptedGame.resolveCostThenDraw(mode: OptionalCostMode): ScriptedGame {
+    driveUntil { pendingRequest is DecisionRequest.ChooseCostMode }
+    val modes = pendingRequest.shouldBeInstanceOf<DecisionRequest.ChooseCostMode>()
+    val modeIndex = modes.options.indexOf(mode)
+    check(modeIndex >= 0) { "mode $mode not offered in ${modes.options}" }
+    apply(Decision.SingleSelect(modes.id, modeIndex))
+    val obj = pendingRequest.shouldBeInstanceOf<DecisionRequest.ChooseOptionalCostObject>()
+    apply(Decision.MultiSelect(obj.id, listOf(0)))
+    return driveUntil {
+        state.sharedZones.stack
+            .isEmpty()
+    }
 }
 
 private fun ScriptedGame.plotCard(name: String): ScriptedGame {
@@ -609,8 +876,12 @@ private fun gameFrom(
     return ScriptedGame.startFrom(state)
 }
 
-/** Alice holding priority on turn [currentTurn] with Highway Robbery already plotted in exile on [plottedTurn]. */
-private fun plottedExileState(
+/**
+ * Alice holding priority on turn [currentTurn] with Highway Robbery already plotted in exile on
+ * [plottedTurn], plus a spare card to discard and two library cards to draw — so its free cast resolves all
+ * the way through the optional cost-then-draw (CR 601.3b, CR 702.140).
+ */
+private fun plottedResolveState(
     plottedTurn: Int,
     currentTurn: Int,
 ): GameState {
@@ -621,8 +892,12 @@ private fun plottedExileState(
                 alice to
                     PlayerState(
                         life = STARTING_LIFE,
-                        library = persistentListOf(),
-                        hand = persistentListOf(),
+                        library =
+                            persistentListOf(
+                                GameObject(ObjectId(1), CardRef("Mountain"), alice),
+                                GameObject(ObjectId(2), CardRef("Mountain"), alice),
+                            ),
+                        hand = persistentListOf(GameObject(ObjectId(3), CardRef("Mountain"), alice)),
                         graveyard = persistentListOf(),
                         priorityStatus = PriorityStatus.HOLDS_PRIORITY,
                     ),
@@ -636,7 +911,7 @@ private fun plottedExileState(
             ),
         turn = Turn(alice, currentTurn, TurnPhase.PRECOMBAT_MAIN, null),
         sharedZones = SharedZones(persistentListOf(), persistentListOf(), persistentListOf(exiled)),
-        nextObjectId = 1,
+        nextObjectId = 4,
         rng = Rng(0),
         events = persistentListOf(),
         definitions = MvpCards.definitions.toPersistentMap(),

@@ -10,6 +10,8 @@ import dev.mtgplay.core.definition.ActivatedAbility
 import dev.mtgplay.core.definition.CardDefinition
 import dev.mtgplay.core.definition.EnchantRestriction
 import dev.mtgplay.core.definition.LibraryReveal
+import dev.mtgplay.core.definition.LibrarySearch
+import dev.mtgplay.core.definition.LibrarySearchFilter
 import dev.mtgplay.core.definition.ManaAbility
 import dev.mtgplay.core.definition.ResolutionEffect
 import dev.mtgplay.core.definition.RevealedCardFilter
@@ -26,11 +28,11 @@ import kotlinx.collections.immutable.persistentSetOf
 
 /*
  * The GW-Bogles utility cards of the MVP pool that are not Auras or hexproof bodies (docs/decklists.md):
- * Utopia Sprawl (the Forest-enchanting ramp Aura, encoded here for its P6.2a triggered-mana-ability and
- * as-enters colour choice — distinct machinery from the P4.2 static Auras in Auras.kt), Malevolent Rumble
- * (library manipulation plus an Eldrazi Spawn token), and Ash Barrens (a colorless-fixing land with basic
- * landcycling). Every mechanism was built and fixture-proven in P6.2a, so each is a faithful oracle
- * translation onto published DSL primitives (ADR-003) — with one STOP-flagged gap noted on [ashBarrens].
+ * Utopia Sprawl (the Forest-enchanting ramp Aura, encoded here for its triggered-mana-ability and as-enters
+ * colour choice — distinct machinery from the P4.2 static Auras in Auras.kt), Malevolent Rumble (library
+ * manipulation plus an Eldrazi Spawn token), and Ash Barrens (a colorless-fixing land with basic
+ * landcycling, whose [LibrarySearch] effect P6.2c completed). Every mechanism is a published DSL primitive
+ * (ADR-003), so each is a faithful oracle translation; no card action is gap-avoided.
  */
 
 /** The number of top-of-library cards Malevolent Rumble reveals (CR 701.16). */
@@ -120,16 +122,10 @@ val malevolentRumble: SpellDefinition =
  * ability adds `{C}`, CR 605.1a) that is *played*, not cast (CR 305.1) — hence a plain [CardDefinition],
  * never a [SpellDefinition]. Its basic landcycling is a hand-scoped activated ability (CR 113.6c, CR 602):
  * the composite cost `{1}` + discard-this-card ([AbilityCost.Mana] + [AbilityCost.DiscardSelf]),
- * functioning from [AbilityZoneScope.Hand].
- *
- * **Architect gap (STOP-flagged, P6.2b report).** The landcycling *effect* — "Search your library for a
- * basic land card, reveal it, put it into your hand, then shuffle" — has no P6.2a vocabulary: there is no
- * library-search effect primitive and no search decision request (the whole [dev.mtgplay.rules.decision]
- * hierarchy has none), and a search is a real player choice (which basic, or fail to find) that cannot be
- * deterministically approximated without a wrong result. The ability is declared (it is part of the card
- * and is legitimately enumerated when payable) but its effect fails loudly — per the architect ruling and
- * CONVENTIONS ("fail loudly; never silently approximate"). Fixing it needs a search primitive and a
- * search decision (an architect task).
+ * functioning from [AbilityZoneScope.Hand], whose effect is a [LibrarySearch] for a basic land card
+ * (CR 701.18). `mtg-rules` surfaces the find-one choice (a basic land, or fail to find), reveals the found
+ * card, puts it into the hand, and shuffles the library through the match PRNG (ADR-006). The ordinary
+ * [ActivatedAbility.effect] is a no-op — the search is the whole of the resolution.
  */
 val ashBarrens: CardDefinition =
     object : CardDefinition {
@@ -147,19 +143,9 @@ val ashBarrens: CardDefinition =
             persistentListOf(
                 ActivatedAbility(
                     cost = persistentListOf(AbilityCost.Mana(ManaCost.parse("{1}")), AbilityCost.DiscardSelf),
-                    effect = ResolutionEffect { _, _ -> ashBarrensLandcyclingUnsupported() },
+                    effect = ResolutionEffect { state, _ -> state },
                     zoneScope = AbilityZoneScope.Hand,
+                    librarySearch = LibrarySearch(LibrarySearchFilter.BASIC_LAND_CARD),
                 ),
             )
     }
-
-/**
- * Fails loudly for Ash Barrens' unsupported basic-landcycling search effect (CR 701.18). Split out so the
- * gap is a single greppable site and the per-card test pins exactly this failure. See [ashBarrens].
- */
-private fun ashBarrensLandcyclingUnsupported(): Nothing =
-    error(
-        "P6.2b gap (architect): Ash Barrens' basic landcycling 'search your library for a basic land card, " +
-            "reveal it, put it into your hand, then shuffle' (CR 701.18) has no P6.2a support — no library-" +
-            "search effect primitive and no search decision request exist. Not encodable without an engine change.",
-    )

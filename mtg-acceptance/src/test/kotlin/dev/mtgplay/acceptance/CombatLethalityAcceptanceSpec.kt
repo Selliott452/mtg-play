@@ -120,6 +120,10 @@ private val ALL_OUT_ATTACK: Responder =
                 error("the all-out-attack policy casts no colour-choosing permanents, but one surfaced: $request")
             is DecisionRequest.ChooseFromRevealed ->
                 error("the all-out-attack policy resolves no reveal effects, but one surfaced: $request")
+            is DecisionRequest.ChooseCostMode ->
+                error("the all-out-attack policy resolves no cost-then-draw spells, but one surfaced: $request")
+            is DecisionRequest.ChooseFromLibrary ->
+                error("the all-out-attack policy activates no library searches, but one surfaced: $request")
             is DecisionRequest.MulliganRequest ->
                 error("the all-out-attack policy runs mulligan-free games, but a mulligan request surfaced: $request")
         }

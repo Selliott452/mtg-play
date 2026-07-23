@@ -7,6 +7,8 @@ import dev.mtgplay.core.definition.AbilityCost
 import dev.mtgplay.core.definition.AbilityZoneScope
 import dev.mtgplay.core.definition.EnchantRestriction
 import dev.mtgplay.core.definition.LibraryReveal
+import dev.mtgplay.core.definition.LibrarySearch
+import dev.mtgplay.core.definition.LibrarySearchFilter
 import dev.mtgplay.core.definition.ManaAbility
 import dev.mtgplay.core.definition.ResolutionContext
 import dev.mtgplay.core.definition.RevealedCardFilter
@@ -24,7 +26,6 @@ import dev.mtgplay.core.state.PlayerState
 import dev.mtgplay.core.state.SharedZones
 import dev.mtgplay.core.state.Turn
 import dev.mtgplay.core.state.TurnPhase
-import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.StringSpec
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.nulls.shouldBeNull
@@ -40,8 +41,9 @@ import kotlinx.collections.immutable.toPersistentMap
  * The three remaining GW-Bogles utility definitions (docs/decklists.md): Utopia Sprawl's as-enters colour
  * choice and triggered mana ability (CR 614.12, CR 605.1b), Malevolent Rumble's token-plus-reveal
  * resolution (CR 707, CR 701.16), and Ash Barrens' colorless fixing plus hand-scoped basic landcycling
- * (CR 305, CR 113.6c) — with the search effect STOP-flagged. Engine-driven behaviour (Sprawl's bonus mana
- * in a real payment, Rumble's reveal-and-keep) lives in the acceptance module.
+ * (CR 305, CR 113.6c) whose [LibrarySearch] effect is declared here. Engine-driven behaviour (Sprawl's bonus
+ * mana in a real payment, Rumble's reveal-and-keep, Ash Barrens' end-to-end search) lives in the acceptance
+ * module.
  */
 class BoglesUtilitySpec :
     StringSpec({
@@ -97,14 +99,15 @@ class BoglesUtilitySpec :
             ashBarrens.manaAbilities shouldContainExactly listOf(ManaAbility(persistentListOf(ManaType.COLORLESS)))
         }
 
-        "CR 113.6c: Ash Barrens' basic landcycling is a hand-scoped {1}+discard-self ability; search STOP-flagged" {
+        "CR 113.6c / CR 701.18: Ash Barrens landcycling — a hand-scoped {1}+discard-self ability that searches" {
             val cycling = ashBarrens.activatedAbilities.single()
             cycling.zoneScope shouldBe AbilityZoneScope.Hand
             cycling.cost shouldContainExactly
                 listOf(AbilityCost.Mana(ManaCost.parse("{1}")), AbilityCost.DiscardSelf)
-            shouldThrow<IllegalStateException> {
-                cycling.effect.resolve(boardState(alice, bob), noTargets(alice))
-            }
+            // The ordinary effect is a no-op; the search declaration carries the basic-land filter.
+            val base = boardState(alice, bob)
+            cycling.effect.resolve(base, noTargets(alice)) shouldBe base
+            cycling.librarySearch shouldBe LibrarySearch(LibrarySearchFilter.BASIC_LAND_CARD)
         }
 
         "the utility cards register as the expected definition types" {

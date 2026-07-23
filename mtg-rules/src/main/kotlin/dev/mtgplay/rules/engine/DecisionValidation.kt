@@ -47,8 +47,9 @@ internal fun validateDecision(
         is DecisionRequest.ChooseReplacement -> validateSingleSelect(request, decision, request.options.size)
         // CR 614.12: an as-enters colour choice is a single-select of one of the offered colours.
         is DecisionRequest.ChooseColor -> validateSingleSelect(request, decision, request.options.size)
-        // CR 701.16: a keep-one choice is a single-select of a revealed card or the "keep none" index.
-        is DecisionRequest.ChooseFromRevealed -> validateSingleSelect(request, decision, request.choiceCount)
+        // A "choose one, or opt out" single-select (CR 701.16 keep-one, CR 601.3b cost-mode, CR 701.18
+        // find-one) is validated over all its indices — the real options plus the one opt-out.
+        is DecisionRequest.ChoiceCountSelection -> validateSingleSelect(request, decision, request.choiceCount)
         // CR 103.4/103.5: the pre-game mulligan decisions share a validator (Mulligans.kt).
         is DecisionRequest.MulliganRequest -> validateMulliganDecision(request, decision)
     }

@@ -82,8 +82,9 @@ class RandomLegalResponder(
             is DecisionRequest.ChooseReplacement -> randomSingleSelect(request.id, request.options.size)
             // CR 614.12: a uniform pick among the offered colours for an as-enters choice (Utopia Sprawl).
             is DecisionRequest.ChooseColor -> randomSingleSelect(request.id, request.options.size)
-            // CR 701.16: a uniform pick among the keepable revealed cards plus "keep none" (Malevolent Rumble).
-            is DecisionRequest.ChooseFromRevealed -> randomSingleSelect(request.id, request.choiceCount)
+            // A "choose one of these, or opt out" choice (CR 701.16 keep-one, CR 601.3b cost-mode, CR 701.18
+            // find-one): a uniform pick over all its indices — the real options plus the one opt-out.
+            is DecisionRequest.ChoiceCountSelection -> randomSingleSelect(request.id, request.choiceCount)
             // CR 103.4/103.5: mulligan with a modest probability (so playouts terminate quickly), and
             // bottom a random correctly-sized selection of the hand.
             is DecisionRequest.MulliganRequest -> randomMulligan(request)

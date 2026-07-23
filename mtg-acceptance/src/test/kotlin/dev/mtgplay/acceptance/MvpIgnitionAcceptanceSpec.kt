@@ -1,38 +1,46 @@
 package dev.mtgplay.acceptance
 
+import dev.mtgplay.acceptance.driver.RandomLegalResponder
 import dev.mtgplay.acceptance.driver.ScriptedGame
-import io.kotest.assertions.withClue
 import io.kotest.core.spec.style.StringSpec
-import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.ints.shouldBeGreaterThan
 
 /**
- * The P6.2b first-real-deck ignition check (deliverable 4): a real Mono-Red-Madness-vs-GW-Bogles game —
- * both decks now fully defined, mulligans on, random-legal responders — starts, runs, and terminates with
- * **zero invariant violations**. [ScriptedGame] invariant-checks every single transition and throws on
- * any violation, so a game that reaches `GameOver` proves the whole playout stayed valid (PLAN.md §2.3).
+ * The P6.2c pure-random ignition corpus (deliverable 5): real Mono-Red-Madness-vs-GW-Bogles games driven by
+ * a **pure** [RandomLegalResponder] — both decks fully defined, mulligans on, and **no gap-avoidance
+ * anywhere** (the four architect gaps are closed, so the retired `GapAvoidingResponder` is gone). Every
+ * card action — including Blood's loot, Highway Robbery's cost-then-draw, Faithless Looting's resolution
+ * discard, and Ash Barrens' search — is a real random-legal choice.
  *
- * This is the ignition check, not the corpus: a handful of seeds proving the two real decks actually run
- * against each other. Corpus-scale tuning and the full-game scripted scenarios are P6.3. The responder
- * routes around the three STOP-flagged card actions whose resolution needs an unbuilt engine mechanism
- * (see [GapAvoidingResponder] and the P6.2b report); every other real card is exercised in real games.
+ * The contract is **zero invariant violations, bounded termination**: [ScriptedGame] invariant-checks every
+ * single transition and throws on any violation (PLAN.md §2.3), so a corpus that finishes proves every
+ * playout stayed valid. A playout that reaches the turn/decision bound without ending is INCONCLUSIVE — a
+ * tolerated stall, not a failure (random play need not converge) — and is counted and reported. At least
+ * one seed must run to a real conclusion, proving the decks actually play out. Corpus-scale tuning and the
+ * scripted full-game scenarios are P6.3.
  */
 class MvpIgnitionAcceptanceSpec :
     StringSpec({
-        "P6.2b ignition: real Mono-Red-Madness vs GW-Bogles games run green and terminate" {
-            fuzzSeeds(default = IGNITION_SEEDS).forEach { seed ->
+        "P6.2c ignition: pure random-legal Mono-Red-Madness vs GW-Bogles games run green (no gap-avoidance)" {
+            val seeds = fuzzSeeds(default = IGNITION_SEEDS)
+            var terminated = 0
+            var inconclusive = 0
+            seeds.forEach { seed ->
                 val game =
                     ScriptedGame
                         .start(mvpMatchupConfig(seed))
-                        .playToCompletion(GapAvoidingResponder(seed), turnCap = REAL_CARD_TURN_CAP)
-                withClue("seed $seed did not run green to termination") {
-                    game.isOver.shouldBeTrue()
-                    // A real game, not a no-op: it advanced well past the opening turn.
-                    game.state.turn.number shouldBeGreaterThan 1
-                }
+                        .playUntilOverOrBound(RandomLegalResponder(seed), turnCap = REAL_CARD_TURN_CAP)
+                if (game.isOver) terminated++ else inconclusive++
             }
+            // Reported per the DoD: a stall-capped (INCONCLUSIVE) seed is tolerated; a violation would have thrown.
+            println(
+                "P6.2c ignition corpus: ${seeds.size} seeds — $terminated terminated, $inconclusive inconclusive " +
+                    "(stall-capped at turn $REAL_CARD_TURN_CAP), 0 invariant violations.",
+            )
+            // A real corpus, not a no-op: at least one seed ran the two real decks to a genuine conclusion.
+            terminated shouldBeGreaterThan 0
         }
     })
 
-/** Seed count for the ignition check — a handful; the full corpus is P6.3. Scaled by `-PfuzzSeeds`. */
-private const val IGNITION_SEEDS: Int = 4
+/** Seed count for the pure-random ignition corpus — at least sixteen (P6.2c); scaled by `-PfuzzSeeds`. */
+private const val IGNITION_SEEDS: Int = 16

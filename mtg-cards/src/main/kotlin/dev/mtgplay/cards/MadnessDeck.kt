@@ -9,6 +9,9 @@ import dev.mtgplay.core.definition.AbilityCost
 import dev.mtgplay.core.definition.ActivatedAbility
 import dev.mtgplay.core.definition.AdditionalCost
 import dev.mtgplay.core.definition.CastingPermission
+import dev.mtgplay.core.definition.DrawThenDiscard
+import dev.mtgplay.core.definition.OptionalCostMode
+import dev.mtgplay.core.definition.OptionalCostThenDraw
 import dev.mtgplay.core.definition.OptionalDiscardDraw
 import dev.mtgplay.core.definition.ReplacementEffect
 import dev.mtgplay.core.definition.ResolutionContext
@@ -34,30 +37,16 @@ import kotlinx.collections.immutable.persistentSetOf
 import kotlinx.collections.immutable.toPersistentList
 
 /*
- * The Mono-Red Madness deck (docs/decklists.md), encoded over the P6.2a engine as pure card data. Every
- * mechanism these cards use — spell-cast triggers, per-turn draw counting from the graveyard, ETB
- * triggers with optional discard-then-draw, madness (discard→exile replacement + reflexive cast),
- * flashback and its non-mana sacrifice cost, alternative sacrifice costs, additional discard costs with
- * linked information, plot, and composite activated-ability costs — was built and fixture-proven in
- * P6.2a, so each definition below is a faithful oracle translation onto published DSL primitives
- * (ADR-003).
- *
- * **Three architect-gap deviations, STOP-flagged in the P6.2b report (do NOT read as complete):**
- * - **[bloodToken]** cannot carry its "{1}, {T}, Discard a card, Sacrifice this token: Draw a card"
- *   activated ability: [TokenDefinition] exposes no `activatedAbilities` field (only mana/static/
- *   triggered), yet token identity *requires* the definition be a [TokenDefinition] (CR 704.5d / the
- *   card census both key on `definitions[card] is TokenDefinition`). The [dev.mtgplay.core.definition.CardDefinition]
- *   KDoc names Blood's ability as belonging in `activatedAbilities`, so the intent was there; the field
- *   is missing. The token is encoded ability-less; wiring the ability needs a one-line core addition.
- * - **[highwayRobbery]**'s resolution "you may discard a card or sacrifice a land; if you do, draw two"
- *   is an *optional discard-then-draw at spell resolution* (CR 601.3b), but the P6.2a machinery wires
- *   [OptionalDiscardDraw] only onto a [TriggeredAbility] (resolved by `resolveOptionalDiscardDrawTrigger`);
- *   `resolveSpell` reads only [SpellDefinition.libraryReveal], with no spell-resolution hook. Its
- *   resolution therefore fails loudly (the sacrifice-a-land alternative mode has no vocabulary at all).
- * - **[faithlessLooting]**'s resolution "draw two cards, then discard two cards" needs a *mandatory
- *   resolution-time discard-N selection*, which no pending mechanism expresses (the optional-discard-draw
- *   is optional and discards exactly one; the library-reveal is a library operation). Its resolution
- *   fails loudly at the discard clause.
+ * The Mono-Red Madness deck (docs/decklists.md), encoded over the engine as pure card data. Every mechanism
+ * these cards use — spell-cast triggers, per-turn draw counting from the graveyard, ETB triggers with
+ * optional discard-then-draw, madness (discard→exile replacement + reflexive cast), flashback and its
+ * non-mana sacrifice cost, alternative sacrifice costs, additional discard costs with linked information,
+ * plot, composite activated-ability costs (now including a token's, see [bloodToken]), an optional
+ * cost-then-draw at spell resolution ([highwayRobbery]), and a mandatory draw-then-discard at spell
+ * resolution ([faithlessLooting]) — is a published DSL primitive (ADR-003), so each definition below is a
+ * faithful oracle translation. P6.2c closed the last four architect gaps (Blood's activated ability, Highway
+ * Robbery's cost-then-draw, Faithless Looting's resolution discard, and Ash Barrens' search); no card action
+ * is gap-avoided anywhere.
  */
 
 /** The damage Guttersnipe's spell-cast trigger deals to each opponent (CR 120.3a). */
@@ -96,19 +85,21 @@ const val SNEAKY_SNACKER_DRAW_ORDINAL: Int = 3
  */
 private val entersTheBattlefield: ResolutionEffect = ResolutionEffect { state, _ -> state }
 
+/** The cards the Blood token's activated ability draws on resolution (CR 120.1). */
+const val BLOOD_TOKEN_DRAW: Int = 1
+
 /**
- * The Blood token (CR 111.4) Voldaren Epicure creates: a colorless artifact token of subtype Blood.
+ * The Blood token (CR 111.4) Voldaren Epicure creates: a colorless artifact token of subtype Blood with
+ * "{1}, {T}, Discard a card, Sacrifice this token: Draw a card" (CR 602). The rummaging loot the deck uses
+ * to filter draws and — its whole point in Madness — to pitch a madness card (Fiery Temper) for value.
  *
- * **Architect gap (STOP-flagged, P6.2b report).** Blood's printed ability is
- * "{1}, {T}, Discard a card, Sacrifice this token: Draw a card" — an activated ability (CR 602). It is
- * **omitted** here because [TokenDefinition] carries no `activatedAbilities` (its constructor exposes
- * only mana, static, and triggered abilities), and the ability cannot be attached any other way: a
- * created token's characteristics are read through `definitions[card]`, and token identity for CR 704.5d
- * cessation and card-census conservation both require that entry to be a [TokenDefinition]. The
- * [dev.mtgplay.core.definition.CardDefinition] `activatedAbilities` KDoc explicitly names Blood's ability
- * as belonging there, so the intent existed; the token type simply does not surface the field. Wiring it
- * is a one-line core addition (an `activatedAbilities` parameter on [TokenDefinition], mirroring
- * `manaAbilities`) — an architect task, out of P6.2b scope (no engine/core changes).
+ * The activated ability is a composite cost ([AbilityCost.Mana]`({1})` + [AbilityCost.TapSelf] +
+ * [AbilityCost.DiscardACard] + [AbilityCost.SacrificeSelf], in printed order) whose effect draws
+ * [BLOOD_TOKEN_DRAW] (CR 120.1). The engine reads it through the same `definitions[card].activatedAbilities`
+ * path a real card's ability uses (CR 113.6): the discard cost routes through the CR 614/616 framework, so
+ * a discarded madness card is exiled instead and its reflexive cast fires (P6.2c completed the
+ * [TokenDefinition.activatedAbilities] field this needs). Being an artifact, not a creature, the token may
+ * tap and sacrifice for the ability the turn it is created (no summoning-sickness bar on `{T}`, CR 302.6).
  */
 val bloodToken: TokenDefinition =
     TokenDefinition(
@@ -120,6 +111,22 @@ val bloodToken: TokenDefinition =
                 cardTypes = persistentSetOf(CardType.ARTIFACT),
                 subtypes = persistentSetOf(Subtype("Blood")),
                 powerToughness = null,
+            ),
+        activatedAbilities =
+            persistentListOf(
+                ActivatedAbility(
+                    cost =
+                        persistentListOf(
+                            AbilityCost.Mana(ManaCost.parse("{1}")),
+                            AbilityCost.TapSelf,
+                            AbilityCost.DiscardACard,
+                            AbilityCost.SacrificeSelf,
+                        ),
+                    effect =
+                        ResolutionEffect { state, context ->
+                            drawCards(state, context.controller, BLOOD_TOKEN_DRAW)
+                        },
+                ),
             ),
     )
 
@@ -259,10 +266,8 @@ val sneakySnacker: SpellDefinition =
  * each opponent. Create a Blood token." The body enters with no resolution instructions (CR 608.3); its
  * one enters-the-battlefield trigger (CR 603.6a) deals [VOLDAREN_EPICURE_DAMAGE] to each opponent
  * (CR 120.3a) and then creates the [bloodToken] under its controller (CR 707.2). The two effects are one
- * trigger, sequenced as printed (damage, then token).
- *
- * See [bloodToken] for the STOP-flagged gap: the created Blood token cannot yet carry its sacrifice-to-draw
- * activated ability.
+ * trigger, sequenced as printed (damage, then token). The created [bloodToken] carries its own
+ * "{1}, {T}, Discard a card, Sacrifice this token: Draw a card" activated ability (CR 602).
  */
 val voldarenEpicure: SpellDefinition =
     object : SpellDefinition {
@@ -469,20 +474,19 @@ val meldedMoxite: SpellDefinition =
             )
     }
 
+/** The cards Highway Robbery's "if you do, draw" clause draws when a cost is paid (CR 601.3b). */
+const val HIGHWAY_ROBBERY_DRAW: Int = 2
+
 /**
  * Highway Robbery — `{1}{R}` Sorcery. "You may discard a card or sacrifice a land. If you do, draw two
- * cards. Plot `{1}{R}`." The plot half is fully encoded: [CastingPermission.Plot]`({1}{R})` (CR 702.140) —
- * the card is plotted (paid `{1}{R}`, exiled face-up) and cast for free from exile on a later turn at
- * sorcery speed.
- *
- * **Architect gap (STOP-flagged, P6.2b report).** The resolution clause is an *optional discard-then-draw
- * at spell resolution* (CR 601.3b), plus a "sacrifice a land" alternative mode. The P6.2a
- * [OptionalDiscardDraw] machinery is wired only onto a [TriggeredAbility] (`resolveOptionalDiscardDrawTrigger`);
- * `resolveSpell` has no spell-resolution discard-then-draw hook (it reads only
- * [SpellDefinition.libraryReveal]). And the "sacrifice a land" alternative mode has no vocabulary at all.
- * Neither mode composes without an engine change, so — per the architect ruling and CONVENTIONS ("fail
- * loudly; never silently approximate") — resolution fails loudly. The plot mechanic is unaffected and is
- * what the per-card test exercises.
+ * cards. Plot `{1}{R}`." Two mechanisms:
+ * - the resolution clause is an *optional cost-then-draw at spell resolution* (CR 601.3b):
+ *   [OptionalCostThenDraw]`([HIGHWAY_ROBBERY_DRAW], [discard | sacrifice-a-land])` — `mtg-rules` offers the
+ *   controller a mode choice (decline, discard a card, or sacrifice a land), then that mode's object
+ *   selection, then the draw. A discarded madness card (Fiery Temper) is exiled instead (CR 702.35a),
+ *   routing through the CR 614/616 framework;
+ * - the plot half is [CastingPermission.Plot]`({1}{R})` (CR 702.140) — the card is plotted (paid `{1}{R}`,
+ *   exiled face-up) and cast for free from exile on a later turn at sorcery speed.
  */
 val highwayRobbery: SpellDefinition =
     object : SpellDefinition {
@@ -497,23 +501,30 @@ val highwayRobbery: SpellDefinition =
             )
         override val timing = TimingClass.SORCERY_SPEED
         override val targetSpec = TargetSpec.None
-        override val resolution = ResolutionEffect { _, _ -> highwayRobberyResolutionUnsupported() }
+        override val resolution = ResolutionEffect { state, _ -> state }
+        override val optionalCostThenDraw =
+            OptionalCostThenDraw(
+                drawCount = HIGHWAY_ROBBERY_DRAW,
+                modes = persistentListOf(OptionalCostMode.DiscardCard, OptionalCostMode.SacrificeLand),
+            )
         override val castingPermissions = listOf(CastingPermission.Plot(ManaCost.parse("{1}{R}")))
     }
 
+/** The cards Faithless Looting draws on resolution, then the number it discards (CR 601.2c). */
+const val FAITHLESS_LOOTING_DRAW: Int = 2
+
+/** The cards Faithless Looting discards after drawing (CR 601.2c). */
+const val FAITHLESS_LOOTING_DISCARD: Int = 2
+
 /**
- * Faithless Looting — `{R}` Sorcery. "Draw two cards, then discard two cards. Flashback `{2}{R}`." The
- * flashback half is fully encoded: [CastingPermission.Flashback]`({2}{R})` (CR 702.34), cast from the
- * graveyard and exiled as it leaves the stack (CR 702.34e).
- *
- * **Architect gap (STOP-flagged, P6.2b report).** The resolution "draw two cards, then discard two cards"
- * needs a *mandatory resolution-time discard of two cards* — a selection decision (which two hand cards)
- * mid-resolution. No P6.2a mechanism expresses it: the optional discard-then-draw is optional and discards
- * exactly one card (and is trigger-scoped besides), and the library-reveal is a top-of-library operation,
- * not a hand discard. The discard clause cannot be composed without an engine change, so — per the
- * architect ruling and CONVENTIONS ("fail loudly; never silently approximate") — resolution fails loudly
- * (rather than draw two and silently skip the discard, which would ship a strictly stronger card). The
- * flashback cast path is unaffected and is what the per-card test exercises.
+ * Faithless Looting — `{R}` Sorcery. "Draw two cards, then discard two cards. Flashback `{2}{R}`." Two
+ * mechanisms:
+ * - the resolution is a mandatory [DrawThenDiscard]`([FAITHLESS_LOOTING_DRAW], [FAITHLESS_LOOTING_DISCARD])`
+ *   (CR 601.2c): the engine draws two, then pauses for the mandatory discard of two hand cards — each routed
+ *   through the CR 614/616 framework, so a discarded madness card (Fiery Temper) is exiled instead and its
+ *   reflexive cast fires. This is the Madness deck's flagship loot-into-madness line;
+ * - the flashback half is [CastingPermission.Flashback]`({2}{R})` (CR 702.34), cast from the graveyard and
+ *   exiled as it leaves the stack (CR 702.34e).
  */
 val faithlessLooting: SpellDefinition =
     object : SpellDefinition {
@@ -528,30 +539,7 @@ val faithlessLooting: SpellDefinition =
             )
         override val timing = TimingClass.SORCERY_SPEED
         override val targetSpec = TargetSpec.None
-        override val resolution = ResolutionEffect { _, _ -> faithlessLootingResolutionUnsupported() }
+        override val resolution = ResolutionEffect { state, _ -> state }
+        override val drawThenDiscard = DrawThenDiscard(FAITHLESS_LOOTING_DRAW, FAITHLESS_LOOTING_DISCARD)
         override val castingPermissions = listOf(CastingPermission.Flashback(ManaCost.parse("{2}{R}")))
     }
-
-/**
- * Fails loudly for Highway Robbery's unsupported resolution clause (CR 601.3b). Split out so the gap is a
- * single greppable site and the per-card test pins exactly this failure. See [highwayRobbery].
- */
-private fun highwayRobberyResolutionUnsupported(): Nothing =
-    error(
-        "P6.2b gap (architect): Highway Robbery's resolution 'you may discard a card or sacrifice a land; " +
-            "if you do, draw two' is an optional discard-then-draw at spell resolution (CR 601.3b), which " +
-            "P6.2a wires only onto a triggered ability, plus a sacrifice-a-land mode with no vocabulary. " +
-            "Neither mode is encodable without an engine change.",
-    )
-
-/**
- * Fails loudly for Faithless Looting's unsupported resolution discard (CR 601.2c). Split out so the gap is
- * a single greppable site and the per-card test pins exactly this failure. See [faithlessLooting].
- */
-private fun faithlessLootingResolutionUnsupported(): Nothing =
-    error(
-        "P6.2b gap (architect): Faithless Looting's resolution 'draw two cards, then discard two cards' " +
-            "needs a mandatory resolution-time discard-N selection, which P6.2a does not provide (the " +
-            "optional discard-then-draw is optional, single-card, and trigger-scoped). Not encodable " +
-            "without an engine change.",
-    )

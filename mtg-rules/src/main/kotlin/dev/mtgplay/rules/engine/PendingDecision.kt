@@ -109,7 +109,9 @@ private fun gatheringPauseRequest(
 /**
  * The request of a mid-transition pause with no priority round open — an as-enters colour choice
  * (CR 614.12), a reveal-keep-one (CR 701.16), a CR 616.1 replacement ordering, an optional
- * discard-then-draw (CR 601.3b), or a madness yes/no (CR 702.35b) — or `null` if none is open.
+ * discard-then-draw (CR 601.3b), an optional cost-then-draw mode/object (CR 601.3b, Highway Robbery),
+ * a mandatory resolution discard (CR 601.2c, Faithless Looting), a library search find-one (CR 701.18,
+ * Ash Barrens), or a madness yes/no (CR 702.35b) — or `null` if none is open.
  */
 private fun midTransitionPauseRequest(state: GameState): DecisionRequest? =
     when {
@@ -122,6 +124,14 @@ private fun midTransitionPauseRequest(state: GameState): DecisionRequest? =
             } else {
                 pendingOptionalDiscardYesNoRequest(state)
             }
+        state.pendingOptionalCostDraw != null ->
+            if (state.pendingOptionalCostDraw?.chosenMode == null) {
+                pendingCostModeRequest(state)
+            } else {
+                pendingOptionalCostObjectRequest(state)
+            }
+        state.pendingResolutionDiscard != null -> pendingResolutionDiscardRequest(state)
+        state.pendingLibrarySearch != null -> pendingLibrarySearchRequest(state)
         state.pendingMadness != null -> pendingMadnessRequest(state)
         else -> null
     }

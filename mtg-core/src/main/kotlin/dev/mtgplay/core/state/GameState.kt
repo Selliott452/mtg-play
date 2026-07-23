@@ -74,6 +74,17 @@ import kotlinx.collections.immutable.persistentMapOf
  * @property pendingOptionalDiscardDraw an optional "you may discard a card; if you do, draw N" clause
  *   the engine is resolving (CR 601.3b), or `null`. Additive, flagged core (P6.2a). Non-null only at the
  *   yes/no or the following discard-selection pause — see [PendingOptionalDiscardDraw].
+ * @property pendingOptionalCostDraw an optional "you may [discard a card | sacrifice a land]; if you do,
+ *   draw N" clause the engine is resolving as part of a spell (CR 601.3b), or `null`. Additive, flagged
+ *   core (P6.2c). Non-null only at the mode-choice or the following cost-object-selection pause, where the
+ *   resolving spell is on top of the stack — see [PendingOptionalCostDraw].
+ * @property pendingResolutionDiscard a mandatory "draw N, then discard M" resolution discard the engine is
+ *   gathering (CR 601.2c), or `null`. Additive, flagged core (P6.2c). Non-null only at that mid-resolution
+ *   pause, after the draw, where the resolving spell is on top of the stack — see [PendingResolutionDiscard].
+ * @property pendingLibrarySearch a "search your library, put one into hand, then shuffle" the engine is
+ *   resolving as part of an activated ability (CR 701.18), or `null`. Additive, flagged core (P6.2c).
+ *   Non-null only at the find-one pause, where the resolving ability is on top of the stack — see
+ *   [PendingLibrarySearch].
  */
 data class GameState(
     val players: PersistentMap<PlayerId, PlayerState>,
@@ -93,6 +104,9 @@ data class GameState(
     val pendingActivation: PendingActivation? = null,
     val pendingRevealSelection: PendingRevealSelection? = null,
     val pendingOptionalDiscardDraw: PendingOptionalDiscardDraw? = null,
+    val pendingOptionalCostDraw: PendingOptionalCostDraw? = null,
+    val pendingResolutionDiscard: PendingResolutionDiscard? = null,
+    val pendingLibrarySearch: PendingLibrarySearch? = null,
 ) {
     init {
         require(players.isNotEmpty()) { "a game has at least one seated player" }

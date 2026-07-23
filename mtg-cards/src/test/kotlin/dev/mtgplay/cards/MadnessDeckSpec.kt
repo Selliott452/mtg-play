@@ -7,6 +7,7 @@ import dev.mtgplay.core.card.Subtype
 import dev.mtgplay.core.definition.AbilityCost
 import dev.mtgplay.core.definition.AdditionalCost
 import dev.mtgplay.core.definition.CastingPermission
+import dev.mtgplay.core.definition.OptionalCostMode
 import dev.mtgplay.core.definition.ReplacementEffect
 import dev.mtgplay.core.definition.ResolutionContext
 import dev.mtgplay.core.definition.TargetSpec
@@ -25,7 +26,6 @@ import dev.mtgplay.core.state.SharedZones
 import dev.mtgplay.core.state.Target
 import dev.mtgplay.core.state.Turn
 import dev.mtgplay.core.state.TurnPhase
-import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.StringSpec
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContainExactly
@@ -190,31 +190,47 @@ class MadnessDeckSpec :
             robot.tapped shouldBe true
         }
 
-        "CR 702.140: Highway Robbery may be plotted for {1}{R}, cast free later; its resolution is STOP-flagged" {
+        "CR 702.140 / CR 601.3b: Highway Robbery plots for {1}{R}; resolution is an optional cost-then-draw of two" {
             highwayRobbery.castingPermissions shouldContainExactly
                 listOf(CastingPermission.Plot(ManaCost.parse("{1}{R}")))
-            shouldThrow<IllegalStateException> {
-                highwayRobbery.resolution.resolve(twoPlayerState(alice, bob), noTargets(alice))
-            }
+            // The ordinary resolution is a no-op; the clause carries the two modes and the draw count.
+            val base = twoPlayerState(alice, bob)
+            highwayRobbery.resolution.resolve(base, noTargets(alice)) shouldBe base
+            val clause =
+                highwayRobbery.optionalCostThenDraw ?: error("Highway Robbery declares an optional cost-then-draw")
+            clause.drawCount shouldBe HIGHWAY_ROBBERY_DRAW
+            clause.modes shouldContainExactly listOf(OptionalCostMode.DiscardCard, OptionalCostMode.SacrificeLand)
         }
 
-        "CR 702.34: Faithless Looting may be flashed back for {2}{R}; its resolution discard is STOP-flagged" {
+        "CR 702.34 / CR 601.2c: Faithless Looting flashes back for {2}{R}; its resolution draws two then discards two" {
             val flashback = faithlessLooting.castingPermissions.single()
             flashback shouldBe CastingPermission.Flashback(ManaCost.parse("{2}{R}"))
-            shouldThrow<IllegalStateException> {
-                faithlessLooting.resolution.resolve(twoPlayerState(alice, bob), noTargets(alice))
-            }
+            // The ordinary resolution is a no-op; the draw-then-discard declaration carries both counts.
+            val base = twoPlayerState(alice, bob)
+            faithlessLooting.resolution.resolve(base, noTargets(alice)) shouldBe base
+            val clause = faithlessLooting.drawThenDiscard ?: error("Faithless Looting declares a draw-then-discard")
+            clause.drawCount shouldBe FAITHLESS_LOOTING_DRAW
+            clause.discardCount shouldBe FAITHLESS_LOOTING_DISCARD
         }
 
-        "CR 111.4: the Blood token is a colorless artifact — its sacrifice-to-draw ability is STOP-flagged (absent)" {
+        "CR 111.4 / CR 602: the Blood token is a colorless artifact with a {1},{T},discard,sacrifice loot" {
             with(bloodToken.characteristics) {
                 name shouldBe "Blood"
                 cardTypes shouldBe persistentSetOf(CardType.ARTIFACT)
                 subtypes shouldBe persistentSetOf(Subtype("Blood"))
                 powerToughness.shouldBeNull()
             }
-            // The gap: TokenDefinition cannot carry the "{1},{T},Discard,Sacrifice: Draw a card" ability.
-            bloodToken.activatedAbilities.shouldBeEmpty()
+            // The completed ability (P6.2c): the composite cost in printed order, drawing one on resolution.
+            val loot = bloodToken.activatedAbilities.single()
+            loot.cost shouldContainExactly
+                listOf(
+                    AbilityCost.Mana(ManaCost.parse("{1}")),
+                    AbilityCost.TapSelf,
+                    AbilityCost.DiscardACard,
+                    AbilityCost.SacrificeSelf,
+                )
+            val drawn = loot.effect.resolve(drawableState(alice, bob), noTargets(alice))
+            drawn.players.getValue(alice).drawsThisTurn shouldBe BLOOD_TOKEN_DRAW
             bloodToken.manaAbilities.shouldBeEmpty()
         }
 

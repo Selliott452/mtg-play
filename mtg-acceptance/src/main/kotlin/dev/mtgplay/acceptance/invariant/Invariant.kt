@@ -197,4 +197,15 @@ enum class Invariant {
      * the battlefield is a leaked status.
      */
     CHOSEN_COLOUR_SCOPE,
+
+    /**
+     * Every P6.2c mid-resolution pause is well-formed (CR 601.2c/601.3b/701.18). Added in P6.2c. The
+     * optional cost-then-draw ([dev.mtgplay.core.state.GameState.pendingOptionalCostDraw], Highway Robbery),
+     * the mandatory resolution discard ([dev.mtgplay.core.state.GameState.pendingResolutionDiscard], Faithless
+     * Looting), and the library search ([dev.mtgplay.core.state.GameState.pendingLibrarySearch], Ash Barrens)
+     * each hang on a resolving object: whenever one is open, its decider is a seated player and the resolving
+     * spell or activated ability is still on the stack (an empty stack would mean the pause outlived its
+     * object). Cheap sanity guarding the new pending positions the fingerprint also digests.
+     */
+    PENDING_RESOLUTION_SANITY,
 }

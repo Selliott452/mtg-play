@@ -136,6 +136,10 @@ internal fun resolveActivatedAbility(
     entry: StackEntry.ActivatedAbilityOnStack,
 ): AdvanceResult {
     check(state.sharedZones.stack.lastOrNull() == entry) { "CR 608.1: only the topmost stack object may resolve" }
+    // CR 701.18: an ability whose effect is a library search (Ash Barrens' landcycling) is orchestrated —
+    // it may pause for the find-one choice and shuffles through the match PRNG — rather than run as a pure effect.
+    val search = entry.ability.librarySearch
+    if (search != null) return orchestrateLibrarySearch(state, entry, search)
     val resolved = entry.ability.effect.resolve(state, ResolutionContext(entry.controller, persistentListOf()))
     require(resolved.sharedZones.stack == state.sharedZones.stack) {
         "CR 113.7a: an activated ability's effect performs its instructions but does not move the ability " +

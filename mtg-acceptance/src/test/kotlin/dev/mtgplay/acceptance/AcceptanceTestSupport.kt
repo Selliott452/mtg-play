@@ -1,5 +1,7 @@
 package dev.mtgplay.acceptance
 
+import dev.mtgplay.acceptance.driver.Responder
+import dev.mtgplay.acceptance.driver.ScriptedGame
 import dev.mtgplay.cards.MvpCards
 import dev.mtgplay.core.identity.CardRef
 import dev.mtgplay.core.identity.ObjectId
@@ -296,6 +298,26 @@ internal fun boglesKeywordConfig(seed: Long): MatchConfig =
 
 /** Generous turn cap for real-card playouts; a no-death game decks out near turn 108. */
 internal const val REAL_CARD_TURN_CAP: Int = 130
+
+/**
+ * Drives [this] game with [responder] until it ends or the [turnCap]/[maxDecisions] bound is reached, then
+ * returns it. Unlike [ScriptedGame.playToCompletion] it does **not** fail at the bound: a random playout that
+ * stalls at the cap is INCONCLUSIVE, not a failure (the caller inspects [ScriptedGame.isOver] and reports
+ * it). Every transition is still invariant-checked, so a violation before the bound throws loudly — the
+ * "zero violations, bounded termination" contract of the P6.2c pure-random ignition corpus (PLAN.md §2.3).
+ */
+internal fun ScriptedGame.playUntilOverOrBound(
+    responder: Responder,
+    turnCap: Int = ScriptedGame.DEFAULT_TURN_CAP,
+    maxDecisions: Int = ScriptedGame.DEFAULT_MAX_DECISIONS,
+): ScriptedGame {
+    var steps = 0
+    while (!isOver && state.turn.number <= turnCap && steps < maxDecisions) {
+        respond(responder)
+        steps++
+    }
+    return this
+}
 
 /** [GameObject]s of one printed card with the given ids, for handcrafted states. */
 internal fun cards(

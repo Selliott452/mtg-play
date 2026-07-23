@@ -30,10 +30,16 @@ import kotlinx.collections.immutable.persistentListOf
  *   non-empty for a mana-producing token (Eldrazi Spawn, P6).
  * @property staticContinuousEffects the token's static continuous effects; empty in the MVP pool.
  * @property triggeredAbilities the token's triggered abilities; empty in the MVP pool.
+ * @property activatedAbilities the token's activated abilities (CR 602); empty for most tokens, non-empty
+ *   for the Blood token, whose "{1}, {T}, Discard a card, Sacrifice this token: Draw a card" (CR 602.1) is
+ *   read through the same `definitions[card].activatedAbilities` path a real card's ability uses. Additive,
+ *   flagged core (P6.2c) — the one field [manaAbilities] and the others were missing, so a token could not
+ *   carry a non-mana activated ability until now.
  */
 data class TokenDefinition(
     override val characteristics: PrintedCharacteristics,
     override val manaAbilities: PersistentList<ManaAbility> = persistentListOf(),
     override val staticContinuousEffects: PersistentList<StaticContinuousEffect> = persistentListOf(),
     override val triggeredAbilities: PersistentList<TriggeredAbility> = persistentListOf(),
+    override val activatedAbilities: PersistentList<ActivatedAbility> = persistentListOf(),
 ) : CardDefinition

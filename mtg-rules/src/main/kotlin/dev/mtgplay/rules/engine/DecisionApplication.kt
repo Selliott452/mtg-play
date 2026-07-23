@@ -48,16 +48,35 @@ internal fun applyDecision(
             check(decision is Decision.SingleSelect) { "unreachable: decision shape was validated against the request" }
             applyChosenColor(answered, request.options[decision.index])
         }
-        is DecisionRequest.ChooseFromRevealed -> {
+        is DecisionRequest.ChoiceCountSelection -> {
             check(decision is Decision.SingleSelect) { "unreachable: decision shape was validated against the request" }
-            // The extra index means "keep none"; otherwise it names the revealed card to keep.
-            val kept = request.options.getOrNull(decision.index)?.objectId
-            applyRevealSelection(answered, kept)
+            // CR 701.16/601.3b/701.18: dispatch by kind; the trailing opt-out index means keep/decline/find none.
+            applyChoiceCountSelection(answered, request, decision.index)
         }
         // CR 103.4/103.5: the pre-game mulligan decisions share a dispatcher.
         is DecisionRequest.MulliganRequest -> applyMulliganDecision(answered, request, decision)
     }
 }
+
+/**
+ * Applies one "choose one, or opt out" single-select (CR 701.16 / 601.3b / 701.18) — a reveal keep-one, a
+ * cost-then-draw mode, or a library find-one — dispatching by kind. The [index] is the chosen option, or the
+ * trailing opt-out index (past the last option), which each flow resolves as its "none" (keep/decline/find
+ * none). Split out so the main dispatch stays flat.
+ */
+private fun applyChoiceCountSelection(
+    state: GameState,
+    request: DecisionRequest.ChoiceCountSelection,
+    index: Int,
+): AdvanceResult =
+    when (request) {
+        is DecisionRequest.ChooseFromRevealed ->
+            applyRevealSelection(state, request.options.getOrNull(index)?.objectId)
+        is DecisionRequest.ChooseCostMode ->
+            applyCostModeChoice(state, request.options.getOrNull(index))
+        is DecisionRequest.ChooseFromLibrary ->
+            applyLibrarySearchChoice(state, request.options.getOrNull(index)?.objectId)
+    }
 
 /**
  * Applies one fixed-size subset selection (CR 514.1 / 601.2b/h / 602.2b) — the cleanup discard, an
@@ -83,6 +102,10 @@ private fun applySizedSelection(
             applyChosenAbilityDiscard(state, decision.indices.map { request.options[it].objectId })
         is DecisionRequest.ChooseOptionalDiscard ->
             applyOptionalDiscardChoice(state, request.options[decision.indices.single()].objectId)
+        is DecisionRequest.ChooseOptionalCostObject ->
+            applyOptionalCostObject(state, request.options[decision.indices.single()].objectId)
+        is DecisionRequest.ChooseResolutionDiscards ->
+            applyResolutionDiscards(state, decision.indices.map { request.options[it].objectId })
     }
 }
 

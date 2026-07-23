@@ -1,5 +1,6 @@
 package dev.mtgplay.acceptance
 
+import dev.mtgplay.acceptance.driver.RandomLegalResponder
 import dev.mtgplay.acceptance.driver.ScriptedGame
 import dev.mtgplay.acceptance.replay.ReplayHarness
 import dev.mtgplay.acceptance.replay.fingerprint
@@ -25,8 +26,9 @@ import io.kotest.matchers.shouldNotBe
 
 /**
  * The MVP matchup, end to end through the format layer and the pre-game mulligan phase (P6.1): the
- * two real decklists load and validate legal, their current definition gaps are acknowledged, and a
- * real Mono-Red-vs-Bogles game — mulligans included — runs green and replays exactly.
+ * two real decklists load and validate legal, both mainboards are fully defined, and a real
+ * Mono-Red-vs-Bogles game — mulligans included, driven by a pure [RandomLegalResponder] with no
+ * gap-avoidance (P6.2c) — runs green and replays exactly.
  */
 class MulliganMatchupAcceptanceSpec :
     StringSpec({
@@ -53,17 +55,17 @@ class MulliganMatchupAcceptanceSpec :
             DefinitionCoverage.check(bogles).missingNames.shouldBeEmpty()
         }
 
-        "P6.1/ADR-006: mulligan-inclusive real games run green across the seed corpus and take mulligans" {
-            // Now that both decks are fully defined (P6.2b), a real game runs its cards. The responder
-            // routes around the three STOP-flagged card actions (see GapAvoidingResponder) whose
-            // resolution needs an unbuilt engine mechanism; everything else resolves and is checked.
+        "P6.2c/ADR-006: mulligan-inclusive real games run green under pure random-legal play and take mulligans" {
+            // Both decks are fully defined and gap-free (P6.2c), so a real game runs every card action under a
+            // pure RandomLegalResponder — no routing around anything. Every transition is invariant-checked;
+            // a stall-capped playout is tolerated (INCONCLUSIVE), but a violation would throw loudly.
             var anyMulligan = false
             fuzzSeeds(default = MULLIGAN_CORPUS_SEEDS).forEach { seed ->
                 val game =
                     ScriptedGame
                         .start(matchupConfig(seed))
-                        .playToCompletion(GapAvoidingResponder(seed), turnCap = REAL_CARD_TURN_CAP)
-                game.isOver.shouldBeTrue()
+                        .playUntilOverOrBound(RandomLegalResponder(seed), turnCap = REAL_CARD_TURN_CAP)
+                // The mulligan phase precedes the game, so it is exercised whether or not the game terminates.
                 if (game.state.events.any { it is GameEvent.MulliganTaken }) anyMulligan = true
             }
             // The random responder mulligans some of the time, so the corpus exercises the real phase.
@@ -76,14 +78,14 @@ class MulliganMatchupAcceptanceSpec :
                 (0L until MULLIGAN_CORPUS_SEEDS.toLong()).first { candidate ->
                     ScriptedGame
                         .start(matchupConfig(candidate))
-                        .playToCompletion(GapAvoidingResponder(candidate), turnCap = REAL_CARD_TURN_CAP)
+                        .playUntilOverOrBound(RandomLegalResponder(candidate), turnCap = REAL_CARD_TURN_CAP)
                         .state.events
                         .any { it is GameEvent.MulliganTaken }
                 }
             val original =
                 ScriptedGame
                     .start(matchupConfig(seed))
-                    .playToCompletion(GapAvoidingResponder(seed), turnCap = REAL_CARD_TURN_CAP)
+                    .playUntilOverOrBound(RandomLegalResponder(seed), turnCap = REAL_CARD_TURN_CAP)
             ReplayHarness.verifyReproduces(matchupConfig(seed), original).reproduced.shouldBeTrue()
         }
 

@@ -87,8 +87,24 @@ private fun StringBuilder.appendPendingPositions(state: GameState) {
     append("|pendingPlot=")
     append(state.pendingPlot?.let { "${it.caster.seat}:${it.cardObjectId.value}" } ?: "-")
     appendP62aPendingPositions(state)
+    appendP62cPendingPositions(state)
     // The pre-game mulligan phase (CR 103.4/103.5): whose decision, count, and stage.
     append("|pendingMulligan=").append(renderPendingMulligan(state))
+}
+
+// The P6.2c mid-resolution pauses (Highway Robbery, Faithless Looting, Ash Barrens search), each digested by
+// cause (whose choice, and the chosen mode where one has been picked).
+private fun StringBuilder.appendP62cPendingPositions(state: GameState) {
+    append("|pendingCostDraw=")
+    append(
+        state.pendingOptionalCostDraw?.let {
+            "${it.decider.seat}:${it.chosenMode?.let { mode -> mode::class.simpleName } ?: "-"}"
+        } ?: "-",
+    )
+    append("|pendingResDiscard=")
+    append(state.pendingResolutionDiscard?.let { "${it.decider.seat}:${it.count}" } ?: "-")
+    append("|pendingLibrarySearch=")
+    append(state.pendingLibrarySearch?.let { "${it.decider.seat}" } ?: "-")
 }
 
 // The P6.2a mid-resolution / gathering pauses, each digested by cause (whose choice, which object).
