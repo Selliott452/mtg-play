@@ -12,7 +12,12 @@ import dev.mtgplay.core.identity.CardRef
  * [ancestralMask], and [abundantGrowth] — each encoded to its P4 static half (docs/design/layer-system.md).
  * The P5.3 pool adds the three real Bogles hexproof one-drops (CR 702.11): [gladecoverScout],
  * [slipperyBogle] (the first hybrid-cost card), and [silhanaLedgewalker] (with its blockable-only-by-flying
- * evasion).
+ * evasion). The P6.2b pool completes both MVP decklists: the Mono-Red Madness thirteen — [guttersnipe],
+ * [sneakySnacker], [voldarenEpicure], [fieryTemper], [fireblast], [lavaDart], [grabThePrize],
+ * [faithlessLooting], [meldedMoxite], and [highwayRobbery] (MadnessDeck.kt) — plus the remaining GW-Bogles
+ * utility cards [utopiaSprawl], [malevolentRumble], and [ashBarrens] (BoglesUtility.kt). Their predefined
+ * tokens ([bloodToken], [robotToken], [eldraziSpawnToken]) are created on demand and registered by the
+ * create-token primitive, so — like [warriorToken] — they are not top-level registry entries.
  *
  * [definitions] is shaped for direct `MatchConfig.definitions` consumption: the engine carries
  * it into `GameState` in canonical name-sorted order regardless of this map's own order
@@ -26,20 +31,33 @@ object MvpCards {
             abundantGrowth,
             ancestralMask,
             armadilloCloak,
+            ashBarrens,
             cartoucheOfSolidarity,
             etherealArmor,
+            faithlessLooting,
+            fieryTemper,
+            fireblast,
             forest,
             gladecoverScout,
+            grabThePrize,
             grizzlyBears,
+            guttersnipe,
+            highwayRobbery,
             hillGiant,
+            lavaDart,
             lightningBolt,
+            malevolentRumble,
+            meldedMoxite,
             mountain,
             plains,
             rancor,
             sentinelsEyes,
             silhanaLedgewalker,
             slipperyBogle,
+            sneakySnacker,
             standingTroops,
+            utopiaSprawl,
+            voldarenEpicure,
             windDrake,
             youthfulKnight,
         ).associateBy { CardRef(it.characteristics.name) }

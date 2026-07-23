@@ -98,19 +98,28 @@ object InvariantChecker {
     }
 
     /**
-     * [Invariant.MANA_POOL_EMPTY_AT_PAUSE]: every seat's mana pool is empty (CR 500.4; see the
-     * invariant's KDoc for the exact P2.x rule and its Phase 5 revision).
+     * [Invariant.MANA_POOL_EMPTY_AT_PAUSE]: every seat's mana pool is empty at an observed pause
+     * (CR 500.4), **except** the declared triggered-mana-ability exception the invariant's KDoc promised:
+     * a seat that controls a permanent with a triggered mana ability (CR 605.1b — Utopia Sprawl) may hold
+     * the extra mana that ability floats between the cast and the step's end. A seat with floating mana and
+     * no such source is engine wrongness (the P2.x rule still bites for every other deck).
      */
-    internal fun checkManaPoolEmptiness(state: GameState): List<Violation> =
-        state.players.entries
+    internal fun checkManaPoolEmptiness(state: GameState): List<Violation> {
+        val seatsThatMayFloat =
+            state.sharedZones.battlefield
+                .filter { state.definitions[it.card]?.triggeredManaAbilities?.isNotEmpty() == true }
+                .map { it.owner }
+                .toSet()
+        return state.players.entries
             .sortedBy { it.key.seat }
-            .filter { it.value.manaPool.isNotEmpty() }
+            .filter { it.value.manaPool.isNotEmpty() && it.key !in seatsThatMayFloat }
             .map { (seat, player) ->
                 Violation(
                     Invariant.MANA_POOL_EMPTY_AT_PAUSE,
                     "CR 500.4: seat ${seat.seat}'s mana pool holds ${player.manaPool} at an observed pause",
                 )
             }
+    }
 
     /**
      * [Invariant.TAP_STATUS_SCOPE]: only battlefield objects may be tapped (CR 110.5). Operates

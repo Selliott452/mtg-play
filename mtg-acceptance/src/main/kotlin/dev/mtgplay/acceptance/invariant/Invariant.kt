@@ -49,10 +49,11 @@ enum class Invariant {
      * enforced in P2.x: the checker only ever sees **paused** states (decision points and final
      * states), payment executes atomically inside a single transition, and P2.1 payment plans
      * are exact — produced mana is consumed in the same transition — so no pause outside a cast
-     * can carry floating mana, and no mid-payment state is ever observed. Phase 5's triggered
-     * mana abilities (Utopia Sprawl) introduce legitimate floating mana between the cast and
-     * the end of the step; this invariant then gains that declared exception (CR 500.4 still
-     * bounds it at each step's end).
+     * can carry floating mana, and no mid-payment state is ever observed. Triggered mana abilities
+     * (Utopia Sprawl, CR 605.1b) introduce legitimate floating mana between the cast and the end of
+     * the step; as of P6.2b (when the first such card is encoded) this invariant carries that
+     * declared exception — a seat controlling a triggered-mana-ability source may hold floating mana
+     * at a pause — while CR 500.4 still bounds it at each step's end and every other deck stays exact.
      */
     MANA_POOL_EMPTY_AT_PAUSE,
 
