@@ -133,5 +133,14 @@ object EnumerationProbe {
                         Decision.MultiSelect(request.id, request.options.indices.toList()),
                     ),
                 )
+            is DecisionRequest.OrderTriggers ->
+                // A trigger order is a permutation of *all* the options (CR 603.3b); the identity
+                // permutation is one representative valid answer that exercises every option at once.
+                listOf(
+                    ProbeCandidate(
+                        "trigger-order-identity",
+                        Decision.MultiSelect(request.id, request.options.indices.toList()),
+                    ),
+                )
         }
 }

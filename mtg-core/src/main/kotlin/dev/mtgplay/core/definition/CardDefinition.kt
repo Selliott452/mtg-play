@@ -45,4 +45,14 @@ interface CardDefinition {
      * layer engine carries the rules.
      */
     val staticContinuousEffects: PersistentList<StaticContinuousEffect> get() = persistentListOf()
+
+    /**
+     * The triggered abilities this card has (CR 603); empty for a card with no triggered ability.
+     * Additive, flagged core (P5.1). Each names the event pattern it watches for, the zone it
+     * functions from, and its resolution effect ([TriggeredAbility]); `mtg-rules` detects when a
+     * condition matches a game event (CR 603.3), orders simultaneous triggers in APNAP order
+     * (CR 603.3b), puts each on the stack, and resolves it. Card definitions carry the
+     * *declaration*; the trigger framework carries the rules.
+     */
+    val triggeredAbilities: PersistentList<TriggeredAbility> get() = persistentListOf()
 }

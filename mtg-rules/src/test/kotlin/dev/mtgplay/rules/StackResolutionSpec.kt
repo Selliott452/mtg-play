@@ -146,6 +146,7 @@ class StackResolutionSpec :
             val stackId =
                 current.pausedState.sharedZones.stack
                     .single()
+                    .shouldBeInstanceOf<StackEntry.Spell>()
                     .obj.id
             current = engine.advance(current.pausedState, passDecision(current.pending()))
             current = engine.advance(current.pausedState, passDecision(current.pending()))

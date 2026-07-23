@@ -67,6 +67,8 @@ internal fun respondTo(request: DecisionRequest): Decision =
             error("the pass-everything responder never casts, but a payment request surfaced: $request")
         is DecisionRequest.OrderBlockers ->
             error("the pass-everything responder never blocks, but a blocker-order request surfaced: $request")
+        // CR 603.3b: order any simultaneous triggers in the deterministic identity permutation.
+        is DecisionRequest.OrderTriggers -> Decision.MultiSelect(request.id, request.options.indices.toList())
     }
 
 /** One engine suspension observed while driving a game: the paused state and its request. */

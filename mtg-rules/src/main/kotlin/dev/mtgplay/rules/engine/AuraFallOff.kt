@@ -35,8 +35,12 @@ private fun moveAuraToGraveyard(
     val aura = battlefield[index]
     val (graveyardId, allocated) = state.allocateObjectId()
     val reborn = GameObject(id = graveyardId, card = aura.card, owner = aura.owner)
-    return allocated
-        .updateBattlefield { it.removingAt(index) }
-        .updatePlayer(aura.owner) { it.copy(graveyard = it.graveyard.adding(reborn)) }
-        .emit(GameEvent.AuraFellOff(objectId, aura.card, graveyardId))
+    val moved =
+        allocated
+            .updateBattlefield { it.removingAt(index) }
+            .updatePlayer(aura.owner) { it.copy(graveyard = it.graveyard.adding(reborn)) }
+            .emit(GameEvent.AuraFellOff(objectId, aura.card, graveyardId))
+    // CR 603.6b, CR 603.10: a "put into a graveyard from the battlefield" trigger (Rancor) fires now,
+    // matched against the Aura's pre-departure state and carrying the fresh graveyard object it acts on.
+    return detectPutIntoGraveyardTriggers(moved, aura, graveyardId)
 }

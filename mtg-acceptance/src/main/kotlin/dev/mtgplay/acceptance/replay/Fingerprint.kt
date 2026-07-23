@@ -3,6 +3,7 @@ package dev.mtgplay.acceptance.replay
 import dev.mtgplay.acceptance.invariant.ZoneResidence
 import dev.mtgplay.core.state.CombatState
 import dev.mtgplay.core.state.GameState
+import dev.mtgplay.core.state.PendingTrigger
 import dev.mtgplay.core.state.StackEntry
 import dev.mtgplay.core.state.Target
 import dev.mtgplay.core.zone.ZoneId
@@ -14,11 +15,13 @@ import java.security.MessageDigest
  * Two states with equal fingerprints are equal in everything the rules care about; this is the
  * "final state hash" a replay asserts against (PLAN.md §2.2). The digest covers zones (each
  * object's id, printed card, tapped status, and — on the battlefield — marked damage, summoning
- * sickness, and Aura attachment, in zone order), the stack entries' cast records (controller and
- * targets, CR 601.2), life totals, mana pools, priority standing, the empty-draw flag,
- * answered-decision counts, any cast gathering decisions, the turn position and its land-drop count
- * (CR 305.2), the combat state (CR 506–511) when in combat, the object-id counter, and the PRNG
- * state.
+ * sickness, and Aura attachment, in zone order), the stack entries (a spell's cast record — controller
+ * and targets, CR 601.2 — and a triggered ability's whole content, CR 113.7a/P5.1), the fired-but-
+ * unplaced triggers waiting to be put on the stack (CR 603.3b), life totals, mana pools, priority
+ * standing, the empty-draw flag, answered-decision counts, any cast gathering decisions, the turn
+ * position and its land-drop count (CR 305.2), the combat state (CR 506–511) when in combat, the
+ * object-id counter, and the PRNG state. A token is digested as the ordinary battlefield object it is;
+ * it is not a card, but its id and name appear in the residence line like any other object.
  *
  * Continuous-effect (CR 613) characteristics are digested by their **cause** — an object's
  * attachment — not their computed values: computed P/T and keywords are a pure function of state
@@ -88,34 +91,57 @@ internal fun canonicalDescriptor(state: GameState): String =
                 append(",drewFromEmpty=").append(player.attemptedDrawFromEmptyLibrary)
                 append(",answered=").append(player.decisionsAnswered)
             }
-        ZoneResidence.of(state).forEach { residence ->
-            append("|@").append(residence.zone)
-            append('=').append(residence.obj.id.value)
-            append(':').append(residence.obj.card.name)
-            if (residence.obj.tapped) append(":tapped")
-            // Marked damage (CR 120.3d) and summoning sickness (CR 302.6) are rules-relevant only
-            // on the battlefield; off it they are meaningless bookkeeping and left out.
-            if (residence.zone == ZoneId.Battlefield) {
-                if (residence.obj.damageMarked != 0) append(":dmg=").append(residence.obj.damageMarked)
-                if (residence.obj.summoningSick) append(":sick")
-                // The attachment *cause* (CR 303.4), not the computed continuous-effect values it
-                // implies: two states differing in continuous effects necessarily differ in which
-                // Auras are attached where, so they hash apart without re-implementing layer logic
-                // (docs/design/layer-system.md §5).
-                residence.obj.attachedTo?.let { append(":att=").append(it.value) }
+        ZoneResidence.of(state).forEach { appendResidence(it) }
+        appendStackAndTriggers(state)
+    }
+
+// Digests one object's residence line: its zone, id, and printed card, plus its battlefield-only
+// statuses (tapped, marked damage, summoning sickness, and the Aura-attachment cause, §5).
+private fun StringBuilder.appendResidence(residence: ZoneResidence) {
+    append("|@").append(residence.zone)
+    append('=').append(residence.obj.id.value)
+    append(':').append(residence.obj.card.name)
+    if (residence.obj.tapped) append(":tapped")
+    // Marked damage (CR 120.3d) and summoning sickness (CR 302.6) are rules-relevant only on the
+    // battlefield; off it they are meaningless bookkeeping and left out.
+    if (residence.zone == ZoneId.Battlefield) {
+        if (residence.obj.damageMarked != 0) append(":dmg=").append(residence.obj.damageMarked)
+        if (residence.obj.summoningSick) append(":sick")
+        // The attachment *cause* (CR 303.4), not the computed continuous-effect values it implies:
+        // two states differing in continuous effects necessarily differ in which Auras are attached
+        // where, so they hash apart without re-implementing layer logic (docs/design/layer-system.md §5).
+        residence.obj.attachedTo?.let { append(":att=").append(it.value) }
+    }
+}
+
+// Digests the stack entries and the fired-but-unplaced triggers (CR 405.2, CR 603.3b): a spell's card
+// object is already covered by the residences, so only its cast record is added here; a triggered
+// ability has no card residence, so its whole content (and each pending trigger's) is digested here.
+private fun StringBuilder.appendStackAndTriggers(state: GameState) {
+    state.sharedZones.stack.forEach { entry ->
+        when (entry) {
+            is StackEntry.Spell -> {
+                append("|spell=").append(entry.obj.id.value)
+                append(":controller=").append(entry.controller.seat)
+                append(":targets=").append(entry.targets.joinToString(",") { renderTarget(it) })
             }
+            is StackEntry.Ability -> append("|ability=").append(renderTrigger(entry.trigger))
         }
-        // The stack entries' cast records (CR 601.2): the entries' card objects are already
-        // covered by the residences above; the controller and targets are covered here.
-        state.sharedZones.stack.forEach { entry ->
-            when (entry) {
-                is StackEntry.Spell -> {
-                    append("|spell=").append(entry.obj.id.value)
-                    append(":controller=").append(entry.controller.seat)
-                    append(":targets=").append(entry.targets.joinToString(",") { renderTarget(it) })
-                }
-            }
-        }
+    }
+    state.pendingTriggers.forEach { append("|pending=").append(renderTrigger(it)) }
+}
+
+// A canonical descriptor of a fired triggered ability (CR 603.3): its source, controller, condition,
+// and the trigger's linked information — never the resolution effect, which has reference identity
+// only (ADR-009) and is excluded from the digest like every card definition.
+private fun renderTrigger(trigger: PendingTrigger): String =
+    buildString {
+        append(trigger.sourceCard.name)
+        append('@').append(trigger.sourceId.value)
+        append(':').append(trigger.controller.seat)
+        append(':').append(trigger.ability.condition::class.simpleName ?: "?")
+        append(":amt=").append(trigger.amount)
+        append(":subj=").append(trigger.subject?.value ?: "-")
     }
 
 private fun renderTarget(target: Target): String =

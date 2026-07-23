@@ -3,6 +3,7 @@ package dev.mtgplay.acceptance
 import dev.mtgplay.acceptance.fuzz.FuzzCorpus
 import dev.mtgplay.acceptance.fuzz.FuzzHarness
 import dev.mtgplay.core.event.GameEvent
+import dev.mtgplay.core.identity.CardRef
 import io.kotest.core.spec.style.StringSpec
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
@@ -37,9 +38,13 @@ class BoglesAuraCorpusSpec :
     StringSpec({
 
         val seeds = fuzzSeeds(AURA_SEED_COUNT)
-        "${seeds.size} seeds of random-legal aura games: no violations, Auras cast, and CR 704.5m fall-off fires" {
+        "${seeds.size} seeds of random-legal aura games: no violations, Auras cast, CR 704.5m fall-off, and triggers" {
             var aurasAttached = 0
             var aurasFellOff = 0
+            var triggersPlaced = 0
+            var tokensCreated = 0
+            var rancorsReturned = 0
+            var lifeGains = 0
 
             val report =
                 FuzzHarness.run(
@@ -50,21 +55,34 @@ class BoglesAuraCorpusSpec :
                         caps = FuzzCorpus.Caps(turnCap = AURA_TURN_CAP, decisionCap = AURA_DECISION_CAP),
                     ),
                 ) { game, _ ->
-                    // Aura-specific facts from the generic event log (the harness stays card-agnostic).
-                    aurasAttached += game.state.events.count { it is GameEvent.AuraAttached }
-                    aurasFellOff += game.state.events.count { it is GameEvent.AuraFellOff }
+                    // Aura- and trigger-specific facts from the generic event log (the harness stays
+                    // card-agnostic). The trigger framework (P5.1) is now exercised across the corpus.
+                    val events = game.state.events
+                    aurasAttached += events.count { it is GameEvent.AuraAttached }
+                    aurasFellOff += events.count { it is GameEvent.AuraFellOff }
+                    triggersPlaced += events.count { it is GameEvent.TriggeredAbilityPutOnStack }
+                    tokensCreated += events.count { it is GameEvent.TokenCreated }
+                    rancorsReturned +=
+                        events.count { it is GameEvent.CardReturnedToHand && it.card == CardRef("Rancor") }
+                    lifeGains += events.count { it is GameEvent.LifeChanged && it.change > 0 }
                 }
 
-            // A concise stats line for the packet report / CI log (deliverable 4: report stats).
+            // A concise stats line for the packet report / CI log (deliverable 9: report stats).
             println(
                 "AURA CORPUS ${report.summary()}; aurasAttached=$aurasAttached aurasFellOff=$aurasFellOff, " +
-                    "creatureDeaths=${report.creatureDeaths}, fizzles=${report.fizzles}",
+                    "triggersPlaced=$triggersPlaced tokensCreated=$tokensCreated rancorsReturned=$rancorsReturned " +
+                    "lifeGains=$lifeGains, creatureDeaths=${report.creatureDeaths}, fizzles=${report.fizzles}",
             )
 
             // Auras were cast and attached across the corpus (CR 303.4f).
             aurasAttached shouldBeGreaterThan 0
             // The CR 704.5m fall-off fired: enchanted creatures died and their Auras were torn off.
             aurasFellOff shouldBeGreaterThan 0
+            // The trigger framework fired end-to-end: abilities were put on the stack (CR 603.3b),
+            // tokens were created (Cartouche, CR 111.4), and Rancor returned to hand (CR 603.6b).
+            triggersPlaced shouldBeGreaterThan 0
+            tokensCreated shouldBeGreaterThan 0
+            rancorsReturned shouldBeGreaterThan 0
             // Every seed is accounted for as decisive or a stall (the harness guarantees no failure).
             (report.decisive + report.inconclusive) shouldBe report.seedCount
         }

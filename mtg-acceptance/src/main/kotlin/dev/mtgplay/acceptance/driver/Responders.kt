@@ -36,6 +36,10 @@ object Responders {
                 // CR 508.1 / CR 509.1: the empty selection declares no attackers / no blockers.
                 is DecisionRequest.DeclareAttackers -> Decision.MultiSelect(request.id, emptyList())
                 is DecisionRequest.DeclareBlockers -> Decision.MultiSelect(request.id, emptyList())
+                // CR 603.3b: a passive game still fires triggers (an aura falling off returns Rancor);
+                // order them in enumeration order, the deterministic identity permutation.
+                is DecisionRequest.OrderTriggers ->
+                    Decision.MultiSelect(request.id, request.options.indices.toList())
                 is DecisionRequest.ChooseTargets ->
                     error("the pass-everything responder never casts, but a targets request surfaced: $request")
                 is DecisionRequest.ChoosePaymentPlan ->

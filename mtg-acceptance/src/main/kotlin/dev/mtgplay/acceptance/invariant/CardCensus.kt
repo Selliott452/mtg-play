@@ -1,8 +1,10 @@
 package dev.mtgplay.acceptance.invariant
 
+import dev.mtgplay.core.definition.TokenDefinition
 import dev.mtgplay.core.identity.CardRef
 import dev.mtgplay.core.state.GameObject
 import dev.mtgplay.core.state.GameState
+import dev.mtgplay.core.state.cardObject
 import kotlinx.collections.immutable.PersistentMap
 import kotlinx.collections.immutable.persistentMapOf
 import kotlinx.collections.immutable.toPersistentMap
@@ -19,10 +21,15 @@ import kotlinx.collections.immutable.toPersistentMap
  *
  * The count is keyed by [CardRef] rather than [dev.mtgplay.core.identity.ObjectId] on purpose: an
  * object is reborn with a fresh id on every zone change (CR 400.7), so ids are *not* conserved,
- * but the printed card each object carries is (until token creation in Phase 5).
+ * but the printed card each object carries is.
  *
- * @property counts how many objects of each printed card exist; the map is insertion-ordered by
- *   first appearance for deterministic reporting (never a hash map, per the [GameState] iteration
+ * **Tokens are excluded (CR 111, P5.1).** A token is not a card — it is created by an effect and
+ * ceases to exist off the battlefield (CR 704.5d) — so it is *not* a conserved quantity: it is left
+ * out of the census entirely (identified by `definitions[card] is TokenDefinition`), and card
+ * conservation continues to hold exactly over the real cards while tokens come and go.
+ *
+ * @property counts how many non-token objects of each printed card exist; the map is insertion-ordered
+ *   by first appearance for deterministic reporting (never a hash map, per the [GameState] iteration
  *   rule).
  */
 @JvmInline
@@ -41,7 +48,10 @@ value class CardCensus internal constructor(
             val tally = LinkedHashMap<CardRef, Int>()
 
             fun count(objects: Iterable<GameObject>) {
-                objects.forEach { tally[it.card] = (tally[it.card] ?: 0) + 1 }
+                // CR 111, CR 704.5d: tokens are not cards and are not conserved — exclude them.
+                objects
+                    .filter { state.definitions[it.card] !is TokenDefinition }
+                    .forEach { tally[it.card] = (tally[it.card] ?: 0) + 1 }
             }
             state.players.entries
                 .sortedBy { it.key.seat }
@@ -51,8 +61,9 @@ value class CardCensus internal constructor(
                     count(player.graveyard)
                 }
             count(state.sharedZones.battlefield)
-            // The stack holds typed entries (P2.1); each entry's card object counts (CR 405.2).
-            count(state.sharedZones.stack.map { it.obj })
+            // The stack holds typed entries; a spell's card object counts (CR 405.2), a triggered
+            // ability contributes no card (CR 113.7a, P5.1).
+            count(state.sharedZones.stack.mapNotNull { it.cardObject })
             count(state.sharedZones.exile)
             return CardCensus(tally.toPersistentMap())
         }

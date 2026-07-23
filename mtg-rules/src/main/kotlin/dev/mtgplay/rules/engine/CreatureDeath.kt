@@ -46,10 +46,14 @@ private fun moveDeadCreatureToGraveyard(
     val dead = battlefield[index]
     val (graveyardId, allocated) = state.allocateObjectId()
     val reborn = GameObject(id = graveyardId, card = dead.card, owner = dead.owner)
-    return allocated
-        .updateBattlefield { it.removingAt(index) }
-        .updatePlayer(dead.owner) { it.copy(graveyard = it.graveyard.adding(reborn)) }
-        .emit(GameEvent.CreatureDied(objectId, dead.card, graveyardId))
+    val moved =
+        allocated
+            .updateBattlefield { it.removingAt(index) }
+            .updatePlayer(dead.owner) { it.copy(graveyard = it.graveyard.adding(reborn)) }
+            .emit(GameEvent.CreatureDied(objectId, dead.card, graveyardId))
+    // CR 603.6b, CR 603.10: a "put into a graveyard from the battlefield" trigger fires now, matched
+    // against the creature's pre-death state (no MVP creature has one, but a token or later card may).
+    return detectPutIntoGraveyardTriggers(moved, dead, graveyardId)
 }
 
 /**

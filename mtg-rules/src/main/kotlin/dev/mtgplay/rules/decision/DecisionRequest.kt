@@ -234,4 +234,46 @@ sealed interface DecisionRequest {
             const val MINIMUM_ORDERED_BLOCKERS: Int = 2
         }
     }
+
+    /**
+     * The order-simultaneous-triggers choice (CR 603.3b): [seat] controls two or more triggered
+     * abilities that fired at once and must choose the order to put them on the stack, answering with
+     * a [Decision.MultiSelect] whose indices are a **permutation** of all of [options]. Additive,
+     * flagged (P5.1).
+     *
+     * The order chosen is the order the triggers are put on the stack: index 0 is put first (so it is
+     * on the bottom of this batch and resolves last), the last index is put on top (resolves first).
+     * Surfaced only when one controller has two or more simultaneous triggers; a single trigger is put
+     * on the stack automatically with no decision (`mtg-rules`). One request orders all of a single
+     * controller's triggers; the next controller's, if any, are ordered by the active player's window
+     * or a later request in APNAP order.
+     *
+     * @property options one entry per simultaneous trigger this controller must order, in a
+     *   deterministic order (their fire order); the answer permutes them. Always two or more.
+     */
+    data class OrderTriggers(
+        override val id: DecisionRequestId,
+        val options: List<Option>,
+    ) : DecisionRequest {
+        init {
+            require(options.size >= MINIMUM_ORDERED_TRIGGERS) {
+                "CR 603.3b: only two or more simultaneous triggers are ordered, got ${options.size}"
+            }
+        }
+
+        /**
+         * One triggered ability to be ordered.
+         *
+         * @property sourceCard the printed identity of the ability's source (CR 603), for display.
+         * @property description a short human description of the trigger, for display.
+         */
+        data class Option(
+            val sourceCard: CardRef,
+            val description: String,
+        )
+
+        private companion object {
+            const val MINIMUM_ORDERED_TRIGGERS: Int = 2
+        }
+    }
 }

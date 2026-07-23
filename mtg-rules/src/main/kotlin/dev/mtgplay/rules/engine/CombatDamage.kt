@@ -73,6 +73,13 @@ private fun combatHasFirstStriker(
     return combatants.any { Keyword.FIRST_STRIKE in effectiveKeywords(state, it) }
 }
 
+// One creature's combat-damage assignment: [source] deals [amount] to [recipient] (CR 510.1).
+private data class DamageAssignment(
+    val source: ObjectId,
+    val recipient: Target,
+    val amount: Int,
+)
+
 // Deals one combat-damage step's damage simultaneously (CR 510.2) and records the step as done.
 private fun dealCombatDamage(
     state: GameState,
@@ -91,7 +98,8 @@ private fun dealCombatDamage(
                 if (blockers.isEmpty()) {
                     // CR 510.1c: an unblocked attacker assigns its combat damage to the player it
                     // is attacking.
-                    add(Target.Player(assignment.defendingPlayer) to effectivePower(state, assignment.attacker))
+                    val amount = effectivePower(state, assignment.attacker)
+                    add(DamageAssignment(assignment.attacker, Target.Player(assignment.defendingPlayer), amount))
                 } else {
                     addAll(assignToBlockers(state, assignment.attacker, blockers))
                 }
@@ -99,17 +107,41 @@ private fun dealCombatDamage(
             for (block in combat.blocks.orEmpty()) {
                 if (!dealsThisStep(state, block.blocker, step)) continue
                 // CR 510.1d: a blocking creature assigns its combat damage to the attacker it blocks.
-                add(Target.Permanent(block.attacker) to effectivePower(state, block.blocker))
+                add(
+                    DamageAssignment(
+                        block.blocker,
+                        Target.Permanent(block.attacker),
+                        effectivePower(state, block.blocker),
+                    ),
+                )
             }
         }
-    val damaged = assignments.fold(state) { current, (recipient, amount) -> dealDamage(current, recipient, amount) }
-    return damaged.updateCombat {
+    val damaged = assignments.fold(state) { current, a -> dealDamage(current, a.recipient, a.amount) }
+    val triggered = fireCombatDamageTriggers(damaged, assignments)
+    return triggered.updateCombat {
         when (step) {
             DamageStep.FIRST_STRIKE -> it.copy(firstStrikeDamageDealt = true)
             DamageStep.REGULAR -> it.copy(regularDamageDealt = true)
         }
     }
 }
+
+/**
+ * Fires the enchanted-creature-deals-damage triggers (CR 603.2) for a combat-damage step. Combat
+ * damage is one event (CR 510.2), so a creature that split its damage among several recipients dealt
+ * damage *once*: [assignments] are aggregated per source, and each source's total is what its Aura's
+ * "gain that much life" sees (Armadillo Cloak). The aggregation order is source-first-appearance for a
+ * deterministic pending-trigger queue (ADR-006).
+ */
+private fun fireCombatDamageTriggers(
+    state: GameState,
+    assignments: List<DamageAssignment>,
+): GameState =
+    assignments
+        .groupBy(DamageAssignment::source)
+        .mapValues { (_, list) -> list.sumOf(DamageAssignment::amount) }
+        .entries
+        .fold(state) { current, (source, total) -> fireEnchantedDamageTriggers(current, source, total) }
 
 // Whether [id] assigns combat damage in [step] (CR 510.5): first-strikers in the first step,
 // everyone else in the second (no double strike in the pool means a first-striker never deals twice).
@@ -130,7 +162,7 @@ private fun assignToBlockers(
     state: GameState,
     attacker: ObjectId,
     orderedBlockers: List<ObjectId>,
-): List<Pair<Target, Int>> {
+): List<DamageAssignment> {
     var remaining = effectivePower(state, attacker)
     return orderedBlockers.mapIndexed { index, blocker ->
         val amount =
@@ -144,7 +176,7 @@ private fun assignToBlockers(
                 minOf(remaining, lethal)
             }
         remaining -= amount
-        Target.Permanent(blocker) to amount
+        DamageAssignment(attacker, Target.Permanent(blocker), amount)
     }
 }
 

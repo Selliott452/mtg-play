@@ -129,4 +129,30 @@ enum class Invariant {
      * no-op once a player loss is pending, and fires on every non-final pause as before.
      */
     ATTACHMENT_INTEGRITY,
+
+    /**
+     * A token exists only on the battlefield at an observed pause (CR 704.5d). Added in P5.1. A token
+     * ("this object is a token" is `definitions[card] is TokenDefinition`) that reaches any other zone
+     * ceases to exist as a state-based action, which runs to quiescence before any player receives
+     * priority (CR 704.3), so the checker — which only ever sees paused or final states — tolerates no
+     * off-battlefield token: one would mean the CR 704.5d cessation failed to fire. The transient
+     * moment a dying token creature sits in a graveyard between two state-based-action checks is never
+     * observed. A no-op once a player loss is pending: the game-over batch leaves the cessation
+     * unperformed alongside the deaths (CR 104.2a), so an off-battlefield token in the final state is
+     * correct.
+     */
+    TOKEN_ZONE_SCOPE,
+
+    /**
+     * Every fired-but-unplaced triggered ability is well-formed (CR 603.3). Added in P5.1. Two
+     * properties of each [dev.mtgplay.core.state.PendingTrigger] in
+     * [dev.mtgplay.core.state.GameState.pendingTriggers]: its controller is a seated player (CR
+     * 603.3d), and it carries its own last-known information rather than a live reference — the source
+     * is captured by value (id, card, controller), so a trigger stays valid even after its source has
+     * left the battlefield (CR 603.10). The checker therefore does *not* require the source object to
+     * still exist; it requires the trigger to be self-contained. Pending triggers are non-empty only
+     * at an order-triggers pause (they are placed on the stack before any priority window opens), so at
+     * most such pauses this guards the queue's sanity.
+     */
+    PENDING_TRIGGER_SANITY,
 }

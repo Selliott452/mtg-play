@@ -60,6 +60,8 @@ internal val BURN_OPPONENT: Responder =
             is DecisionRequest.DeclareBlockers -> Decision.MultiSelect(request.id, emptyList())
             is DecisionRequest.OrderBlockers ->
                 error("the burn policy never blocks, but a blocker-order request surfaced: $request")
+            is DecisionRequest.OrderTriggers ->
+                error("the burn policy fires no triggers, but a trigger-order request surfaced: $request")
         }
     }
 
@@ -195,6 +197,8 @@ internal val GRIND_TO_BOLT_RANGE: Responder =
             is DecisionRequest.DeclareBlockers -> Decision.MultiSelect(request.id, emptyList())
             is DecisionRequest.OrderBlockers ->
                 error("the grind policy never blocks, but a blocker-order request surfaced: $request")
+            is DecisionRequest.OrderTriggers ->
+                error("the grind policy fires no triggers, but a trigger-order request surfaced: $request")
         }
     }
 

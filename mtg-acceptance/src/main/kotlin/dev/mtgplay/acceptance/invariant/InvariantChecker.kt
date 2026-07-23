@@ -3,6 +3,7 @@ package dev.mtgplay.acceptance.invariant
 import dev.mtgplay.core.card.CardType
 import dev.mtgplay.core.definition.SpellDefinition
 import dev.mtgplay.core.definition.TargetSpec
+import dev.mtgplay.core.definition.TokenDefinition
 import dev.mtgplay.core.state.GameObject
 import dev.mtgplay.core.state.GameState
 import dev.mtgplay.core.state.PriorityStatus
@@ -65,6 +66,8 @@ object InvariantChecker {
             addAll(checkCombatReferences(state))
             addAll(checkCreatureLethalityResolved(state))
             addAll(checkAttachmentIntegrity(state))
+            addAll(checkTokenZoneScope(state))
+            addAll(checkPendingTriggerSanity(state))
             if (expectedCards != null) addAll(checkCardConservation(state, expectedCards))
         }
     }
@@ -425,3 +428,41 @@ private fun isAura(
     val definition = state.definitions[obj.card] as? SpellDefinition ?: return false
     return definition.targetSpec is TargetSpec.Enchantable
 }
+
+/**
+ * [Invariant.TOKEN_ZONE_SCOPE]: no token sits in a zone other than the battlefield at an observed
+ * pause (CR 704.5d). A token is `definitions[card] is TokenDefinition`. Because state-based actions
+ * run to quiescence before any pause (CR 704.3), an off-battlefield token would mean the cessation
+ * failed to fire — exactly as a lingering dangling Aura would mean CR 704.5m failed. A no-op once a
+ * player loss is pending ([aPlayerLossIsPending]): the game-over batch leaves the cessation unperformed
+ * alongside the deaths. Top-level so the checker object stays small.
+ */
+internal fun checkTokenZoneScope(state: GameState): List<Violation> {
+    if (aPlayerLossIsPending(state)) return emptyList()
+    val residences = ZoneResidence.of(state)
+    return residences
+        .filter { it.zone != ZoneId.Battlefield && state.definitions[it.obj.card] is TokenDefinition }
+        .map {
+            Violation(
+                Invariant.TOKEN_ZONE_SCOPE,
+                "CR 704.5d: token ${it.obj.id.value} (${it.obj.card.name}) is in ${it.zone}, but a token off " +
+                    "the battlefield should have ceased to exist before this pause",
+            )
+        }
+}
+
+/**
+ * [Invariant.PENDING_TRIGGER_SANITY]: every fired-but-unplaced trigger is self-contained (CR 603.3,
+ * CR 603.10). Each pending trigger's controller must be a seated player; the source need not still
+ * exist, since the trigger carries its source as last-known information (id, card, controller) by
+ * value. Top-level so the checker object stays small.
+ */
+internal fun checkPendingTriggerSanity(state: GameState): List<Violation> =
+    state.pendingTriggers
+        .filter { it.controller !in state.players }
+        .map {
+            Violation(
+                Invariant.PENDING_TRIGGER_SANITY,
+                "CR 603.3d: pending trigger from ${it.sourceCard.name} names unseated controller ${it.controller}",
+            )
+        }

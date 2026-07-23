@@ -24,9 +24,12 @@ internal fun clearPriorityRound(state: GameState): GameState =
     }
 
 /**
- * Gives [seat] priority and suspends with their priority window. State-based actions are
- * checked first — CR 704.3: whenever a player *would* receive priority — and a loss there ends
- * the game instead of opening the window.
+ * Gives [seat] priority and suspends with their priority window. Two things happen first, both "when
+ * a player would receive priority": state-based actions are checked (CR 704.3) — a loss there ends the
+ * game instead of opening the window — and then any triggered abilities that have fired are put on the
+ * stack in APNAP order (CR 603.3b, [placePendingTriggers]). Placing triggers may itself suspend for an
+ * ordering choice, or add ability objects the [seat] can now respond to; once the queue is empty the
+ * window opens.
  */
 internal fun priorityTo(
     state: GameState,
@@ -34,11 +37,15 @@ internal fun priorityTo(
 ): AdvanceResult =
     when (val outcome = performStateBasedActions(state)) {
         is SbaOutcome.Loss -> AdvanceResult.GameOver(outcome.state, outcome.result)
-        is SbaOutcome.Continued -> {
-            val paused =
-                outcome.state.updatePlayer(seat) { it.copy(priorityStatus = PriorityStatus.HOLDS_PRIORITY) }
-            AdvanceResult.NeedsDecision(paused, chooseActionRequest(paused, seat))
-        }
+        is SbaOutcome.Continued ->
+            if (outcome.state.pendingTriggers.isNotEmpty()) {
+                // CR 603.3b: put fired triggers on the stack before any player receives priority.
+                placePendingTriggers(outcome.state)
+            } else {
+                val paused =
+                    outcome.state.updatePlayer(seat) { it.copy(priorityStatus = PriorityStatus.HOLDS_PRIORITY) }
+                AdvanceResult.NeedsDecision(paused, chooseActionRequest(paused, seat))
+            }
     }
 
 /**

@@ -299,6 +299,62 @@ sealed interface GameEvent {
         val graveyardObjectId: ObjectId,
     ) : GameEvent
 
+    /**
+     * A triggered ability was put on the stack (CR 603.3): [sourceCard], controlled by [controller],
+     * fired and its ability now waits on the stack as a [dev.mtgplay.core.state.StackEntry.Ability].
+     * Added in P5.1. When several triggers are placed at once they emit in the APNAP order they were
+     * put on the stack (CR 603.3b) — the active player's first.
+     */
+    data class TriggeredAbilityPutOnStack(
+        val controller: PlayerId,
+        val sourceCard: CardRef,
+    ) : GameEvent
+
+    /**
+     * A triggered ability resolved (CR 608.2, CR 113.7a): [sourceCard]'s ability, controlled by
+     * [controller], performed its effect and ceased to exist — no card moved, unlike a spell's
+     * CR 608.2m graveyard move. Added in P5.1. Any zone changes the effect made are narrated by their
+     * own events (a token created, a card drawn, a permanent returned to hand).
+     */
+    data class TriggeredAbilityResolved(
+        val controller: PlayerId,
+        val sourceCard: CardRef,
+    ) : GameEvent
+
+    /**
+     * A token was created on the battlefield (CR 111.4, CR 707): [controller]'s effect created the
+     * token [name] as the new battlefield object [objectId] (CR 400.7), summoning sick (CR 302.6) and
+     * untapped. Added in P5.1 — Cartouche of Solidarity's enters-the-battlefield trigger creates a
+     * 1/1 white Warrior token with vigilance.
+     */
+    data class TokenCreated(
+        val controller: PlayerId,
+        val objectId: ObjectId,
+        val name: CardRef,
+    ) : GameEvent
+
+    /**
+     * A token ceased to exist (CR 704.5d): the token [objectId] ([name]) was in a zone other than the
+     * battlefield and was removed by the state-based action. Added in P5.1 — a token creature put
+     * into a graveyard by a death (CR 704.5f/g) is there for only the moment between two state-based-
+     * action checks before this fires.
+     */
+    data class TokenCeasedToExist(
+        val objectId: ObjectId,
+        val name: CardRef,
+    ) : GameEvent
+
+    /**
+     * A card was returned from a graveyard to its owner's hand (CR 400.7): [card], owned by [player],
+     * moved from their graveyard to their hand as the new hand object [objectId]. Added in P5.1 —
+     * Rancor's leaves-the-battlefield trigger returns it to hand after it arrives in the graveyard.
+     */
+    data class CardReturnedToHand(
+        val player: PlayerId,
+        val objectId: ObjectId,
+        val card: CardRef,
+    ) : GameEvent
+
     /** [player] lost the game (CR 104.3) for [reason]. */
     data class PlayerLost(
         val player: PlayerId,

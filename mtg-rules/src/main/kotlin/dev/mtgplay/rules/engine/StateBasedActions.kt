@@ -7,6 +7,7 @@ import dev.mtgplay.core.identity.ObjectId
 import dev.mtgplay.core.identity.PlayerId
 import dev.mtgplay.core.state.GameObject
 import dev.mtgplay.core.state.GameState
+import dev.mtgplay.core.state.cardObject
 import dev.mtgplay.rules.MatchResult
 
 /**
@@ -45,6 +46,18 @@ internal sealed interface StateBasedAction {
      * this fires on the following check.
      */
     data class AuraFallsOff(
+        val objectId: ObjectId,
+    ) : StateBasedAction
+
+    /**
+     * The token [objectId] ceases to exist because it is in a zone other than the battlefield
+     * (CR 704.5d). Added in P5.1. A token creature put into a graveyard by a death (CR 704.5f/g) is
+     * there for only the moment between two checks: this fires on the following check, removing it
+     * from the graveyard entirely. "This object is a token" is `definitions[card] is TokenDefinition`
+     * — stable across the CR 400.7 rebirth into the graveyard, so the death and this cessation land in
+     * separate batches and never contend for the same object.
+     */
+    data class TokenCeasesToExist(
         val objectId: ObjectId,
     ) : StateBasedAction
 }
@@ -90,6 +103,31 @@ internal fun applicableStateBasedActions(state: GameState): List<StateBasedActio
                 add(StateBasedAction.AuraFallsOff(obj.id))
             }
         }
+        for (obj in tokensOffBattlefield(state)) {
+            // CR 704.5d: a token in any zone other than the battlefield ceases to exist.
+            add(StateBasedAction.TokenCeasesToExist(obj.id))
+        }
+    }
+
+/**
+ * Every token currently in a zone other than the battlefield (CR 704.5d), in a deterministic order:
+ * each seat's library, hand, and graveyard in seat order, then the shared stack and exile. "Token" is
+ * `definitions[card] is TokenDefinition` — stable across the CR 400.7 rebirth. In the MVP pool the
+ * only reachable case is a token creature that has just died into a graveyard.
+ */
+private fun tokensOffBattlefield(state: GameState): List<GameObject> =
+    buildList {
+        for (playerState in state.players.values) {
+            addAll(playerState.library.filter { isToken(state, it) })
+            addAll(playerState.hand.filter { isToken(state, it) })
+            addAll(playerState.graveyard.filter { isToken(state, it) })
+        }
+        addAll(
+            state.sharedZones.stack
+                .mapNotNull { it.cardObject }
+                .filter { isToken(state, it) },
+        )
+        addAll(state.sharedZones.exile.filter { isToken(state, it) })
     }
 
 /**
@@ -159,18 +197,22 @@ private fun performBatch(
     val losses = mutableListOf<StateBasedAction.PlayerLoses>()
     val deaths = mutableListOf<StateBasedAction.CreatureDies>()
     val fallOffs = mutableListOf<StateBasedAction.AuraFallsOff>()
+    val tokenCeases = mutableListOf<StateBasedAction.TokenCeasesToExist>()
     for (action in actions) {
         // Exhaustive over the sealed hierarchy: a new state-based-action kind must be sorted here.
         when (action) {
             is StateBasedAction.PlayerLoses -> losses += action
             is StateBasedAction.CreatureDies -> deaths += action
             is StateBasedAction.AuraFallsOff -> fallOffs += action
+            is StateBasedAction.TokenCeasesToExist -> tokenCeases += action
         }
     }
     if (losses.isNotEmpty()) return performPlayerLoss(state, losses)
     val afterDeaths = performCreatureDeaths(state, deaths.map(StateBasedAction.CreatureDies::objectId))
     val afterFallOffs = performAuraFallOffs(afterDeaths, fallOffs.map(StateBasedAction.AuraFallsOff::objectId))
-    return SbaOutcome.Continued(afterFallOffs, performedWork = true)
+    val afterTokens =
+        performTokenCeasesToExist(afterFallOffs, tokenCeases.map(StateBasedAction.TokenCeasesToExist::objectId))
+    return SbaOutcome.Continued(afterTokens, performedWork = true)
 }
 
 /**

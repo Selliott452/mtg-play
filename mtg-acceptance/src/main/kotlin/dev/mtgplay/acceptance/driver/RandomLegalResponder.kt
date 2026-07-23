@@ -67,6 +67,12 @@ class RandomLegalResponder(
                 rng = next
                 Decision.MultiSelect(request.id, order)
             }
+            // CR 603.3b: a uniformly random permutation of the controller's simultaneous triggers.
+            is DecisionRequest.OrderTriggers -> {
+                val (order, next) = (0 until request.options.size).toList().toPersistentList().shuffled(rng)
+                rng = next
+                Decision.MultiSelect(request.id, order)
+            }
         }
 
     private fun randomSingleSelect(

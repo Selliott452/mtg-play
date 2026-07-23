@@ -2,6 +2,7 @@ package dev.mtgplay.acceptance.invariant
 
 import dev.mtgplay.core.state.GameObject
 import dev.mtgplay.core.state.GameState
+import dev.mtgplay.core.state.cardObject
 import dev.mtgplay.core.zone.ZoneId
 
 /**
@@ -38,9 +39,12 @@ data class ZoneResidence(
                         player.graveyard.forEach { add(ZoneResidence(ZoneId.Graveyard(seat), it)) }
                     }
                 state.sharedZones.battlefield.forEach { add(ZoneResidence(ZoneId.Battlefield, it)) }
-                // The stack holds typed entries (P2.1); the residing object is the entry's card
-                // object — a spell on the stack is as much a card as one in a hand (CR 405.2).
-                state.sharedZones.stack.forEach { add(ZoneResidence(ZoneId.Stack, it.obj)) }
+                // The stack holds typed entries; a spell's residing object is its card object (a spell
+                // on the stack is as much a card as one in a hand, CR 405.2), while a triggered ability
+                // (P5.1) is not a card (CR 113.7a) and contributes no residence.
+                state.sharedZones.stack.forEach { entry ->
+                    entry.cardObject?.let { add(ZoneResidence(ZoneId.Stack, it)) }
+                }
                 state.sharedZones.exile.forEach { add(ZoneResidence(ZoneId.Exile, it)) }
             }
     }

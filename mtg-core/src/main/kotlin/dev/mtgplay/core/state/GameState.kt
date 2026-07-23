@@ -8,6 +8,7 @@ import dev.mtgplay.core.identity.PlayerId
 import dev.mtgplay.core.random.Rng
 import kotlinx.collections.immutable.PersistentList
 import kotlinx.collections.immutable.PersistentMap
+import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.persistentMapOf
 
 /**
@@ -42,6 +43,12 @@ import kotlinx.collections.immutable.persistentMapOf
  *   a card without an entry is inert and uncastable (architect decision, P2.1).
  * @property pendingCast the cast currently gathering decisions (CR 601.2), or `null` when no
  *   cast is in progress; see [PendingCast] for the atomicity contract.
+ * @property pendingTriggers the triggered abilities that have fired since a player last received
+ *   priority and are waiting to be put on the stack (CR 603.3b), in the order they fired. Additive,
+ *   flagged core (P5.1). Empty whenever no trigger is waiting; a player would receive priority only
+ *   after these are placed on the stack in APNAP order (`mtg-rules`). Carried in the state so the
+ *   pending decision — which player orders their simultaneous triggers — is a pure function of it
+ *   (ADR-004 no-hidden-position).
  */
 data class GameState(
     val players: PersistentMap<PlayerId, PlayerState>,
@@ -52,6 +59,7 @@ data class GameState(
     val events: PersistentList<GameEvent>,
     val definitions: PersistentMap<CardRef, CardDefinition> = persistentMapOf(),
     val pendingCast: PendingCast? = null,
+    val pendingTriggers: PersistentList<PendingTrigger> = persistentListOf(),
 ) {
     init {
         require(players.isNotEmpty()) { "a game has at least one seated player" }
@@ -94,7 +102,7 @@ data class GameState(
             }
         val shared =
             sharedZones.battlefield.asSequence() +
-                sharedZones.stack.asSequence().map(StackEntry::obj) +
+                sharedZones.stack.asSequence().mapNotNull(StackEntry::cardObject) +
                 sharedZones.exile.asSequence()
         return perPlayer + shared
     }

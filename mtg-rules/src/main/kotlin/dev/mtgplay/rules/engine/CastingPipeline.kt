@@ -185,10 +185,12 @@ private fun payCosts(
 
 /**
  * Stage CR 601.2i — the cast completes: the spell is cast, and "when a player casts a spell"
- * abilities would trigger now (Guttersnipe — the Phase 5 cast-trigger hook lives at this
- * seam). Emits [GameEvent.SpellCast].
+ * abilities trigger now. Emits [GameEvent.SpellCast], then fires cast triggers at the wired seam
+ * ([detectCastTriggers]) — a fired trigger is queued and placed on the stack at the priority grant
+ * that follows (CR 603.3b). No MVP mainboard card carries a cast trigger; the seam exists for
+ * Guttersnipe (P6) and is exercised by a rules-test fixture.
  */
 private fun completeCast(
     state: GameState,
     entry: StackEntry.Spell,
-): GameState = state.emit(GameEvent.SpellCast(entry.controller, entry.obj.id, entry.obj.card))
+): GameState = detectCastTriggers(state.emit(GameEvent.SpellCast(entry.controller, entry.obj.id, entry.obj.card)))

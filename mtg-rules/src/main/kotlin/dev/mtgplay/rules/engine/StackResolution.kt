@@ -21,6 +21,7 @@ internal fun resolveTopOfStack(state: GameState): AdvanceResult {
     val top = state.sharedZones.stack.lastOrNull() ?: error("CR 608.1: resolution requires a nonempty stack")
     return when (top) {
         is StackEntry.Spell -> resolveSpell(state, top)
+        is StackEntry.Ability -> resolveAbility(state, top)
     }
 }
 
@@ -68,7 +69,9 @@ private fun resolveSpell(
             } else {
                 announced.emit(GameEvent.AuraAttached(battlefieldId, attachedTo, entry.obj.card))
             }
-        grantPriorityRound(withAura)
+        // CR 603.6a: the permanent's own enters-the-battlefield triggers fire now (Cartouche, Abundant
+        // Growth); they are placed on the stack at the priority grant that follows (CR 603.3b).
+        grantPriorityRound(detectEnterBattlefieldTriggers(withAura, battlefieldId))
     } else {
         val resolved =
             entry.definition.resolution.resolve(state, ResolutionContext(entry.controller, entry.targets))

@@ -29,7 +29,17 @@ internal fun applyDecision(
         is DecisionRequest.DeclareAttackers -> applyDeclareAttackers(answered, request, decision)
         is DecisionRequest.DeclareBlockers -> applyDeclareBlockers(answered, request, decision)
         is DecisionRequest.OrderBlockers -> applyOrderBlockers(answered, request, decision)
+        is DecisionRequest.OrderTriggers -> applyChosenTriggerOrder(answered, request, decision)
     }
+}
+
+private fun applyChosenTriggerOrder(
+    state: GameState,
+    request: DecisionRequest.OrderTriggers,
+    decision: Decision,
+): AdvanceResult {
+    check(decision is Decision.MultiSelect) { "unreachable: decision shape was validated against the request" }
+    return applyOrderTriggers(state, request.seat, decision.indices)
 }
 
 private fun applyChosenAction(

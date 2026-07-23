@@ -178,11 +178,12 @@ internal fun finishCleanup(state: GameState): AdvanceResult {
     return when (val outcome = performStateBasedActions(eased)) {
         is SbaOutcome.Loss -> AdvanceResult.GameOver(outcome.state, outcome.result)
         is SbaOutcome.Continued ->
-            if (outcome.performedWork) {
-                // CR 514.3a. Unreachable in P1.2 — the only state-based actions are player
-                // losses, which take the Loss branch above — but the loop structure is real:
-                // the repeat path (priority round in cleanup, then another cleanup step) is
-                // exercised structurally by the engine tests.
+            // CR 514.3a: if any state-based action was performed *or* any triggered ability is waiting
+            // to be put on the stack, players receive priority during cleanup and, once that round
+            // completes, another cleanup step follows. grantPriorityRound places the waiting triggers
+            // (CR 603.3b) before the window. No natural MVP trigger fires from a cleanup turn-based
+            // action, so a rules-test fixture trigger exercises this repeat path (packet report).
+            if (outcome.performedWork || outcome.state.pendingTriggers.isNotEmpty()) {
                 grantPriorityRound(outcome.state)
             } else {
                 advancePastCurrentPosition(outcome.state)

@@ -3,6 +3,7 @@ package dev.mtgplay.cards
 import dev.mtgplay.core.card.CardType
 import dev.mtgplay.core.card.Keyword
 import dev.mtgplay.core.card.PrintedCharacteristics
+import dev.mtgplay.core.card.PrintedPowerToughness
 import dev.mtgplay.core.card.Subtype
 import dev.mtgplay.core.definition.EnchantRestriction
 import dev.mtgplay.core.definition.Magnitude
@@ -12,10 +13,18 @@ import dev.mtgplay.core.definition.SpellDefinition
 import dev.mtgplay.core.definition.StaticContinuousEffect
 import dev.mtgplay.core.definition.TargetSpec
 import dev.mtgplay.core.definition.TimingClass
+import dev.mtgplay.core.definition.TokenDefinition
+import dev.mtgplay.core.definition.TriggerCondition
+import dev.mtgplay.core.definition.TriggeredAbility
 import dev.mtgplay.core.mana.ManaCost
 import dev.mtgplay.core.mana.ManaType
 import dev.mtgplay.core.state.GameObject
 import dev.mtgplay.core.state.GameState
+import dev.mtgplay.rules.effect.createToken
+import dev.mtgplay.rules.effect.drawCards
+import dev.mtgplay.rules.effect.gainLife
+import dev.mtgplay.rules.effect.returnToOwnersHand
+import kotlinx.collections.immutable.PersistentList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.persistentSetOf
 
@@ -29,11 +38,34 @@ import kotlinx.collections.immutable.persistentSetOf
  * bonuses (Ethereal Armor, Ancestral Mask) are pure count functions of the live [GameState]
  * ([Magnitude.Dynamic], CR 613.3c) — no snapshot.
  *
- * **P5 obligations (deferred halves).** Only the P4 static half of each card is encoded here; every
- * card's triggered/ETB/escape/graveyard clause is Phase 5 (the trigger and alternative-cost
- * frameworks) and is called out in the owning card's KDoc. Utopia Sprawl is not in this packet — its
- * whole grant is a *triggered* mana ability (CR 605.1b), also P5.
+ * **Triggered halves (P5.1).** Four of these cards have a triggered ability (CR 603) alongside their
+ * static half, now encoded on top of the P5.1 trigger framework: Rancor's graveyard-return, Armadillo
+ * Cloak's damage-triggered lifegain, Cartouche of Solidarity's enters-the-battlefield token, and
+ * Abundant Growth's enters-the-battlefield draw. Sentinel's Eyes' Escape (an alternative cost, not a
+ * trigger) is still P5.2; Ethereal Armor and Ancestral Mask have no non-static half. Utopia Sprawl is
+ * not in this packet — its whole grant is a *triggered* mana ability (CR 605.1b), also P5.
  */
+
+/**
+ * The 1/1 white Warrior creature token with vigilance (CR 111.4) that Cartouche of Solidarity creates.
+ * A token is not a card ([TokenDefinition]); "white" is flavour the MVP models nowhere (color is
+ * derived from a mana cost, and a token has none — the CR 204 color indicator is unmodeled until a
+ * card cares about a token's color), and no MVP card interacts with the token's color, so it is left
+ * colorless-by-model without loss.
+ */
+val warriorToken: TokenDefinition =
+    TokenDefinition(
+        characteristics =
+            PrintedCharacteristics(
+                name = "Warrior",
+                manaCost = null,
+                supertypes = persistentSetOf(),
+                cardTypes = persistentSetOf(CardType.CREATURE),
+                subtypes = persistentSetOf(Subtype("Warrior")),
+                powerToughness = PrintedPowerToughness(power = 1, toughness = 1),
+                keywords = persistentSetOf(Keyword.VIGILANCE),
+            ),
+    )
 
 /** The five colors an "add one mana of any color" grant produces, in WUBRG order (CR 105.1). */
 private val ANY_COLOR: ManaAbility =
@@ -42,7 +74,8 @@ private val ANY_COLOR: ManaAbility =
 /**
  * An Aura card definition (CR 303): an "Enchantment — Aura" permanent spell with the given
  * [manaCost], cast at sorcery speed (CR 601.3a), whose enchant ability is a [TargetSpec.Enchantable]
- * carrying [restriction] (CR 303.4a) and whose single static ability generates [effect]. Resolution
+ * carrying [restriction] (CR 303.4a), whose single static ability generates [effect], and whose
+ * triggered abilities are [triggers] (CR 603; empty for an Aura with no triggered half). Resolution
  * is a no-op (CR 303.4f, CR 608.3): the rules engine performs the enter-attached move, not the
  * effect.
  */
@@ -51,6 +84,7 @@ private fun aura(
     manaCost: String,
     restriction: EnchantRestriction,
     effect: StaticContinuousEffect,
+    triggers: PersistentList<TriggeredAbility> = persistentListOf(),
 ): SpellDefinition =
     object : SpellDefinition {
         override val characteristics =
@@ -66,6 +100,7 @@ private fun aura(
         override val targetSpec = TargetSpec.Enchantable(restriction)
         override val resolution = ResolutionEffect { state, _ -> state }
         override val staticContinuousEffects = persistentListOf(effect)
+        override val triggeredAbilities = triggers
     }
 
 /** Whether the battlefield object [obj] is an enchantment permanent (CR 303), reading printed types. */
@@ -112,12 +147,13 @@ private fun perOtherEnchantment(perEnchantment: Int): Magnitude =
 
 /**
  * Rancor — `{G}` Enchantment — Aura. "Enchant creature. Enchanted creature gets +2/+0 and has
- * trample." Encoded here is only the static half: the layer-7c +2/+0 (CR 613.3, sublayer 7c) and the
- * layer-6 trample grant (CR 613.3, layer 6, CR 702.19).
+ * trample." The static half is the layer-7c +2/+0 (CR 613.3, sublayer 7c) and the layer-6 trample
+ * grant (CR 613.3, layer 6, CR 702.19).
  *
- * **P5 (deferred):** Rancor's graveyard-return triggered ability — "When Rancor is put into a
- * graveyard from the battlefield, return Rancor to its owner's hand" (CR 603) — is omitted; it
- * arrives with the trigger framework in Phase 5.
+ * **Triggered half (P5.1):** "When Rancor is put into a graveyard from the battlefield, return Rancor
+ * to its owner's hand" (CR 603.6b, CR 603.10). The trigger fires as Rancor arrives in the graveyard —
+ * most often the CR 704.5m fall-off when its enchanted creature dies — and returns the fresh graveyard
+ * object it carries (the trigger's subject) to its owner's hand.
  */
 val rancor: SpellDefinition =
     aura(
@@ -130,16 +166,34 @@ val rancor: SpellDefinition =
                 powerMod = Magnitude.Fixed(2),
                 toughnessMod = Magnitude.Fixed(0),
             ),
+        triggers =
+            persistentListOf(
+                TriggeredAbility(
+                    condition = TriggerCondition.PutIntoGraveyardFromBattlefieldSelf,
+                    effect =
+                        ResolutionEffect { state, context ->
+                            returnToOwnersHand(
+                                state,
+                                context.subject
+                                    ?: error(
+                                        "CR 603.10: Rancor's return trigger requires the graveyard object it carries",
+                                    ),
+                            )
+                        },
+                ),
+            ),
     )
 
 /**
  * Armadillo Cloak — `{1}{G}{W}` Enchantment — Aura. "Enchant creature. Enchanted creature gets +2/+2
- * and has trample." Encoded here is only the static half: the layer-7c +2/+2 and the layer-6 trample
- * grant (CR 613.3; CR 702.19).
+ * and has trample." The static half is the layer-7c +2/+2 and the layer-6 trample grant (CR 613.3;
+ * CR 702.19).
  *
- * **P5 (deferred):** Armadillo Cloak's damage-triggered lifegain — "Whenever enchanted creature is
- * dealt damage, you gain that much life" (CR 603) — is omitted; it arrives with the trigger framework
- * in Phase 5.
+ * **Triggered half (P5.1):** "Whenever enchanted creature deals damage, you gain that much life"
+ * (CR 603.2). The trigger fires when the enchanted creature deals damage (combat or noncombat; only
+ * combat occurs in the MVP pool) and gains that much life for the **Aura's controller** — its owner in
+ * the MVP pool (ownership is control), which the trigger records as its controller, not the enchanted
+ * creature's controller. The amount is the damage the creature dealt in that one event (CR 118.9).
  */
 val armadilloCloak: SpellDefinition =
     aura(
@@ -152,17 +206,24 @@ val armadilloCloak: SpellDefinition =
                 powerMod = Magnitude.Fixed(2),
                 toughnessMod = Magnitude.Fixed(2),
             ),
+        triggers =
+            persistentListOf(
+                TriggeredAbility(
+                    condition = TriggerCondition.EnchantedCreatureDealsDamage,
+                    effect = ResolutionEffect { state, context -> gainLife(state, context.controller, context.amount) },
+                ),
+            ),
     )
 
 /**
  * Cartouche of Solidarity — `{W}` Enchantment — Aura. "Enchant creature you control. Enchanted
- * creature gets +1/+1 and has first strike." Encoded here is only the static half: the layer-7c
- * +1/+1 and the layer-6 first-strike grant (CR 613.3; CR 702.7). Its enchant restriction is
+ * creature gets +1/+1 and has first strike." The static half is the layer-7c +1/+1 and the layer-6
+ * first-strike grant (CR 613.3; CR 702.7). Its enchant restriction is
  * [EnchantRestriction.CREATURE_YOU_CONTROL] (control is ownership in the MVP pool, §4).
  *
- * **P5 (deferred):** Cartouche of Solidarity's enters-the-battlefield trigger — "When Cartouche of
- * Solidarity enters the battlefield, create a 1/1 white Warrior creature token" (CR 603.6) — is
- * omitted; it arrives with the trigger framework (and token creation) in Phase 5.
+ * **Triggered half (P5.1):** "When Cartouche of Solidarity enters the battlefield, create a 1/1 white
+ * Warrior creature token with vigilance" (CR 603.6a). The enters-the-battlefield trigger creates
+ * [warriorToken] under the Aura's controller (CR 111.4, CR 707).
  */
 val cartoucheOfSolidarity: SpellDefinition =
     aura(
@@ -174,6 +235,19 @@ val cartoucheOfSolidarity: SpellDefinition =
                 grantedKeywords = persistentSetOf(Keyword.FIRST_STRIKE),
                 powerMod = Magnitude.Fixed(1),
                 toughnessMod = Magnitude.Fixed(1),
+            ),
+        triggers =
+            persistentListOf(
+                TriggeredAbility(
+                    condition = TriggerCondition.EnteredBattlefieldSelf,
+                    effect =
+                        ResolutionEffect {
+                            state,
+                            context,
+                            ->
+                            createToken(state, context.controller, warriorToken)
+                        },
+                ),
             ),
     )
 
@@ -240,15 +314,14 @@ val ancestralMask: SpellDefinition =
 
 /**
  * Abundant Growth — `{G}` Enchantment — Aura. "Enchant land. Enchanted land has '{T}: Add one mana of
- * any color.'" Encoded here is only the static half: the layer-6 mana-ability grant (CR 613.3, layer
- * 6, CR 605.1a) of `{T}: Add one mana of any color` onto the enchanted land, which payment
- * enumeration then reads through the layered production profile (docs/design/layer-system.md §6). The
- * "any color" production is the existing WUBRG [ANY_COLOR] shape. Its enchant restriction is
- * [EnchantRestriction.LAND] (CR 303.4a).
+ * any color.'" The static half is the layer-6 mana-ability grant (CR 613.3, layer 6, CR 605.1a) of
+ * `{T}: Add one mana of any color` onto the enchanted land, which payment enumeration then reads
+ * through the layered production profile (docs/design/layer-system.md §6). The "any color" production
+ * is the existing WUBRG [ANY_COLOR] shape. Its enchant restriction is [EnchantRestriction.LAND]
+ * (CR 303.4a).
  *
- * **P5 (deferred):** Abundant Growth's enters-the-battlefield trigger — "When Abundant Growth enters
- * the battlefield, draw a card" (CR 603.6) — is omitted; it arrives with the trigger framework in
- * Phase 5.
+ * **Triggered half (P5.1):** "When Abundant Growth enters the battlefield, draw a card" (CR 603.6a).
+ * The enters-the-battlefield trigger draws one card for the Aura's controller.
  */
 val abundantGrowth: SpellDefinition =
     aura(
@@ -256,4 +329,11 @@ val abundantGrowth: SpellDefinition =
         manaCost = "{G}",
         restriction = EnchantRestriction.LAND,
         effect = StaticContinuousEffect(grantedManaAbilities = persistentListOf(ANY_COLOR)),
+        triggers =
+            persistentListOf(
+                TriggeredAbility(
+                    condition = TriggerCondition.EnteredBattlefieldSelf,
+                    effect = ResolutionEffect { state, context -> drawCards(state, context.controller, 1) },
+                ),
+            ),
     )
