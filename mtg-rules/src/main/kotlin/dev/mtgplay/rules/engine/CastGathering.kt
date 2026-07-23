@@ -1,5 +1,7 @@
 package dev.mtgplay.rules.engine
 
+import dev.mtgplay.core.definition.CastSource
+import dev.mtgplay.core.definition.CastingPermission
 import dev.mtgplay.core.definition.SpellDefinition
 import dev.mtgplay.core.definition.TargetSpec
 import dev.mtgplay.core.identity.CardRef
@@ -11,6 +13,7 @@ import dev.mtgplay.core.state.Target
 import dev.mtgplay.rules.AdvanceResult
 import kotlinx.collections.immutable.PersistentList
 import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.toPersistentList
 
 /*
  * The gathering half of the CR 601 casting pipeline (ADR-004): choosing to cast opens a
@@ -22,18 +25,21 @@ import kotlinx.collections.immutable.persistentListOf
  */
 
 /**
- * The caster chose [dev.mtgplay.rules.decision.PriorityOption.CastSpell] (CR 601.2): opens the
- * [PendingCast] and suspends for the cast's first choice. A spell that targets nothing skips
- * straight to the payment choice with its target list settled empty.
+ * The caster chose to cast [cardObjectId] from [source] via [permission] (CR 601.2): opens the
+ * [PendingCast] and suspends for the cast's first choice. A spell that targets nothing skips straight
+ * past the target choice; a permission with no additional exile cost settles that list empty. The
+ * defaults describe a normal cast from the hand at the printed cost.
  */
 internal fun beginCastGathering(
     state: GameState,
     caster: PlayerId,
     cardObjectId: ObjectId,
+    source: CastSource = CastSource.HAND,
+    permission: CastingPermission? = null,
 ): AdvanceResult {
     val card =
-        state.player(caster).hand.firstOrNull { it.id == cardObjectId }
-            ?: error("CR 601.2: object $cardObjectId is not in $caster's hand")
+        objectInZone(state, caster, source, cardObjectId)
+            ?: error("CR 601.2: object $cardObjectId is not in $caster's $source zone")
     val definition = spellDefinitionOf(state, card.card)
     val chosenTargets: PersistentList<Target>? =
         when (definition.targetSpec) {
@@ -41,7 +47,13 @@ internal fun beginCastGathering(
             // An Aura (CR 601.2c) and any-target both need a target choice before payment.
             TargetSpec.AnyTarget, is TargetSpec.Enchantable -> null
         }
-    val gathering = state.copy(pendingCast = PendingCast(caster, cardObjectId, chosenTargets))
+    // An additional "exile N others" cost (escape) needs a selection; every other cast settles it empty.
+    val additionalExileCost: PersistentList<ObjectId>? =
+        if ((permission?.additionalExileCount ?: 0) > 0) null else persistentListOf()
+    val gathering =
+        state.copy(
+            pendingCast = PendingCast(caster, cardObjectId, chosenTargets, source, permission, additionalExileCost),
+        )
     return pauseForNextCastDecision(gathering)
 }
 
@@ -63,6 +75,22 @@ internal fun applyChosenTarget(
     require(cast.chosenTargets == null) { "CR 601.2c: this cast's targets are already chosen" }
     return pauseForNextCastDecision(
         state.copy(pendingCast = cast.copy(chosenTargets = persistentListOf(target))),
+    )
+}
+
+/**
+ * Records the cards chosen to pay an additional "exile N other cards" cost (escape, CR 702.139a) on the
+ * open [PendingCast] and suspends for the payment choice. The cards are exiled only when the cast
+ * executes (CR 601.2h), atomically with everything else.
+ */
+internal fun applyChosenExileCost(
+    state: GameState,
+    exileObjectIds: List<ObjectId>,
+): AdvanceResult {
+    val cast = state.pendingCast ?: error("no cast is gathering decisions")
+    require(cast.additionalExileCost == null) { "CR 601.2b: this cast's additional exile cost is already chosen" }
+    return pauseForNextCastDecision(
+        state.copy(pendingCast = cast.copy(additionalExileCost = exileObjectIds.toPersistentList())),
     )
 }
 

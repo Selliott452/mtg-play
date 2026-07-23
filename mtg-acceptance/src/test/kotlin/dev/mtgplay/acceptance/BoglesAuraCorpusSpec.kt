@@ -45,6 +45,7 @@ class BoglesAuraCorpusSpec :
             var tokensCreated = 0
             var rancorsReturned = 0
             var lifeGains = 0
+            var escapeCasts = 0
 
             val report =
                 FuzzHarness.run(
@@ -65,13 +66,16 @@ class BoglesAuraCorpusSpec :
                     rancorsReturned +=
                         events.count { it is GameEvent.CardReturnedToHand && it.card == CardRef("Rancor") }
                     lifeGains += events.count { it is GameEvent.LifeChanged && it.change > 0 }
+                    // P5.2: Sentinel's Eyes escaping from the graveyard pays its exile-two additional cost.
+                    escapeCasts += events.count { it is GameEvent.CardsExiledForCost }
                 }
 
             // A concise stats line for the packet report / CI log (deliverable 9: report stats).
             println(
                 "AURA CORPUS ${report.summary()}; aurasAttached=$aurasAttached aurasFellOff=$aurasFellOff, " +
                     "triggersPlaced=$triggersPlaced tokensCreated=$tokensCreated rancorsReturned=$rancorsReturned " +
-                    "lifeGains=$lifeGains, creatureDeaths=${report.creatureDeaths}, fizzles=${report.fizzles}",
+                    "lifeGains=$lifeGains escapeCasts=$escapeCasts, creatureDeaths=${report.creatureDeaths}, " +
+                    "fizzles=${report.fizzles}",
             )
 
             // Auras were cast and attached across the corpus (CR 303.4f).
@@ -83,6 +87,9 @@ class BoglesAuraCorpusSpec :
             triggersPlaced shouldBeGreaterThan 0
             tokensCreated shouldBeGreaterThan 0
             rancorsReturned shouldBeGreaterThan 0
+            // P5.2: escape is live in the corpus — Sentinel's Eyes escapes from graveyards, paying its
+            // exile-two additional cost (CR 702.139a), with zero invariant violations throughout.
+            escapeCasts shouldBeGreaterThan 0
             // Every seed is accounted for as decisive or a stall (the harness guarantees no failure).
             (report.decisive + report.inconclusive) shouldBe report.seedCount
         }

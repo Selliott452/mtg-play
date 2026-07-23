@@ -45,6 +45,13 @@ import dev.mtgplay.core.identity.PlayerId
  *   whose [attachedTo] no longer names a legal battlefield object is put into its owner's graveyard
  *   by the CR 704.5m state-based action. The inverse ("what is attached to me") is a battlefield
  *   scan, matching the "battlefield has no rules-relevant order, scan it" pattern.
+ * @property awaitingMadness whether this exiled object is a card that madness exiled instead of
+ *   discarding and that is now waiting on its reflexive "you may cast it" trigger (CR 702.35a–b).
+ *   Additive, flagged core (P5.2): an exile-only marker — set when the discard→exile replacement
+ *   exiles the card, cleared the moment the reflexive trigger resolves (the card is either cast from
+ *   exile or put into its owner's graveyard). `false` everywhere but exile, and the fresh object born
+ *   of any zone move carries none (CR 400.7); the acceptance invariant checker enforces both the scope
+ *   and that a marked object always has a matching pending reflexive trigger.
  */
 data class GameObject(
     val id: ObjectId,
@@ -54,6 +61,7 @@ data class GameObject(
     val damageMarked: Int = 0,
     val summoningSick: Boolean = true,
     val attachedTo: ObjectId? = null,
+    val awaitingMadness: Boolean = false,
 ) {
     init {
         require(damageMarked >= 0) { "CR 120.3: marked damage is non-negative, was $damageMarked" }

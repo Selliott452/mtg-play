@@ -73,6 +73,16 @@ class RandomLegalResponder(
                 rng = next
                 Decision.MultiSelect(request.id, order)
             }
+            // CR 702.35b: a fair coin decides whether to accept a "you may" (madness reflexive cast).
+            is DecisionRequest.ChooseYesNo -> randomSingleSelect(request.id, DecisionRequest.ChooseYesNo.OPTION_COUNT)
+            // CR 601.2b: a random correctly-sized selection of cards to exile for an additional cost (escape).
+            is DecisionRequest.ChooseCardsToExile -> {
+                val (indices, next) = randomSubset(request.options.size, request.count, rng)
+                rng = next
+                Decision.MultiSelect(request.id, indices)
+            }
+            // CR 616.1: a uniform pick among the applicable replacements to apply first.
+            is DecisionRequest.ChooseReplacement -> randomSingleSelect(request.id, request.options.size)
         }
 
     private fun randomSingleSelect(

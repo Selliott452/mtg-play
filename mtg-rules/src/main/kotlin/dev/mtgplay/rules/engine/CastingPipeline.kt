@@ -1,12 +1,14 @@
 package dev.mtgplay.rules.engine
 
+import dev.mtgplay.core.definition.CastingPermission
 import dev.mtgplay.core.definition.SpellDefinition
 import dev.mtgplay.core.definition.TargetSpec
 import dev.mtgplay.core.event.GameEvent
 import dev.mtgplay.core.identity.ObjectId
-import dev.mtgplay.core.identity.PlayerId
 import dev.mtgplay.core.mana.ManaCost
+import dev.mtgplay.core.state.GameObject
 import dev.mtgplay.core.state.GameState
+import dev.mtgplay.core.state.PendingCast
 import dev.mtgplay.core.state.StackEntry
 import dev.mtgplay.core.state.Target
 import dev.mtgplay.rules.AdvanceResult
@@ -52,14 +54,32 @@ internal fun executeCastPipeline(
     val targets = cast.chosenTargets ?: error("CR 601.2c: targets must be settled before payment is chosen")
     // Close the gathering record first: from here the cast either completes or throws whole.
     val casting = state.copy(pendingCast = null)
-    val (proposed, entry) = proposeSpell(casting, cast.caster, cast.cardObjectId, targets)
+    val (proposed, entry) = proposeSpell(casting, cast, targets)
     val moded = chooseModes(proposed)
     val targeted = establishTargets(moded, entry)
+    val withAdditional = payAdditionalCosts(targeted, cast)
     val totalCost = determineTotalCost(entry)
-    val paid = payCosts(targeted, entry, totalCost, plan)
+    val paid = payCosts(withAdditional, entry, totalCost, plan)
     val complete = completeCast(paid, entry)
-    return priorityTo(clearPriorityRound(complete), cast.caster)
+    return priorityAfterCast(complete, cast)
 }
+
+/**
+ * Grants priority after a completed cast, with every pass-flag reset (a cast starts the CR 117.4 count
+ * over). A normal or priority-window cast (hand, flashback, escape) returns priority to the caster, who
+ * held it (CR 117.3c). A **madness** cast happened *as a reflexive trigger resolved* (CR 702.35b), not
+ * from a priority window — so, like any spell put on the stack during a resolution, the active player
+ * receives priority in a fresh round.
+ */
+private fun priorityAfterCast(
+    state: GameState,
+    cast: PendingCast,
+): AdvanceResult =
+    if (cast.castingPermission is CastingPermission.Madness) {
+        grantPriorityRound(state)
+    } else {
+        priorityTo(clearPriorityRound(state), cast.caster)
+    }
 
 /**
  * Stage CR 601.2a — propose: the card moves from the caster's hand to the top of the stack,
@@ -67,29 +87,65 @@ internal fun executeCastPipeline(
  * record — controller, targets, definition — is fixed on the stack entry. Emits
  * [GameEvent.SpellProposed].
  *
- * Casting from zones other than the hand (madness's exile cast, flashback's graveyard cast —
- * Phase 5, docs/decklists.md) generalizes this stage's source zone; nothing else in the
- * pipeline knows where the card came from.
+ * Casting from zones other than the hand (madness's exile cast, flashback's and escape's graveyard
+ * cast — docs/decklists.md) generalizes this stage's source zone via the [PendingCast.source] seam;
+ * nothing else in the pipeline knows where the card came from. The permission the cast used
+ * ([PendingCast.castingPermission]) is fixed on the cast record ([StackEntry.Spell.castVia]) because it
+ * governs how the spell later leaves the stack (flashback's exile-instead, CR 702.34e).
  */
 private fun proposeSpell(
     state: GameState,
-    caster: PlayerId,
-    cardObjectId: ObjectId,
+    cast: PendingCast,
     targets: PersistentList<Target>,
 ): Pair<GameState, StackEntry.Spell> {
-    val hand = state.player(caster).hand
-    val index = hand.indexOfFirst { it.id == cardObjectId }
-    require(index >= 0) { "CR 601.2a: object $cardObjectId is not in $caster's hand" }
-    val card = hand[index]
-    val definition = spellDefinitionOf(state, card.card)
+    val zoneObject =
+        objectInZone(state, cast.caster, cast.source, cast.cardObjectId)
+            ?: error("CR 601.2a: object ${cast.cardObjectId} is not in ${cast.caster}'s ${cast.source} zone")
+    val definition = spellDefinitionOf(state, zoneObject.card)
     val (id, allocated) = state.allocateObjectId()
-    val entry = StackEntry.Spell(card.copy(id = id), caster, targets, definition)
+    // CR 400.7: the object on the stack is a fresh object with no zone-status memory (no madness marker).
+    val entry =
+        StackEntry.Spell(
+            obj = GameObject(id = id, card = zoneObject.card, owner = zoneObject.owner),
+            controller = cast.caster,
+            targets = targets,
+            definition = definition,
+            castVia = cast.castingPermission,
+        )
     val proposed =
-        allocated
-            .updatePlayer(caster) { it.copy(hand = it.hand.removingAt(index)) }
+        removeFromZone(allocated, cast.caster, cast.source, cast.cardObjectId)
             .updateStack { it.adding(entry) }
-            .emit(GameEvent.SpellProposed(caster, id, card.card))
+            .emit(GameEvent.SpellProposed(cast.caster, id, zoneObject.card))
     return proposed to entry
+}
+
+/**
+ * Stage CR 601.2b/h — additional non-mana costs: exiles the cards chosen for an "exile N other cards"
+ * additional cost (escape, CR 702.139a) from the caster's source zone, each as a new exile object
+ * (CR 400.7), emitting [GameEvent.CardsExiledForCost]. A no-op when the permission has no such cost (the
+ * settled list is empty). The cards were chosen legally while gathering (ADR-005), so a missing one is
+ * an engine defect and fails loudly.
+ */
+private fun payAdditionalCosts(
+    state: GameState,
+    cast: PendingCast,
+): GameState {
+    val toExile =
+        cast.additionalExileCost
+            ?: error("CR 601.2h: the additional exile cost of ${cast.cardObjectId} was not settled before payment")
+    if (toExile.isEmpty()) return state
+    val exiledIds = mutableListOf<ObjectId>()
+    val exiled =
+        toExile.fold(state) { current, id ->
+            val zoneObject =
+                objectInZone(current, cast.caster, cast.source, id)
+                    ?: error("CR 601.2h: additional-cost card $id is not in ${cast.caster}'s ${cast.source} zone")
+            val (newId, allocated) = current.allocateObjectId()
+            exiledIds += newId
+            removeFromZone(allocated, cast.caster, cast.source, id)
+                .updateExile { it.adding(GameObject(id = newId, card = zoneObject.card, owner = zoneObject.owner)) }
+        }
+    return exiled.emit(GameEvent.CardsExiledForCost(cast.caster, exiledIds))
 }
 
 /**
@@ -133,19 +189,17 @@ private fun establishTargets(
     }
 
 /**
- * Stage CR 601.2f — cost determination: the total cost of the spell. In P2.1 the total cost is
- * exactly the printed mana cost; this function is the hook where the Phase 5 cost work slots
- * in without touching the rest of the pipeline (docs/decklists.md):
- * - **additional costs** (CR 601.2b/f — Grab the Prize's discard) will add non-mana components
- *   and record their linked information on the cast record;
- * - **alternative costs** (CR 601.2f — Fireblast's sacrifice) will replace the mana cost
- *   entirely, which is also when a `null` printed cost stops being an error here.
+ * Stage CR 601.2f — cost determination: the mana cost the payment plan pays. A cast via an alternative
+ * permission (madness, flashback, escape) pays the permission's cost, which **replaces** the printed
+ * mana cost entirely (CR 118.9); a normal cast pays the printed cost. The non-mana part of an
+ * additional cost (escape's exile-N-others) is paid separately in [payAdditionalCosts] (CR 601.2h).
+ * Fails loudly only for a normal cast of a card with no printed cost — no such card is castable.
  */
 private fun determineTotalCost(entry: StackEntry.Spell): ManaCost =
-    entry.definition.manaCost
+    entry.castVia?.cost
+        ?: entry.definition.manaCost
         ?: error(
-            "CR 601.2f: ${entry.obj.card.name} has no mana cost and no alternative cost exists to cast " +
-                "it with; alternative costs arrive in Phase 5 (docs/decklists.md)",
+            "CR 601.2f: ${entry.obj.card.name} has no mana cost and no alternative cost to cast it with",
         )
 
 /**

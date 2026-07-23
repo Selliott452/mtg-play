@@ -355,6 +355,55 @@ sealed interface GameEvent {
         val card: CardRef,
     ) : GameEvent
 
+    /**
+     * A card with madness was exiled instead of being discarded (CR 702.35a): the discard→exile
+     * replacement moved [card] from [player]'s hand to exile as the new object [objectId] (CR 400.7),
+     * where it waits ([dev.mtgplay.core.state.GameObject.awaitingMadness]) on its reflexive cast
+     * trigger. Added in P5.2.
+     */
+    data class CardExiledByMadness(
+        val player: PlayerId,
+        val objectId: ObjectId,
+        val card: CardRef,
+    ) : GameEvent
+
+    /**
+     * A madness card was put into its owner's graveyard because it was not cast (CR 702.35b): the
+     * reflexive trigger resolved and [player] declined the cast, or it was impossible, so [card] moved
+     * from exile to their graveyard as the new object [graveyardObjectId] (CR 400.7). Added in P5.2.
+     */
+    data class MadnessCardPutIntoGraveyard(
+        val player: PlayerId,
+        val objectId: ObjectId,
+        val card: CardRef,
+        val graveyardObjectId: ObjectId,
+    ) : GameEvent
+
+    /**
+     * A spell was exiled instead of being put into a graveyard as it left the stack (CR 702.34e): the
+     * flashback leave-stack replacement moved [card], controlled by [controller], to exile as the new
+     * object [exileObjectId] (CR 400.7) rather than to its owner's graveyard — on resolution, a
+     * counter, or a fizzle. Added in P5.2. Follows the [SpellResolved]/[SpellFizzled] of the same
+     * departure, whose object id is this same exile object.
+     */
+    data class SpellExiledInsteadOfGraveyard(
+        val controller: PlayerId,
+        val objectId: ObjectId,
+        val card: CardRef,
+        val exileObjectId: ObjectId,
+    ) : GameEvent
+
+    /**
+     * Cards were exiled to pay an additional cost of casting a spell (CR 601.2h, CR 702.139a): escape's
+     * "exile N other cards from your graveyard". [player] exiled the [exiled] objects (their new exile
+     * ids, CR 400.7) while casting. Added in P5.2. The mana part of the cost is narrated by the usual
+     * mana events; this records the non-mana exile.
+     */
+    data class CardsExiledForCost(
+        val player: PlayerId,
+        val exiled: List<ObjectId>,
+    ) : GameEvent
+
     /** [player] lost the game (CR 104.3) for [reason]. */
     data class PlayerLost(
         val player: PlayerId,

@@ -1,6 +1,7 @@
 package dev.mtgplay.core.state
 
 import dev.mtgplay.core.definition.CardDefinition
+import dev.mtgplay.core.definition.CastSource
 import dev.mtgplay.core.event.GameEvent
 import dev.mtgplay.core.identity.CardRef
 import dev.mtgplay.core.identity.ObjectId
@@ -49,6 +50,12 @@ import kotlinx.collections.immutable.persistentMapOf
  *   after these are placed on the stack in APNAP order (`mtg-rules`). Carried in the state so the
  *   pending decision — which player orders their simultaneous triggers — is a pure function of it
  *   (ADR-004 no-hidden-position).
+ * @property pendingMadness a resolved madness reflexive trigger awaiting its owner's yes/no cast
+ *   decision (CR 702.35b), or `null`. Additive, flagged core (P5.2). Non-null only at that yes/no
+ *   pause; the reflexive trigger is already off the stack and this is what remains of it.
+ * @property pendingReplacement a discard event with two or more applicable replacements awaiting the
+ *   affected player's CR 616.1 ordering choice, or `null`. Additive, flagged core (P5.2). Non-null only
+ *   at that choice pause; the card is still in the player's hand.
  */
 data class GameState(
     val players: PersistentMap<PlayerId, PlayerState>,
@@ -60,6 +67,8 @@ data class GameState(
     val definitions: PersistentMap<CardRef, CardDefinition> = persistentMapOf(),
     val pendingCast: PendingCast? = null,
     val pendingTriggers: PersistentList<PendingTrigger> = persistentListOf(),
+    val pendingMadness: PendingMadness? = null,
+    val pendingReplacement: PendingReplacement? = null,
 ) {
     init {
         require(players.isNotEmpty()) { "a game has at least one seated player" }
@@ -80,9 +89,15 @@ data class GameState(
         if (cast != null) {
             val caster = players[cast.caster]
             requireNotNull(caster) { "pending cast names unseated caster ${cast.caster}" }
-            require(caster.hand.any { it.id == cast.cardObjectId }) {
-                "CR 601.2: a pending cast's card must still be in the caster's hand until the " +
-                    "pipeline executes; ${cast.cardObjectId} is not in ${cast.caster}'s hand"
+            val sourceZone =
+                when (cast.source) {
+                    CastSource.HAND -> caster.hand
+                    CastSource.GRAVEYARD -> caster.graveyard
+                    CastSource.EXILE -> sharedZones.exile.filter { it.owner == cast.caster }
+                }
+            require(sourceZone.any { it.id == cast.cardObjectId }) {
+                "CR 601.2: a pending cast's card must still be in its source zone ${cast.source} until the " +
+                    "pipeline executes; ${cast.cardObjectId} is not there for ${cast.caster}"
             }
         }
     }

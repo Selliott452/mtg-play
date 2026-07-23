@@ -142,4 +142,5 @@ private fun triggerDescription(trigger: PendingTrigger): String =
         TriggerCondition.PutIntoGraveyardFromBattlefieldSelf -> "leaves-the-battlefield"
         TriggerCondition.EnchantedCreatureDealsDamage -> "enchanted-creature-deals-damage"
         TriggerCondition.SpellCast -> "spell-cast"
+        TriggerCondition.MadnessCast -> "madness-may-cast"
     }

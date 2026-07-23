@@ -40,12 +40,19 @@ object Responders {
                 // order them in enumeration order, the deterministic identity permutation.
                 is DecisionRequest.OrderTriggers ->
                     Decision.MultiSelect(request.id, request.options.indices.toList())
+                // CR 702.35b: a passive game may discard a madness card at cleanup; decline the reflexive cast.
+                is DecisionRequest.ChooseYesNo ->
+                    Decision.SingleSelect(request.id, DecisionRequest.ChooseYesNo.DECLINE)
                 is DecisionRequest.ChooseTargets ->
                     error("the pass-everything responder never casts, but a targets request surfaced: $request")
                 is DecisionRequest.ChoosePaymentPlan ->
                     error("the pass-everything responder never casts, but a payment request surfaced: $request")
                 is DecisionRequest.OrderBlockers ->
                     error("the pass-everything responder never blocks, but a blocker-order request surfaced: $request")
+                is DecisionRequest.ChooseCardsToExile ->
+                    error("the pass-everything responder never casts, but an exile-cost request surfaced: $request")
+                is DecisionRequest.ChooseReplacement ->
+                    error("the pass-everything responder never orders replacements: $request")
             }
         }
 }

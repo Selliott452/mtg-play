@@ -1,5 +1,7 @@
 package dev.mtgplay.rules.decision
 
+import dev.mtgplay.core.definition.CastSource
+import dev.mtgplay.core.definition.CastingPermission
 import dev.mtgplay.core.identity.CardRef
 import dev.mtgplay.core.identity.ObjectId
 
@@ -21,18 +23,29 @@ sealed interface PriorityOption {
     data object Pass : PriorityOption
 
     /**
-     * Begin casting the hand card [objectId] (CR 601.2). Enumerated only when the cast is
-     * fully legal from this window (ADR-005): the timing class permits it (CR 117.1a), at
-     * least one payment plan exists for its cost, and every required target has at least one
-     * legal choice — so choosing this option never dead-ends.
+     * Begin casting the card [objectId] from [source] (CR 601.2). Enumerated only when the cast is
+     * fully legal from this window (ADR-005): the timing class permits it (CR 117.1a), at least one
+     * payment plan exists for its cost, any additional cost is satisfiable, and every required target
+     * has at least one legal choice — so choosing this option never dead-ends.
      *
-     * @property objectId the castable object in the deciding player's hand.
-     * @property card the printed identity, for display; the object is reborn on the stack with
-     *   a fresh id when the cast's pipeline runs (CR 400.7).
+     * A normal cast has [source] `HAND` and a `null` [permission] (the printed cost applies). A
+     * cast-from-elsewhere (flashback, escape; docs/decklists.md) names the [permission] it uses and its
+     * source zone; the same card castable both from hand and from the graveyard is two distinct options,
+     * which is what keeps enumeration complete in both directions (ADR-005). Madness is not enumerated
+     * here — it is offered only as its reflexive trigger resolves (CR 702.35b).
+     *
+     * @property objectId the castable object in [source].
+     * @property card the printed identity, for display; the object is reborn on the stack with a fresh
+     *   id when the cast's pipeline runs (CR 400.7).
+     * @property source the zone the cast draws the card from (CR 601.2a).
+     * @property permission the alternative permission this cast uses, or `null` for a normal cast at the
+     *   printed cost from the hand.
      */
     data class CastSpell(
         val objectId: ObjectId,
         val card: CardRef,
+        val source: CastSource = CastSource.HAND,
+        val permission: CastingPermission? = null,
     ) : PriorityOption
 
     /**

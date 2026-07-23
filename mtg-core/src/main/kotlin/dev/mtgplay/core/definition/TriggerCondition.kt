@@ -52,4 +52,17 @@ sealed interface TriggerCondition {
      * sealed extension point (P6); this bare form fires on every cast.
      */
     data object SpellCast : TriggerCondition
+
+    /**
+     * Madness's reflexive "when this card is discarded this way, its owner may cast it" ability
+     * (CR 702.35b) — the condition of the ability the madness replacement synthesizes on a card it
+     * exiles instead of discarding (CR 702.35a). Added in P5.2. Unlike the four battlefield conditions
+     * this is never *detected* against a game event: the madness replacement creates the fired trigger
+     * directly (functioning from [TriggerZoneScope.Exile]), so the trigger detector never produces it.
+     * On resolution the reflexive-cast path offers the owner a yes/no cast for the card's madness cost
+     * and, if declined or impossible, puts the card into its owner's graveyard (`mtg-rules`); the
+     * ability's [TriggeredAbility.effect] is unused because the may-cast is the engine's, not a
+     * [ResolutionEffect].
+     */
+    data object MadnessCast : TriggerCondition
 }

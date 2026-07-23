@@ -4,6 +4,7 @@ import dev.mtgplay.core.state.GameState
 import dev.mtgplay.rules.GameEngine
 import dev.mtgplay.rules.decision.Decision
 import dev.mtgplay.rules.decision.DecisionRequest
+import dev.mtgplay.rules.decision.DecisionRequestId
 
 /**
  * The enumeration-completeness probe (deliverable 2 of P3.3): turns ADR-005's "no phantom options"
@@ -99,16 +100,10 @@ object EnumerationProbe {
                     ProbeCandidate("target[$index]=$target", Decision.SingleSelect(request.id, index))
                 }
             is DecisionRequest.ChoosePaymentPlan ->
-                request.options.indices.map { index ->
-                    ProbeCandidate("payment[$index]", Decision.SingleSelect(request.id, index))
-                }
+                singleSelectPerOption(request.id, request.options.size, "payment")
+            // A correctly-sized (CR 514.1) discard that includes each card in turn.
             is DecisionRequest.ChooseDiscards ->
-                request.options.indices.map { index ->
-                    // A correctly-sized (CR 514.1) discard that includes card `index`: the card
-                    // itself, then the lowest-indexed others until exactly `count` are chosen.
-                    val selection = (listOf(index) + request.options.indices.filter { it != index }).take(request.count)
-                    ProbeCandidate("discard-including[$index]", Decision.MultiSelect(request.id, selection))
-                }
+                sizedSelectionIncludingEach(request.id, request.options.size, request.count, "discard-including")
             is DecisionRequest.DeclareAttackers ->
                 // Declaring nothing is always legal (CR 508.8); each eligible attacker is legal as a
                 // singleton (any subset is a legal declaration, CR 508.1a).
@@ -142,5 +137,49 @@ object EnumerationProbe {
                         Decision.MultiSelect(request.id, request.options.indices.toList()),
                     ),
                 )
+            is DecisionRequest.ChooseYesNo ->
+                // Both the decline (0) and the accept (1) of a "you may" are legal (CR 702.35b): the
+                // request is surfaced only when accepting is playable, so both are probed.
+                listOf(
+                    ProbeCandidate(
+                        "yesno-decline",
+                        Decision.SingleSelect(request.id, DecisionRequest.ChooseYesNo.DECLINE),
+                    ),
+                    ProbeCandidate(
+                        "yesno-accept",
+                        Decision.SingleSelect(request.id, DecisionRequest.ChooseYesNo.ACCEPT),
+                    ),
+                )
+            // Each card that may be exiled (CR 601.2b) probed inside a correctly-sized selection.
+            is DecisionRequest.ChooseCardsToExile ->
+                sizedSelectionIncludingEach(request.id, request.options.size, request.count, "exile-including")
+            // Each applicable replacement (CR 616.1) is a legal choice to apply first.
+            is DecisionRequest.ChooseReplacement ->
+                singleSelectPerOption(request.id, request.options.size, "replacement")
+        }
+
+    /** One single-select probe per option index, labelled `[prefix][i]`. */
+    private fun singleSelectPerOption(
+        id: DecisionRequestId,
+        optionCount: Int,
+        prefix: String,
+    ): List<ProbeCandidate> =
+        (0 until optionCount).map { index ->
+            ProbeCandidate("$prefix[$index]", Decision.SingleSelect(id, index))
+        }
+
+    /**
+     * One multi-select probe per option index, each a correctly-sized selection that includes that
+     * index (the index itself, then the lowest-indexed others until exactly [count] are chosen).
+     */
+    private fun sizedSelectionIncludingEach(
+        id: DecisionRequestId,
+        optionCount: Int,
+        count: Int,
+        prefix: String,
+    ): List<ProbeCandidate> =
+        (0 until optionCount).map { index ->
+            val selection = (listOf(index) + (0 until optionCount).filter { it != index }).take(count)
+            ProbeCandidate("$prefix[$index]", Decision.MultiSelect(id, selection))
         }
 }

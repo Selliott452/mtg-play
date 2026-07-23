@@ -35,6 +35,10 @@ internal fun GameState.updateBattlefield(
     transform: (PersistentList<GameObject>) -> PersistentList<GameObject>,
 ): GameState = copy(sharedZones = sharedZones.copy(battlefield = transform(sharedZones.battlefield)))
 
+/** Replaces the exile zone via [transform] (CR 406); insertion order is kept for determinism. */
+internal fun GameState.updateExile(transform: (PersistentList<GameObject>) -> PersistentList<GameObject>): GameState =
+    copy(sharedZones = sharedZones.copy(exile = transform(sharedZones.exile)))
+
 /** This seat's state; fails loudly if [id] is not seated — the engine never guesses. */
 internal fun GameState.player(id: PlayerId): PlayerState = players[id] ?: error("player $id is not seated in this game")
 

@@ -51,11 +51,11 @@ private fun resolveSpell(
     val fizzles = spec != TargetSpec.None && entry.targets.none { isTargetLegal(state, spec, it, entry.controller) }
     if (fizzles) {
         // CR 608.2b: a spell that does not resolve is put into its owner's graveyard and never
-        // enters the battlefield, whatever its card type would have become.
-        val (finished, graveyardId) = putResolvedSpellIntoGraveyard(state, entry)
-        return grantPriorityRound(
-            finished.emit(GameEvent.SpellFizzled(entry.controller, entry.obj.id, entry.obj.card, graveyardId)),
-        )
+        // enters the battlefield, whatever its card type would have become — unless a flashback
+        // leave-stack replacement exiles it instead (CR 702.34e).
+        val (finished, finalId, exiled) = putResolvedSpellOffStack(state, entry)
+        val fizzled = finished.emit(GameEvent.SpellFizzled(entry.controller, entry.obj.id, entry.obj.card, finalId))
+        return grantPriorityRound(narrateLeaveStackExile(fizzled, entry, finalId, exiled))
     }
     return if (isPermanentSpell(entry)) {
         val (entered, battlefieldId) = putResolvedSpellOntoBattlefield(state, entry)
@@ -78,12 +78,26 @@ private fun resolveSpell(
         require(resolved.sharedZones.stack == state.sharedZones.stack) {
             "CR 608.2m: a resolution effect must not move the resolving spell — that is the engine's move"
         }
-        val (finished, graveyardId) = putResolvedSpellIntoGraveyard(resolved, entry)
-        grantPriorityRound(
-            finished.emit(GameEvent.SpellResolved(entry.controller, entry.obj.id, entry.obj.card, graveyardId)),
-        )
+        val (finished, finalId, exiled) = putResolvedSpellOffStack(resolved, entry)
+        val narrated = finished.emit(GameEvent.SpellResolved(entry.controller, entry.obj.id, entry.obj.card, finalId))
+        grantPriorityRound(narrateLeaveStackExile(narrated, entry, finalId, exiled))
     }
 }
+
+/** Emits the flashback exile-instead event (CR 702.34e) when the resolved spell left the stack to exile. */
+private fun narrateLeaveStackExile(
+    state: GameState,
+    entry: StackEntry.Spell,
+    finalObjectId: ObjectId,
+    exiled: Boolean,
+): GameState =
+    if (exiled) {
+        state.emit(
+            GameEvent.SpellExiledInsteadOfGraveyard(entry.controller, entry.obj.id, entry.obj.card, finalObjectId),
+        )
+    } else {
+        state
+    }
 
 /**
  * Whether [entry] is a permanent spell (CR 608.3): every card type in the MVP pool is either an
@@ -136,20 +150,27 @@ private fun auraAttachmentTargetOf(entry: StackEntry.Spell): ObjectId? =
     }
 
 /**
- * The CR 608.2m move for an instant or sorcery: the resolved (or fizzled) spell's card leaves
- * the stack and is put on top of its owner's graveyard as a new object (CR 400.7).
+ * The CR 608.2m move for an instant or sorcery leaving the stack (on resolution or a fizzle): the
+ * spell's card leaves the stack and is put on top of its owner's graveyard as a new object (CR 400.7)
+ * — **unless** it was cast via a permission that exiles it instead as it leaves the stack (flashback,
+ * CR 702.34e), in which case it goes to exile. Returns the new object's id and whether it was exiled;
+ * the caller narrates the exile.
  */
-private fun putResolvedSpellIntoGraveyard(
+private fun putResolvedSpellOffStack(
     state: GameState,
     entry: StackEntry.Spell,
-): Pair<GameState, ObjectId> {
+): Triple<GameState, ObjectId, Boolean> {
     val stack = state.sharedZones.stack
     check(stack.lastOrNull() == entry) { "CR 608.1: only the topmost stack object may resolve" }
+    val exilesInstead = entry.castVia?.exilesOnLeaveStack == true
     val (id, allocated) = state.allocateObjectId()
     val reborn = entry.obj.copy(id = id)
+    val destacked = allocated.updateStack { it.removingAt(it.lastIndex) }
     val moved =
-        allocated
-            .updateStack { it.removingAt(it.lastIndex) }
-            .updatePlayer(entry.obj.owner) { it.copy(graveyard = it.graveyard.adding(reborn)) }
-    return moved to id
+        if (exilesInstead) {
+            destacked.updateExile { it.adding(reborn) }
+        } else {
+            destacked.updatePlayer(entry.obj.owner) { it.copy(graveyard = it.graveyard.adding(reborn)) }
+        }
+    return Triple(moved, id, exilesInstead)
 }

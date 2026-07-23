@@ -155,4 +155,17 @@ enum class Invariant {
      * most such pauses this guards the queue's sanity.
      */
     PENDING_TRIGGER_SANITY,
+
+    /**
+     * The madness marker ([dev.mtgplay.core.state.GameObject.awaitingMadness]) is well-formed at every
+     * observed state (CR 702.35a–b). Added in P5.2. Three properties, which together are the exile-zone
+     * integrity the marker guards: the marker is an **exile-only** status (a marked object off exile is
+     * a leaked marker, CR 400.7, like tapped off the battlefield); a marked exile object always has its
+     * matching reflexive machinery — a pending or on-stack madness trigger whose subject is the object,
+     * or the pending-madness yes/no about it — because the marker and that machinery are created and
+     * destroyed together (a marked object with neither is an orphaned marker); and, conversely, a
+     * pending-madness record always names a marked exile object. Unmarked exile objects (flashback- and
+     * escape-exiled cards) are unconstrained — exile legitimately holds inert cards.
+     */
+    MADNESS_MARKER_SANITY,
 }

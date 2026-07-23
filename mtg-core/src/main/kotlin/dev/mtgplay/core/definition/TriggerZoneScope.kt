@@ -19,4 +19,15 @@ sealed interface TriggerZoneScope {
      * the battlefield and evaluated against the pre-departure state (CR 603.10).
      */
     data object Battlefield : TriggerZoneScope
+
+    /**
+     * The ability functions from exile (CR 113.6, CR 406) — the P5.2 extension point the packet's
+     * spec names. Madness's reflexive "you may cast this card" ability (CR 702.35b) functions from
+     * exile: the card was exiled by the discard replacement (CR 702.35a) and its owner may cast it as
+     * the reflexive trigger resolves. This is a *synthesized* ability the madness replacement creates
+     * on the exiled card, not a printed one, so the battlefield trigger detector never matches it; it
+     * is placed on the stack and resolved by the reflexive-cast path (`mtg-rules`). Sneaky Snacker's
+     * graveyard trigger and landcycling from hand (P6) add the graveyard and hand scopes here next.
+     */
+    data object Exile : TriggerZoneScope
 }

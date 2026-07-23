@@ -2,6 +2,7 @@ package dev.mtgplay.rules.engine
 
 import dev.mtgplay.core.card.CardType
 import dev.mtgplay.core.definition.CardDefinition
+import dev.mtgplay.core.definition.CastSource
 import dev.mtgplay.core.definition.SpellDefinition
 import dev.mtgplay.core.definition.TargetSpec
 import dev.mtgplay.core.definition.TimingClass
@@ -32,24 +33,56 @@ internal const val LAND_PLAYS_PER_TURN: Int = 1
  * when the CR 116.2a special action is legal ([playLandIsLegal]). Land-ness is read from the
  * card's definition, so an undefined land stays inert like any other undefined card.
  *
- * Hand order fixes the option order, so indices are deterministic (ADR-006). Activating
- * abilities (CR 117.1c) joins in Phase 5.
+ * A **cast-from-elsewhere** option (docs/decklists.md) is enumerated for each castable permission that
+ * is legal right now (ADR-005 both directions): a flashback or escape spell in the graveyard whose
+ * cost, additional cost, timing, and targets all check out appears; the same card in hand casts
+ * normally, a distinct option. Madness is *not* here — it is offered only as its reflexive trigger
+ * resolves (CR 702.35b). Plot's cast-from-exile (CR 702.140) slots into the exile scan when P6 adds
+ * the permission; no MVP mainboard card plots, so the exile scan currently yields nothing.
+ *
+ * Hand order fixes the option order, then graveyard then exile permission casts, so indices are
+ * deterministic (ADR-006). Activating abilities (CR 117.1c) joins in a later phase.
  */
 internal fun legalPriorityOptions(
     state: GameState,
     seat: PlayerId,
 ): List<PriorityOption> =
-    listOf<PriorityOption>(PriorityOption.Pass) +
-        state.player(seat).hand.mapNotNull { obj ->
+    buildList {
+        add(PriorityOption.Pass)
+        state.player(seat).hand.forEach { obj ->
             val definition = state.definitions[obj.card]
             when {
                 definition is SpellDefinition && castIsLegal(state, seat, definition) ->
-                    PriorityOption.CastSpell(obj.id, obj.card)
+                    add(PriorityOption.CastSpell(obj.id, obj.card))
                 definition.isLand() && playLandIsLegal(state, seat) ->
-                    PriorityOption.PlayLand(obj.id, obj.card)
-                else -> null
+                    add(PriorityOption.PlayLand(obj.id, obj.card))
+                else -> Unit
             }
         }
+        addAll(permissionCastOptions(state, seat, CastSource.GRAVEYARD))
+        addAll(permissionCastOptions(state, seat, CastSource.EXILE))
+    }
+
+/**
+ * The priority-window cast options for [seat]'s permissions whose source is [source] (CR 601.2): one
+ * [PriorityOption.CastSpell] per card-permission pair that is legal to cast right now (ADR-005). Reads
+ * only permissions [dev.mtgplay.core.definition.CastingPermission.offeredAtPriority] — so a madness
+ * card waiting in exile is never offered here (it casts via its reflexive trigger).
+ */
+private fun permissionCastOptions(
+    state: GameState,
+    seat: PlayerId,
+    source: CastSource,
+): List<PriorityOption.CastSpell> =
+    objectsInZone(state, seat, source).flatMap { obj ->
+        val definition = state.definitions[obj.card] as? SpellDefinition ?: return@flatMap emptyList()
+        definition.castingPermissions
+            .filter { permission ->
+                permission.source == source &&
+                    permission.offeredAtPriority &&
+                    permissionCastIsLegal(state, seat, definition, permission, obj)
+            }.map { PriorityOption.CastSpell(obj.id, obj.card, source, it) }
+    }
 
 /** Whether this definition describes a land card (CR 305.1); `false` for an undefined card. */
 internal fun CardDefinition?.isLand(): Boolean = this != null && CardType.LAND in characteristics.cardTypes

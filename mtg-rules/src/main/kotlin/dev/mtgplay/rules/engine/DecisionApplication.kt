@@ -1,5 +1,7 @@
 package dev.mtgplay.rules.engine
 
+import dev.mtgplay.core.identity.ObjectId
+import dev.mtgplay.core.identity.PlayerId
 import dev.mtgplay.core.state.GameState
 import dev.mtgplay.rules.AdvanceResult
 import dev.mtgplay.rules.decision.Decision
@@ -30,7 +32,34 @@ internal fun applyDecision(
         is DecisionRequest.DeclareBlockers -> applyDeclareBlockers(answered, request, decision)
         is DecisionRequest.OrderBlockers -> applyOrderBlockers(answered, request, decision)
         is DecisionRequest.OrderTriggers -> applyChosenTriggerOrder(answered, request, decision)
+        is DecisionRequest.ChooseYesNo -> applyChosenYesNo(answered, request, decision)
+        is DecisionRequest.ChooseCardsToExile -> applyChosenCardsToExile(answered, request, decision)
+        is DecisionRequest.ChooseReplacement -> {
+            check(decision is Decision.SingleSelect) { "unreachable: decision shape was validated against the request" }
+            applyChosenReplacement(answered)
+        }
     }
+}
+
+private fun applyChosenYesNo(
+    state: GameState,
+    request: DecisionRequest.ChooseYesNo,
+    decision: Decision,
+): AdvanceResult {
+    check(decision is Decision.SingleSelect) { "unreachable: decision shape was validated against the request" }
+    // The only yes/no in the pool is madness's reflexive cast (CR 702.35b); the pending madness record
+    // carries who and what. A yes/no with no pending madness is an engine defect.
+    check(state.pendingMadness != null) { "a yes/no was answered with no pending madness cast (${request.card.name})" }
+    return applyMadnessCastChoice(state, accept = decision.index == DecisionRequest.ChooseYesNo.ACCEPT)
+}
+
+private fun applyChosenCardsToExile(
+    state: GameState,
+    request: DecisionRequest.ChooseCardsToExile,
+    decision: Decision,
+): AdvanceResult {
+    check(decision is Decision.MultiSelect) { "unreachable: decision shape was validated against the request" }
+    return applyChosenExileCost(state, decision.indices.map { request.options[it].objectId })
 }
 
 private fun applyChosenTriggerOrder(
@@ -50,7 +79,8 @@ private fun applyChosenAction(
     check(decision is Decision.SingleSelect) { "unreachable: decision shape was validated against the request" }
     return when (val option = request.options[decision.index]) {
         PriorityOption.Pass -> applyPassPriority(state, request.seat)
-        is PriorityOption.CastSpell -> beginCastGathering(state, request.seat, option.objectId)
+        is PriorityOption.CastSpell ->
+            beginCastGathering(state, request.seat, option.objectId, option.source, option.permission)
         is PriorityOption.PlayLand -> executePlayLand(state, request.seat, option.objectId)
     }
 }
@@ -61,12 +91,33 @@ private fun applyChosenDiscards(
     decision: Decision,
 ): AdvanceResult {
     check(decision is Decision.MultiSelect) { "unreachable: decision shape was validated against the request" }
-    val afterDiscards =
-        decision.indices.fold(state) { current, index ->
-            discardCard(current, request.seat, request.options[index].objectId)
+    val objectIds = decision.indices.map { request.options[it].objectId }
+    return discardSelectedCards(state, request.seat, objectIds)
+}
+
+/**
+ * Discards [objectIds] one at a time through the replacement framework (CR 614/616), then continues the
+ * cleanup step (CR 514.1 -> 514.2 -> 514.3). A discard whose replacements need a CR 616.1 ordering
+ * choice suspends here; that only happens for a fixture card with two or more discard replacements, so a
+ * later card still to discard after such a suspension is an unsupported corner and fails loudly (no real
+ * MVP card produces it).
+ */
+private fun discardSelectedCards(
+    state: GameState,
+    seat: PlayerId,
+    objectIds: List<ObjectId>,
+): AdvanceResult {
+    if (objectIds.isEmpty()) return cleanupStep(state)
+    return when (val outcome = beginDiscard(state, seat, objectIds.first())) {
+        is DiscardOutcome.Completed -> discardSelectedCards(outcome.state, seat, objectIds.drop(1))
+        is DiscardOutcome.NeedsReplacementChoice -> {
+            require(objectIds.size == 1) {
+                "CR 616.1: a discard needing a replacement choice must be the last of the batch; no MVP card " +
+                    "produces two or more discard replacements, so a mid-batch choice is unsupported"
+            }
+            AdvanceResult.NeedsDecision(outcome.state, pendingReplacementRequest(outcome.state))
         }
-    // Continue the cleanup step the discard belongs to (CR 514.1 -> 514.2 -> 514.3).
-    return cleanupStep(afterDiscards)
+    }
 }
 
 private fun applyChosenTargets(

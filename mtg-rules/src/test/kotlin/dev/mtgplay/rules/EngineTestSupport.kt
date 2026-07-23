@@ -69,6 +69,12 @@ internal fun respondTo(request: DecisionRequest): Decision =
             error("the pass-everything responder never blocks, but a blocker-order request surfaced: $request")
         // CR 603.3b: order any simultaneous triggers in the deterministic identity permutation.
         is DecisionRequest.OrderTriggers -> Decision.MultiSelect(request.id, request.options.indices.toList())
+        // CR 702.35b: a passive game may still discard a madness card at cleanup; decline the reflexive cast.
+        is DecisionRequest.ChooseYesNo -> Decision.SingleSelect(request.id, DecisionRequest.ChooseYesNo.DECLINE)
+        is DecisionRequest.ChooseCardsToExile ->
+            error("the pass-everything responder never casts, but an exile-cost request surfaced: $request")
+        is DecisionRequest.ChooseReplacement ->
+            error("the pass-everything responder never discards two-replacement cards, but one surfaced: $request")
     }
 
 /** One engine suspension observed while driving a game: the paused state and its request. */

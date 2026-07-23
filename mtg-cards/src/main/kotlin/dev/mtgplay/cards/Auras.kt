@@ -5,6 +5,7 @@ import dev.mtgplay.core.card.Keyword
 import dev.mtgplay.core.card.PrintedCharacteristics
 import dev.mtgplay.core.card.PrintedPowerToughness
 import dev.mtgplay.core.card.Subtype
+import dev.mtgplay.core.definition.CastingPermission
 import dev.mtgplay.core.definition.EnchantRestriction
 import dev.mtgplay.core.definition.Magnitude
 import dev.mtgplay.core.definition.ManaAbility
@@ -253,25 +254,36 @@ val cartoucheOfSolidarity: SpellDefinition =
 
 /**
  * Sentinel's Eyes — `{W}` Enchantment — Aura. "Enchant creature. Enchanted creature gets +1/+1 and
- * has vigilance." Encoded here is only the static half: the layer-7c +1/+1 and the layer-6 vigilance
- * grant (CR 613.3; CR 702.21).
+ * has vigilance." The static half is the layer-7c +1/+1 and the layer-6 vigilance grant (CR 613.3;
+ * CR 702.21).
  *
- * **P5 (deferred):** Sentinel's Eyes' Escape ability — "Escape—{W}, Exile four other cards from your
- * graveyard" (CR 702.139) — is omitted; casting from the graveyard for an alternative cost arrives
- * with the alternative-cost framework in Phase 5.
+ * **Escape (P5.2, implemented):** "Escape—`{W}`, Exile two other cards from your graveyard" (CR 702.139)
+ * — a [CastingPermission.Escape] casting it from the graveyard for `{W}` plus the additional cost of
+ * exiling two other graveyard cards (architect-verified: two, not four). Cast as a normal Aura (it
+ * targets the creature it will enchant, CR 601.2c) and, escaped, it resolves onto the battlefield
+ * attached and behaves as an ordinary Aura thereafter. The engine enumerates the escape cast only when
+ * the graveyard holds two other cards and `{W}` is affordable (ADR-005).
  */
 val sentinelsEyes: SpellDefinition =
-    aura(
-        name = "Sentinel's Eyes",
-        manaCost = "{W}",
-        restriction = EnchantRestriction.CREATURE,
-        effect =
-            StaticContinuousEffect(
-                grantedKeywords = persistentSetOf(Keyword.VIGILANCE),
-                powerMod = Magnitude.Fixed(1),
-                toughnessMod = Magnitude.Fixed(1),
-            ),
-    )
+    object :
+        SpellDefinition by aura(
+            name = "Sentinel's Eyes",
+            manaCost = "{W}",
+            restriction = EnchantRestriction.CREATURE,
+            effect =
+                StaticContinuousEffect(
+                    grantedKeywords = persistentSetOf(Keyword.VIGILANCE),
+                    powerMod = Magnitude.Fixed(1),
+                    toughnessMod = Magnitude.Fixed(1),
+                ),
+        ) {
+        // Escape (CR 702.139) rides on top of the base Aura definition — its only non-static half.
+        override val castingPermissions =
+            listOf(CastingPermission.Escape(cost = ManaCost.parse("{W}"), exileOthers = SENTINELS_EYES_ESCAPE_EXILE))
+    }
+
+/** Sentinel's Eyes' escape additional cost: exile this many *other* cards from the graveyard (CR 702.139a). */
+private const val SENTINELS_EYES_ESCAPE_EXILE: Int = 2
 
 /**
  * Ethereal Armor — `{W}` Enchantment — Aura. "Enchant creature. Enchanted creature gets +1/+1 for

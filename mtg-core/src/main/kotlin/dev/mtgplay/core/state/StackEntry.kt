@@ -1,5 +1,6 @@
 package dev.mtgplay.core.state
 
+import dev.mtgplay.core.definition.CastingPermission
 import dev.mtgplay.core.definition.SpellDefinition
 import dev.mtgplay.core.identity.PlayerId
 import kotlinx.collections.immutable.PersistentList
@@ -35,12 +36,17 @@ sealed interface StackEntry {
      * @property targets the chosen targets in the order chosen (CR 601.2c); empty for an
      *   untargeted spell.
      * @property definition the [SpellDefinition] the spell was cast from.
+     * @property castVia the alternative permission the spell was cast with (CR 601.2f), or `null` for a
+     *   normal cast. Part of the cast record (P5.2) because it governs how the spell leaves the stack:
+     *   a spell cast via a permission with [CastingPermission.exilesOnLeaveStack] (flashback) is exiled
+     *   instead of going to a graveyard (CR 702.34e), covering resolution, countering, and fizzling.
      */
     data class Spell(
         val obj: GameObject,
         val controller: PlayerId,
         val targets: PersistentList<Target>,
         val definition: SpellDefinition,
+        val castVia: CastingPermission? = null,
     ) : StackEntry
 
     /**

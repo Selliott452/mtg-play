@@ -44,30 +44,51 @@ internal fun pendingCastRequest(
     cast: PendingCast,
 ): DecisionRequest {
     val card =
-        state.player(cast.caster).hand.firstOrNull { it.id == cast.cardObjectId }
-            ?: error("CR 601.2: the pending cast's card ${cast.cardObjectId} is not in ${cast.caster}'s hand")
+        objectInZone(state, cast.caster, cast.source, cast.cardObjectId)
+            ?: error("CR 601.2: pending cast's card ${cast.cardObjectId} is not in ${cast.caster}'s ${cast.source}")
     val definition = spellDefinitionOf(state, card.card)
     val id = DecisionRequestId(cast.caster, state.player(cast.caster).decisionsAnswered)
-    return if (cast.chosenTargets == null) {
-        DecisionRequest.ChooseTargets(
+
+    // CR 601.2b/702.139a: every card in the source zone other than the one being cast is exilable.
+    fun chooseCardsToExileRequest(): DecisionRequest.ChooseCardsToExile {
+        val permission =
+            cast.castingPermission ?: error("CR 601.2b: an additional exile cost requires a casting permission")
+        return DecisionRequest.ChooseCardsToExile(
             id = id,
             cardObjectId = cast.cardObjectId,
             card = card.card,
-            options = legalTargets(state, definition.targetSpec, cast.caster),
+            options =
+                objectsInZone(state, cast.caster, cast.source)
+                    .filter { it.id != cast.cardObjectId }
+                    .map { DecisionRequest.ChooseCardsToExile.Option(it.id, it.card) },
+            count = permission.additionalExileCount,
         )
-    } else {
-        val cost =
-            definition.manaCost
-                ?: error(
-                    "CR 601.2f: castable definition ${card.card.name} has no mana cost; alternative costs " +
-                        "arrive in Phase 5 (docs/decklists.md)",
-                )
-        DecisionRequest.ChoosePaymentPlan(
-            id = id,
-            cardObjectId = cast.cardObjectId,
-            card = card.card,
-            options = enumeratePaymentPlans(state, cast.caster, cost),
-        )
+    }
+
+    return when {
+        // CR 601.2c: targets first.
+        cast.chosenTargets == null ->
+            DecisionRequest.ChooseTargets(
+                id = id,
+                cardObjectId = cast.cardObjectId,
+                card = card.card,
+                options = legalTargets(state, definition.targetSpec, cast.caster),
+            )
+        // CR 601.2b: then any additional "exile N other cards" cost selection (escape).
+        cast.additionalExileCost == null -> chooseCardsToExileRequest()
+        // CR 601.2g: finally the payment plan for the (possibly alternative) mana cost.
+        else -> {
+            val cost =
+                cast.castingPermission?.cost
+                    ?: definition.manaCost
+                    ?: error("CR 601.2f: ${card.card.name} has no mana cost and no alternative cost")
+            DecisionRequest.ChoosePaymentPlan(
+                id = id,
+                cardObjectId = cast.cardObjectId,
+                card = card.card,
+                options = enumeratePaymentPlans(state, cast.caster, cost),
+            )
+        }
     }
 }
 
@@ -104,6 +125,11 @@ internal fun pendingDecisionRequest(state: GameState): DecisionRequest? {
             }
             pendingCastRequest(state, cast)
         }
+        // CR 616.1: a discard with two or more replacements waits on the affected player's ordering,
+        // mid-transition with no priority round open.
+        state.pendingReplacement != null -> pendingReplacementRequest(state)
+        // CR 702.35b: a resolved madness trigger waits on its owner's yes/no cast, also mid-transition.
+        state.pendingMadness != null -> pendingMadnessRequest(state)
         // CR 603.3b: pending triggers are ordered and placed before any priority window opens.
         state.pendingTriggers.isNotEmpty() -> pendingOrderTriggersRequest(state)
         holder != null -> chooseActionRequest(state, holder)
@@ -134,18 +160,9 @@ internal fun validateDecision(
         is DecisionRequest.ChooseTargets -> validateSingleSelect(request, decision, request.options.size)
         is DecisionRequest.ChoosePaymentPlan -> validateSingleSelect(request, decision, request.options.size)
         is DecisionRequest.ChooseDiscards -> {
-            require(decision is Decision.MultiSelect) {
-                "a ChooseDiscards request requires a MultiSelect decision, got ${decision::class.simpleName}"
-            }
-            require(decision.indices.size == request.count) {
-                "CR 514.1: exactly ${request.count} discard(s) required, got ${decision.indices.size}"
-            }
-            require(decision.indices.distinct().size == decision.indices.size) {
-                "discard indices must be distinct, got ${decision.indices}"
-            }
-            require(decision.indices.all { it in request.options.indices }) {
-                "discard indices ${decision.indices} out of range for ${request.options.size} hand card(s)"
-            }
+            validateDistinctSubset(request, decision, request.options.size, "discard")
+            val chosen = decision.asMultiSelect(request).indices.size
+            require(chosen == request.count) { "CR 514.1: exactly ${request.count} discard(s) required, got $chosen" }
         }
         is DecisionRequest.DeclareAttackers -> {
             // CR 508.1: any subset of the eligible attackers is a legal declaration (the empty
@@ -179,6 +196,18 @@ internal fun validateDecision(
                 "trigger",
                 "CR 603.3b",
             )
+        // CR 702.35b: a yes/no is a single-select of exactly two options — decline (0) or accept (1).
+        is DecisionRequest.ChooseYesNo ->
+            validateSingleSelect(request, decision, DecisionRequest.ChooseYesNo.OPTION_COUNT)
+        is DecisionRequest.ChooseCardsToExile -> {
+            validateDistinctSubset(request, decision, request.options.size, "exile")
+            val chosen = decision.asMultiSelect(request).indices.size
+            require(chosen == request.count) {
+                "CR 601.2b: exactly ${request.count} card(s) must be exiled, got $chosen"
+            }
+        }
+        // CR 616.1: the affected player picks one applicable replacement to apply first.
+        is DecisionRequest.ChooseReplacement -> validateSingleSelect(request, decision, request.options.size)
     }
 }
 

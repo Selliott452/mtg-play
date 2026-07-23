@@ -108,5 +108,11 @@ private val ALL_OUT_ATTACK: Responder =
                 error("the all-out-attack policy never blocks, but a blocker-order request surfaced: $request")
             is DecisionRequest.OrderTriggers ->
                 error("the all-out-attack policy fires no triggers, but a trigger-order request surfaced: $request")
+            is DecisionRequest.ChooseYesNo ->
+                error("the all-out-attack policy casts no madness cards, but a yes/no request surfaced: $request")
+            is DecisionRequest.ChooseCardsToExile ->
+                error("the all-out-attack policy casts no escape cards, but an exile-cost request surfaced: $request")
+            is DecisionRequest.ChooseReplacement ->
+                error("the all-out-attack policy discards no two-replacement cards, but one surfaced: $request")
         }
     }

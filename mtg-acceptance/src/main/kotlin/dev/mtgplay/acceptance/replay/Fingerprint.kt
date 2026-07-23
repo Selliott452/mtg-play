@@ -80,7 +80,18 @@ internal fun canonicalDescriptor(state: GameState): String =
             append(cast.caster.seat)
             append(':').append(cast.cardObjectId.value)
             append(':').append(cast.chosenTargets?.joinToString(",") { renderTarget(it) } ?: "-")
+            // Cast-from-elsewhere (P5.2): the source zone, the permission (by cause), and the settled
+            // additional-exile selection are all rules-relevant to how the pipeline will execute.
+            append(':').append(cast.source.name)
+            append(':').append(cast.castingPermission?.let { it::class.simpleName } ?: "-")
+            append(':').append(cast.additionalExileCost?.joinToString("+") { it.value.toString() } ?: "-")
         }
+        // The resolved-madness yes/no and the CR 616.1 replacement choice are pause points digested by
+        // cause (which card, whose choice), not by any computed value.
+        append("|pendingMadness=")
+        append(state.pendingMadness?.let { "${it.owner.seat}:${it.exiledObjectId.value}" } ?: "-")
+        append("|pendingReplacement=")
+        append(state.pendingReplacement?.let { "${it.player.seat}:${it.objectId.value}" } ?: "-")
         state.players.entries
             .sortedBy { it.key.seat }
             .forEach { (seat, player) ->
@@ -112,6 +123,8 @@ private fun StringBuilder.appendResidence(residence: ZoneResidence) {
         // where, so they hash apart without re-implementing layer logic (docs/design/layer-system.md §5).
         residence.obj.attachedTo?.let { append(":att=").append(it.value) }
     }
+    // The madness marker (CR 702.35a) is an exile-only status — a card waiting on its reflexive cast.
+    if (residence.zone == ZoneId.Exile && residence.obj.awaitingMadness) append(":madness")
 }
 
 // Digests the stack entries and the fired-but-unplaced triggers (CR 405.2, CR 603.3b): a spell's card
@@ -124,6 +137,9 @@ private fun StringBuilder.appendStackAndTriggers(state: GameState) {
                 append("|spell=").append(entry.obj.id.value)
                 append(":controller=").append(entry.controller.seat)
                 append(":targets=").append(entry.targets.joinToString(",") { renderTarget(it) })
+                // The permission a spell was cast via (P5.2) governs how it leaves the stack (flashback's
+                // exile-instead), so it is part of the cast record the fingerprint covers.
+                append(":via=").append(entry.castVia?.let { it::class.simpleName } ?: "-")
             }
             is StackEntry.Ability -> append("|ability=").append(renderTrigger(entry.trigger))
         }

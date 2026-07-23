@@ -276,4 +276,112 @@ sealed interface DecisionRequest {
             const val MINIMUM_ORDERED_TRIGGERS: Int = 2
         }
     }
+
+    /**
+     * A yes/no choice (CR 601.3b, CR 702.35b): [seat] answers a [Decision.SingleSelect] whose index
+     * is **1 to accept, 0 to decline** — the two options a "you may" offers. Additive, flagged (P5.2).
+     *
+     * The first use is madness's reflexive cast (CR 702.35b): as the reflexive trigger resolves, the
+     * card's owner may cast it for its madness cost. The request is surfaced only when the "yes" is
+     * actually playable (a legal target and an affordable madness cost exist, ADR-005), so both answers
+     * are legal — accepting opens the cast, declining puts the card into the graveyard.
+     *
+     * @property prompt a short human description of the choice, for display (ADR-005).
+     * @property cardObjectId the object the choice concerns (the exiled madness card), for the driver.
+     * @property card its printed identity, for display.
+     */
+    data class ChooseYesNo(
+        override val id: DecisionRequestId,
+        val prompt: String,
+        val cardObjectId: ObjectId,
+        val card: CardRef,
+    ) : DecisionRequest {
+        companion object {
+            /** The [Decision.SingleSelect] index that declines a yes/no (CR 601.3b "may"). */
+            const val DECLINE: Int = 0
+
+            /** The [Decision.SingleSelect] index that accepts a yes/no. */
+            const val ACCEPT: Int = 1
+
+            /** How many options a yes/no offers — decline and accept. */
+            const val OPTION_COUNT: Int = 2
+        }
+    }
+
+    /**
+     * An additional-cost card-exile selection (CR 601.2b, CR 702.139a): [seat] is casting [card] via a
+     * cost that exiles [count] *other* cards from a zone, and picks exactly [count] of [options] by
+     * index (a [Decision.MultiSelect]). Additive, flagged (P5.2). Escape's "exile two other cards from
+     * your graveyard" is the first client.
+     *
+     * Surfaced only when at least [count] cards are available (the cast is otherwise not enumerated,
+     * ADR-005), so a legal selection always exists; every option is independently exilable, so any
+     * distinct subset of size [count] is legal.
+     *
+     * @property cardObjectId the object being cast (still in its source zone — see
+     *   [dev.mtgplay.core.state.PendingCast]).
+     * @property card the printed identity, for display.
+     * @property options the cards that may be exiled to pay the cost, in zone order; indices stable
+     *   within this request (ADR-005).
+     * @property count how many must be exiled.
+     */
+    data class ChooseCardsToExile(
+        override val id: DecisionRequestId,
+        val cardObjectId: ObjectId,
+        val card: CardRef,
+        val options: List<Option>,
+        val count: Int,
+    ) : DecisionRequest {
+        init {
+            require(count in 1..options.size) {
+                "CR 601.2b: exile count must be between 1 and available ${options.size}, was $count"
+            }
+        }
+
+        /**
+         * One card that may be exiled to pay the cost.
+         *
+         * @property objectId the object that would be exiled.
+         * @property card its printed identity, for display.
+         */
+        data class Option(
+            val objectId: ObjectId,
+            val card: CardRef,
+        )
+    }
+
+    /**
+     * The CR 616.1 replacement-ordering choice: two or more replacement effects would each modify one
+     * event, and the affected [seat] chooses which to apply first, answering a [Decision.SingleSelect]
+     * by index. Additive, flagged (P5.2). No real MVP card pair produces this; a fixture with two
+     * discard→exile replacements exercises it. After the chosen one is applied the event is
+     * re-evaluated for any still applicable (CR 614.5 — each applies once per event).
+     *
+     * @property options one entry per applicable replacement, in a deterministic order; indices stable
+     *   within this request (ADR-005). Always two or more.
+     */
+    data class ChooseReplacement(
+        override val id: DecisionRequestId,
+        val options: List<Option>,
+    ) : DecisionRequest {
+        init {
+            require(options.size >= MINIMUM_ORDERED_REPLACEMENTS) {
+                "CR 616.1: a replacement choice is surfaced only for two or more applicable replacements, " +
+                    "got ${options.size}"
+            }
+        }
+
+        /**
+         * One applicable replacement effect the affected player may apply first.
+         *
+         * @property description a short human description of the replacement, for display (ADR-005).
+         */
+        data class Option(
+            val description: String,
+        )
+
+        private companion object {
+            const val MINIMUM_ORDERED_REPLACEMENTS: Int = 2
+        }
+    }
 }

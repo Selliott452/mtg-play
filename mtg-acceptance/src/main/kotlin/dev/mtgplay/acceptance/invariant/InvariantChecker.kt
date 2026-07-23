@@ -4,9 +4,12 @@ import dev.mtgplay.core.card.CardType
 import dev.mtgplay.core.definition.SpellDefinition
 import dev.mtgplay.core.definition.TargetSpec
 import dev.mtgplay.core.definition.TokenDefinition
+import dev.mtgplay.core.definition.TriggerCondition
+import dev.mtgplay.core.identity.ObjectId
 import dev.mtgplay.core.state.GameObject
 import dev.mtgplay.core.state.GameState
 import dev.mtgplay.core.state.PriorityStatus
+import dev.mtgplay.core.state.StackEntry
 import dev.mtgplay.core.zone.ZoneId
 import dev.mtgplay.rules.engine.layeredToughness
 
@@ -68,6 +71,7 @@ object InvariantChecker {
             addAll(checkAttachmentIntegrity(state))
             addAll(checkTokenZoneScope(state))
             addAll(checkPendingTriggerSanity(state))
+            addAll(checkMadnessMarkerSanity(state))
             if (expectedCards != null) addAll(checkCardConservation(state, expectedCards))
         }
     }
@@ -466,3 +470,65 @@ internal fun checkPendingTriggerSanity(state: GameState): List<Violation> =
                 "CR 603.3d: pending trigger from ${it.sourceCard.name} names unseated controller ${it.controller}",
             )
         }
+
+/**
+ * [Invariant.MADNESS_MARKER_SANITY]: the madness marker is exile-only, a marked object always has its
+ * reflexive machinery, and a pending-madness record always names a marked exile object (CR 702.35a–b).
+ * Top-level so the checker object stays small.
+ */
+internal fun checkMadnessMarkerSanity(state: GameState): List<Violation> {
+    val residences = ZoneResidence.of(state)
+    val exileIds =
+        state.sharedZones.exile
+            .map { it.id }
+            .toSet()
+
+    fun hasReflexiveMachinery(exiledId: ObjectId): Boolean {
+        val inQueue =
+            state.pendingTriggers.any { it.subject == exiledId && it.ability.condition == TriggerCondition.MadnessCast }
+        val onStack =
+            state.sharedZones.stack.any { entry ->
+                entry is StackEntry.Ability &&
+                    entry.trigger.subject == exiledId &&
+                    entry.trigger.ability.condition == TriggerCondition.MadnessCast
+            }
+        return inQueue || onStack || state.pendingMadness?.exiledObjectId == exiledId
+    }
+
+    return buildList {
+        // The marker is an exile-only status.
+        residences
+            .filter { it.obj.awaitingMadness && it.zone != ZoneId.Exile }
+            .forEach {
+                add(
+                    Violation(
+                        Invariant.MADNESS_MARKER_SANITY,
+                        "CR 702.35a: object ${it.obj.id.value} is madness-marked in ${it.zone}, but the marker is " +
+                            "an exile-only status",
+                    ),
+                )
+            }
+        // A marked exile object has a matching reflexive trigger (pending or on-stack) or a yes/no.
+        state.sharedZones.exile
+            .filter { it.awaitingMadness && !hasReflexiveMachinery(it.id) }
+            .forEach {
+                add(
+                    Violation(
+                        Invariant.MADNESS_MARKER_SANITY,
+                        "CR 702.35b: madness-marked exile object ${it.id.value} (${it.card.name}) has no pending or " +
+                            "on-stack reflexive trigger and no pending yes/no — an orphaned marker",
+                    ),
+                )
+            }
+        // A pending-madness record names a marked exile object.
+        val pending = state.pendingMadness
+        if (pending != null && pending.exiledObjectId !in exileIds) {
+            add(
+                Violation(
+                    Invariant.MADNESS_MARKER_SANITY,
+                    "CR 702.35b: pending madness cast names ${pending.exiledObjectId.value}, which is not in exile",
+                ),
+            )
+        }
+    }
+}

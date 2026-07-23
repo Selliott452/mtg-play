@@ -1,6 +1,7 @@
 package dev.mtgplay.rules.engine
 
 import dev.mtgplay.core.definition.ResolutionContext
+import dev.mtgplay.core.definition.TriggerCondition
 import dev.mtgplay.core.event.GameEvent
 import dev.mtgplay.core.state.GameState
 import dev.mtgplay.core.state.StackEntry
@@ -24,6 +25,9 @@ internal fun resolveAbility(
     entry: StackEntry.Ability,
 ): AdvanceResult {
     check(state.sharedZones.stack.lastOrNull() == entry) { "CR 608.1: only the topmost stack object may resolve" }
+    // CR 702.35b: madness's reflexive "you may cast it" ability is not a plain effect — it offers the
+    // owner a yes/no cast from exile, handled by the reflexive-cast path.
+    if (entry.trigger.ability.condition == TriggerCondition.MadnessCast) return resolveMadnessTrigger(state, entry)
     val trigger = entry.trigger
     val context =
         ResolutionContext(
