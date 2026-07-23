@@ -5,11 +5,16 @@
 kotlin = "2.4.10"
 kotest = "6.2.2"
 kotlinxCollectionsImmutable = "0.5.1"
+# Runtime-only JSON: mtg-pauper reads the staged Scryfall snapshot through the JsonElement tree
+# API (Json.parseToJsonElement); no @Serializable classes, so the serialization compiler plugin
+# is not applied. Pinned to 1.4.1 — the version resolvable from the local cache offline (P6.1).
+kotlinxSerialization = "1.4.1"
 detekt = "1.23.8"
 ktlint = "14.2.0"
 
 [libraries]
 kotlinx-collections-immutable = { group = "org.jetbrains.kotlinx", name = "kotlinx-collections-immutable", version.ref = "kotlinxCollectionsImmutable" }
+kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "kotlinxSerialization" }
 
 kotest-runner-junit5 = { group = "io.kotest", name = "kotest-runner-junit5", version.ref = "kotest" }
 kotest-assertions-core = { group = "io.kotest", name = "kotest-assertions-core", version.ref = "kotest" }

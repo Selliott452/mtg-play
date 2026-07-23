@@ -168,4 +168,14 @@ enum class Invariant {
      * escape-exiled cards) are unconstrained — exile legitimately holds inert cards.
      */
     MADNESS_MARKER_SANITY,
+
+    /**
+     * The pre-game mulligan phase ([dev.mtgplay.core.state.GameState.pendingMulligan]) is exclusive
+     * and well-formed (CR 103.4/103.5). Added in P6.1. Whenever the phase is running: its decider is a
+     * seated player; no player holds priority and the stack is empty (the phase precedes the game); and
+     * no in-game pending transition — a cast, fired triggers, a madness yes/no, or a replacement choice
+     * — coexists with it. Together these pin the phase as a distinct, priority-free pre-game position, so
+     * the mulligan pause can never be confused with an in-game one.
+     */
+    MULLIGAN_PHASE_SANITY,
 }

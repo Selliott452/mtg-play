@@ -395,6 +395,85 @@ sealed interface DecisionRequest {
     }
 
     /**
+     * The pre-game London-mulligan decisions (CR 103.4/103.5): the keep-or-mulligan choice and the
+     * put-cards-on-the-bottom choice. Grouped under one sealed sub-interface so a driver may handle
+     * "a mulligan decision" as a single branch (they only occur in the pre-game phase, never during
+     * a turn); a `when` over [DecisionRequest] stays exhaustive whether it matches the leaves or the
+     * group. Additive, flagged (P6.1).
+     */
+    sealed interface MulliganRequest : DecisionRequest
+
+    /**
+     * The pre-game keep-or-mulligan choice (CR 103.4): [seat] answers a [Decision.SingleSelect]
+     * whose index is **[KEEP] (0) to keep the drawn hand** or **[MULLIGAN] (1) to mulligan** —
+     * shuffle it into the library and draw a fresh hand. Additive, flagged (P6.1).
+     *
+     * Both answers are always legal: a player may keep any hand, and London mulligans have no
+     * hard limit (a player who has mulliganed to an empty keep still may mulligan). Surfaced once
+     * per pending keep decision; a mulligan re-surfaces it, a keep after N mulligans leads to
+     * [ChooseCardsToBottom] (when N > 0).
+     *
+     * @property mulligansTaken how many mulligans [seat] has already taken (for display); 0 before
+     *   their first decision.
+     */
+    data class ChooseMulligan(
+        override val id: DecisionRequestId,
+        val mulligansTaken: Int,
+    ) : MulliganRequest {
+        init {
+            require(mulligansTaken >= 0) { "mulligans taken must be non-negative, was $mulligansTaken" }
+        }
+
+        companion object {
+            /** The [Decision.SingleSelect] index that keeps the drawn hand (CR 103.4). */
+            const val KEEP: Int = 0
+
+            /** The [Decision.SingleSelect] index that takes a mulligan (CR 103.4). */
+            const val MULLIGAN: Int = 1
+
+            /** How many options a mulligan choice offers — keep and mulligan. */
+            const val OPTION_COUNT: Int = 2
+        }
+    }
+
+    /**
+     * The put-cards-on-the-bottom choice of the London mulligan (CR 103.5): having kept after one
+     * or more mulligans, [seat] selects exactly [count] cards from [options] — their hand, one
+     * entry per card — by index (a [Decision.MultiSelect]). Additive, flagged (P6.1).
+     *
+     * The selection **order is the bottoming order**: the cards are placed on the bottom of the
+     * library in the order selected, so the first selected ends up above the last selected at the
+     * bottom (documented so a driver's order is meaningful and replay-stable, ADR-006).
+     *
+     * @property options one entry per card in [seat]'s hand, in hand order; indices stable within
+     *   this request (ADR-005).
+     * @property count how many cards must be bottomed: the number of mulligans taken, capped at the
+     *   hand size.
+     */
+    data class ChooseCardsToBottom(
+        override val id: DecisionRequestId,
+        val options: List<Option>,
+        val count: Int,
+    ) : MulliganRequest {
+        init {
+            require(count in 1..options.size) {
+                "CR 103.5: bottom count must be between 1 and hand size ${options.size}, was $count"
+            }
+        }
+
+        /**
+         * One card in the deciding player's hand that may be put on the bottom of the library.
+         *
+         * @property objectId the hand object that would be bottomed.
+         * @property card its printed identity, for display.
+         */
+        data class Option(
+            val objectId: ObjectId,
+            val card: CardRef,
+        )
+    }
+
+    /**
      * The CR 616.1 replacement-ordering choice: two or more replacement effects would each modify one
      * event, and the affected [seat] chooses which to apply first, answering a [Decision.SingleSelect]
      * by index. Additive, flagged (P5.2). No real MVP card pair produces this; a fixture with two

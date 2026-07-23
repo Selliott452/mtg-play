@@ -55,6 +55,16 @@ object Responders {
                     error("the pass-everything responder never casts, but an exile-cost request surfaced: $request")
                 is DecisionRequest.ChooseReplacement ->
                     error("the pass-everything responder never orders replacements: $request")
+                // CR 103.4/103.5: the passive policy keeps every hand at seven — so no bottoming ever
+                // follows — but bottoms the lowest indices if a mulligan game is ever driven this way.
+                is DecisionRequest.MulliganRequest -> keepAtSeven(request)
             }
+        }
+
+    // CR 103.4: keep the drawn hand; if somehow prompted to bottom, choose the lowest indices.
+    private fun keepAtSeven(request: DecisionRequest.MulliganRequest): Decision =
+        when (request) {
+            is DecisionRequest.ChooseMulligan -> Decision.SingleSelect(request.id, DecisionRequest.ChooseMulligan.KEEP)
+            is DecisionRequest.ChooseCardsToBottom -> Decision.MultiSelect(request.id, (0 until request.count).toList())
         }
 }

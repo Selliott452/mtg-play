@@ -36,6 +36,18 @@ Requires JDK 21. From the repository root:
 This compiles every module, runs the tests, and enforces the zero-warning lint policy
 (ktlint + detekt).
 
+## Card data attribution
+
+Card metadata (names, mana costs, type lines, oracle text, and format legalities) is sourced from
+[Scryfall](https://scryfall.com) and used under the
+[Creative Commons Attribution 4.0 International (CC BY 4.0)](https://creativecommons.org/licenses/by/4.0/)
+license (ADR-003). The `mtg-pauper` module ingests a trimmed snapshot of this data; the snapshot's
+provenance is embedded in the data and surfaced through the format layer's API.
+
+Magic: The Gathering is © Wizards of the Coast. This project is an unofficial, non-commercial rules
+engine for research and AI training and is not affiliated with or endorsed by Wizards of the Coast or
+Scryfall.
+
 ## More
 
 See [`docs/PLAN.md`](docs/PLAN.md) for the full implementation plan, module map, and work-packet

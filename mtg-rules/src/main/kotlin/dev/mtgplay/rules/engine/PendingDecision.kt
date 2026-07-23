@@ -98,6 +98,8 @@ internal fun pendingCastRequest(
  * the state, so `advance` validates any incoming decision against exactly what is pending.
  *
  * A pause is one of, checked in this order:
+ * 0. the pre-game mulligan phase is running — [GameState.pendingMulligan] is set (CR 103.4/103.5);
+ *    it precedes the whole game, so no player holds priority and the stack is empty here;
  * 1. a cast gathering decisions — [GameState.pendingCast] is open (CR 601.2); the caster also
  *    holds priority throughout the gathering, so this check must precede the window's;
  * 2. simultaneous triggers await ordering — [GameState.pendingTriggers] is non-empty (CR 603.3b);
@@ -116,9 +118,13 @@ internal fun pendingDecisionRequest(state: GameState): DecisionRequest? {
             .keys
             .toList()
     require(holders.size <= 1) { "CR 117: at most one player holds priority at a time, found $holders" }
+    val mulligan = state.pendingMulligan
     val cast = state.pendingCast
     val holder = holders.firstOrNull()
     return when {
+        // CR 103.4/103.5: the pre-game mulligan phase precedes everything — no player holds priority
+        // and the stack is empty while it runs, so this is checked before any in-game pause.
+        mulligan != null -> pendingMulliganRequest(state, mulligan)
         cast != null -> {
             require(holder == cast.caster) {
                 "CR 601.2: the casting player ${cast.caster} must hold priority while gathering; holder was $holder"
@@ -210,6 +216,8 @@ internal fun validateDecision(
         }
         // CR 616.1: the affected player picks one applicable replacement to apply first.
         is DecisionRequest.ChooseReplacement -> validateSingleSelect(request, decision, request.options.size)
+        // CR 103.4/103.5: the pre-game mulligan decisions share a validator (Mulligans.kt).
+        is DecisionRequest.MulliganRequest -> validateMulliganDecision(request, decision)
     }
 }
 
@@ -244,7 +252,7 @@ private fun validatePermutation(
  * any size, including empty (CR 508.1 / CR 509.1 both permit declaring nothing). [noun] names the
  * option kind in the failure message.
  */
-private fun validateDistinctSubset(
+internal fun validateDistinctSubset(
     request: DecisionRequest,
     decision: Decision,
     optionCount: Int,
@@ -262,11 +270,11 @@ private fun validateDistinctSubset(
 }
 
 // The decision as a MultiSelect; only called after validateDistinctSubset has proven the shape.
-private fun Decision.asMultiSelect(request: DecisionRequest): Decision.MultiSelect =
+internal fun Decision.asMultiSelect(request: DecisionRequest): Decision.MultiSelect =
     this as? Decision.MultiSelect
         ?: error("unreachable: ${request::class.simpleName} decision shape was validated to MultiSelect")
 
-private fun validateSingleSelect(
+internal fun validateSingleSelect(
     request: DecisionRequest,
     decision: Decision,
     optionCount: Int,

@@ -72,6 +72,7 @@ object InvariantChecker {
             addAll(checkTokenZoneScope(state))
             addAll(checkPendingTriggerSanity(state))
             addAll(checkMadnessMarkerSanity(state))
+            addAll(checkMulliganPhaseSanity(state))
             if (expectedCards != null) addAll(checkCardConservation(state, expectedCards))
         }
     }

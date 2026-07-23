@@ -146,6 +146,7 @@ object FuzzHarness {
             libraries = config.libraries,
             startingPlayer = config.startingPlayer,
             startingHandSize = config.startingHandSize,
+            mulligansEnabled = config.mulligansEnabled,
             decisions = decisions,
             failureType = failure::class.simpleName ?: "Throwable",
             failureDetail = failure.message ?: "(no message)",

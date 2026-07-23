@@ -70,6 +70,8 @@ internal val BURN_OPPONENT: Responder =
                 error("the burn policy casts no escape cards, but an exile-cost request surfaced: $request")
             is DecisionRequest.ChooseReplacement ->
                 error("the burn policy discards no two-replacement cards, but one surfaced: $request")
+            is DecisionRequest.MulliganRequest ->
+                error("the burn policy runs mulligan-free games, but a mulligan request surfaced: $request")
         }
     }
 
@@ -215,6 +217,8 @@ internal val GRIND_TO_BOLT_RANGE: Responder =
                 error("the grind policy casts no escape cards, but an exile-cost request surfaced: $request")
             is DecisionRequest.ChooseReplacement ->
                 error("the grind policy discards no two-replacement cards, but one surfaced: $request")
+            is DecisionRequest.MulliganRequest ->
+                error("the grind policy runs mulligan-free games, but a mulligan request surfaced: $request")
         }
     }
 

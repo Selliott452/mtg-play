@@ -34,6 +34,38 @@ sealed interface GameEvent {
         val startingPlayer: PlayerId,
     ) : GameEvent
 
+    /**
+     * [player] took a mulligan (CR 103.4): they shuffled their hand into their library and drew a
+     * fresh hand, which was [mulliganNumber] mulligans so far this game. The redraw is narrated by
+     * the [CardDrawn] events that follow. Added in P6.1.
+     */
+    data class MulliganTaken(
+        val player: PlayerId,
+        val mulliganNumber: Int,
+    ) : GameEvent
+
+    /**
+     * [player] kept their hand after [mulligansTaken] mulligans (CR 103.5): they will put
+     * [mulligansTaken] cards (capped at their hand size) on the bottom of their library, each
+     * narrated by a following [CardBottomed]. Added in P6.1.
+     */
+    data class HandKept(
+        val player: PlayerId,
+        val mulligansTaken: Int,
+    ) : GameEvent
+
+    /**
+     * [player] put [card] on the bottom of their library after a mulligan (CR 103.5): the hand
+     * object moved to the bottom of the library, keeping its id (a within-pre-game reshuffle, like
+     * the opening shuffle, not a CR 400.7 zone-change rebirth). Added in P6.1. Emitted in the
+     * player's chosen bottoming order.
+     */
+    data class CardBottomed(
+        val player: PlayerId,
+        val objectId: ObjectId,
+        val card: CardRef,
+    ) : GameEvent
+
     /** [activePlayer]'s turn, number [turnNumber], began (CR 500.1). */
     data class TurnBegan(
         val activePlayer: PlayerId,

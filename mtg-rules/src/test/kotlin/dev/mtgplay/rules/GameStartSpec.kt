@@ -21,6 +21,7 @@ private fun distinctNameConfig(seed: Long): MatchConfig =
         seed = seed,
         libraries = mapOf(alice to distinctNameDeck(), bob to distinctNameDeck()),
         startingPlayer = alice,
+        mulligansEnabled = false,
     )
 
 private fun libraryNames(result: AdvanceResult): List<List<String>> {
@@ -86,6 +87,7 @@ class GameStartSpec :
                         MatchConfig(
                             seed = seed,
                             libraries = mapOf(alice to mountainDeck(), bob to mountainDeck()),
+                            mulligansEnabled = false,
                         )
                     val state =
                         DefaultGameEngine().start(config).shouldBeInstanceOf<AdvanceResult.NeedsDecision>().state
@@ -102,6 +104,7 @@ class GameStartSpec :
                     seed = 7,
                     libraries = mapOf(alice to emptyList(), bob to mountainDeck()),
                     startingPlayer = alice,
+                    mulligansEnabled = false,
                 )
             val over = DefaultGameEngine().start(config).shouldBeInstanceOf<AdvanceResult.GameOver>()
             over.result shouldBe

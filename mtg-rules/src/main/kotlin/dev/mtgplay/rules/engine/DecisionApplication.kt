@@ -19,8 +19,9 @@ internal fun applyDecision(
     decision: Decision,
 ): AdvanceResult {
     val request =
-        pendingDecisionRequest(state)
-            ?: error("advance called on a state that is not paused at a decision point (ADR-004)")
+        checkNotNull(pendingDecisionRequest(state)) {
+            "advance called on a state that is not paused at a decision point (ADR-004)"
+        }
     validateDecision(request, decision)
     val answered = state.updatePlayer(request.seat) { it.copy(decisionsAnswered = it.decisionsAnswered + 1) }
     return when (request) {
@@ -43,8 +44,30 @@ internal fun applyDecision(
             check(decision is Decision.SingleSelect) { "unreachable: decision shape was validated against the request" }
             applyChosenReplacement(answered)
         }
+        // CR 103.4/103.5: the pre-game mulligan decisions share a dispatcher.
+        is DecisionRequest.MulliganRequest -> applyMulliganDecision(answered, request, decision)
     }
 }
+
+/**
+ * Applies one pre-game mulligan decision (CR 103.4/103.5): the keep-or-mulligan choice, or the
+ * bottom-cards multi-select. Split out so the main dispatch keeps one concern per branch.
+ */
+private fun applyMulliganDecision(
+    state: GameState,
+    request: DecisionRequest.MulliganRequest,
+    decision: Decision,
+): AdvanceResult =
+    when (request) {
+        is DecisionRequest.ChooseMulligan -> {
+            check(decision is Decision.SingleSelect) { "unreachable: decision shape was validated against the request" }
+            applyMulliganChoice(state, keep = decision.index == DecisionRequest.ChooseMulligan.KEEP)
+        }
+        is DecisionRequest.ChooseCardsToBottom -> {
+            check(decision is Decision.MultiSelect) { "unreachable: decision shape was validated against the request" }
+            applyBottomChoice(state, decision.indices.map { request.options[it].objectId })
+        }
+    }
 
 private fun applyChosenYesNo(
     state: GameState,

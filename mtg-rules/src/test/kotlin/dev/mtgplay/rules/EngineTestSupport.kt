@@ -34,7 +34,11 @@ internal const val STARTING_LIFE: Int = 20
 /** A lands-only deck: [size] copies of Mountain, the packet's acceptance deck. */
 internal fun mountainDeck(size: Int = DECK_SIZE): List<CardRef> = List(size) { CardRef("Mountain") }
 
-/** The standard two-player acceptance config: both seats on 60 Mountains, seed-determined. */
+/**
+ * The standard two-player engine-test config: both seats on 60 Mountains, seed-determined.
+ * Mulligans are disabled so the P1–P5 specs start with hands exactly as drawn (P6.1 compatibility
+ * path); the mulligan-specific specs enable them explicitly.
+ */
 internal fun mountainConfig(
     seed: Long = 0x5EED,
     startingPlayer: PlayerId? = alice,
@@ -43,6 +47,7 @@ internal fun mountainConfig(
         seed = seed,
         libraries = mapOf(alice to mountainDeck(), bob to mountainDeck()),
         startingPlayer = startingPlayer,
+        mulligansEnabled = false,
     )
 
 /**
@@ -77,6 +82,10 @@ internal fun respondTo(request: DecisionRequest): Decision =
             error("the pass-everything responder never casts, but an exile-cost request surfaced: $request")
         is DecisionRequest.ChooseReplacement ->
             error("the pass-everything responder never discards two-replacement cards, but one surfaced: $request")
+        // CR 103.4/103.5: the engine specs run mulligan-free (mountainConfig sets mulligansEnabled = false),
+        // so a mulligan request is unreachable here and fails loudly rather than guessing.
+        is DecisionRequest.MulliganRequest ->
+            error("the engine-spec responder runs mulligan-free games, but a mulligan request surfaced: $request")
     }
 
 /** One engine suspension observed while driving a game: the paused state and its request. */

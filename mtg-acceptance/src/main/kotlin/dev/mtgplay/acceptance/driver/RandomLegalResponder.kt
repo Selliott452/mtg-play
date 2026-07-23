@@ -12,6 +12,9 @@ import kotlinx.collections.immutable.toPersistentList
 /** Generous turn cap for lands-only random playouts: they deck out near turn 108 (CR 104.3c). */
 const val LANDS_ONLY_TURN_CAP: Int = 130
 
+/** One-in-this-many odds the random responder takes a mulligan (CR 103.4); low so playouts terminate fast. */
+private const val MULLIGAN_PROBABILITY_DENOMINATOR: Int = 4
+
 /**
  * A [Responder] that plays a uniformly random *legal* decision — the seed of the Phase 3 fuzz
  * harness (PLAN.md §2.3).
@@ -86,6 +89,25 @@ class RandomLegalResponder(
             }
             // CR 616.1: a uniform pick among the applicable replacements to apply first.
             is DecisionRequest.ChooseReplacement -> randomSingleSelect(request.id, request.options.size)
+            // CR 103.4/103.5: mulligan with a modest probability (so playouts terminate quickly), and
+            // bottom a random correctly-sized selection of the hand.
+            is DecisionRequest.MulliganRequest -> randomMulligan(request)
+        }
+
+    private fun randomMulligan(request: DecisionRequest.MulliganRequest): Decision =
+        when (request) {
+            is DecisionRequest.ChooseMulligan -> {
+                val (roll, next) = rng.nextInt(MULLIGAN_PROBABILITY_DENOMINATOR)
+                rng = next
+                val index =
+                    if (roll == 0) DecisionRequest.ChooseMulligan.MULLIGAN else DecisionRequest.ChooseMulligan.KEEP
+                Decision.SingleSelect(request.id, index)
+            }
+            is DecisionRequest.ChooseCardsToBottom -> {
+                val (indices, next) = randomSubset(request.options.size, request.count, rng)
+                rng = next
+                Decision.MultiSelect(request.id, indices)
+            }
         }
 
     private fun randomSingleSelect(

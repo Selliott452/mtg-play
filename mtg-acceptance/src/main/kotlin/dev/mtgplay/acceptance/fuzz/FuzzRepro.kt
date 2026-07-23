@@ -32,6 +32,8 @@ import java.time.format.DateTimeFormatter
  * @property libraries each seat's pre-game deck as printed-card references, in deck order.
  * @property startingPlayer the seat that took the first turn, or `null` if the seed chose it.
  * @property startingHandSize the opening-hand size the match used.
+ * @property mulligansEnabled whether the pre-game London-mulligan phase ran (P6.1) — part of the
+ *   config, so it must be captured for the rebuilt [MatchConfig] to reproduce the game.
  * @property decisions the decision log applied up to (and, for a violation, including) the failure.
  * @property failureType the simple class name of the failure throwable.
  * @property failureDetail the failure throwable's message (possibly multi-line).
@@ -44,6 +46,7 @@ data class FuzzRepro(
     val libraries: Map<PlayerId, List<CardRef>>,
     val startingPlayer: PlayerId?,
     val startingHandSize: Int,
+    val mulligansEnabled: Boolean = true,
     val decisions: List<Decision>,
     val failureType: String,
     val failureDetail: String,
@@ -62,6 +65,7 @@ data class FuzzRepro(
             definitions = definitions,
             startingHandSize = startingHandSize,
             startingPlayer = startingPlayer,
+            mulligansEnabled = mulligansEnabled,
         )
 
     /**
@@ -77,7 +81,10 @@ data class FuzzRepro(
             appendLine("  fingerprint: ${fingerprint.value}")
             appendLine("  decisions: ${decisions.size}")
             val starter = startingPlayer?.seat ?: "seed-chosen"
-            appendLine("  config: seed=$seed startingPlayer=$starter startingHandSize=$startingHandSize")
+            appendLine(
+                "  config: seed=$seed startingPlayer=$starter startingHandSize=$startingHandSize " +
+                    "mulligans=$mulligansEnabled",
+            )
             libraries.entries
                 .sortedBy { it.key.seat }
                 .forEach { (seat, cards) -> appendLine("  seat ${seat.seat} deck: ${describeDeck(cards)}") }
@@ -90,6 +97,7 @@ data class FuzzRepro(
             appendLine("seed $seed")
             appendLine("startingPlayer ${startingPlayer?.seat ?: NULL_TOKEN}")
             appendLine("startingHandSize $startingHandSize")
+            appendLine("mulligansEnabled $mulligansEnabled")
             appendLine("fingerprint ${fingerprint.value}")
             appendLine("failureType ${failureType.replace('\n', ' ')}")
             appendLine("probeOption ${probeOptionLabel?.replace('\n', ' ') ?: NULL_TOKEN}")
@@ -152,6 +160,7 @@ data class FuzzRepro(
                 libraries = libraries,
                 startingPlayer = parseSeat(headers.getValue("startingPlayer")),
                 startingHandSize = headers["startingHandSize"]?.toInt() ?: MatchConfig.DEFAULT_STARTING_HAND_SIZE,
+                mulligansEnabled = headers["mulligansEnabled"]?.toBooleanStrict() ?: true,
                 decisions = decisions,
                 failureType = headers["failureType"].orEmpty(),
                 failureDetail = detail,

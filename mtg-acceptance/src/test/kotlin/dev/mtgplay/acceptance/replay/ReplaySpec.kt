@@ -54,6 +54,7 @@ class ReplaySpec :
                     seed = seed,
                     libraries = mapOf(alice to mixedDeck, bob to mixedDeck),
                     startingPlayer = alice,
+                    mulligansEnabled = false,
                 )
             val gameA = ScriptedGame.start(mixedConfig(seed = 1))
             val gameB = ScriptedGame.start(mixedConfig(seed = 2))

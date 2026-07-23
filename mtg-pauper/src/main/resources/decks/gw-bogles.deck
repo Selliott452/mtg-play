@@ -1,0 +1,29 @@
+# mtg-play decklist format (P6.1): blank lines and '#' comments are ignored; a "Name:" line sets
+# the deck name; "Main"/"Sideboard" headers switch section; every other line is "<count> <name>".
+Name: GW Bogles
+
+Main
+4 Gladecover Scout
+4 Silhana Ledgewalker
+4 Slippery Bogle
+4 Abundant Growth
+4 Ethereal Armor
+4 Rancor
+4 Utopia Sprawl
+4 Ancestral Mask
+4 Armadillo Cloak
+2 Cartouche of Solidarity
+1 Sentinel's Eyes
+4 Malevolent Rumble
+2 Ash Barrens
+12 Forest
+3 Plains
+
+Sideboard
+2 Scattershot Archer
+1 Spirit Link
+1 Lifelink
+3 Ram Through
+3 Gut Shot
+3 Tamiyo's Safekeeping
+2 Flaring Pain

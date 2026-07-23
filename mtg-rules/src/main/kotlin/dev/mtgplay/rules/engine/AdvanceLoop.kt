@@ -27,8 +27,10 @@ internal const val STARTING_LIFE_TOTAL: Int = 20
 /**
  * Starts a game from [config] (the engine's `start`): determines the starting player — the
  * configured seat, or a random draw from the match PRNG (CR 103.1, ADR-006) — shuffles each
- * deck into its library (CR 103.1), draws opening hands (CR 103.5; mulligans deferred to
- * Phase 6), and begins turn 1, advancing to the first pause.
+ * deck into its library (CR 103.1), and draws opening hands (CR 103.5). Then, when
+ * [MatchConfig.mulligansEnabled] (the default), the pre-game London-mulligan phase runs — pausing
+ * for each player's keep-or-mulligan decisions (P6.1, [enterMulliganPhase]) before turn 1 — and
+ * otherwise turn 1 begins immediately with hands as drawn.
  *
  * Seats are always processed in turn order — starting player first, then ascending-seat
  * wrap-around — never in the config map's own iteration order, so determinism cannot depend on
@@ -85,7 +87,11 @@ internal fun startGame(config: MatchConfig): AdvanceResult {
     for (seat in turnOrder) {
         repeat(config.startingHandSize) { state = drawCard(state, seat) }
     }
-    return beginTurn(state, startingPlayer, 1)
+    return if (config.mulligansEnabled) {
+        enterMulliganPhase(state, startingPlayer)
+    } else {
+        beginTurn(state, startingPlayer, 1)
+    }
 }
 
 /**

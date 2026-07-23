@@ -160,6 +160,27 @@ object EnumerationProbe {
             // Each applicable replacement (CR 616.1) is a legal choice to apply first.
             is DecisionRequest.ChooseReplacement ->
                 singleSelectPerOption(request.id, request.options.size, "replacement")
+            // CR 103.4/103.5: both keep and mulligan are always legal; each bottom card is probed
+            // inside a correctly-sized selection.
+            is DecisionRequest.MulliganRequest -> mulliganCandidates(request)
+        }
+
+    /** The probe candidates for a pre-game mulligan decision (CR 103.4/103.5). */
+    private fun mulliganCandidates(request: DecisionRequest.MulliganRequest): List<ProbeCandidate> =
+        when (request) {
+            is DecisionRequest.ChooseMulligan ->
+                listOf(
+                    ProbeCandidate(
+                        "mulligan-keep",
+                        Decision.SingleSelect(request.id, DecisionRequest.ChooseMulligan.KEEP),
+                    ),
+                    ProbeCandidate(
+                        "mulligan-take",
+                        Decision.SingleSelect(request.id, DecisionRequest.ChooseMulligan.MULLIGAN),
+                    ),
+                )
+            is DecisionRequest.ChooseCardsToBottom ->
+                sizedSelectionIncludingEach(request.id, request.options.size, request.count, "bottom-including")
         }
 
     /** One single-select probe per option index, labelled `[prefix][i]`. */

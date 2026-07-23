@@ -56,6 +56,9 @@ import kotlinx.collections.immutable.persistentMapOf
  * @property pendingReplacement a discard event with two or more applicable replacements awaiting the
  *   affected player's CR 616.1 ordering choice, or `null`. Additive, flagged core (P5.2). Non-null only
  *   at that choice pause; the card is still in the player's hand.
+ * @property pendingMulligan the pre-game London-mulligan phase's progress (CR 103.4/103.5), or `null`
+ *   once turn 1 has begun. Additive, flagged core (P6.1). Non-null only during the mulligan phase,
+ *   where no player holds priority and the stack is empty — see [PendingMulligan].
  */
 data class GameState(
     val players: PersistentMap<PlayerId, PlayerState>,
@@ -69,6 +72,7 @@ data class GameState(
     val pendingTriggers: PersistentList<PendingTrigger> = persistentListOf(),
     val pendingMadness: PendingMadness? = null,
     val pendingReplacement: PendingReplacement? = null,
+    val pendingMulligan: PendingMulligan? = null,
 ) {
     init {
         require(players.isNotEmpty()) { "a game has at least one seated player" }
@@ -84,6 +88,10 @@ data class GameState(
             require(definition.characteristics.name == ref.name) {
                 "definition registered under ${ref.name} describes \"${definition.characteristics.name}\""
             }
+        }
+        val mulligan = pendingMulligan
+        require(mulligan == null || mulligan.deciding in players) {
+            "CR 103.5: the mulligan-phase decider ${mulligan?.deciding} is not seated"
         }
         val cast = pendingCast
         if (cast != null) {

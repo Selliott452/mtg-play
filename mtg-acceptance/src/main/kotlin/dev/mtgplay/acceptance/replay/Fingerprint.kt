@@ -92,6 +92,9 @@ internal fun canonicalDescriptor(state: GameState): String =
         append(state.pendingMadness?.let { "${it.owner.seat}:${it.exiledObjectId.value}" } ?: "-")
         append("|pendingReplacement=")
         append(state.pendingReplacement?.let { "${it.player.seat}:${it.objectId.value}" } ?: "-")
+        // The pre-game mulligan phase (CR 103.4/103.5) is a rules-relevant pause position digested by
+        // cause: whose decision, how many mulligans taken, and which of the two stages is open.
+        append("|pendingMulligan=").append(renderPendingMulligan(state))
         state.players.entries
             .sortedBy { it.key.seat }
             .forEach { (seat, player) ->
@@ -159,6 +162,10 @@ private fun renderTrigger(trigger: PendingTrigger): String =
         append(":amt=").append(trigger.amount)
         append(":subj=").append(trigger.subject?.value ?: "-")
     }
+
+// The pre-game mulligan phase (CR 103.4/103.5) by cause: whose decision, count, and stage, or "-".
+private fun renderPendingMulligan(state: GameState): String =
+    state.pendingMulligan?.let { "${it.deciding.seat}:${it.mulliganCount}:${it.stage.name}" } ?: "-"
 
 private fun renderTarget(target: Target): String =
     when (target) {

@@ -58,6 +58,9 @@ internal fun mountainConfig(
         seed = seed,
         libraries = mapOf(alice to mountainDeck(), bob to mountainDeck()),
         definitions = MvpCards.definitions,
+        // P6.1 compatibility path: the existing scripted and corpus suites start games with hands as
+        // drawn; the pre-game mulligan phase is exercised by the dedicated mulligan-inclusive specs.
+        mulligansEnabled = false,
         startingPlayer = startingPlayer,
     )
 
@@ -83,6 +86,9 @@ internal fun burnConfig(
         seed = seed,
         libraries = mapOf(alice to burnDeck(bolts), bob to burnDeck(bolts)),
         definitions = MvpCards.definitions,
+        // P6.1 compatibility path: the existing scripted and corpus suites start games with hands as
+        // drawn; the pre-game mulligan phase is exercised by the dedicated mulligan-inclusive specs.
+        mulligansEnabled = false,
         startingPlayer = startingPlayer,
     )
 
@@ -126,6 +132,9 @@ internal fun creatureConfig(
         seed = seed,
         libraries = mapOf(alice to creatureDeck(), bob to creatureDeck()),
         definitions = MvpCards.definitions,
+        // P6.1 compatibility path: the existing scripted and corpus suites start games with hands as
+        // drawn; the pre-game mulligan phase is exercised by the dedicated mulligan-inclusive specs.
+        mulligansEnabled = false,
         startingPlayer = startingPlayer,
     )
 
@@ -172,6 +181,9 @@ internal fun mixedMatchupConfig(seed: Long): MatchConfig =
         seed = seed,
         libraries = mapOf(alice to burnDeck(STANDARD_BOLT_COUNT), bob to creatureAggroDeck()),
         definitions = MvpCards.definitions,
+        // P6.1 compatibility path: the existing scripted and corpus suites start games with hands as
+        // drawn; the pre-game mulligan phase is exercised by the dedicated mulligan-inclusive specs.
+        mulligansEnabled = false,
         startingPlayer = null,
     )
 
@@ -224,6 +236,9 @@ internal fun boglesAuraConfig(seed: Long): MatchConfig =
         seed = seed,
         libraries = mapOf(alice to boglesAuraDeck(), bob to boglesAuraDeck()),
         definitions = MvpCards.definitions,
+        // P6.1 compatibility path: the existing scripted and corpus suites start games with hands as
+        // drawn; the pre-game mulligan phase is exercised by the dedicated mulligan-inclusive specs.
+        mulligansEnabled = false,
         startingPlayer = null,
     )
 
@@ -273,6 +288,9 @@ internal fun boglesKeywordConfig(seed: Long): MatchConfig =
         seed = seed,
         libraries = mapOf(alice to boglesKeywordDeck(), bob to boglesKeywordDeck()),
         definitions = MvpCards.definitions,
+        // P6.1 compatibility path: the existing scripted and corpus suites start games with hands as
+        // drawn; the pre-game mulligan phase is exercised by the dedicated mulligan-inclusive specs.
+        mulligansEnabled = false,
         startingPlayer = null,
     )
 

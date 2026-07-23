@@ -22,9 +22,14 @@ import dev.mtgplay.core.identity.PlayerId
  *   P2.1: every P1.x lands-only config stays valid unchanged); a rules path that requires a
  *   missing definition fails loudly.
  * @property startingHandSize how many cards each player draws as their opening hand; normally
- *   seven (CR 103.5). Mulligans are deferred to Phase 6 — hands are kept as drawn.
+ *   seven (CR 103.5). When [mulligansEnabled] a player redraws to this size on each mulligan.
  * @property startingPlayer the seat that takes the first turn, or `null` to have the engine
  *   determine it at random from the match PRNG (CR 103.1) — still fully seed-determined.
+ * @property mulligansEnabled whether the pre-game London-mulligan phase runs (CR 103.4/103.5);
+ *   **on by default** (P6.1). When on, the engine pauses after opening hands are drawn for each
+ *   player's keep-or-mulligan (and bottom-cards) decisions before turn 1 begins. Set `false` for
+ *   fixtureful starts that want hands exactly as drawn — the deterministic-opening path the engine
+ *   test-support and scripted acceptance suites use.
  */
 data class MatchConfig(
     val seed: Long,
@@ -32,6 +37,7 @@ data class MatchConfig(
     val definitions: Map<CardRef, CardDefinition> = emptyMap(),
     val startingHandSize: Int = DEFAULT_STARTING_HAND_SIZE,
     val startingPlayer: PlayerId? = null,
+    val mulligansEnabled: Boolean = true,
 ) {
     init {
         require(libraries.size == SUPPORTED_PLAYER_COUNT) {
