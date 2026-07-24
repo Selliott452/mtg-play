@@ -12,6 +12,7 @@ include(
     "mtg-cards",
     "mtg-pauper",
     "mtg-protocol",
+    "mtg-server",
     "mtg-cli",
     "mtg-acceptance",
 )
