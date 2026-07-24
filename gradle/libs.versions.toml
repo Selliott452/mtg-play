@@ -5,9 +5,10 @@
 kotlin = "2.4.10"
 kotest = "6.2.2"
 kotlinxCollectionsImmutable = "0.5.1"
-# Runtime-only JSON: mtg-pauper reads the staged Scryfall snapshot through the JsonElement tree
-# API (Json.parseToJsonElement); no @Serializable classes, so the serialization compiler plugin
-# is not applied. Pinned to 1.4.1 — the version resolvable from the local cache offline (P6.1).
+# mtg-pauper reads the staged Scryfall snapshot through the JsonElement tree API (no plugin
+# needed there); mtg-protocol uses @Serializable DTOs and applies the serialization compiler
+# plugin (pre-warmed into the local cache by the architect for offline agent builds, P7.1).
+# 1.4.1 pinned since P6.1; the plugin version tracks the Kotlin version.
 kotlinxSerialization = "1.4.1"
 detekt = "1.23.8"
 ktlint = "14.2.0"
@@ -27,5 +28,6 @@ ktlint-gradlePlugin = { group = "org.jlleitschuh.gradle", name = "ktlint-gradle"
 
 [plugins]
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
+kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
 detekt = { id = "io.gitlab.arturbosch.detekt", version.ref = "detekt" }
 ktlint = { id = "org.jlleitschuh.gradle.ktlint", version.ref = "ktlint" }
