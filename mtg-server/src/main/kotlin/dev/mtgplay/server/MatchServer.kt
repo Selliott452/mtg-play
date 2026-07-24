@@ -1,5 +1,7 @@
 package dev.mtgplay.server
 
+import dev.mtgplay.protocol.encode
+import dev.mtgplay.protocol.errorMessage
 import dev.mtgplay.rules.MatchConfig
 import io.ktor.server.application.Application
 import io.ktor.server.application.install
@@ -72,7 +74,7 @@ class MatchServer(
         detail: String,
         closeCode: Short,
     ) {
-        send(Frame.Text(ServerError(code, detail).encode()))
+        send(Frame.Text(errorMessage(code.name, detail).encode()))
         close(CloseReason(closeCode, detail))
     }
 }

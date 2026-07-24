@@ -7,6 +7,7 @@ import dev.mtgplay.core.identity.ObjectId
 import dev.mtgplay.core.identity.PlayerId
 import dev.mtgplay.core.state.GameObject
 import dev.mtgplay.core.state.GameState
+import dev.mtgplay.core.state.PriorityStatus
 import dev.mtgplay.core.state.cardObject
 import dev.mtgplay.rules.MatchResult
 
@@ -108,6 +109,26 @@ internal fun applicableStateBasedActions(state: GameState): List<StateBasedActio
             add(StateBasedAction.TokenCeasesToExist(obj.id))
         }
     }
+
+/**
+ * Whether the game is already over on [state] (CR 104.2a): the engine is at a would-receive-priority
+ * checkpoint (no player holds priority) where a player-loss state-based action (CR 704.5a/c) applies —
+ * the exact point [performStateBasedActions] ends the game, since [priorityTo] runs the loop *before*
+ * marking any seat [PriorityStatus.HOLDS_PRIORITY] (so a terminal state never has a holder).
+ *
+ * The player-loss part is read straight from [applicableStateBasedActions], so terminality and the SBA
+ * loop can never diverge. The no-holder guard is what keeps this from firing on a still-live pause: a
+ * seat that holds priority with a zero-or-less life total is not yet lost — CR 704.3 actions that loss
+ * only when priority next passes (the tampered `StateBasedActionSpec` states), so such a state is a
+ * genuine pause the engine must still advance, not a terminal one.
+ *
+ * Used by [pendingDecisionRequest] to short-circuit a finished game before deriving a pause request: a
+ * terminal state is not a pause point, yet it can still carry a moot fired-but-unplaced trigger the
+ * loss left dangling, which would otherwise mis-derive an ordering request and throw (CR 603.3b).
+ */
+internal fun isTerminalState(state: GameState): Boolean =
+    state.players.values.none { it.priorityStatus == PriorityStatus.HOLDS_PRIORITY } &&
+        applicableStateBasedActions(state).any { it is StateBasedAction.PlayerLoses }
 
 /**
  * Every token currently in a zone other than the battlefield (CR 704.5d), in a deterministic order:

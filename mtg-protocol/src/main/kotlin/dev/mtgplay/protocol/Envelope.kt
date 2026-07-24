@@ -39,6 +39,28 @@ sealed interface ServerMessage {
         val result: MatchResultDto,
         val view: SeatViewDto,
     ) : ServerMessage
+
+    /**
+     * The server could not accept the seat's last message (ADR-008): a structured, recoverable
+     * rejection so a bad frame is answered loudly rather than crashing the connection or corrupting the
+     * match. A recoverable rejection is followed by a fresh [SeatUpdate] re-stating the seat's current
+     * view, so the client can retry; a fatal handshake rejection closes the socket instead.
+     *
+     * [code] is a **string**, not an enum, deliberately: the schema fixes the envelope shape but leaves
+     * the category vocabulary open, so a server may emit codes the schema does not enumerate. The
+     * reference server's own categories are its `ServerErrorCode` (BAD_TOKEN, WRONG_SEAT, …), written
+     * as their names; a consumer matches on the string it cares about and treats the rest as generic.
+     *
+     * @property code the machine-readable category (the reference server writes a `ServerErrorCode` name).
+     * @property message a human-readable explanation; safe to log or surface.
+     */
+    @Serializable
+    @SerialName("error")
+    data class Error(
+        override val protocolVersion: String,
+        val code: String,
+        val message: String,
+    ) : ServerMessage
 }
 
 /**
@@ -68,6 +90,12 @@ fun gameOverMessage(
     result: MatchResult,
     view: SeatView,
 ): ServerMessage.GameOver = ServerMessage.GameOver(PROTOCOL_VERSION, result.toDto(), view.toDto())
+
+/** A [ServerMessage.Error] carrying [code] and [message] at the current [PROTOCOL_VERSION]. */
+fun errorMessage(
+    code: String,
+    message: String,
+): ServerMessage.Error = ServerMessage.Error(PROTOCOL_VERSION, code, message)
 
 /** A [ClientMessage.DecisionMessage] carrying [decision] at the current [PROTOCOL_VERSION]. */
 fun decisionMessage(decision: Decision): ClientMessage.DecisionMessage =

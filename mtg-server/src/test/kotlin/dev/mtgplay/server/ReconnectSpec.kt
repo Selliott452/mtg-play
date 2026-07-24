@@ -3,6 +3,13 @@ package dev.mtgplay.server
 import dev.mtgplay.protocol.DecisionViewDto
 import dev.mtgplay.protocol.ServerMessage
 import dev.mtgplay.protocol.decodeServerMessage
+import dev.mtgplay.server.client.RandomRemoteAgent
+import dev.mtgplay.server.client.SeatRun
+import dev.mtgplay.server.client.awaitToDecide
+import dev.mtgplay.server.client.nextText
+import dev.mtgplay.server.client.playToGameOver
+import dev.mtgplay.server.client.sendDecision
+import dev.mtgplay.server.client.sendToken
 import io.kotest.core.spec.style.StringSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
@@ -42,7 +49,7 @@ class ReconnectSpec :
                     val b = client.webSocketSession(path)
                     b.sendToken(tokenB)
                     launch {
-                        runB = b.playToGameOver(SchemaRandomChooser(CHOOSER_SEED_B))
+                        runB = b.playToGameOver(RandomRemoteAgent(CHOOSER_SEED_B))
                         b.close()
                     }
 
@@ -63,8 +70,8 @@ class ReconnectSpec :
                     toDecide.request.id shouldBe outstanding.id
 
                     // Answer the resynced request and finish the game.
-                    val chooserA = SchemaRandomChooser(CHOOSER_SEED_A)
-                    reconnection.sendDecision(chooserA.choose(toDecide.request))
+                    val chooserA = RandomRemoteAgent(CHOOSER_SEED_A)
+                    reconnection.sendDecision(chooserA.decide(toDecide.request))
                     runA = reconnection.playToGameOver(chooserA)
                     reconnection.close()
                 }

@@ -1,31 +1,32 @@
-package dev.mtgplay.server
+package dev.mtgplay.server.client
 
 import dev.mtgplay.core.random.Rng
+import dev.mtgplay.protocol.BlockerOptionDto
 import dev.mtgplay.protocol.DecisionDto
 import dev.mtgplay.protocol.DecisionRequestDto
 import dev.mtgplay.protocol.DecisionRequestIdDto
 
 /**
- * A uniformly-random *legal* chooser that reads only the wire schema (`mtg-protocol`) — it answers a
- * [DecisionRequestDto] with a [DecisionDto] and never touches the engine (no `mtg-rules` decision
- * types, no `GameState`, no `viewFor`). This is what "the wire contract suffices" means: a client
- * can play a whole real game knowing only the DTOs.
+ * A uniformly-random *legal* [RemoteAgent] that reads only the wire schema (`mtg-protocol`) — it answers
+ * a [DecisionRequestDto] with a [DecisionDto] and never touches the engine (no `mtg-rules` decision
+ * types, no `GameState`, no `viewFor`). This is what "the wire contract suffices" means (ADR-008): a
+ * client can play a whole real game knowing only the DTOs. The single non-schema import is `mtg-core`'s
+ * [Rng] — the sanctioned seeded generator (ADR-006), core vocabulary rather than an engine import.
  *
  * Every option is engine-enumerated (ADR-005), so "random legal" is a uniform pick over indices —
- * exactly the DTO mirror of the engine-side `RandomLegalResponder` in `mtg-acceptance`. All
- * randomness flows through the seeded core [Rng] (ADR-006; the detekt ban forbids `kotlin.random`,
- * and a deterministic client must use the sanctioned generator — [Rng] is core vocabulary, not an
- * engine import), so a `(seed)` reproduces a client's choices exactly.
+ * exactly the DTO mirror of the engine-side `RandomLegalResponder` in `mtg-acceptance`. All randomness
+ * flows through the seeded core [Rng] (the detekt ban forbids `kotlin.random`, and a deterministic
+ * client must use the sanctioned generator), so a `(seed)` reproduces a client's choices exactly.
  *
- * @param seed the seed for this chooser's decision randomness.
+ * @param seed the seed for this agent's decision randomness.
  */
-class SchemaRandomChooser(
+class RandomRemoteAgent(
     seed: Long,
-) {
+) : RemoteAgent {
     private var rng: Rng = Rng(seed)
 
     /** Picks a legal [DecisionDto] for [request]. Dispatch is grouped by the DTO's four families to stay flat. */
-    fun choose(request: DecisionRequestDto): DecisionDto =
+    override fun decide(request: DecisionRequestDto): DecisionDto =
         when (request) {
             is DecisionRequestDto.SizedSelectionDto -> sizedSelection(request)
             is DecisionRequestDto.PermutationSelectionDto -> permutationSelection(request)
@@ -115,7 +116,7 @@ class SchemaRandomChooser(
     // CR 509.1a: each blocker blocks nothing or exactly one attacker it may legally block.
     private fun blockAssignment(
         id: DecisionRequestIdDto,
-        options: List<dev.mtgplay.protocol.BlockerOptionDto>,
+        options: List<BlockerOptionDto>,
     ): DecisionDto.MultiSelect {
         val byBlocker = LinkedHashMap<Long, MutableList<Int>>()
         options.forEachIndexed { index, option ->

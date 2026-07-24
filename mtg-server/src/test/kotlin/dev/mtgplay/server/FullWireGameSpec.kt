@@ -2,6 +2,10 @@ package dev.mtgplay.server
 
 import dev.mtgplay.protocol.toDto
 import dev.mtgplay.rules.AdvanceResult
+import dev.mtgplay.server.client.RandomRemoteAgent
+import dev.mtgplay.server.client.SeatRun
+import dev.mtgplay.server.client.playToGameOver
+import dev.mtgplay.server.client.sendToken
 import io.kotest.core.spec.style.StringSpec
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.nulls.shouldNotBeNull
@@ -90,8 +94,8 @@ private suspend fun ApplicationTestBuilder.playWireMatch(
     lateinit var runA: SeatRun
     lateinit var runB: SeatRun
     coroutineScope {
-        launch { runA = a.playToGameOver(SchemaRandomChooser(chooserSeedA)) }
-        launch { runB = b.playToGameOver(SchemaRandomChooser(chooserSeedB)) }
+        launch { runA = a.playToGameOver(RandomRemoteAgent(chooserSeedA)) }
+        launch { runB = b.playToGameOver(RandomRemoteAgent(chooserSeedB)) }
     }
     a.close()
     b.close()

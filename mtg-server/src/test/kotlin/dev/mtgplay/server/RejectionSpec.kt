@@ -7,6 +7,10 @@ import dev.mtgplay.protocol.DecisionViewDto
 import dev.mtgplay.protocol.PROTOCOL_VERSION
 import dev.mtgplay.protocol.ServerMessage
 import dev.mtgplay.protocol.decodeServerMessage
+import dev.mtgplay.server.client.RandomRemoteAgent
+import dev.mtgplay.server.client.nextText
+import dev.mtgplay.server.client.sendDecision
+import dev.mtgplay.server.client.sendToken
 import io.kotest.core.spec.style.StringSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
@@ -42,7 +46,7 @@ class RejectionSpec :
 
                 val rejected = client.webSocketSession(path)
                 rejected.send(Frame.Text("not-a-real-token"))
-                ServerError.errorCodeOf(rejected.nextText()) shouldBe ServerErrorCode.BAD_TOKEN
+                errorCodeOf(rejected.nextText()) shouldBe ServerErrorCode.BAD_TOKEN.name
                 rejected.close()
 
                 // The match is untouched: a real token still connects and receives a versioned view.
@@ -59,7 +63,7 @@ class RejectionSpec :
                 application { matchModule(server) }
                 val client = createClient { install(WebSockets) }
                 val orphan = client.webSocketSession("/matches/no-such-match")
-                ServerError.errorCodeOf(orphan.nextText()) shouldBe ServerErrorCode.MATCH_NOT_FOUND
+                errorCodeOf(orphan.nextText()) shouldBe ServerErrorCode.MATCH_NOT_FOUND.name
                 orphan.close()
             }
         }
@@ -72,10 +76,12 @@ class RejectionSpec :
                 val seated = connectBoth(handle)
 
                 seated.other.sendDecision(DecisionDto.SingleSelect(DecisionRequestIdDto(seated.otherSeat, 0), 0))
-                ServerError.errorCodeOf(seated.other.nextText()) shouldBe ServerErrorCode.WRONG_SEAT
+                errorCodeOf(seated.other.nextText()) shouldBe ServerErrorCode.WRONG_SEAT.name
                 // The wrong seat's view is re-sent (still "elsewhere"), and the real decider advances.
                 decodeServerMessage(seated.other.nextText()).shouldBeInstanceOf<ServerMessage.SeatUpdate>()
-                seated.decider.finishOneStep(seated.deciderRequest, seated.chooser)
+                // The match is unharmed: the real decider answers its pending request and the game advances.
+                seated.decider.sendDecision(seated.chooser.decide(seated.deciderRequest))
+                decodeServerMessage(seated.decider.nextText()).protocolVersion shouldBe PROTOCOL_VERSION
                 seated.close()
             }
         }
@@ -90,12 +96,14 @@ class RejectionSpec :
                 val pendingId = seated.deciderRequest.id
                 val staleId = DecisionRequestIdDto(pendingId.seat, pendingId.ordinal + STALE_ORDINAL_OFFSET)
                 seated.decider.sendDecision(DecisionDto.SingleSelect(staleId, 0))
-                ServerError.errorCodeOf(seated.decider.nextText()) shouldBe ServerErrorCode.STALE_REQUEST
+                errorCodeOf(seated.decider.nextText()) shouldBe ServerErrorCode.STALE_REQUEST.name
                 // The pending request is re-sent unchanged; answering it now advances the game.
                 val resent =
                     decodeServerMessage(seated.decider.nextText()).shouldBeInstanceOf<ServerMessage.SeatUpdate>()
                 (resent.view.pendingDecision as DecisionViewDto.ToDecide).request.id shouldBe seated.deciderRequest.id
-                seated.decider.finishOneStep(seated.deciderRequest, seated.chooser)
+                // The match is unharmed: the real decider answers its pending request and the game advances.
+                seated.decider.sendDecision(seated.chooser.decide(seated.deciderRequest))
+                decodeServerMessage(seated.decider.nextText()).protocolVersion shouldBe PROTOCOL_VERSION
                 seated.close()
             }
         }
@@ -108,9 +116,11 @@ class RejectionSpec :
                 val seated = connectBoth(handle)
 
                 seated.decider.sendDecision(DecisionDto.SingleSelect(seated.deciderRequest.id, 0), version = "9.9.9")
-                ServerError.errorCodeOf(seated.decider.nextText()) shouldBe ServerErrorCode.UNSUPPORTED_VERSION
+                errorCodeOf(seated.decider.nextText()) shouldBe ServerErrorCode.UNSUPPORTED_VERSION.name
                 decodeServerMessage(seated.decider.nextText()).shouldBeInstanceOf<ServerMessage.SeatUpdate>()
-                seated.decider.finishOneStep(seated.deciderRequest, seated.chooser)
+                // The match is unharmed: the real decider answers its pending request and the game advances.
+                seated.decider.sendDecision(seated.chooser.decide(seated.deciderRequest))
+                decodeServerMessage(seated.decider.nextText()).protocolVersion shouldBe PROTOCOL_VERSION
                 seated.close()
             }
         }
@@ -123,15 +133,17 @@ class RejectionSpec :
                 val seated = connectBoth(handle)
 
                 seated.decider.send(Frame.Text("{ this is not valid json"))
-                ServerError.errorCodeOf(seated.decider.nextText()) shouldBe ServerErrorCode.MALFORMED_MESSAGE
+                errorCodeOf(seated.decider.nextText()) shouldBe ServerErrorCode.MALFORMED_MESSAGE.name
                 decodeServerMessage(seated.decider.nextText()).shouldBeInstanceOf<ServerMessage.SeatUpdate>()
 
                 // An unknown message type (strict codec, ignoreUnknownKeys=false) is malformed too.
                 seated.decider.send(Frame.Text("""{"type":"nonsense","protocolVersion":"$PROTOCOL_VERSION"}"""))
-                ServerError.errorCodeOf(seated.decider.nextText()) shouldBe ServerErrorCode.MALFORMED_MESSAGE
+                errorCodeOf(seated.decider.nextText()) shouldBe ServerErrorCode.MALFORMED_MESSAGE.name
                 decodeServerMessage(seated.decider.nextText()).shouldBeInstanceOf<ServerMessage.SeatUpdate>()
 
-                seated.decider.finishOneStep(seated.deciderRequest, seated.chooser)
+                // The match is unharmed: the real decider answers its pending request and the game advances.
+                seated.decider.sendDecision(seated.chooser.decide(seated.deciderRequest))
+                decodeServerMessage(seated.decider.nextText()).protocolVersion shouldBe PROTOCOL_VERSION
                 seated.close()
             }
         }
@@ -143,7 +155,7 @@ private class SeatedMatch(
     val deciderRequest: DecisionRequestDto,
     val other: DefaultClientWebSocketSession,
     val otherSeat: Int,
-    val chooser: SchemaRandomChooser,
+    val chooser: RandomRemoteAgent,
 ) {
     suspend fun close() {
         decider.close()
@@ -168,15 +180,12 @@ private suspend fun ApplicationTestBuilder.connectBoth(handle: MatchHandle): Sea
         deciderRequest = (deciderView.pendingDecision as DecisionViewDto.ToDecide).request,
         other = if (aDecides) b else a,
         otherSeat = if (aDecides) viewB.viewer else viewA.viewer,
-        chooser = SchemaRandomChooser(CHOOSER_SEED),
+        chooser = RandomRemoteAgent(CHOOSER_SEED),
     )
 }
 
-/** Answers [request] with [chooser] and asserts the next envelope is a healthy, versioned server message. */
-private suspend fun DefaultClientWebSocketSession.finishOneStep(
-    request: DecisionRequestDto,
-    chooser: SchemaRandomChooser,
-) {
-    sendDecision(chooser.choose(request))
-    decodeServerMessage(nextText()).protocolVersion shouldBe PROTOCOL_VERSION
-}
+/**
+ * Decodes a received frame as the schema's [ServerMessage.Error] and returns its `code` string
+ * (ADR-008): as of P7.3 a rejection is a first-class server message, not a server-local frame.
+ */
+private fun errorCodeOf(json: String): String = decodeServerMessage(json).shouldBeInstanceOf<ServerMessage.Error>().code

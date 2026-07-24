@@ -1,4 +1,4 @@
-package dev.mtgplay.server
+package dev.mtgplay.server.client
 
 import dev.mtgplay.protocol.ClientMessage
 import dev.mtgplay.protocol.DecisionDto
@@ -9,18 +9,20 @@ import dev.mtgplay.protocol.PROTOCOL_VERSION
 import dev.mtgplay.protocol.ServerMessage
 import dev.mtgplay.protocol.decodeServerMessage
 import dev.mtgplay.protocol.encode
+import dev.mtgplay.server.SeatToken
 import io.ktor.client.plugins.websocket.DefaultClientWebSocketSession
 import io.ktor.websocket.Frame
 import io.ktor.websocket.readText
 
 /*
- * The in-test wire client (ADR-008, P7.2): a schema-only driver over a Ktor client WebSocket session.
- * It speaks only `mtg-protocol` DTOs and the codec — never the engine — proving a client needs
- * nothing but the schema to play. Reused by the full-game, reconnect, and rejection suites.
+ * The reference wire session (ADR-008): schema-only helpers over a Ktor client WebSocket session. They
+ * speak only `mtg-protocol` DTOs and the codec — never the engine — proving a client needs nothing but
+ * the schema to play. [ReferenceClient] wraps these for connect-and-play; the server test suites drive
+ * them directly over `testApplication` sessions.
  */
 
 /** Guard so a stuck game fails loudly rather than hanging; far above any real playout's decision count. */
-private const val DEFAULT_MAX_DECISIONS: Int = 200_000
+const val DEFAULT_MAX_DECISIONS: Int = 200_000
 
 /**
  * What one seat's wire play produced.
@@ -37,7 +39,7 @@ data class SeatRun(
     val allEnvelopesVersioned: Boolean,
 )
 
-/** Sends the connect handshake: the seat token as the first text frame. */
+/** Sends the connect handshake: the seat [token] as the first text frame. */
 suspend fun DefaultClientWebSocketSession.sendToken(token: SeatToken) {
     send(Frame.Text(token.value))
 }
@@ -59,12 +61,15 @@ suspend fun DefaultClientWebSocketSession.sendDecision(
 }
 
 /**
- * Plays this seat with [chooser] until the game ends, answering every `SeatUpdate` whose pending
- * decision is [DecisionViewDto.ToDecide] and ignoring frames where another seat decides (the resync
- * of ADR-007 makes waiting safe — the next relevant frame will arrive). Returns the [SeatRun].
+ * Plays this seat with [agent] until the game ends, answering every `SeatUpdate` whose pending decision
+ * is [DecisionViewDto.ToDecide] and ignoring frames where another seat decides (the resync of ADR-007
+ * makes waiting safe — the next relevant frame will arrive). Returns the [SeatRun].
+ *
+ * A [ServerMessage.Error] is surfaced loudly as a [RemoteError]: a legal agent never provokes one, so it
+ * is a real fault, not a step to retry (CONVENTIONS: fail loudly).
  */
 suspend fun DefaultClientWebSocketSession.playToGameOver(
-    chooser: SchemaRandomChooser,
+    agent: RemoteAgent,
     maxDecisions: Int = DEFAULT_MAX_DECISIONS,
 ): SeatRun {
     var decisions = 0
@@ -81,11 +86,12 @@ suspend fun DefaultClientWebSocketSession.playToGameOver(
                     check(decisions < maxDecisions) {
                         "seat answered $maxDecisions decisions without a GameOver — game did not terminate"
                     }
-                    sendDecision(chooser.choose(pending.request))
+                    sendDecision(agent.decide(pending.request))
                     decisions++
                 }
             }
             is ServerMessage.GameOver -> return SeatRun(message.result, decisions, envelopes, allVersioned)
+            is ServerMessage.Error -> throw RemoteError(message.code, message.message)
         }
     }
 }

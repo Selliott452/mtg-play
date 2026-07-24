@@ -36,6 +36,12 @@ internal fun cleanupDiscardRequest(state: GameState): DecisionRequest.ChooseDisc
  * point. This is the resumability keystone (ADR-004): the pending request is a pure function of
  * the state, so `advance` validates any incoming decision against exactly what is pending.
  *
+ * A terminal state short-circuits to `null` before any pause is derived (CR 104.2a): a state the
+ * engine would rule game-over is not a pause point, and a finished game can carry a moot
+ * fired-but-unplaced trigger that would otherwise mis-derive an [DecisionRequest.OrderTriggers]
+ * request from a lone trigger and throw (CR 603.3b). Terminality is [isTerminalState], derived the
+ * same way the state-based-action loop ends the game, so the two can never diverge.
+ *
  * A pause is one of, checked in this order:
  * 0. the pre-game mulligan phase is running — [GameState.pendingMulligan] is set (CR 103.4/103.5);
  *    it precedes the whole game, so no player holds priority and the stack is empty here;
@@ -51,6 +57,9 @@ internal fun cleanupDiscardRequest(state: GameState): DecisionRequest.ChooseDisc
  *    maximum with no priority round open (CR 514.1).
  */
 internal fun pendingDecisionRequest(state: GameState): DecisionRequest? {
+    // CR 104.2a: a finished game is never a pause point, and short-circuiting here keeps a moot
+    // dangling trigger from mis-deriving an ordering request downstream (see the KDoc).
+    if (isTerminalState(state)) return null
     val holders =
         state.players
             .filterValues { it.priorityStatus == PriorityStatus.HOLDS_PRIORITY }

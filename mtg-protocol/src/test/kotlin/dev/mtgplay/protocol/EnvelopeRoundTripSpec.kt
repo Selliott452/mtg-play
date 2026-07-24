@@ -16,6 +16,7 @@ import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.StringSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
+import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
@@ -52,6 +53,25 @@ class EnvelopeRoundTripSpec :
             val json = ProtocolJson.encodeToString<ServerMessage>(message)
             json shouldContain "\"protocolVersion\":\"$PROTOCOL_VERSION\""
             ProtocolJson.decodeFromString<ServerMessage>(json) shouldBe message
+        }
+
+        "ADR-008: an error envelope round-trips, carries the protocol version, and keeps its string code" {
+            val message = errorMessage("WRONG_SEAT", "seat 1 answered a request for seat 0")
+            val json = ProtocolJson.encodeToString<ServerMessage>(message)
+            json shouldContain "\"protocolVersion\":\"$PROTOCOL_VERSION\""
+            json shouldContain "\"type\":\"error\""
+            val back = ProtocolJson.decodeFromString<ServerMessage>(json)
+            back shouldBe message
+            val error = back.shouldBeInstanceOf<ServerMessage.Error>()
+            // The code is a free string, so a server may extend the vocabulary the schema does not enumerate.
+            error.code shouldBe "WRONG_SEAT"
+            error.protocolVersion shouldBe PROTOCOL_VERSION
+        }
+
+        "ADR-008: the strict codec rejects an unknown field on an error envelope" {
+            val valid = ProtocolJson.encodeToString<ServerMessage>(errorMessage("BAD_TOKEN", "unrecognized seat token"))
+            val withUnknown = valid.dropLast(1) + ",\"unknownField\":true}"
+            shouldThrow<SerializationException> { ProtocolJson.decodeFromString<ServerMessage>(withUnknown) }
         }
 
         "ADR-008: a decision envelope round-trips and carries the protocol version" {

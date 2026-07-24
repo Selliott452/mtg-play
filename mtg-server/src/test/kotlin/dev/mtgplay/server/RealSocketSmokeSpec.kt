@@ -3,6 +3,7 @@ package dev.mtgplay.server
 import dev.mtgplay.protocol.PROTOCOL_VERSION
 import dev.mtgplay.protocol.ServerMessage
 import dev.mtgplay.protocol.decodeServerMessage
+import dev.mtgplay.server.client.nextText
 import io.kotest.core.spec.style.StringSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
@@ -10,14 +11,11 @@ import io.ktor.client.HttpClient
 import io.ktor.client.plugins.websocket.webSocket
 import io.ktor.server.engine.embeddedServer
 import io.ktor.websocket.Frame
-import java.io.IOException
-import java.net.ServerSocket
 import io.ktor.client.engine.cio.CIO as ClientCIO
 import io.ktor.client.plugins.websocket.WebSockets as ClientWebSockets
 import io.ktor.server.cio.CIO as ServerCIO
 
 private const val SMOKE_SEED: Long = 0x5150
-private const val LOOPBACK: String = "127.0.0.1"
 private const val STOP_GRACE_MS: Long = 100
 private const val STOP_TIMEOUT_MS: Long = 500
 
@@ -55,12 +53,3 @@ class RealSocketSmokeSpec :
             }
         }
     })
-
-/** Probes whether the sandbox permits binding a localhost server socket at all (the smoke's gate). */
-private fun canBindLocalhost(): Boolean =
-    try {
-        ServerSocket(0).use { true }
-    } catch (failure: IOException) {
-        println("[P7.2 real-socket smoke] localhost bind probe failed: ${failure.message}")
-        false
-    }
