@@ -1,0 +1,105 @@
+package dev.mtgplay.cli
+
+import dev.mtgplay.core.identity.ObjectId
+import dev.mtgplay.core.random.Rng
+import dev.mtgplay.core.random.shuffled
+import dev.mtgplay.rules.decision.Decision
+import dev.mtgplay.rules.decision.DecisionRequest
+import dev.mtgplay.rules.decision.DecisionRequestId
+import kotlinx.collections.immutable.toPersistentList
+
+/**
+ * The vs-random opponent (P6.4 deliverable 4): a uniformly random *legal* chooser, reimplemented
+ * against the public engine surface (the CLI may not depend on `mtg-acceptance`).
+ *
+ * Because every legal option is engine-enumerated (ADR-005), "random legal" is a uniform pick over
+ * the enumerated indices - nothing illegal is representable. **All randomness flows through the
+ * seeded core [Rng]** (ADR-006), never `kotlin.random`, so `(match seed -> chooser seed)` reproduces
+ * the opponent's whole play. The generator is threaded through a single private field; give each
+ * game its own chooser.
+ *
+ * @param seed the seed for this chooser's decision randomness (the CLI derives it from the match seed).
+ */
+class RandomLegalChooser(
+    seed: Long,
+) {
+    private var rng: Rng = Rng(seed)
+
+    /** A uniformly random legal answer to [request]. */
+    fun choose(request: DecisionRequest): Decision =
+        when (request) {
+            is DecisionRequest.ChooseAction -> single(request.id, request.options.size)
+            is DecisionRequest.ChooseTargets -> single(request.id, request.options.size)
+            is DecisionRequest.ChoosePaymentPlan -> single(request.id, request.options.size)
+            is DecisionRequest.AssignTrampleDamage -> single(request.id, request.options.size)
+            is DecisionRequest.ChooseColor -> single(request.id, request.options.size)
+            is DecisionRequest.ChooseReplacement -> single(request.id, request.options.size)
+            is DecisionRequest.ChooseYesNo -> single(request.id, DecisionRequest.ChooseYesNo.OPTION_COUNT)
+            is DecisionRequest.ChoiceCountSelection -> single(request.id, request.choiceCount)
+            is DecisionRequest.SizedSelection -> multi(request.id, subset(request.optionCount, request.requiredCount))
+            is DecisionRequest.PermutationSelection -> multi(request.id, permutation(request.permutationSize))
+            is DecisionRequest.DeclareAttackers -> multi(request.id, anySizeSubset(request.options.size))
+            is DecisionRequest.DeclareBlockers -> multi(request.id, blockAssignment(request.options))
+            is DecisionRequest.MulliganRequest -> mulligan(request)
+        }
+
+    private fun mulligan(request: DecisionRequest.MulliganRequest): Decision =
+        when (request) {
+            is DecisionRequest.ChooseMulligan -> single(request.id, DecisionRequest.ChooseMulligan.OPTION_COUNT)
+            is DecisionRequest.ChooseCardsToBottom -> multi(request.id, subset(request.options.size, request.count))
+        }
+
+    private fun single(
+        id: DecisionRequestId,
+        optionCount: Int,
+    ): Decision.SingleSelect {
+        val (index, next) = rng.nextInt(optionCount)
+        rng = next
+        return Decision.SingleSelect(id, index)
+    }
+
+    private fun multi(
+        id: DecisionRequestId,
+        indices: List<Int>,
+    ): Decision.MultiSelect = Decision.MultiSelect(id, indices)
+
+    /** [count] distinct indices from `0 until size`, via a partial Fisher-Yates over the frozen shuffle. */
+    private fun subset(
+        size: Int,
+        count: Int,
+    ): List<Int> {
+        val (shuffled, next) = (0 until size).toList().toPersistentList().shuffled(rng)
+        rng = next
+        return shuffled.take(count)
+    }
+
+    /** A uniformly random permutation of `0 until size` (blocker/trigger order). */
+    private fun permutation(size: Int): List<Int> {
+        val (order, next) = (0 until size).toList().toPersistentList().shuffled(rng)
+        rng = next
+        return order
+    }
+
+    /** Each index in `0 until size` included on an independent fair coin flip (attacker subset). */
+    private fun anySizeSubset(size: Int): List<Int> =
+        (0 until size).filter {
+            val (bit, next) = rng.nextInt(2)
+            rng = next
+            bit == 0
+        }
+
+    /** A legal block assignment: each blocker blocks nothing or one attacker it may block (CR 509.1a). */
+    private fun blockAssignment(options: List<DecisionRequest.DeclareBlockers.Option>): List<Int> {
+        val byBlocker = LinkedHashMap<ObjectId, MutableList<Int>>()
+        options.forEachIndexed { index, option ->
+            byBlocker.getOrPut(option.blocker) { mutableListOf() }.add(index)
+        }
+        val chosen = mutableListOf<Int>()
+        for (blockerOptions in byBlocker.values) {
+            val (pick, next) = rng.nextInt(blockerOptions.size + 1)
+            rng = next
+            if (pick < blockerOptions.size) chosen.add(blockerOptions[pick])
+        }
+        return chosen
+    }
+}
