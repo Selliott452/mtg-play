@@ -16,3 +16,9 @@ dependencies {
 application {
     mainClass.set("dev.mtgplay.cli.MainKt")
 }
+
+// Gradle's run task does not forward the caller's stdin by default; without this, the driver
+// reads immediate EOF and its blank-input safe defaults auto-pass the entire game.
+tasks.named<JavaExec>("run") {
+    standardInput = System.`in`
+}
