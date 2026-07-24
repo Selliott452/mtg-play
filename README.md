@@ -48,6 +48,29 @@ Magic: The Gathering is © Wizards of the Coast. This project is an unofficial, 
 engine for research and AI training and is not affiliated with or endorsed by Wizards of the Coast or
 Scryfall.
 
+## Using the library
+
+Artifacts are served via [JitPack](https://jitpack.io) from tagged releases (Maven Central
+planned). In Gradle:
+
+```kotlin
+repositories { maven("https://jitpack.io") }
+dependencies {
+    // The engine (in-process API — the primary AI interface, ADR-008):
+    implementation("com.github.Selliott452.mtg-play:mtg-rules:v0.1.0")
+    implementation("com.github.Selliott452.mtg-play:mtg-cards:v0.1.0")
+    implementation("com.github.Selliott452.mtg-play:mtg-pauper:v0.1.0")
+    // Wire-protocol schema for remote agents (transport-free):
+    implementation("com.github.Selliott452.mtg-play:mtg-protocol:v0.1.0")
+    // Reference WebSocket server + client (the only artifact carrying the web stack):
+    implementation("com.github.Selliott452.mtg-play:mtg-server:v0.1.0")
+}
+```
+
+## License
+
+[Apache License 2.0](LICENSE).
+
 ## More
 
 See [`docs/PLAN.md`](docs/PLAN.md) for the full implementation plan, module map, and work-packet

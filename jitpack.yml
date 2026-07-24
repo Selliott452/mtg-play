@@ -1,0 +1,7 @@
+# JitPack build configuration: JDK 21 (JitPack defaults to 8, which cannot build this project),
+# and publish to the local Maven repo without running the full test suite (CI runs tests; JitPack
+# has build-time limits and its job is artifact production).
+jdk:
+  - openjdk21
+install:
+  - ./gradlew publishToMavenLocal -x test -x detekt -x detektMain -x detektTest -x ktlintCheck

@@ -14,6 +14,21 @@ plugins {
     id("org.jetbrains.kotlin.jvm")
     id("io.gitlab.arturbosch.detekt")
     id("org.jlleitschuh.gradle.ktlint")
+    id("maven-publish")
+}
+
+// Publishing coordinates (P8.1). JitPack rewrites the group to com.github.Selliott452 at serve
+// time; the declared group is the eventual Maven Central identity. Version bumps happen at tag
+// time — a git tag vX.Y.Z is the release artifact's version of record.
+group = "dev.mtgplay"
+version = "0.1.0"
+
+publishing {
+    publications {
+        create<MavenPublication>("maven") {
+            from(components["java"])
+        }
+    }
 }
 
 // Version-catalog accessors (`libs`) are not generated inside precompiled script plugins, so the
