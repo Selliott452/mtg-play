@@ -5,10 +5,12 @@ name: Nightly fuzz
 # count via the `-PfuzzSeeds` knob so rare invariant violations, enumeration-completeness probe
 # failures, and non-terminating games get many more chances to surface overnight.
 #
-# Seed count math (measured per-seed cost at the shipped probe stride, P3.3 packet report):
+# Seed count math (measured per-seed cost at the shipped probe stride, P3.3/P6.3 packet reports):
 # the two deck-out corpora dominate (~160 ms/seed lands-only, ~130 ms/seed sublethal), plus
-# ~14 ms burn, ~31 ms creatures, ~40 ms mixed — ~0.375 s per seed-unit summed across the five
-# corpora. At 2000 seeds each that is ~12-13 min of test execution, comfortably within a nightly.
+# ~14 ms burn, ~31 ms creatures, ~40 ms mixed, and the P6.3 full-75 MVP matchup corpus at
+# ~100 ms/seed (the heaviest single corpus — both real decks, mulligans, every mechanism). The
+# matchup adds ~3-4 min at 2000 seeds; summed the suite runs ~15-16 min at 2000 seeds each,
+# still comfortably within a nightly, so the 2000 default stands (no seed-number change needed).
 
 on:
   # 04:17 UTC daily (off the hour to avoid the top-of-hour scheduler crush).
