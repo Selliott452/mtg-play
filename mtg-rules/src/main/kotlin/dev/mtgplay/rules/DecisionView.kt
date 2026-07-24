@@ -1,0 +1,186 @@
+package dev.mtgplay.rules
+
+import dev.mtgplay.core.identity.PlayerId
+import dev.mtgplay.rules.decision.DecisionRequest
+
+/**
+ * The decision a paused game is at, filtered for one seat (ADR-007): the deciding seat's full
+ * request is part of *its* view context, while every other seat sees only who decides and the broad
+ * kind — never another seat's private option contents.
+ *
+ * Only one request kind has options that are intrinsically secret from a non-deciding seat: a
+ * library search ([DecisionRequestKind.CHOOSE_FROM_LIBRARY]) exposes matching library cards, which
+ * are secret mid-search (CR 701.18). Several other kinds enumerate the deciding seat's own hand
+ * (the cleanup/cost/resolution discards, mulligan bottoming) — equally private to an opponent. So
+ * the general principle is encoded rather than special-casing library search: a non-deciding seat
+ * receives no request options at all, only [Elsewhere]. No information is lost by this — the public
+ * halves of every request (declared attackers, chosen targets, revealed cards) already reach the
+ * seat through the public battlefield/stack/[SeatView.pendingReveal] state.
+ */
+sealed interface DecisionView {
+    /**
+     * The viewer is the deciding seat: it holds its full [DecisionRequest] with all enumerated
+     * options (ADR-005), which it is entitled to see in order to answer.
+     *
+     * @property request the full request the viewer must answer.
+     */
+    data class ToDecide(
+        val request: DecisionRequest,
+    ) : DecisionView
+
+    /**
+     * Another seat is deciding: the viewer sees only who decides and the broad [kind], never the
+     * options.
+     *
+     * @property seat the deciding seat.
+     * @property kind the broad kind of the pending decision.
+     */
+    data class Elsewhere(
+        val seat: PlayerId,
+        val kind: DecisionRequestKind,
+    ) : DecisionView
+}
+
+/**
+ * The broad kind of a [DecisionRequest] — one value per request leaf (ADR-005) — surfaced to a
+ * non-deciding seat in [DecisionView.Elsewhere] so it knows *what* choice is pending without seeing
+ * the private options.
+ *
+ * Exhaustive with [DecisionRequest]'s 24 leaves: [kindOf] `when`s over every leaf, so a new request
+ * kind breaks compilation here until it is classified.
+ */
+enum class DecisionRequestKind {
+    /** [DecisionRequest.ChooseAction] — a priority window (CR 117). */
+    CHOOSE_ACTION,
+
+    /** [DecisionRequest.ChooseDiscards] — the cleanup discard (CR 514.1). */
+    CHOOSE_DISCARDS,
+
+    /** [DecisionRequest.ChooseTargets] — a cast's target choice (CR 601.2c). */
+    CHOOSE_TARGETS,
+
+    /** [DecisionRequest.ChoosePaymentPlan] — a cast's payment choice (CR 601.2g). */
+    CHOOSE_PAYMENT_PLAN,
+
+    /** [DecisionRequest.DeclareAttackers] — the declare-attackers action (CR 508.1). */
+    DECLARE_ATTACKERS,
+
+    /** [DecisionRequest.DeclareBlockers] — the declare-blockers action (CR 509.1). */
+    DECLARE_BLOCKERS,
+
+    /** [DecisionRequest.OrderBlockers] — a multi-blocked attacker's damage order (CR 509.2). */
+    ORDER_BLOCKERS,
+
+    /** [DecisionRequest.AssignTrampleDamage] — a trample assignment (CR 702.19e). */
+    ASSIGN_TRAMPLE_DAMAGE,
+
+    /** [DecisionRequest.OrderTriggers] — ordering simultaneous triggers (CR 603.3b). */
+    ORDER_TRIGGERS,
+
+    /** [DecisionRequest.ChooseYesNo] — a yes/no choice (CR 601.3b, CR 702.35b). */
+    CHOOSE_YES_NO,
+
+    /** [DecisionRequest.ChooseCardsToExile] — an additional exile cost (CR 601.2b). */
+    CHOOSE_CARDS_TO_EXILE,
+
+    /** [DecisionRequest.ChooseSacrifices] — a non-mana sacrifice cost (CR 601.2h). */
+    CHOOSE_SACRIFICES,
+
+    /** [DecisionRequest.ChooseCardsToDiscardForCost] — an additional discard cost (CR 601.2b). */
+    CHOOSE_CARDS_TO_DISCARD_FOR_COST,
+
+    /** [DecisionRequest.ChooseMulligan] — the keep-or-mulligan choice (CR 103.4). */
+    CHOOSE_MULLIGAN,
+
+    /** [DecisionRequest.ChooseCardsToBottom] — the mulligan bottoming choice (CR 103.5). */
+    CHOOSE_CARDS_TO_BOTTOM,
+
+    /** [DecisionRequest.ChooseAbilityDiscard] — an activated ability's discard cost (CR 602.2b). */
+    CHOOSE_ABILITY_DISCARD,
+
+    /** [DecisionRequest.ChooseColor] — an "as this enters, choose a colour" choice (CR 614.12). */
+    CHOOSE_COLOR,
+
+    /** [DecisionRequest.ChooseOptionalDiscard] — an optional discard-then-draw (CR 601.3b). */
+    CHOOSE_OPTIONAL_DISCARD,
+
+    /** [DecisionRequest.ChooseFromRevealed] — keep one of the revealed cards (CR 701.16). */
+    CHOOSE_FROM_REVEALED,
+
+    /** [DecisionRequest.ChooseReplacement] — the CR 616.1 replacement-ordering choice. */
+    CHOOSE_REPLACEMENT,
+
+    /** [DecisionRequest.ChooseCostMode] — an optional cost-then-draw mode choice (CR 601.3b). */
+    CHOOSE_COST_MODE,
+
+    /** [DecisionRequest.ChooseOptionalCostObject] — a chosen cost-mode's object (CR 601.3b). */
+    CHOOSE_OPTIONAL_COST_OBJECT,
+
+    /** [DecisionRequest.ChooseResolutionDiscards] — a mandatory resolution discard (CR 601.2c). */
+    CHOOSE_RESOLUTION_DISCARDS,
+
+    /** [DecisionRequest.ChooseFromLibrary] — find one from a library search (CR 701.18). */
+    CHOOSE_FROM_LIBRARY,
+}
+
+/**
+ * The broad [DecisionRequestKind] of [request]. Exhaustive over the hierarchy with no `else`, so a
+ * new [DecisionRequest] kind forces a classification here or in one of the family helpers below.
+ *
+ * Dispatch is grouped by [DecisionRequest]'s sealed sub-interfaces (mirroring the engine's own
+ * decision-application idiom), keeping this top-level `when` flat: the four families
+ * ([DecisionRequest.SizedSelection], [DecisionRequest.PermutationSelection],
+ * [DecisionRequest.ChoiceCountSelection], [DecisionRequest.MulliganRequest]) delegate to a helper,
+ * and the standalone leaves map directly.
+ */
+fun kindOf(request: DecisionRequest): DecisionRequestKind =
+    when (request) {
+        is DecisionRequest.ChooseAction -> DecisionRequestKind.CHOOSE_ACTION
+        is DecisionRequest.ChooseTargets -> DecisionRequestKind.CHOOSE_TARGETS
+        is DecisionRequest.ChoosePaymentPlan -> DecisionRequestKind.CHOOSE_PAYMENT_PLAN
+        is DecisionRequest.DeclareAttackers -> DecisionRequestKind.DECLARE_ATTACKERS
+        is DecisionRequest.DeclareBlockers -> DecisionRequestKind.DECLARE_BLOCKERS
+        is DecisionRequest.AssignTrampleDamage -> DecisionRequestKind.ASSIGN_TRAMPLE_DAMAGE
+        is DecisionRequest.ChooseYesNo -> DecisionRequestKind.CHOOSE_YES_NO
+        is DecisionRequest.ChooseColor -> DecisionRequestKind.CHOOSE_COLOR
+        is DecisionRequest.ChooseReplacement -> DecisionRequestKind.CHOOSE_REPLACEMENT
+        is DecisionRequest.SizedSelection -> sizedSelectionKind(request)
+        is DecisionRequest.PermutationSelection -> permutationSelectionKind(request)
+        is DecisionRequest.ChoiceCountSelection -> choiceCountSelectionKind(request)
+        is DecisionRequest.MulliganRequest -> mulliganRequestKind(request)
+    }
+
+/** The kind of one fixed-size subset selection (CR 514.1 / 601.2b/h / 602.2b). */
+private fun sizedSelectionKind(request: DecisionRequest.SizedSelection): DecisionRequestKind =
+    when (request) {
+        is DecisionRequest.ChooseDiscards -> DecisionRequestKind.CHOOSE_DISCARDS
+        is DecisionRequest.ChooseCardsToExile -> DecisionRequestKind.CHOOSE_CARDS_TO_EXILE
+        is DecisionRequest.ChooseSacrifices -> DecisionRequestKind.CHOOSE_SACRIFICES
+        is DecisionRequest.ChooseCardsToDiscardForCost -> DecisionRequestKind.CHOOSE_CARDS_TO_DISCARD_FOR_COST
+        is DecisionRequest.ChooseAbilityDiscard -> DecisionRequestKind.CHOOSE_ABILITY_DISCARD
+        is DecisionRequest.ChooseOptionalDiscard -> DecisionRequestKind.CHOOSE_OPTIONAL_DISCARD
+        is DecisionRequest.ChooseOptionalCostObject -> DecisionRequestKind.CHOOSE_OPTIONAL_COST_OBJECT
+        is DecisionRequest.ChooseResolutionDiscards -> DecisionRequestKind.CHOOSE_RESOLUTION_DISCARDS
+    }
+
+/** The kind of one full-ordering selection (CR 509.2 / 603.3b). */
+private fun permutationSelectionKind(request: DecisionRequest.PermutationSelection): DecisionRequestKind =
+    when (request) {
+        is DecisionRequest.OrderBlockers -> DecisionRequestKind.ORDER_BLOCKERS
+        is DecisionRequest.OrderTriggers -> DecisionRequestKind.ORDER_TRIGGERS
+    }
+
+/** The kind of one "choose one, or opt out" selection (CR 701.16 / 601.3b / 701.18). */
+private fun choiceCountSelectionKind(request: DecisionRequest.ChoiceCountSelection): DecisionRequestKind =
+    when (request) {
+        is DecisionRequest.ChooseFromRevealed -> DecisionRequestKind.CHOOSE_FROM_REVEALED
+        is DecisionRequest.ChooseCostMode -> DecisionRequestKind.CHOOSE_COST_MODE
+        is DecisionRequest.ChooseFromLibrary -> DecisionRequestKind.CHOOSE_FROM_LIBRARY
+    }
+
+/** The kind of one pre-game mulligan decision (CR 103.4/103.5). */
+private fun mulliganRequestKind(request: DecisionRequest.MulliganRequest): DecisionRequestKind =
+    when (request) {
+        is DecisionRequest.ChooseMulligan -> DecisionRequestKind.CHOOSE_MULLIGAN
+        is DecisionRequest.ChooseCardsToBottom -> DecisionRequestKind.CHOOSE_CARDS_TO_BOTTOM
+    }

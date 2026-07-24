@@ -1,0 +1,259 @@
+package dev.mtgplay.protocol
+
+import dev.mtgplay.rules.decision.DecisionRequest
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
+
+/**
+ * Wire form of the full [DecisionRequest] hierarchy (ADR-004/ADR-005) — all 24 request kinds, each
+ * carrying its stable [id] and its enumerated options. The mapping to and from the engine
+ * ([toDto]/[toDomain]) is exhaustive in both directions, so a new request kind is a compile-time
+ * schema break (ADR-008 amendment).
+ *
+ * The four family sub-interfaces mirror [DecisionRequest]'s own
+ * ([DecisionRequest.SizedSelection]/[DecisionRequest.PermutationSelection]/
+ * [DecisionRequest.ChoiceCountSelection]/[DecisionRequest.MulliganRequest]), which lets the mapping
+ * dispatch by family and keeps every `when` flat.
+ */
+@Serializable
+sealed interface DecisionRequestDto {
+    /** The request's stable identity (ADR-004). */
+    val id: DecisionRequestIdDto
+
+    /** A fixed-size subset selection (CR 514.1 / 601.2b/h / 602.2b). */
+    @Serializable
+    sealed interface SizedSelectionDto : DecisionRequestDto
+
+    /** A full-ordering selection (CR 509.2 / 603.3b). */
+    @Serializable
+    sealed interface PermutationSelectionDto : DecisionRequestDto
+
+    /** A "choose one, or opt out" selection (CR 701.16 / 601.3b / 701.18). */
+    @Serializable
+    sealed interface ChoiceCountSelectionDto : DecisionRequestDto
+
+    /** A pre-game mulligan decision (CR 103.4/103.5). */
+    @Serializable
+    sealed interface MulliganRequestDto : DecisionRequestDto
+
+    /** Wire form of [DecisionRequest.ChooseAction] — a priority window (CR 117). */
+    @Serializable
+    @SerialName("choose_action")
+    data class ChooseAction(
+        override val id: DecisionRequestIdDto,
+        val options: List<PriorityOptionDto>,
+    ) : DecisionRequestDto
+
+    /** Wire form of [DecisionRequest.ChooseTargets] — a cast's target choice (CR 601.2c). */
+    @Serializable
+    @SerialName("choose_targets")
+    data class ChooseTargets(
+        override val id: DecisionRequestIdDto,
+        val cardObjectId: Long,
+        val card: String,
+        val options: List<TargetDto>,
+    ) : DecisionRequestDto
+
+    /** Wire form of [DecisionRequest.ChoosePaymentPlan] — a cast's payment choice (CR 601.2g). */
+    @Serializable
+    @SerialName("choose_payment_plan")
+    data class ChoosePaymentPlan(
+        override val id: DecisionRequestIdDto,
+        val cardObjectId: Long,
+        val card: String,
+        val options: List<PaymentPlanDto>,
+    ) : DecisionRequestDto
+
+    /** Wire form of [DecisionRequest.DeclareAttackers] (CR 508.1). */
+    @Serializable
+    @SerialName("declare_attackers")
+    data class DeclareAttackers(
+        override val id: DecisionRequestIdDto,
+        val options: List<AttackerOptionDto>,
+    ) : DecisionRequestDto
+
+    /** Wire form of [DecisionRequest.DeclareBlockers] (CR 509.1). */
+    @Serializable
+    @SerialName("declare_blockers")
+    data class DeclareBlockers(
+        override val id: DecisionRequestIdDto,
+        val options: List<BlockerOptionDto>,
+    ) : DecisionRequestDto
+
+    /** Wire form of [DecisionRequest.AssignTrampleDamage] (CR 702.19e). */
+    @Serializable
+    @SerialName("assign_trample_damage")
+    data class AssignTrampleDamage(
+        override val id: DecisionRequestIdDto,
+        val attacker: Long,
+        val attackerCard: String,
+        val defendingPlayer: Int,
+        val options: List<Int>,
+    ) : DecisionRequestDto
+
+    /** Wire form of [DecisionRequest.ChooseYesNo] (CR 601.3b, CR 702.35b). */
+    @Serializable
+    @SerialName("choose_yes_no")
+    data class ChooseYesNo(
+        override val id: DecisionRequestIdDto,
+        val prompt: String,
+        val cardObjectId: Long,
+        val card: String,
+    ) : DecisionRequestDto
+
+    /** Wire form of [DecisionRequest.ChooseColor] (CR 614.12). */
+    @Serializable
+    @SerialName("choose_color")
+    data class ChooseColor(
+        override val id: DecisionRequestIdDto,
+        val cardObjectId: Long,
+        val card: String,
+        val options: List<ColorDto>,
+    ) : DecisionRequestDto
+
+    /** Wire form of [DecisionRequest.ChooseReplacement] (CR 616.1). */
+    @Serializable
+    @SerialName("choose_replacement")
+    data class ChooseReplacement(
+        override val id: DecisionRequestIdDto,
+        val options: List<ReplacementOptionDto>,
+    ) : DecisionRequestDto
+
+    /** Wire form of [DecisionRequest.ChooseDiscards] — the cleanup discard (CR 514.1). */
+    @Serializable
+    @SerialName("choose_discards")
+    data class ChooseDiscards(
+        override val id: DecisionRequestIdDto,
+        val options: List<CardObjectOptionDto>,
+        val count: Int,
+    ) : SizedSelectionDto
+
+    /** Wire form of [DecisionRequest.ChooseCardsToExile] (CR 601.2b). */
+    @Serializable
+    @SerialName("choose_cards_to_exile")
+    data class ChooseCardsToExile(
+        override val id: DecisionRequestIdDto,
+        val cardObjectId: Long,
+        val card: String,
+        val options: List<CardObjectOptionDto>,
+        val count: Int,
+    ) : SizedSelectionDto
+
+    /** Wire form of [DecisionRequest.ChooseSacrifices] (CR 601.2h). */
+    @Serializable
+    @SerialName("choose_sacrifices")
+    data class ChooseSacrifices(
+        override val id: DecisionRequestIdDto,
+        val cardObjectId: Long,
+        val card: String,
+        val options: List<CardObjectOptionDto>,
+        val count: Int,
+    ) : SizedSelectionDto
+
+    /** Wire form of [DecisionRequest.ChooseCardsToDiscardForCost] (CR 601.2b). */
+    @Serializable
+    @SerialName("choose_cards_to_discard_for_cost")
+    data class ChooseCardsToDiscardForCost(
+        override val id: DecisionRequestIdDto,
+        val cardObjectId: Long,
+        val card: String,
+        val options: List<CardObjectOptionDto>,
+        val count: Int,
+    ) : SizedSelectionDto
+
+    /** Wire form of [DecisionRequest.ChooseAbilityDiscard] (CR 602.2b). */
+    @Serializable
+    @SerialName("choose_ability_discard")
+    data class ChooseAbilityDiscard(
+        override val id: DecisionRequestIdDto,
+        val sourceObjectId: Long,
+        val card: String,
+        val options: List<CardObjectOptionDto>,
+        val count: Int,
+    ) : SizedSelectionDto
+
+    /** Wire form of [DecisionRequest.ChooseOptionalDiscard] (CR 601.3b). */
+    @Serializable
+    @SerialName("choose_optional_discard")
+    data class ChooseOptionalDiscard(
+        override val id: DecisionRequestIdDto,
+        val options: List<CardObjectOptionDto>,
+        val count: Int,
+    ) : SizedSelectionDto
+
+    /** Wire form of [DecisionRequest.ChooseOptionalCostObject] (CR 601.3b). */
+    @Serializable
+    @SerialName("choose_optional_cost_object")
+    data class ChooseOptionalCostObject(
+        override val id: DecisionRequestIdDto,
+        val options: List<CardObjectOptionDto>,
+    ) : SizedSelectionDto
+
+    /** Wire form of [DecisionRequest.ChooseResolutionDiscards] (CR 601.2c). */
+    @Serializable
+    @SerialName("choose_resolution_discards")
+    data class ChooseResolutionDiscards(
+        override val id: DecisionRequestIdDto,
+        val options: List<CardObjectOptionDto>,
+        val count: Int,
+    ) : SizedSelectionDto
+
+    /** Wire form of [DecisionRequest.OrderBlockers] (CR 509.2). */
+    @Serializable
+    @SerialName("order_blockers")
+    data class OrderBlockers(
+        override val id: DecisionRequestIdDto,
+        val attacker: Long,
+        val options: List<CardObjectOptionDto>,
+    ) : PermutationSelectionDto
+
+    /** Wire form of [DecisionRequest.OrderTriggers] (CR 603.3b). */
+    @Serializable
+    @SerialName("order_triggers")
+    data class OrderTriggers(
+        override val id: DecisionRequestIdDto,
+        val options: List<TriggerOptionDto>,
+    ) : PermutationSelectionDto
+
+    /** Wire form of [DecisionRequest.ChooseFromRevealed] (CR 701.16). */
+    @Serializable
+    @SerialName("choose_from_revealed")
+    data class ChooseFromRevealed(
+        override val id: DecisionRequestIdDto,
+        val options: List<CardObjectOptionDto>,
+    ) : ChoiceCountSelectionDto
+
+    /** Wire form of [DecisionRequest.ChooseCostMode] (CR 601.3b). */
+    @Serializable
+    @SerialName("choose_cost_mode")
+    data class ChooseCostMode(
+        override val id: DecisionRequestIdDto,
+        val prompt: String,
+        val options: List<OptionalCostModeDto>,
+    ) : ChoiceCountSelectionDto
+
+    /** Wire form of [DecisionRequest.ChooseFromLibrary] (CR 701.18). */
+    @Serializable
+    @SerialName("choose_from_library")
+    data class ChooseFromLibrary(
+        override val id: DecisionRequestIdDto,
+        val options: List<CardObjectOptionDto>,
+    ) : ChoiceCountSelectionDto
+
+    /** Wire form of [DecisionRequest.ChooseMulligan] (CR 103.4). */
+    @Serializable
+    @SerialName("choose_mulligan")
+    data class ChooseMulligan(
+        override val id: DecisionRequestIdDto,
+        val mulligansTaken: Int,
+    ) : MulliganRequestDto
+
+    /** Wire form of [DecisionRequest.ChooseCardsToBottom] (CR 103.5). */
+    @Serializable
+    @SerialName("choose_cards_to_bottom")
+    data class ChooseCardsToBottom(
+        override val id: DecisionRequestIdDto,
+        val options: List<CardObjectOptionDto>,
+        val count: Int,
+    ) : MulliganRequestDto
+}
