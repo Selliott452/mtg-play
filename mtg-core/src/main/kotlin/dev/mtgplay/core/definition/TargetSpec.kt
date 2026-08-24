@@ -42,18 +42,6 @@ sealed interface TargetSpec {
     data object AnyTarget : TargetSpec
 
     /**
-     * "Target creature" (CR 115.1a): one target that must be a creature on the battlefield, never a
-     * player. Additive, flagged core (`P-TGT`, docs/gauntlet-card-triage.md) — Skred is the first
-     * client. It is exactly the object half of [AnyTarget]: the same battlefield filter and the same
-     * hexproof restriction (CR 702.11), with no player ever offered.
-     *
-     * Unlike the players-only specs this one's CR 608.2b fizzle is genuinely reachable — a targeted
-     * creature that dies to a state-based action (CR 704.5g) before the spell resolves takes the
-     * whole spell with it.
-     */
-    data object TargetCreature : TargetSpec
-
-    /**
      * "Target player" (CR 115.1a): one target that must be a player, never an object. Additive,
      * flagged core (the card-selection packet). Thought Scour's "Target player mills two cards" is the first
      * client. Narrower than [AnyTarget] on purpose — a creature is not a legal choice — so it is
@@ -72,6 +60,14 @@ sealed interface TargetSpec {
      * permanents offered are only those satisfying [restriction] — so it is its own member rather
      * than a filter over the any-target enumeration. Unlike [Enchantable] it carries no attachment
      * meaning: a spell with this spec never enters the battlefield attached to what it targeted.
+     *
+     * **Plain "target creature" is this spec with [PermanentRestriction.CREATURE]** (Skred, Terminate).
+     * A separate `TargetCreature` data object existed briefly alongside it — two parallel packets each
+     * added one half — and was collapsed into this member by `FW-COUNTER`: two spellings of one
+     * targeting line are two `when` branches that must be kept in agreement forever, and the pair
+     * already disagreed (`TargetCreature` read creature-hood through `isCreature`,
+     * `TargetPermanent(CREATURE)` through `satisfiesPermanentRestriction`), which is exactly how a
+     * targeting rule drifts.
      *
      * A permanent target stops being legal the moment it leaves the battlefield, so a removal spell
      * whose target has already died fizzles at the CR 608.2b re-check — the reachable fizzle
@@ -94,5 +90,28 @@ sealed interface TargetSpec {
      */
     data class Enchantable(
         val restriction: EnchantRestriction,
+    ) : TargetSpec
+
+    /**
+     * "Counter target &lt;kind of&gt; spell" (CR 115.1, CR 111.1): one target that must be a **spell on
+     * the stack** satisfying [restriction], never a player and never a permanent. Additive, flagged core
+     * (`FW-COUNTER`, docs/design/countering-spells.md §4/§6) — Counterspell, Dispel, Negate, Annul,
+     * Envelop, Remove Soul, Force Spike, Spell Pierce.
+     *
+     * The first spec whose legal set is drawn from the **stack** rather than the battlefield, which makes
+     * it the first spec whose enumeration can change several times inside a single priority round — and
+     * the reason ADR-005's completeness property matters more here than anywhere since Phase 2.
+     *
+     * Two consequences worth stating where the spec is declared. A spell **is never a legal target for
+     * itself**: `legalTargets` excludes the object doing the choosing, so the cast-time enumeration (the
+     * counter still in hand) and the CR 601.2c re-validation (the counter now on the stack) name the same
+     * set. And an *ability* on the stack is not a legal choice at all — it has no card object and so no
+     * [dev.mtgplay.core.state.Target.SpellOnStack] can name it (CR 113.7a); countering an ability is a
+     * separate, absent framework.
+     *
+     * @property restriction which spells on the stack are legal choices (CR 115.1).
+     */
+    data class SpellOnStack(
+        val restriction: SpellRestriction,
     ) : TargetSpec
 }

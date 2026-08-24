@@ -2,9 +2,11 @@ package dev.mtgplay.rules.engine
 
 import dev.mtgplay.core.card.Keyword
 import dev.mtgplay.core.definition.TargetSpec
+import dev.mtgplay.core.identity.ObjectId
 import dev.mtgplay.core.identity.PlayerId
 import dev.mtgplay.core.state.GameObject
 import dev.mtgplay.core.state.GameState
+import dev.mtgplay.core.state.StackEntry
 import dev.mtgplay.core.state.Target
 
 /*
@@ -19,18 +21,26 @@ import dev.mtgplay.core.state.Target
  * Aura's [TargetSpec.Enchantable] with a "you control" restriction reads it (control is ownership in
  * the MVP pool, docs/design/layer-system.md §4).
  *
+ * [self] is the *object doing the choosing*, by whatever id it currently carries — no object is ever a
+ * legal target for itself. It is what closes a real ordering divergence that `FW-COUNTER` exposed: the
+ * cast pipeline runs `proposeSpell` (CR 601.2a, card onto the stack) **before** `establishTargets`
+ * (CR 601.2c, re-validation), so a "counter target spell" enumeration computed at gathering time (the
+ * counter in hand, absent from the stack) and the same enumeration at re-validation (the counter now on
+ * the stack) would name different sets. Passing the choosing object's current id at each site makes them
+ * the same set again. `null` means "no object is choosing" — a triggered ability being placed, or a unit
+ * test asking what the board offers.
+ *
  * The one targeting restriction in the pool, hexproof (CR 702.11), is **opponent-relative**: its whole
- * input is who is deciding, which is what [you] carries. Two further parameters are already designed
- * and deliberately not added yet, because no card needs them and both would change every call site:
- * a *prospective source*, which protection needs (CR 702.16b, docs/design/protection.md §2.4), and a
- * *self-exclusion*, which targeting a spell on the stack needs (docs/design/countering-spells.md §4).
- * Keeping every caller funnelled through this one function is what keeps each of those a one-file
- * change (docs/design/targeted-abilities.md §5).
+ * input is who is deciding, which is what [you] carries. One further parameter is already designed and
+ * deliberately not added yet, because no card needs it and it would change every call site: a
+ * *prospective source*, which protection needs (CR 702.16b, docs/design/protection.md §2.4). Keeping
+ * every caller funnelled through this one function is what keeps that a one-file change
+ * (docs/design/targeted-abilities.md §5).
  */
 
 /**
- * Every legal target for [spec] in [state] for the deciding player [you], in deterministic
- * enumeration order (ADR-005).
+ * Every legal target for [spec] in [state] for the deciding player [you], excluding the choosing object
+ * [self], in deterministic enumeration order (ADR-005).
  *
  * [TargetSpec.TargetPlayer] (CR 115.1a) enumerates exactly the players, in turn order — a player may
  * target themself, and no object is ever a legal choice (Thought Scour).
@@ -39,25 +49,30 @@ import dev.mtgplay.core.state.Target
  * [you] may target. Planeswalkers and battles are not in the MVP pool, so they never enter this
  * enumeration. Hexproof (CR 702.11) is the one targeting restriction in the pool: a creature with
  * hexproof among its effective keywords is excluded when [you] is *not* its controller — its own
- * controller targets it freely ([targetableBy]). [TargetSpec.TargetCreature] (CR 115.1a) enumerates
- * exactly that creature half — same battlefield order, same hexproof restriction — and never a
- * player. [TargetSpec.Enchantable] (CR 601.2c) enumerates
+ * controller targets it freely ([targetableBy]). [TargetSpec.Enchantable] (CR 601.2c) enumerates
  * every battlefield object satisfying the Aura's enchant restriction (CR 303.4a) for [you] and
  * targetable by [you] — so a GW-Bogles player enchants their own hexproof creatures, but an
  * opponent's Aura cannot. [TargetSpec.TargetPermanent] (CR 115.1b) enumerates every battlefield
  * permanent satisfying its [dev.mtgplay.core.definition.PermanentRestriction]
  * ([satisfiesPermanentRestriction]) and targetable by [you], in battlefield order, and never a
- * player — the removal specs. Its enumeration is the *only* thing that makes a removal spell's
- * CR 608.2b fizzle reachable, because a permanent leaves the battlefield in ways a player never
- * leaves the game. [TargetSpec.TargetOpponent] (CR 115.1a, CR 102.1) enumerates every player
- * but [you], in turn order, and no permanent — the one spec whose enumeration depends on who is
- * deciding rather than only on the board. [TargetSpec.None] enumerates nothing: an untargeted spell
- * or ability never surfaces a target decision.
+ * player — the removal specs, and plain "target creature" (Skred, Terminate) among them. Its
+ * enumeration is the *only* battlefield thing that makes a removal spell's CR 608.2b fizzle reachable,
+ * because a permanent leaves the battlefield in ways a player never leaves the game.
+ * [TargetSpec.TargetOpponent] (CR 115.1a, CR 102.1) enumerates every player but [you], in turn order,
+ * and no permanent — the one spec whose enumeration depends on who is deciding rather than only on the
+ * board. [TargetSpec.SpellOnStack] (CR 115.1, CR 111.1) enumerates every **spell** on the stack
+ * satisfying its [dev.mtgplay.core.definition.SpellRestriction] ([satisfiesSpellRestriction]) other than
+ * [self], in stack order from the bottom up; an *ability* on the stack is never offered, because it is
+ * not a card and carries no object id to name it by (CR 113.7a). It is the only spec drawing on a zone
+ * that churns several times within one priority round, which is why its CR 608.2b fizzle is the most
+ * reachable of all. [TargetSpec.None] enumerates nothing: an untargeted spell or ability never surfaces
+ * a target decision.
  */
 internal fun legalTargets(
     state: GameState,
     spec: TargetSpec,
     you: PlayerId,
+    self: ObjectId?,
 ): List<Target> =
     when (spec) {
         TargetSpec.None -> emptyList()
@@ -74,11 +89,6 @@ internal fun legalTargets(
                 state.sharedZones.battlefield
                     .filter { isCreature(state, it) && targetableBy(state, it, you) }
                     .map { Target.Permanent(it.id) }
-        // CR 115.1a: "target creature" is the object half of "any target" and nothing else.
-        TargetSpec.TargetCreature ->
-            state.sharedZones.battlefield
-                .filter { isCreature(state, it) && targetableBy(state, it, you) }
-                .map { Target.Permanent(it.id) }
         // CR 115.1b: every battlefield permanent satisfying the restriction, in battlefield order
         // (CR 302.1); no player is ever offered.
         is TargetSpec.TargetPermanent ->
@@ -98,6 +108,13 @@ internal fun legalTargets(
                     ) &&
                         targetableBy(state, it, you)
                 }.map { Target.Permanent(it.id) }
+        // CR 115.1/111.1: every spell on the stack satisfying the restriction, bottom-up, never the
+        // choosing object itself and never an ability (CR 113.7a — no card, so no id to name it by).
+        is TargetSpec.SpellOnStack ->
+            state.sharedZones.stack
+                .filterIsInstance<StackEntry.Spell>()
+                .filter { it.obj.id != self && satisfiesSpellRestriction(state, spec.restriction, it) }
+                .map { Target.SpellOnStack(it.obj.id) }
     }
 
 /**
@@ -107,6 +124,10 @@ internal fun legalTargets(
  * (docs/design/layer-system.md §4). Every non-hexproof object, and every object [you] controls, is
  * targetable. Hexproof is read from effective keywords, so an aura-granted hexproof restricts
  * targeting exactly as a printed one does (CR 613 layer 6).
+ *
+ * Hexproof is a quality of a *permanent*, not of a spell on the stack, so the stack enumeration does not
+ * consult it: nothing in the pool makes a spell untargetable while it is being cast, and "can't be
+ * countered" is a separate, absent predicate (docs/design/countering-spells.md §13).
  */
 private fun targetableBy(
     state: GameState,
@@ -115,20 +136,26 @@ private fun targetableBy(
 ): Boolean = obj.owner == you || Keyword.HEXPROOF !in effectiveKeywords(state, obj.id)
 
 /**
- * Whether [target] is (still) a legal choice for [spec] in [state] for the deciding player [you] —
- * the CR 608.2b re-check, defined as membership in the current legal-target enumeration so legality
- * has a single source of truth (ADR-005). A targeted creature (or an Aura's enchanted object) stops
- * being legal the moment it leaves the battlefield — most often by dying to a state-based action
- * (CR 704.5g/f) — which makes the CR 608.2b fizzle genuinely reachable (a spell whose only target
- * has died does not resolve). A targeted player only stops being legal by leaving the game, which in
- * a two-player game is the game ending (CR 104.2a), so the players-only fizzle stays unreachable.
+ * Whether [target] is (still) a legal choice for [spec] in [state] for the deciding player [you], with
+ * the choosing object [self] excluded — the CR 608.2b re-check, defined as membership in the current
+ * legal-target enumeration so legality has a single source of truth (ADR-005).
+ *
+ * A targeted creature (or an Aura's enchanted object) stops being legal the moment it leaves the
+ * battlefield — most often by dying to a state-based action (CR 704.5g/f) — which makes the CR 608.2b
+ * fizzle genuinely reachable. A targeted **spell** stops being legal the moment it leaves the stack,
+ * whether it resolved or was itself countered: the departing card is reborn under a fresh id (CR 400.7),
+ * so the stale [Target.SpellOnStack] names nothing anywhere and the counter above it fizzles, which is
+ * the correct answer reached with no new code. A targeted player only stops being legal by leaving the
+ * game, which in a two-player game is the game ending (CR 104.2a), so the players-only fizzle stays
+ * unreachable.
  */
 internal fun isTargetLegal(
     state: GameState,
     spec: TargetSpec,
     target: Target,
     you: PlayerId,
-): Boolean = target in legalTargets(state, spec, you)
+    self: ObjectId?,
+): Boolean = target in legalTargets(state, spec, you, self)
 
 /**
  * The CR 608.2b verdict, shared by every resolution: whether a resolving object that targets has **all**
@@ -146,10 +173,14 @@ internal fun isTargetLegal(
  * An ability that targets and carries **no** targets — a triggered ability whose controller had no legal
  * choice at CR 603.3d — is vacuously all-illegal here, which is exactly the right answer: it was put on
  * the stack and now does nothing.
+ *
+ * [self] is the resolving object's own id where it has one (a spell), or `null` for an ability
+ * (CR 113.7a); it keeps the re-check's enumeration identical to the one the choice was made from.
  */
 internal fun allTargetsIllegal(
     state: GameState,
     spec: TargetSpec,
     targets: List<Target>,
     controller: PlayerId,
-): Boolean = spec != TargetSpec.None && targets.none { isTargetLegal(state, spec, it, controller) }
+    self: ObjectId?,
+): Boolean = spec != TargetSpec.None && targets.none { isTargetLegal(state, spec, it, controller, self) }

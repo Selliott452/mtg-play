@@ -24,7 +24,25 @@ internal fun singleOptionMenu(
         is DecisionRequest.ChooseColor -> colorMenu(request)
         is DecisionRequest.ChooseReplacement -> replacementMenu(request)
         is DecisionRequest.ChooseLibraryArrangement -> libraryArrangementMenu(request)
+        is DecisionRequest.ChooseCounterPayment -> counterPaymentMenu(request)
     }
+
+/**
+ * A resolving counter's "unless its controller pays" choice (CR 118.3a). The header names the spell at
+ * risk and the price, because the deciding seat here is the one being *asked*, not the one who cast the
+ * counter, and would otherwise have no idea what the question is about.
+ */
+private fun counterPaymentMenu(request: DecisionRequest.ChooseCounterPayment): List<String> =
+    listOf("Pay ${request.cost.render()} or ${request.card.name} is countered (CR 118.3a):") +
+        numbered(
+            request.options.map { option ->
+                when (option) {
+                    DecisionRequest.ChooseCounterPayment.Option.Decline ->
+                        "Do not pay — ${request.card.name} is countered"
+                    is DecisionRequest.ChooseCounterPayment.Option.Pay -> "Pay: ${paymentPlanLabel(option.plan)}"
+                }
+            },
+        ) + SINGLE_HINT
 
 /** A cast's target choice (CR 601.2c). */
 private fun targetMenu(

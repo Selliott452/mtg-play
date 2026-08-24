@@ -250,6 +250,8 @@ private val madnessBolt: SpellDefinition =
                 when (val target = context.targets.single()) {
                     is Target.Player -> loseLife(state, target.id, MADNESS_BOLT_DAMAGE)
                     is Target.Permanent -> error("the madness fixture targets a player in this scenario: $target")
+                    is Target.SpellOnStack ->
+                        error("the madness fixture targets a player in this scenario: $target")
                 }
             }
         override val castingPermissions = listOf(CastingPermission.Madness(ManaCost.parse("{R}")))

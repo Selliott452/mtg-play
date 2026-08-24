@@ -40,5 +40,22 @@ package dev.mtgplay.protocol
  * `CHOOSE_LIBRARY_ARRANGEMENT`, whose `valueOf` mapping fails at **runtime** rather than at compile
  * time, so an old peer meets it as a decode exception mid-match. That is the sharper of the two break
  * modes and a strictly larger break than `3.0.0`'s, so the major bump is not a judgement call.
+ *
+ * **5.0.0 — `FW-COUNTER`** (docs/design/countering-spells.md §10). Spells on the stack can now be
+ * targeted and countered, which breaks the wire in **both** directions and in **three** ways, any one of
+ * which would be a major bump on the standard the last three versions set.
+ * 1. [TargetDto] gains [TargetDto.SpellOnStackTarget]. Targets travel server→client inside
+ *    [DecisionRequestDto.ChooseTargets] and [StackEntryViewDto], and a `4.0.0` peer meets the new
+ *    `spell_on_stack_target` discriminator as a **runtime** decode failure, not a compile-time one.
+ * 2. [DecisionRequestDto] gains [DecisionRequestDto.ChooseCounterPayment] and [DecisionRequestKindDto]
+ *    gains `CHOOSE_COUNTER_PAYMENT`, whose `valueOf` mapping likewise fails at runtime mid-match — the
+ *    sharper break mode `4.0.0` already recorded, and this time it is answerable in the client→server
+ *    direction too, since the fused unless-pay request is a decision an agent sends an index for.
+ * 3. [SeatViewDto] gains a required `pendingCounterPayment`, which a `4.0.0` peer's strict codec rejects
+ *    outright.
+ *
+ * There is no smaller honest call available: this is the first framework to add a [dev.mtgplay.core.state.Target]
+ * member, and a target is the one payload that appears in a seat view, in a request, and in the event
+ * narration at once.
  */
-const val PROTOCOL_VERSION: String = "4.0.0"
+const val PROTOCOL_VERSION: String = "5.0.0"

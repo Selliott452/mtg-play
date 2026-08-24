@@ -41,7 +41,7 @@ internal fun triggerTargetPause(
     next: PendingTrigger,
 ): AdvanceResult? {
     val spec = next.ability.targetSpec
-    if (spec == TargetSpec.None || legalTargets(state, spec, controller).isEmpty()) return null
+    if (spec == TargetSpec.None || legalTargets(state, spec, controller, self = null).isEmpty()) return null
     val paused =
         state.copy(pendingTriggerTargets = PendingTriggerTargets(controller, next.sourceId, next.sourceCard))
     return AdvanceResult.NeedsDecision(paused, pendingTriggerTargetsRequest(paused))
@@ -80,7 +80,7 @@ internal fun pendingTriggerTargetsRequest(state: GameState): DecisionRequest.Cho
         id = DecisionRequestId(pending.controller, state.player(pending.controller).decisionsAnswered),
         cardObjectId = pending.sourceId,
         card = pending.sourceCard,
-        options = legalTargets(state, trigger.ability.targetSpec, pending.controller),
+        options = legalTargets(state, trigger.ability.targetSpec, pending.controller, self = null),
     )
 }
 

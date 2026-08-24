@@ -191,17 +191,20 @@ private fun establishTargets(
         }
         // Every targeting spec in the pool demands exactly one legal target (CR 303.4a for an Aura).
         TargetSpec.AnyTarget,
-        TargetSpec.TargetCreature,
         TargetSpec.TargetPlayer,
         TargetSpec.TargetOpponent,
         is TargetSpec.TargetPermanent,
         is TargetSpec.Enchantable,
+        is TargetSpec.SpellOnStack,
         -> {
             require(entry.targets.size == 1) {
                 "CR 601.2c: ${entry.obj.card.name} demands exactly one target, got ${entry.targets}"
             }
             entry.targets.forEach { target ->
-                require(isTargetLegal(state, spec, target, entry.controller)) {
+                // CR 601.2a ran before this stage, so the spell is already on the stack under
+                // `entry.obj.id`; naming it here keeps this re-validation's enumeration equal to the
+                // gathering-time one, in which the card was still in hand.
+                require(isTargetLegal(state, spec, target, entry.controller, self = entry.obj.id)) {
                     "CR 601.2c: $target is not a legal target for ${entry.obj.card.name}"
                 }
             }

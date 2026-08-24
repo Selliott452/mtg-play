@@ -82,6 +82,8 @@ internal val BURN_OPPONENT: Responder =
                 error("the burn policy activates no library searches, but a find-library request surfaced: $request")
             is DecisionRequest.ChooseLibraryArrangement ->
                 error("the burn policy resolves no library looks, but an arrangement request surfaced: $request")
+            is DecisionRequest.ChooseCounterPayment ->
+                error("the burn policy casts no counters, but an unless-pay request surfaced: $request")
             is DecisionRequest.MulliganRequest ->
                 error("the burn policy runs mulligan-free games, but a mulligan request surfaced: $request")
         }
@@ -241,6 +243,8 @@ internal val GRIND_TO_BOLT_RANGE: Responder =
                 error("the grind policy activates no library searches, but a find-library request surfaced: $request")
             is DecisionRequest.ChooseLibraryArrangement ->
                 error("the grind policy resolves no library looks, but an arrangement request surfaced: $request")
+            is DecisionRequest.ChooseCounterPayment ->
+                error("the grind policy casts no counters, but an unless-pay request surfaced: $request")
             is DecisionRequest.MulliganRequest ->
                 error("the grind policy runs mulligan-free games, but a mulligan request surfaced: $request")
         }

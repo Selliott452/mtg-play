@@ -82,6 +82,9 @@ enum class DecisionRequestKindDto {
     CHOOSE_RESOLUTION_DISCARDS,
     CHOOSE_FROM_LIBRARY,
     CHOOSE_LIBRARY_ARRANGEMENT,
+
+    /** A resolving counter's "unless its controller pays" (CR 118.3a). */
+    CHOOSE_COUNTER_PAYMENT,
 }
 
 /**

@@ -1,6 +1,7 @@
 package dev.mtgplay.protocol
 
 import dev.mtgplay.core.identity.CardRef
+import dev.mtgplay.rules.decision.DecisionRequest
 import dev.mtgplay.rules.decision.ManaActivation
 import dev.mtgplay.rules.decision.PaymentPlan
 import dev.mtgplay.rules.decision.SourceClassKey
@@ -65,12 +66,46 @@ data class SourceClassKeyDto(
     val viaSacrifice: Boolean,
 )
 
+/**
+ * Wire form of one [dev.mtgplay.rules.decision.DecisionRequest.ChooseCounterPayment.Option] (CR 118.3a):
+ * decline, or pay by a named plan. Sealed so the fused request's two answers stay distinguishable on the
+ * wire rather than being encoded as "index 0 means no".
+ */
+@Serializable
+sealed interface CounterPaymentOptionDto {
+    /** Do not pay; the targeted spell is countered (CR 701.5a). Always index 0. */
+    @Serializable
+    @SerialName("decline")
+    data object Decline : CounterPaymentOptionDto
+
+    /** Pay the full cost by [plan] (CR 118.3a); the targeted spell is saved. */
+    @Serializable
+    @SerialName("pay")
+    data class Pay(
+        val plan: PaymentPlanDto,
+    ) : CounterPaymentOptionDto
+}
+
 /** [PaymentPlan] to its wire form. */
 fun PaymentPlan.toDto(): PaymentPlanDto = PaymentPlanDto(activations.map { it.toDto() }, payments.map { it.toDto() })
 
 /** [PaymentPlanDto] back to the engine value. */
 fun PaymentPlanDto.toDomain(): PaymentPlan =
     PaymentPlan(activations.map { it.toDomain() }, payments.map { it.toDomain() })
+
+/** A counter-payment option to its wire form. */
+fun DecisionRequest.ChooseCounterPayment.Option.toDto(): CounterPaymentOptionDto =
+    when (this) {
+        DecisionRequest.ChooseCounterPayment.Option.Decline -> CounterPaymentOptionDto.Decline
+        is DecisionRequest.ChooseCounterPayment.Option.Pay -> CounterPaymentOptionDto.Pay(plan.toDto())
+    }
+
+/** A counter-payment option back to the engine value. */
+fun CounterPaymentOptionDto.toDomain(): DecisionRequest.ChooseCounterPayment.Option =
+    when (this) {
+        CounterPaymentOptionDto.Decline -> DecisionRequest.ChooseCounterPayment.Option.Decline
+        is CounterPaymentOptionDto.Pay -> DecisionRequest.ChooseCounterPayment.Option.Pay(plan.toDomain())
+    }
 
 /** [ManaActivation] to its wire form. */
 fun ManaActivation.toDto(): ManaActivationDto = ManaActivationDto(sourceClass.toDto(), produced.toDto())

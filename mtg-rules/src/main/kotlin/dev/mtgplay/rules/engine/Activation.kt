@@ -52,8 +52,10 @@ private fun MutableList<PriorityOption.ActivateAbility>.addAbilities(
     abilities.forEachIndexed { index, ability ->
         val offerable =
             ability.zoneScope == scope &&
-                // CR 601.2c via CR 602.2b: an ability with no legal target cannot be activated.
-                targetsAvailable(state, ability.targetSpec, seat) &&
+                // CR 601.2c via CR 602.2b: an ability with no legal target cannot be activated. An
+                // ability's source is a permanent or a card in hand, never a spell on the stack, so
+                // there is nothing for it to exclude from its own enumeration.
+                targetsAvailable(state, ability.targetSpec, seat, self = null) &&
                 abilityCostPayable(state, seat, source, scope, ability)
         if (offerable) {
             add(PriorityOption.ActivateAbility(source.id, source.card, index, scope))

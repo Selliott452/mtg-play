@@ -99,4 +99,19 @@ interface SpellDefinition : CardDefinition {
      * exiled instead), then the spell leaves the stack.
      */
     val drawThenDiscard: DrawThenDiscard? get() = null
+
+    /**
+     * A "counter target spell **unless its controller pays** {N}" clause (CR 701.5, CR 118.3a), or `null`
+     * for a spell with none. Additive, flagged core (`FW-COUNTER`, docs/design/countering-spells.md §7.1).
+     * Force Spike's `{1}`, Spell Pierce's `{2}`.
+     *
+     * Declarative for the reason [drawThenDiscard] and [libraryReveal] are: the payment is a decision, and
+     * ADR-004 forbids a callback out of a [ResolutionEffect]. The engine runs the clause **instead of** the
+     * plain [resolution] for a spell that carries it, pausing for the targeted spell's controller to answer
+     * — so a spell with this clause has no counter logic of its own to write.
+     *
+     * The CR 608.2b re-check still comes first: a counter whose target has already become an illegal
+     * target fizzles, and **nobody is ever asked to pay**.
+     */
+    val counterUnlessPaid: CounterUnlessPaid? get() = null
 }

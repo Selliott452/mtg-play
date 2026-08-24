@@ -30,6 +30,7 @@ private fun targetPlayerLosesLife(amount: Int): ResolutionEffect =
         when (val target = context.targets.single()) {
             is Target.Player -> loseLife(state, target.id, amount)
             is Target.Permanent -> error("fixture unexpectedly targeted a permanent: $target")
+            is Target.SpellOnStack -> error("fixture unexpectedly targeted a spell on the stack: $target")
         }
     }
 

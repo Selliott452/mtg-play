@@ -48,7 +48,7 @@ internal fun resolveMadnessTrigger(
     val permission =
         madnessPermissionOf(ceased, exiled.card)
             ?: error("CR 702.35b: madness card ${exiled.card.name} has no madness casting permission")
-    return if (madnessCastViable(ceased, owner, definition, permission)) {
+    return if (madnessCastViable(ceased, owner, definition, permission, exiledId)) {
         val pending = ceased.copy(pendingMadness = PendingMadness(owner, exiledId))
         AdvanceResult.NeedsDecision(pending, pendingMadnessRequest(pending))
     } else {

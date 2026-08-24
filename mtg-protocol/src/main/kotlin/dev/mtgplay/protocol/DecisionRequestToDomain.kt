@@ -3,6 +3,7 @@ package dev.mtgplay.protocol
 import dev.mtgplay.core.identity.CardRef
 import dev.mtgplay.core.identity.ObjectId
 import dev.mtgplay.core.identity.PlayerId
+import dev.mtgplay.core.mana.ManaCost
 import dev.mtgplay.rules.decision.DecisionRequest
 
 /*
@@ -55,6 +56,13 @@ private fun declareBlockersToDomain(dto: DecisionRequestDto.DeclareBlockers): De
 /** The "pick exactly one of these options" family (CR 601.2c/601.2g/702.19e/614.12/616.1/701.17a). */
 private fun singleOptionSelectionToDomain(dto: DecisionRequestDto.SingleOptionSelectionDto): DecisionRequest =
     when (dto) {
+        is DecisionRequestDto.ChooseCounterPayment ->
+            DecisionRequest.ChooseCounterPayment(
+                dto.id.toDomain(),
+                CardRef(dto.card),
+                ManaCost.parse(dto.cost),
+                dto.options.map { it.toDomain() },
+            )
         is DecisionRequestDto.ChooseTargets ->
             DecisionRequest.ChooseTargets(
                 dto.id.toDomain(),

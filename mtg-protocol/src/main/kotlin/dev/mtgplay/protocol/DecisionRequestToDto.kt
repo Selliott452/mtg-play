@@ -73,6 +73,13 @@ private fun singleOptionSelectionToDto(request: DecisionRequest.SingleOptionSele
                 request.id.toDto(),
                 request.options.map { ReplacementOptionDto(it.description) },
             )
+        is DecisionRequest.ChooseCounterPayment ->
+            DecisionRequestDto.ChooseCounterPayment(
+                request.id.toDto(),
+                request.card.name,
+                request.cost.render(),
+                request.options.map { it.toDto() },
+            )
         is DecisionRequest.ChooseLibraryArrangement ->
             DecisionRequestDto.ChooseLibraryArrangement(
                 request.id.toDto(),

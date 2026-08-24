@@ -66,6 +66,15 @@ import dev.mtgplay.core.identity.CardRef
  * *additional cost* — a new enumerated decision — and Cryoshatter needs trigger conditions for a
  * permanent becoming tapped or being dealt damage, which nothing in the engine watches for.
  *
+ * The `FW-COUNTER` packet adds the gauntlet's eight pure counters (Counters.kt): [counterspell],
+ * [dispel], [negate], [annul], [envelop], and [removeSoul], plus the two unless-pay counters
+ * [forceSpike] and [spellPierce]. They are the first cards to target a **spell on the stack**
+ * (`TargetSpec.SpellOnStack`) and the first clients of the CR 701.5a counter primitive; [forceSpike]
+ * and [spellPierce] additionally open the first decision this engine puts to someone other than the
+ * resolving spell's controller (CR 118.3a). Their siblings are deliberately absent: the Blasts and Steel
+ * Sabotage need modes (CR 700.2), Prohibit needs kicker (CR 702.33), and Spellstutter Sprite needs a
+ * *triggered* ability with a dynamic target restriction (docs/design/countering-spells.md §11).
+ *
  * [definitions] is shaped for direct `MatchConfig.definitions` consumption: the engine carries
  * it into `GameState` in canonical name-sorted order regardless of this map's own order
  * (ADR-009 — definitions ride in the state; a [CardRef] without an entry is inert). The pool
@@ -78,19 +87,24 @@ object MvpCards {
             abundantGrowth,
             ancestralMask,
             ancientGrudge,
+            annul,
             armadilloCloak,
             ashBarrens,
             brainstorm,
             breathWeapon,
             cartoucheOfSolidarity,
             castDown,
+            counterspell,
+            dispel,
             drossforgeBridge,
             elvishMystic,
             endTheFestivities,
+            envelop,
             etherealArmor,
             faithlessLooting,
             fieryTemper,
             fireblast,
+            forceSpike,
             forest,
             fyndhornElves,
             galvanicBlast,
@@ -121,12 +135,14 @@ object MvpCards {
             mistvaultBridge,
             mountain,
             murmuringMystic,
+            negate,
             outlawMedic,
             plains,
             ponder,
             preordain,
             pursueThePast,
             rancor,
+            removeSoul,
             scourFromExistence,
             seatOfTheSynod,
             sentinelsEyes,
@@ -140,6 +156,7 @@ object MvpCards {
             snowCoveredIsland,
             snowCoveredMountain,
             snowCoveredPlains,
+            spellPierce,
             spinewoodsPaladin,
             spiritLink,
             standingTroops,

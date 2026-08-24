@@ -114,12 +114,28 @@ private fun StringBuilder.appendP62cPendingPositions(state: GameState) {
             "${it.decider.seat}:${it.poolIds.joinToString("+") { id -> id.value.toString() }}:${it.awaitingShuffle}"
         } ?: "-",
     )
+    appendFrameworkPendingPositions(state)
+}
+
+// The framework pauses added after P6.2c: a triggered ability's CR 603.3d target choice (`FW-ABILTGT`)
+// and a resolving counter's CR 118.3a unless-pay (`FW-COUNTER`). Split out of
+// [appendP62cPendingPositions] to keep that function inside detekt's complexity budget.
+private fun StringBuilder.appendFrameworkPendingPositions(state: GameState) {
     // CR 603.3d: a triggered ability choosing its targets as it is put on the stack — whose choice, and
     // for which source. Which trigger is being placed is the front of that controller's pending group.
     append("|pendingTrigTargets=")
     append(
         state.pendingTriggerTargets?.let {
             "${it.controller.seat}:${it.sourceCard.name}@${it.sourceId.value}"
+        } ?: "-",
+    )
+    // CR 118.3a: a resolving counter's unless-pay pause — who is being asked, for how much, and which
+    // spell hangs on the answer. The countered spell's id is its stack residence (CR 400.7), so this
+    // token distinguishes two counters aimed at two copies of the same card.
+    append("|pendingCounterPay=")
+    append(
+        state.pendingCounterPayment?.let {
+            "${it.decider.seat}:${it.cost.render()}:${it.counteredObjectId.value}"
         } ?: "-",
     )
 }

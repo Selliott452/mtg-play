@@ -7,6 +7,7 @@ import dev.mtgplay.core.state.GameObject
 import dev.mtgplay.core.state.PendingActivation
 import dev.mtgplay.core.state.PendingCast
 import dev.mtgplay.core.state.PendingColorChoice
+import dev.mtgplay.core.state.PendingCounterPayment
 import dev.mtgplay.core.state.PendingLibrarySearch
 import dev.mtgplay.core.state.PendingMadness
 import dev.mtgplay.core.state.PendingMulligan
@@ -126,6 +127,11 @@ import dev.mtgplay.core.state.Turn
  *   boundary (see [PendingLibraryLookView] for why an id is a real channel here and not in the
  *   hand-scoped records). The looked-at cards reach the deciding seat only as its own
  *   [pendingDecision] options, which every other seat is already denied.
+ * @property pendingCounterPayment a resolving counter's "unless its controller pays" pause (CR 118.3a),
+ *   or `null`; public, and carried in full. Everything in it is already open at the table: the deciding
+ *   seat, the amount printed on the counter, and the id of a spell sitting face-up on the public stack
+ *   (CR 405). Every seat may see that the question was asked and of whom — a player who could not see it
+ *   would not know why their opponent's lands became tapped — so ADR-007 adds no filtering rule here.
  * @property pendingTriggerTargets a triggered ability choosing its targets as it is put on the stack
  *   (CR 603.3d), or `null`; public — it names only the ability's controller and the source's
  *   last-known id and printed identity, all of which [pendingTriggers] already discloses. The choice
@@ -158,6 +164,7 @@ data class SeatView(
     val pendingLibrarySearch: PendingLibrarySearch? = null,
     val pendingLibraryLook: PendingLibraryLookView? = null,
     val pendingTriggerTargets: PendingTriggerTargets? = null,
+    val pendingCounterPayment: PendingCounterPayment? = null,
 )
 
 /**

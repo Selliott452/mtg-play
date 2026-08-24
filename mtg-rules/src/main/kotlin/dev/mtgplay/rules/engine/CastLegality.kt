@@ -16,14 +16,18 @@ import dev.mtgplay.core.state.GameState
  * gate here excludes a cast that would dead-end mid-pipeline, so a surfaced cast always completes.
  */
 
-/** Whether every target [definition] requires is available and [cost] can be paid (CR 601.2c, g). */
+/**
+ * Whether every target [definition] requires is available and [cost] can be paid (CR 601.2c, g). [self]
+ * is the card that would be cast, excluded from its own target enumeration.
+ */
 internal fun targetsAndCostAvailable(
     state: GameState,
     seat: PlayerId,
     definition: SpellDefinition,
     cost: ManaCost,
+    self: ObjectId?,
 ): Boolean =
-    targetsAvailable(state, definition.targetSpec, seat) &&
+    targetsAvailable(state, definition.targetSpec, seat, self) &&
         enumeratePaymentPlans(state, seat, cost).isNotEmpty()
 
 /**
@@ -43,7 +47,7 @@ internal fun permissionCastIsLegal(
         sacrificeSatisfiable(state, seat, permission.sacrifice) &&
         additionalDiscardSatisfiable(state, seat, definition, sourceObject.id, permission.source) &&
         plotMarkerAllows(state, permission, sourceObject) &&
-        targetsAndCostAvailable(state, seat, definition, permission.cost)
+        targetsAndCostAvailable(state, seat, definition, permission.cost, self = sourceObject.id)
 
 /**
  * Whether a [CastingPermission.Plot] free cast is allowed for [sourceObject] right now (CR 702.140): the
@@ -132,4 +136,5 @@ internal fun madnessCastViable(
     owner: PlayerId,
     definition: SpellDefinition,
     permission: CastingPermission,
-): Boolean = targetsAndCostAvailable(state, owner, definition, permission.cost)
+    exiledObjectId: ObjectId,
+): Boolean = targetsAndCostAvailable(state, owner, definition, permission.cost, self = exiledObjectId)

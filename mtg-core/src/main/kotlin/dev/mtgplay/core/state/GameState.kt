@@ -89,6 +89,12 @@ import kotlinx.collections.immutable.persistentMapOf
  *   as part of a spell (CR 701.14, CR 701.17), or `null`. Additive, flagged core (`FW-LIBLOOK`,
  *   docs/design/library-look.md). Non-null only at the arrangement pause or the optional-shuffle pause
  *   that may follow it, where the resolving spell is on top of the stack — see [PendingLibraryLook].
+ * @property pendingCounterPayment a "counter target spell unless its controller pays" clause awaiting that
+ *   payment (CR 701.5, CR 118.3a), or `null`. Additive, flagged core (`FW-COUNTER`,
+ *   docs/design/countering-spells.md). Non-null only at that mid-resolution pause, where the resolving
+ *   counter is still on top of the stack and the spell it targets is still below it. The one pending
+ *   record whose decider is normally **not** the resolving object's controller — see
+ *   [PendingCounterPayment].
  * @property pendingTriggerTargets a fired triggered ability awaiting its CR 603.3d target choice as it is
  *   put on the stack, or `null`. Additive, flagged core (`FW-ABILTGT`,
  *   docs/design/targeted-abilities.md). Non-null only at that placement pause, where no priority round is
@@ -117,6 +123,7 @@ data class GameState(
     val pendingLibrarySearch: PendingLibrarySearch? = null,
     val pendingLibraryLook: PendingLibraryLook? = null,
     val pendingTriggerTargets: PendingTriggerTargets? = null,
+    val pendingCounterPayment: PendingCounterPayment? = null,
 ) {
     init {
         require(players.isNotEmpty()) { "a game has at least one seated player" }
@@ -178,6 +185,16 @@ data class GameState(
             require(look.poolIds.all { it in residentIds }) {
                 "CR 701.14a: a looked-at card stays in its source zone until the arrangement is applied; " +
                     "${look.poolIds.filterNot { it in residentIds }} is not in ${look.decider}'s library or hand"
+            }
+        }
+        val counterPayment = pendingCounterPayment
+        if (counterPayment != null) {
+            require(counterPayment.decider in players) {
+                "CR 118.3a: the unless-pay decider ${counterPayment.decider} is not seated"
+            }
+            require(sharedZones.stack.any { (it as? StackEntry.Spell)?.obj?.id == counterPayment.counteredObjectId }) {
+                "CR 701.5a: the spell ${counterPayment.counteredObjectId} an unless-pay clause would counter " +
+                    "must still be on the stack while the payment is pending"
             }
         }
         val triggerTargets = pendingTriggerTargets

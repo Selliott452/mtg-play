@@ -39,6 +39,12 @@ internal fun applySingleOptionSelection(
         // CR 701.14a/701.17a: one index names a complete arrangement of the privately looked-at cards.
         is DecisionRequest.ChooseLibraryArrangement ->
             applyLibraryArrangement(state, request.options[decision.index])
+        // CR 118.3a: index 0 declines and the spell is countered; any other index pays a plan in full.
+        is DecisionRequest.ChooseCounterPayment ->
+            applyCounterPayment(
+                state,
+                (request.options[decision.index] as? DecisionRequest.ChooseCounterPayment.Option.Pay)?.plan,
+            )
     }
 }
 

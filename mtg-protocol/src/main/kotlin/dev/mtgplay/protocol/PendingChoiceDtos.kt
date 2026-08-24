@@ -3,6 +3,8 @@ package dev.mtgplay.protocol
 import dev.mtgplay.core.identity.CardRef
 import dev.mtgplay.core.identity.ObjectId
 import dev.mtgplay.core.identity.PlayerId
+import dev.mtgplay.core.mana.ManaCost
+import dev.mtgplay.core.state.PendingCounterPayment
 import dev.mtgplay.core.state.PendingMadness
 import dev.mtgplay.core.state.PendingMulligan
 import dev.mtgplay.core.state.PendingReplacement
@@ -75,3 +77,23 @@ fun PendingTriggerTargets.toDto(): PendingTriggerTargetsDto =
 /** [PendingTriggerTargetsDto] back to the engine value. */
 fun PendingTriggerTargetsDto.toDomain(): PendingTriggerTargets =
     PendingTriggerTargets(PlayerId(controller), ObjectId(sourceId), CardRef(sourceCard))
+
+/**
+ * Wire form of [PendingCounterPayment] (CR 118.3a) — a resolving counter's "unless its controller pays"
+ * pause. Fully public: the deciding seat, the amount printed on the counter (as its Scryfall brace
+ * string), and the id of a spell sitting face-up on the public stack (CR 405).
+ */
+@Serializable
+data class PendingCounterPaymentDto(
+    val decider: Int,
+    val cost: String,
+    val counteredObjectId: Long,
+)
+
+/** [PendingCounterPayment] to its wire form. */
+fun PendingCounterPayment.toDto(): PendingCounterPaymentDto =
+    PendingCounterPaymentDto(decider.seat, cost.render(), counteredObjectId.value)
+
+/** [PendingCounterPaymentDto] back to the engine value. */
+fun PendingCounterPaymentDto.toDomain(): PendingCounterPayment =
+    PendingCounterPayment(PlayerId(decider), ManaCost.parse(cost), ObjectId(counteredObjectId))

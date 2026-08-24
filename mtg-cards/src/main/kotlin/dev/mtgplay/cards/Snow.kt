@@ -6,6 +6,7 @@ import dev.mtgplay.core.card.Subtype
 import dev.mtgplay.core.card.Supertype
 import dev.mtgplay.core.definition.CardDefinition
 import dev.mtgplay.core.definition.ManaAbility
+import dev.mtgplay.core.definition.PermanentRestriction
 import dev.mtgplay.core.definition.ResolutionEffect
 import dev.mtgplay.core.definition.SpellDefinition
 import dev.mtgplay.core.definition.TargetSpec
@@ -70,10 +71,10 @@ val snowCoveredPlains: CardDefinition =
  * permanents you control."
  *
  * Two clauses, neither of them a framework:
- * - **"target creature"** (CR 115.1a) is [TargetSpec.TargetCreature] — narrower than the any-target
- *   of a Lightning Bolt, because no player is ever a legal choice. It is the reason this card cannot
- *   go to the face, and it makes the CR 608.2b fizzle reachable: kill the target in response and the
- *   spell does not resolve at all;
+ * - **"target creature"** (CR 115.1a) is [TargetSpec.TargetPermanent] with
+ *   [PermanentRestriction.CREATURE] — narrower than the any-target of a Lightning Bolt, because no
+ *   player is ever a legal choice. It is the reason this card cannot go to the face, and it makes the
+ *   CR 608.2b fizzle reachable: kill the target in response and the spell does not resolve at all;
  * - **"equal to the number of snow permanents you control"** is a state-dependent *amount*, not a
  *   framework. A [ResolutionEffect] is already a pure function of the [GameState] (ADR-004), so the
  *   count is taken as the spell resolves (CR 608.2) — the [galvanicBlast] precedent exactly. A
@@ -99,7 +100,7 @@ val skred: SpellDefinition =
                 powerToughness = null,
             )
         override val timing = TimingClass.INSTANT_SPEED
-        override val targetSpec = TargetSpec.TargetCreature
+        override val targetSpec = TargetSpec.TargetPermanent(PermanentRestriction.CREATURE)
         override val resolution =
             ResolutionEffect { state, context ->
                 val snowPermanents =
