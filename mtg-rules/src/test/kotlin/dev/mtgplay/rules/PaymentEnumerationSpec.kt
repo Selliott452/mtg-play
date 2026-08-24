@@ -1,5 +1,11 @@
 package dev.mtgplay.rules
 
+import dev.mtgplay.core.card.CardType
+import dev.mtgplay.core.card.PrintedCharacteristics
+import dev.mtgplay.core.card.PrintedPowerToughness
+import dev.mtgplay.core.definition.CardDefinition
+import dev.mtgplay.core.definition.ManaAbility
+import dev.mtgplay.core.identity.CardRef
 import dev.mtgplay.core.mana.Color
 import dev.mtgplay.core.mana.ManaCost
 import dev.mtgplay.core.mana.ManaType
@@ -9,6 +15,9 @@ import dev.mtgplay.rules.decision.PaymentPlan
 import dev.mtgplay.rules.decision.SymbolPayment
 import dev.mtgplay.rules.engine.enumeratePaymentPlans
 import dev.mtgplay.rules.engine.manaSourceClasses
+import dev.mtgplay.rules.engine.payManaPlan
+import dev.mtgplay.rules.engine.productionProfile
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.assertions.withClue
 import io.kotest.core.spec.style.StringSpec
 import io.kotest.matchers.collections.shouldBeEmpty
@@ -16,7 +25,11 @@ import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.types.shouldBeInstanceOf
+import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.persistentSetOf
+import kotlinx.collections.immutable.toPersistentList
 
 /**
  * Payment-plan enumeration (CR 601.2g–h) against docs/design/mana-payment.md: equivalence
@@ -40,7 +53,8 @@ class PaymentEnumerationSpec :
             plans shouldHaveSize 1
             val mountainClass = manaSourceClasses(state, alice).single()
             mountainClass.members shouldHaveSize 5
-            plans.single().activations shouldContainExactly listOf(ManaActivation(mountainClass.key, ManaType.RED))
+            plans.single().activations shouldContainExactly
+                listOf(ManaActivation(mountainClass.key, listOf(ManaType.RED)))
             plans.single().payments shouldContainExactly listOf(SymbolPayment.WithMana(ManaType.RED))
         }
 
@@ -102,7 +116,7 @@ class PaymentEnumerationSpec :
             // Two Mountains, or a Mountain and the Forest; which symbol each pays is no longer a
             // distinction, so the cross-run permutation duplicate of the pre-P8.3 model is gone.
             plans shouldHaveSize 2
-            plans.map { plan -> plan.activations.map { it.produced } } shouldBe
+            plans.map { plan -> plan.activations.flatMap { it.produced } } shouldBe
                 listOf(listOf(ManaType.RED, ManaType.RED), listOf(ManaType.RED, ManaType.GREEN))
         }
 
@@ -181,7 +195,7 @@ class PaymentEnumerationSpec :
                 .single()
                 .activations
                 .single()
-                .produced shouldBe ManaType.GREEN
+                .produced shouldBe listOf(ManaType.GREEN)
             plans.single().payments shouldContainExactly listOf(SymbolPayment.WithMana(ManaType.RED))
         }
 
@@ -190,6 +204,128 @@ class PaymentEnumerationSpec :
             val state = rampState(chosen = Color.GREEN, ramps = 2)
             val plans = enumeratePaymentPlans(state, alice, ManaCost.parse("{G}"))
             plans.forEach { it.activations shouldHaveSize 1 }
+        }
+
+        // ---- FW-MANA: board-dependent production (CR 605.2) ---------------------------------------
+
+        "CR 605.2: an assembled conditional land taps once for three mana and pays a three-symbol cost" {
+            val state = stateWith(SeatSetup(battlefield = listOf("Fixture Pylon", "Fixture Reactor")))
+            val plans = enumeratePaymentPlans(state, alice, ManaCost.parse("{C}{C}{C}"))
+            // One activation of the Pylon covers all three symbols; nothing else can.
+            val single = plans.filter { it.activations.size == 1 }
+            single shouldHaveSize 1
+            single
+                .single()
+                .activations
+                .single()
+                .produced shouldBe List(3) { ManaType.COLORLESS }
+            single.single().payments shouldHaveSize 3
+        }
+
+        "CR 605.2: the same land unassembled adds one mana, so the same cost is unpayable" {
+            // The Pylon alone: the condition fails, the amount is 1, and {C}{C}{C} enumerates nothing.
+            plansFor("{C}{C}{C}", SeatSetup(battlefield = listOf("Fixture Pylon"))).shouldBeEmpty()
+            plansFor("{C}", SeatSetup(battlefield = listOf("Fixture Pylon"))) shouldHaveSize 1
+        }
+
+        "CR 605.2: assembling changes the source class, not the equivalence relation" {
+            val alone = stateWith(SeatSetup(battlefield = listOf("Fixture Pylon")))
+            val assembled = stateWith(SeatSetup(battlefield = listOf("Fixture Pylon", "Fixture Reactor")))
+            val pylon = CardRef("Fixture Pylon")
+            // Same printed card, different profile: two different classes, computed from state.
+            manaSourceClasses(alone, alice).single { it.key.card == pylon }.key.profile shouldBe
+                listOf(listOf(ManaType.COLORLESS))
+            manaSourceClasses(assembled, alice).single { it.key.card == pylon }.key.profile shouldBe
+                listOf(List(3) { ManaType.COLORLESS })
+        }
+
+        "CR 605.2: two conditional lands with different amounts pay a cost neither could alone" {
+            // Assembled, the pair adds 3 + 2; {5} needs both activations and wastes nothing.
+            val plans = plansFor("{5}", SeatSetup(battlefield = listOf("Fixture Pylon", "Fixture Reactor")))
+            plans shouldHaveSize 1
+            plans.single().activations shouldHaveSize 2
+            plans.single().activations.sumOf { it.produced.size } shouldBe 5
+        }
+
+        "CR 605.2: a counted source adds one mana per matching permanent, counting itself" {
+            // Two Fixture Kin on the battlefield, so each Elder's one activation adds {G}{G}.
+            val state = stateWith(SeatSetup(battlefield = listOf("Fixture Elder", "Fixture Elder"))).settled()
+            val plans = enumeratePaymentPlans(state, alice, ManaCost.parse("{G}{G}"))
+            plans.any { it.activations.size == 1 } shouldBe true
+            manaSourceClasses(state, alice).single().key.profile shouldBe listOf(List(2) { ManaType.GREEN })
+        }
+
+        "CR 605.2: a count that reads the whole battlefield includes permanents the caster does not control" {
+            // One Elder each. Alice's counts both, so it alone pays {G}{G} — the "on the battlefield"
+            // half of the oracle text, which "each Elf you control" would get wrong by one.
+            val shared =
+                fixtureState(
+                    aliceSetup = SeatSetup(battlefield = listOf("Fixture Elder")),
+                    bobSetup = SeatSetup(battlefield = listOf("Fixture Elder")),
+                ).settled()
+            enumeratePaymentPlans(shared, alice, ManaCost.parse("{G}{G}")) shouldHaveSize 1
+            // Alice's Elder alone counts only itself, so the same cost is unpayable.
+            val lone = stateWith(SeatSetup(battlefield = listOf("Fixture Elder"))).settled()
+            enumeratePaymentPlans(lone, alice, ManaCost.parse("{G}{G}")).shouldBeEmpty()
+        }
+
+        "CR 605.1a: a counted source whose count is zero is no mana source at all" {
+            // The Beacon has no Fixture Kin subtype of its own, so with none on the battlefield its
+            // ability adds nothing; an activation that adds nothing can never appear in a plan.
+            val barren = stateWith(SeatSetup(battlefield = listOf("Fixture Beacon"))).settled()
+            productionProfile(barren, barren.sharedZones.battlefield.single()) shouldBe null
+            manaSourceClasses(barren, alice).shouldBeEmpty()
+            enumeratePaymentPlans(barren, alice, ManaCost.parse("{G}")).shouldBeEmpty()
+            // Add one Kin and the same Beacon becomes a source adding exactly one.
+            val stocked = stateWith(SeatSetup(battlefield = listOf("Fixture Beacon", "Fixture Elder"))).settled()
+            manaSourceClasses(stocked, alice).map { it.key.card } shouldBe
+                listOf(CardRef("Fixture Beacon"), CardRef("Fixture Elder"))
+        }
+
+        "CR 302.6: a summoning-sick counted source still contributes its body to another source's count" {
+            // A sick Elder cannot be tapped (CR 302.6) but is still a Fixture Kin on the battlefield,
+            // so the settled Elder beside it adds two. Usability and the count are different questions.
+            val state =
+                stateWith(SeatSetup(battlefield = listOf("Fixture Elder", "Fixture Elder"))).let { base ->
+                    base.copy(
+                        sharedZones =
+                            base.sharedZones.copy(
+                                battlefield =
+                                    base.sharedZones.battlefield
+                                        .mapIndexed { index, obj -> obj.copy(summoningSick = index != 0) }
+                                        .toPersistentList(),
+                            ),
+                    )
+                }
+            manaSourceClasses(state, alice).single().members shouldHaveSize 1
+            enumeratePaymentPlans(state, alice, ManaCost.parse("{G}{G}")) shouldHaveSize 1
+        }
+
+        "CR 605.2: a production count that moves mid-payment fails loudly instead of paying a different amount" {
+            // The one way a CR 605.2 count can change *inside* a payment window: an activation that
+            // removes a counted permanent. A sacrifice-cost source that is itself a Fixture Kin is
+            // activated first (its class sorts first in battlefield order), which drops the Kin count
+            // from two to one, so the Elder the plan expected to add {G}{G} would now add {G}.
+            //
+            // Nothing in the gauntlet pool can build this board — the only sacrifice mana source is an
+            // Eldrazi Spawn, which is neither an Elf nor an Urza land — so this is a guard, not a
+            // behaviour anyone meets. What it pins is that the guard exists and is *structural*: the
+            // executor locates its member by re-deriving the whole source class key against live
+            // state, the state-derived count is inside that key, so a moved count finds no member and
+            // throws. The alternative — execution quietly producing less mana than the plan declared —
+            // is the worst defect this model can have (docs/design/mana-payment.md §8.3).
+            val state =
+                fixtureState(
+                    aliceSetup = SeatSetup(battlefield = listOf("Fixture Kin Spawn", "Fixture Elder")),
+                    bobSetup = SeatSetup(),
+                    definitions = fixtureDefinitions + (CardRef("Fixture Kin Spawn") to fixtureKinSpawn),
+                ).settled()
+            val cost = ManaCost.parse("{C}{G}{G}")
+            val plans = enumeratePaymentPlans(state, alice, cost)
+            plans shouldHaveSize 1
+            shouldThrow<IllegalArgumentException> { payManaPlan(state, alice, cost, plans.single()) }
+                .message
+                .shouldContain("CR 601.2g")
         }
 
         // ---- completeness -------------------------------------------------------------------------
@@ -246,3 +382,24 @@ class PaymentEnumerationSpec :
                 .shouldBeGreaterThan(0)
         }
     })
+
+/**
+ * A sacrifice-cost `{C}` source that is itself a `Fixture Kin` — the only shape that can move a
+ * CR 605.2 count inside one payment window. Deliberately **not** in [fixtureDefinitions]: it exists
+ * for a single guard test and would be a landmine in the shared registry, where the completeness
+ * oracle and the fuzz corpus would meet a plan that enumerates but cannot execute.
+ */
+private val fixtureKinSpawn: CardDefinition =
+    object : CardDefinition {
+        override val characteristics =
+            PrintedCharacteristics(
+                name = "Fixture Kin Spawn",
+                manaCost = null,
+                supertypes = persistentSetOf(),
+                cardTypes = persistentSetOf(CardType.CREATURE),
+                subtypes = persistentSetOf(FIXTURE_KIN_TYPE),
+                powerToughness = PrintedPowerToughness(power = 0, toughness = 1),
+            )
+        override val manaAbilities =
+            persistentListOf(ManaAbility(persistentListOf(ManaType.COLORLESS), viaSacrifice = true))
+    }

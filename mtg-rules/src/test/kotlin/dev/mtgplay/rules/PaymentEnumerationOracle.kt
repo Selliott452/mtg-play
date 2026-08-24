@@ -93,7 +93,54 @@ internal fun oracleScenarios(): List<Pair<String, PaymentScenario>> =
             (rampState(Color.GREEN).withPool(ManaType.GREEN) to ManaCost.parse("{1}{G}")),
         "{G} off a fixed-mana ramp Forest" to (fixedRampState() to ManaCost.parse("{G}")),
         "{1}{G} off a fixed-mana ramp Forest" to (fixedRampState() to ManaCost.parse("{1}{G}")),
-    ) + creatureSourceScenarios()
+    ) + creatureSourceScenarios() + boardDependentSourceScenarios()
+
+/**
+ * The `FW-MANA` scenarios: sources whose production is read off the board when the ability resolves
+ * (CR 605.2), so the profile the plan was enumerated against is itself state-derived. They are what
+ * re-runs the completeness oracle and the planner/executor correspondence property against a
+ * **state-conditional** profile rather than a static one, which is the risk the packet carries
+ * (docs/design/mana-payment.md §8.3).
+ *
+ * They deliberately span the three shapes that differ: a conditional amount that is 1 or 3, a
+ * conditional amount that is 1 or 2 in the same plan, and a per-permanent count — plus the
+ * cross-controller count and a competing pool, because those are where an off-by-one hides.
+ */
+private fun boardDependentSourceScenarios(): List<Pair<String, PaymentScenario>> {
+    val assembled = listOf("Fixture Pylon", "Fixture Reactor")
+    return listOf(
+        "{C}{C}{C} off an assembled Pylon (three mana from one activation)" to
+            (fixtureBoard(SeatSetup(battlefield = assembled)) to ManaCost.parse("{C}{C}{C}")),
+        "{4} off an assembled Pylon and Reactor" to
+            (fixtureBoard(SeatSetup(battlefield = assembled)) to ManaCost.parse("{4}")),
+        "{C}{C}{C} off an assembled Pylon with a colorless already floating" to
+            (
+                fixtureBoard(SeatSetup(battlefield = assembled)).withPool(ManaType.COLORLESS) to
+                    ManaCost.parse("{C}{C}{C}")
+            ),
+        // Unassembled, both lands add exactly one, so the whole conditional collapses to the
+        // ordinary case — the control that proves the condition is read and not assumed.
+        "{C}{C} off an unassembled Pylon and a Wastes" to
+            (
+                fixtureBoard(SeatSetup(battlefield = listOf("Fixture Pylon", "Fixture Wastes"))) to
+                    ManaCost.parse("{C}{C}")
+            ),
+        "{G}{G} off two settled Elders, each counting both" to
+            (
+                fixtureBoard(SeatSetup(battlefield = listOf("Fixture Elder", "Fixture Elder"))).settled() to
+                    ManaCost.parse("{G}{G}")
+            ),
+        // "for each Fixture Kin on the battlefield" spans both battlefields, so alice's lone Elder
+        // adds two while bob's Elder is what makes the second one exist.
+        "{G}{G} off one settled Elder counting the opponent's" to
+            (
+                fixtureState(
+                    aliceSetup = SeatSetup(battlefield = listOf("Fixture Elder")),
+                    bobSetup = SeatSetup(battlefield = listOf("Fixture Elder")),
+                ).settled() to ManaCost.parse("{G}{G}")
+            ),
+    )
+}
 
 /**
  * The scenarios whose sources are **creatures** (CR 302), the only shape for which the CR 302.6

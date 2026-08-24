@@ -66,6 +66,15 @@ import dev.mtgplay.core.identity.CardRef
  * *additional cost* — a new enumerated decision — and Cryoshatter needs trigger conditions for a
  * permanent becoming tapped or being dealt damage, which nothing in the engine watches for.
  *
+ * The `FW-MANA` packet adds the pool's first cards whose mana abilities add a **board-dependent
+ * amount** (CR 605.2): Monster Tron's three Urza lands (UrzaLands.kt) [urzasMine], [urzasPowerPlant],
+ * and [urzasTower] — one colorless alone, two or (for the Tower) three with the other two out — and
+ * [priestOfTitania] (ManaCreatures.kt), one `{G}` per Elf on the battlefield. Two of that framework's
+ * cards are deliberately absent: Overgrown Battlement counts creatures **with defender**, a keyword
+ * that does not exist yet (`FW-DEFENDERKW`), and Saruli Caretaker's ability costs "{T}, Tap an
+ * untapped creature you control" — an activation cost shape the payment model cannot express
+ * (docs/design/mana-payment.md §9).
+ *
  * [definitions] is shaped for direct `MatchConfig.definitions` consumption: the engine carries
  * it into `GameState` in canonical name-sorted order regardless of this map's own order
  * (ADR-009 — definitions ride in the state; a [CardRef] without an entry is inert). The pool
@@ -125,6 +134,7 @@ object MvpCards {
             plains,
             ponder,
             preordain,
+            priestOfTitania,
             pursueThePast,
             rancor,
             scourFromExistence,
@@ -148,6 +158,9 @@ object MvpCards {
             thoughtScour,
             unfathomableTruths,
             unionOfTheThirdPath,
+            urzasMine,
+            urzasPowerPlant,
+            urzasTower,
             utopiaSprawl,
             vaultOfWhispers,
             voldarenEpicure,

@@ -6,7 +6,6 @@ import dev.mtgplay.core.mana.Color
 import dev.mtgplay.core.mana.ManaCost
 import dev.mtgplay.core.mana.ManaSymbol
 import dev.mtgplay.core.mana.ManaType
-import dev.mtgplay.core.state.GameObject
 import dev.mtgplay.core.state.GameState
 import dev.mtgplay.rules.decision.PaymentPlan
 import dev.mtgplay.rules.decision.SourceClassKey
@@ -41,89 +40,27 @@ internal data class SourceClass(
  * first appearance in battlefield order (the stable class order of
  * docs/design/mana-payment.md). Controller is owner until control-changing effects exist
  * (Phase 4+).
+ *
+ * [reserved] names objects another component of the *same* cost has already claimed, which must
+ * therefore not fund its mana component ([manaSourcesReservedBy], docs/design/mana-payment.md §2.2).
+ * The exclusion is by **object**, not by class: it shrinks the class's capacity by one and removes
+ * the class entirely only when it had a single member — which is exactly right, because a second
+ * copy of the same card is a perfectly good payer.
  */
 internal fun manaSourceClasses(
     state: GameState,
     seat: PlayerId,
+    reserved: Set<ObjectId> = emptySet(),
 ): List<SourceClass> {
     val classes = LinkedHashMap<SourceClassKey, MutableList<ObjectId>>()
     state.sharedZones.battlefield
-        .filter { it.owner == seat && manaSourceUsable(state, it) }
+        .filter { it.owner == seat && it.id !in reserved && manaSourceUsable(state, it) }
         .forEach { obj ->
-            productionProfile(state, obj)?.let { profile ->
-                val bonus = triggeredManaBonus(state, obj.id)
-                val key = SourceClassKey(obj.card, profile, bonus, isSacrificeSource(state, obj.id))
+            sourceClassKeyOf(state, obj)?.let { key ->
                 classes.getOrPut(key) { mutableListOf() }.add(obj.id)
             }
         }
     return classes.map { (key, members) -> SourceClass(key, members.toList()) }
-}
-
-/**
- * The extra mana an activation of the battlefield source [sourceId] adds *in addition to* its
- * primary production (CR 605.1b): the [dev.mtgplay.core.definition.TriggeredManaAbility]s of every Aura
- * attached to it — Utopia Sprawl's "add one mana of the chosen colour" on an enchanted Forest, Wild
- * Growth's additional `{G}` on an enchanted land — expanded to [ManaType]s, in battlefield-then-ability
- * order. Empty for a source with no such Aura. This is the [SourceClassKey.bonus] that keeps an
- * enchanted Forest a distinct source class, and — since P8.3 — the second half of the activation's
- * [activationYield], spendable by the very cost whose payment produced it.
- */
-internal fun triggeredManaBonus(
-    state: GameState,
-    sourceId: ObjectId,
-): List<ManaType> =
-    state.sharedZones.battlefield
-        .filter { it.attachedTo == sourceId }
-        .flatMap { aura ->
-            state.definitions[aura.card]?.triggeredManaAbilities.orEmpty().flatMap { ability ->
-                when (ability) {
-                    is dev.mtgplay.core.definition.TriggeredManaAbility.AddChosenColor -> {
-                        val color = aura.chosenColor
-                        if (color == null) emptyList() else List(ability.amount) { manaTypeOf(color) }
-                    }
-
-                    is dev.mtgplay.core.definition.TriggeredManaAbility.AddFixedMana ->
-                        List(ability.amount) { ability.manaType }
-                }
-            }
-        }
-
-/**
- * Everything one activation of [key] choosing [produced] puts in the pool (CR 605.1a–b): the
- * source's own mana, plus the CR 605.1b triggered bonus of the Auras attached to it. All of it is
- * spendable by the plan that declared the activation; whatever the plan does not spend floats
- * until the step ends (CR 500.4).
- *
- * **This is the F10 seam** (docs/design/mana-payment.md §8). A source whose own ability adds
- * several mana — Urza's Tower's `{C}{C}{C}` — fits by making the primary half a multiset rather
- * than a single [ManaType]; the plan shape, the search, the dedup rule and the executor are all
- * indifferent to how long this list is.
- */
-internal fun activationYield(
-    key: SourceClassKey,
-    produced: ManaType,
-): List<ManaType> = listOf(produced) + key.bonus
-
-/**
- * The production profile of the battlefield object [obj]: the canonical (WUBRG-then-colorless,
- * CR 105.1) list of mana types its own mana abilities may add, or `null` if it is no mana source
- * — no definition, or none with mana abilities. Reads the object's **layered** mana abilities
- * ([layeredCharacteristics]), so a land granted "{T}: add one mana of any color" by an Abundant
- * Growth (CR 613 layer 6) taps for the granted colors here (docs/design/layer-system.md §6). The
- * CR 605.1b *triggered* bonus is [triggeredManaBonus], kept separate because it is added rather
- * than chosen between. The profile *shape* is what the payment equivalence relation keys on, so a
- * grant changes an object's class without reshaping anything.
- */
-internal fun productionProfile(
-    state: GameState,
-    obj: GameObject,
-): List<ManaType>? {
-    val producible =
-        layeredCharacteristics(state, obj.id)
-            .manaAbilities
-            .flatMap { it.options }
-            .toSet()
-    return if (producible.isEmpty()) null else ManaType.entries.filter { it in producible }
 }
 
 /**
@@ -139,17 +76,24 @@ internal fun productionProfile(
  *
  * Life legality (CR 118.8): a plan's summed life payments must not exceed [seat]'s life total;
  * paying down to 0 or less is legal and the CR 704.5a state-based action follows.
+ *
+ * [reserved] excludes battlefield objects a *sibling component of the same cost* has claimed
+ * ([manaSourcesReservedBy]). It is empty for a spell's mana cost and non-empty only for an
+ * activated ability whose cost also taps or sacrifices its own source — the trap the
+ * gauntlet triage records as T17, and an ADR-005 defect rather than a rules corner, because the
+ * offending plan was *enumerated* and then failed to execute.
  */
 internal fun enumeratePaymentPlans(
     state: GameState,
     seat: PlayerId,
     cost: ManaCost,
+    reserved: Set<ObjectId> = emptySet(),
 ): List<PaymentPlan> {
     val player = state.player(seat)
     val supply =
         manaSupply(
             pool = player.manaPool.groupingBy { it }.eachCount(),
-            classes = manaSourceClasses(state, seat),
+            classes = manaSourceClasses(state, seat, reserved),
             life = player.life,
         )
     val units = expandToUnits(cost)

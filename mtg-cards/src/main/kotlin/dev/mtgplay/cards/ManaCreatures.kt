@@ -5,6 +5,8 @@ import dev.mtgplay.core.card.PrintedCharacteristics
 import dev.mtgplay.core.card.PrintedPowerToughness
 import dev.mtgplay.core.card.Subtype
 import dev.mtgplay.core.definition.ManaAbility
+import dev.mtgplay.core.definition.ManaAmount
+import dev.mtgplay.core.definition.PermanentFilter
 import dev.mtgplay.core.definition.ResolutionEffect
 import dev.mtgplay.core.definition.SpellDefinition
 import dev.mtgplay.core.definition.TargetSpec
@@ -30,6 +32,14 @@ import kotlinx.collections.immutable.persistentSetOf
  * That gate is the reason these two land together with the fix rather than after it: the failure
  * it prevents is silent and in the agent's favour — mana offered in the enumerated action space
  * that the rules do not permit (PLAN.md §7, docs/gauntlet-card-triage.md §7 T1).
+ *
+ * The `FW-MANA` packet then adds the list's third Elf, [priestOfTitania], whose ability adds one
+ * `{G}` *per Elf on the battlefield* — the pool's first variable-amount production (CR 605.2). Its
+ * two would-be siblings from Spy Combo stay absent rather than approximated: Overgrown Battlement
+ * counts creatures **with defender**, a keyword `mtg-core` does not have (`FW-DEFENDERKW`), and
+ * Saruli Caretaker's ability costs "{T}, Tap an untapped creature you control", an activation cost
+ * shape that does not exist and that is a payment-*capacity* problem rather than a production one
+ * (docs/design/mana-payment.md §9).
  */
 
 /**
@@ -82,3 +92,50 @@ val elvishMystic: SpellDefinition = greenManaElf("Elvish Mystic")
  * (docs/design/mana-payment.md §2) — a deliberate safety margin, not an oversight.
  */
 val fyndhornElves: SpellDefinition = greenManaElf("Fyndhorn Elves")
+
+/**
+ * Priest of Titania — `{1}{G}` Creature — Elf Druid, a 1/1 with "`{T}`: Add `{G}` for each Elf on
+ * the battlefield."
+ *
+ * The pool's first **variable-amount** mana source (CR 605.2), and the counted half of `FW-MANA`
+ * next to the Urza lands' conditional half. Three things about the oracle text are load-bearing and
+ * easy to get wrong:
+ *
+ * - **"each Elf on the battlefield", not "each Elf you control."** The count includes the opponent's
+ *   Elves, which in an Elves mirror is the difference between a Priest adding three and adding six.
+ *   [PermanentFilter.controlledByYou] is `false` here and `true` on the Urza lands, and that one
+ *   boolean is the whole distinction.
+ * - **It counts itself.** A Priest is an Elf, so a lone Priest adds exactly one `{G}` — the count is
+ *   never zero while the source is on the battlefield to be tapped, which is why the "a source that
+ *   adds nothing is no source" branch of `productionProfile` is unreachable from this card.
+ * - **The count is read when the ability resolves** (CR 605.2), not when the cost was locked in
+ *   (CR 601.2f). Two Priests paying one cost is two activations, and if something removed an Elf
+ *   between them the second would add less — see docs/design/mana-payment.md §8.3 for what the
+ *   engine does about that.
+ *
+ * Being an activated ability with `{T}` in its cost on a creature, it adds nothing at all while the
+ * Priest is summoning sick (CR 302.6, the `P-MANASICK` gate).
+ */
+val priestOfTitania: SpellDefinition =
+    object : SpellDefinition {
+        override val characteristics =
+            PrintedCharacteristics(
+                name = "Priest of Titania",
+                manaCost = ManaCost.parse("{1}{G}"),
+                supertypes = persistentSetOf(),
+                cardTypes = persistentSetOf(CardType.CREATURE),
+                subtypes = ELF_DRUID,
+                powerToughness = PrintedPowerToughness(power = 1, toughness = 1),
+            )
+
+        override val timing = TimingClass.SORCERY_SPEED
+        override val targetSpec = TargetSpec.None
+        override val resolution = entersTheBattlefield
+        override val manaAbilities =
+            persistentListOf(
+                ManaAbility(
+                    options = persistentListOf(ManaType.GREEN),
+                    amount = ManaAmount.PerPermanent(PermanentFilter(Subtype("Elf"), controlledByYou = false)),
+                ),
+            )
+    }

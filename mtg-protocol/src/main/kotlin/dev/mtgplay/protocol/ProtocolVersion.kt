@@ -40,5 +40,17 @@ package dev.mtgplay.protocol
  * `CHOOSE_LIBRARY_ARRANGEMENT`, whose `valueOf` mapping fails at **runtime** rather than at compile
  * time, so an old peer meets it as a decode exception mid-match. That is the sharper of the two break
  * modes and a strictly larger break than `3.0.0`'s, so the major bump is not a judgement call.
+ *
+ * **5.0.0 — `FW-MANA`** (docs/design/mana-payment.md §8). A mana ability can now add more than one
+ * mana, and how many is read off the board when it resolves (CR 605.2), so a payment plan has to say
+ * *what multiset* each activation adds rather than which single type. Two required fields inside
+ * [PaymentPlanDto] change type, in **both** directions — it is an offered option server→client and a
+ * chosen one client→server: [SourceClassKeyDto.profile] becomes a list of alternatives
+ * (`List<List<ManaTypeDto>>`) and [ManaActivationDto.produced] becomes one alternative
+ * (`List<ManaTypeDto>`). A `4.0.0` peer would misread every payment option it is offered and send
+ * back a plan the strict codec rejects — the same break shape as `2.0.0`'s, so the same major bump.
+ *
+ * No `DecisionRequest` kind is added: multi-mana production is a change to what an existing option
+ * *says*, not a new decision, which is the whole point of the P8.3 plan shape holding.
  */
-const val PROTOCOL_VERSION: String = "4.0.0"
+const val PROTOCOL_VERSION: String = "5.0.0"

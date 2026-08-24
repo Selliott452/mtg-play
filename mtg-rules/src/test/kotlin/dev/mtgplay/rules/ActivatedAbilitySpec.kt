@@ -30,6 +30,7 @@ import dev.mtgplay.rules.decision.PriorityOption
 import dev.mtgplay.rules.effect.createToken
 import dev.mtgplay.rules.effect.drawCards
 import dev.mtgplay.rules.engine.manaSourceClasses
+import dev.mtgplay.rules.engine.manaSourcesReservedBy
 import dev.mtgplay.rules.engine.resolveTapForMana
 import io.kotest.core.spec.style.StringSpec
 import io.kotest.matchers.collections.shouldContainExactly
@@ -52,6 +53,7 @@ class ActivatedAbilitySpec :
         val blood = CardRef("Fixture Blood")
         val moxite = CardRef("Fixture Moxite")
         val cycler = CardRef("Fixture Cycler")
+        val ornament = CardRef("Fixture Ornament")
         val mountain = CardRef("Ability Mountain")
         val robot = CardRef("Robot")
 
@@ -89,6 +91,74 @@ class ActivatedAbilitySpec :
                 .getValue(alice)
                 .graveyard
                 .count { it.card == CardRef("Ability Filler") } shouldBe 1
+        }
+
+        // ---- triage trap T17: a source may not fund a cost that also taps it -----------------------
+
+        "CR 602.2a: a {T} ability's own source is never offered as a payer for that ability's mana cost" {
+            // Four Mountains and an untapped Ornament ({T}: Add {C}; {4}, {T}: draw a card). Before the
+            // fix, colorless sorted into the {4} candidates and plan 0 tapped the Ornament itself; the
+            // plan enumerated, the agent picked it, mana was paid, and the {T} component then threw.
+            // An enumerated action the rules do not permit is an ADR-005 defect, not a rules corner.
+            val state =
+                abilityState(
+                    battlefield = List(4) { mountain.name } + ornament.name,
+                    hand = emptyList(),
+                    library = 2,
+                )
+            val window = pausedRequestOf<DecisionRequest.ChooseAction>(state)
+            val index = window.options.indexOfFirst { it is PriorityOption.ActivateAbility && it.card == ornament }
+            var current = engine.advance(state, Decision.SingleSelect(window.id, index))
+            val payment = current.pending<DecisionRequest.ChoosePaymentPlan>()
+            // Only the Mountains fund it, so there is exactly one plan and it never names the Ornament.
+            payment.options.forEach { plan ->
+                plan.activations.none { it.sourceClass.card == ornament } shouldBe true
+            }
+            // And every offered plan executes (ADR-005): the ability reaches the stack.
+            payment.options.indices.forEach { choice ->
+                val paid = engine.advance(current.pausedState, Decision.SingleSelect(payment.id, choice))
+                paid.pausedState.sharedZones.stack
+                    .last()
+                    .shouldBeInstanceOf<StackEntry.ActivatedAbilityOnStack>()
+            }
+            current = engine.advance(current.pausedState, Decision.SingleSelect(payment.id, 0))
+            current.pausedState.sharedZones.battlefield
+                .single { it.card == ornament }
+                .tapped shouldBe true
+        }
+
+        "CR 602.2: legality agrees with the request — three Mountains and the Ornament cannot pay {4}" {
+            // The Ornament's own {C} would make four, but it is reserved by the {T} component, so the
+            // ability is not offered at all rather than offered and unpayable.
+            val state =
+                abilityState(
+                    battlefield = List(3) { mountain.name } + ornament.name,
+                    hand = emptyList(),
+                    library = 2,
+                )
+            pausedRequestOf<DecisionRequest.ChooseAction>(state)
+                .options
+                .none { it is PriorityOption.ActivateAbility && it.card == ornament } shouldBe true
+        }
+
+        "CR 701.17: a cost that only sacrifices its source reserves nothing — tapping it first is legal" {
+            // The counterexample that keeps the reservation from being written too broadly. Sacrificing
+            // a *tapped* permanent is legal Magic (CR 701.17 does not care), so a "{3}, Sacrifice this"
+            // ability must keep every plan that taps its own source for mana. Reserving on
+            // SacrificeSelf unconditionally would trade a crash for a silently missing legal plan.
+            val state =
+                abilityState(
+                    battlefield = listOf(moxite.name, mountain.name, mountain.name, mountain.name),
+                    hand = emptyList(),
+                    library = 2,
+                )
+            val source = state.sharedZones.battlefield.single { it.card == moxite }
+            val ability =
+                state.definitions
+                    .getValue(moxite)
+                    .activatedAbilities
+                    .single()
+            manaSourcesReservedBy(state, source, ability).isEmpty() shouldBe true
         }
 
         "CR 113.7a: the activated ability resolves, drawing a card, though its source was sacrificed" {
@@ -167,9 +237,9 @@ class ActivatedAbilitySpec :
             val classes = manaSourceClasses(state, alice)
             val spawnClass = classes.single { it.key.card == spawn }
             spawnClass.key.viaSacrifice shouldBe true
-            spawnClass.key.profile shouldContainExactly listOf(ManaType.COLORLESS)
+            spawnClass.key.profile shouldContainExactly listOf(listOf(ManaType.COLORLESS))
             // Activating it sacrifices the token and adds {C} to the pool.
-            val paid = resolveTapForMana(state, alice, spawnClass.key, ManaType.COLORLESS)
+            val paid = resolveTapForMana(state, alice, spawnClass.key, listOf(ManaType.COLORLESS))
             paid.players
                 .getValue(alice)
                 .manaPool
@@ -314,6 +384,28 @@ private val abilityRegistry: Map<CardRef, CardDefinition> =
                             cost = persistentListOf(AbilityCost.Mana(ManaCost.parse("{1}")), AbilityCost.DiscardSelf),
                             effect = ResolutionEffect { s, ctx -> drawCards(s, ctx.controller, 1) },
                             zoneScope = AbilityZoneScope.Hand,
+                        ),
+                    )
+            },
+        // Bonder's Ornament's shape, and the reproduction of triage trap T17: one permanent that is
+        // both a mana source and the source of a {T}-costed ability with a mana component.
+        CardRef("Fixture Ornament") to
+            object : CardDefinition {
+                override val characteristics =
+                    PrintedCharacteristics(
+                        name = "Fixture Ornament",
+                        manaCost = null,
+                        supertypes = persistentSetOf(),
+                        cardTypes = persistentSetOf(CardType.ARTIFACT),
+                        subtypes = persistentSetOf(),
+                        powerToughness = null,
+                    )
+                override val manaAbilities = persistentListOf(ManaAbility(persistentListOf(ManaType.COLORLESS)))
+                override val activatedAbilities =
+                    persistentListOf(
+                        ActivatedAbility(
+                            cost = persistentListOf(AbilityCost.Mana(ManaCost.parse("{4}")), AbilityCost.TapSelf),
+                            effect = ResolutionEffect { s, ctx -> drawCards(s, ctx.controller, 1) },
                         ),
                     )
             },

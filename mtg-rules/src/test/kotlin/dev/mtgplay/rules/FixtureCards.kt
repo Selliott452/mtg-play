@@ -3,8 +3,11 @@ package dev.mtgplay.rules
 import dev.mtgplay.core.card.CardType
 import dev.mtgplay.core.card.PrintedCharacteristics
 import dev.mtgplay.core.card.PrintedPowerToughness
+import dev.mtgplay.core.card.Subtype
 import dev.mtgplay.core.definition.CardDefinition
 import dev.mtgplay.core.definition.ManaAbility
+import dev.mtgplay.core.definition.ManaAmount
+import dev.mtgplay.core.definition.PermanentFilter
 import dev.mtgplay.core.definition.ResolutionEffect
 import dev.mtgplay.core.definition.SpellDefinition
 import dev.mtgplay.core.definition.TargetSpec
@@ -14,6 +17,7 @@ import dev.mtgplay.core.mana.ManaCost
 import dev.mtgplay.core.mana.ManaType
 import dev.mtgplay.core.state.Target
 import dev.mtgplay.rules.effect.loseLife
+import kotlinx.collections.immutable.PersistentSet
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.persistentSetOf
 
@@ -152,6 +156,133 @@ internal val fixtureManaSpawn =
             persistentListOf(ManaAbility(persistentListOf(ManaType.COLORLESS), viaSacrifice = true))
     }
 
+// ---- FW-MANA: board-dependent production (CR 605.2) --------------------------------------------
+
+/** The land subtype [fixturePylon] carries and [fixtureReactor] conditions on. */
+internal val FIXTURE_PYLON_TYPE: Subtype = Subtype("Fixture Pylon")
+
+/** The land subtype [fixtureReactor] carries and [fixturePylon] conditions on. */
+internal val FIXTURE_REACTOR_TYPE: Subtype = Subtype("Fixture Reactor")
+
+/** The creature subtype [fixtureElder] and [fixtureBeacon] count (Priest of Titania's "Elf"). */
+internal val FIXTURE_KIN_TYPE: Subtype = Subtype("Fixture Kin")
+
+/**
+ * "Fixture Pylon" — a land with subtype `Fixture Pylon`: `{T}: Add {C}`, or `{C}{C}{C}` while its
+ * controller also has a `Fixture Reactor` (CR 605.2). The Urza's Tower shape — the **three**-mana
+ * side of a conditional pair — with two fixtures instead of three cards.
+ */
+internal val fixturePylon =
+    conditionalLand(
+        name = "Fixture Pylon",
+        subtype = FIXTURE_PYLON_TYPE,
+        requires = FIXTURE_REACTOR_TYPE,
+        ifMet = FIXTURE_PYLON_ASSEMBLED,
+    )
+
+/**
+ * "Fixture Reactor" — a land with subtype `Fixture Reactor`: `{T}: Add {C}`, or `{C}{C}` while its
+ * controller also has a `Fixture Pylon`. The Urza's Mine shape, and [fixturePylon]'s asymmetric
+ * partner: assembled, the pair adds five colorless off two activations.
+ */
+internal val fixtureReactor =
+    conditionalLand(
+        name = "Fixture Reactor",
+        subtype = FIXTURE_REACTOR_TYPE,
+        requires = FIXTURE_PYLON_TYPE,
+        ifMet = FIXTURE_REACTOR_ASSEMBLED,
+    )
+
+/**
+ * "Fixture Elder" — a creature with subtype `Fixture Kin`: `{T}: Add {G} for each Fixture Kin on
+ * the battlefield` (CR 605.2). Priest of Titania's shape, including the two details that matter:
+ * the count spans **both** battlefields, and the source counts itself, so a lone Elder adds one.
+ */
+internal val fixtureElder =
+    countingSource(
+        name = "Fixture Elder",
+        cardType = CardType.CREATURE,
+        subtypes = persistentSetOf(FIXTURE_KIN_TYPE),
+        powerToughness = PrintedPowerToughness(power = 1, toughness = 1),
+    )
+
+/**
+ * "Fixture Beacon" — an artifact with `{T}: Add {G} for each Fixture Kin on the battlefield` and no
+ * `Fixture Kin` subtype of its own. The counterexample the Elder cannot provide: with no Kin
+ * anywhere its count is **zero**, so it is no mana source at all in that state. An artifact rather
+ * than a creature so the CR 302.6 summoning-sickness gate cannot be what is being observed.
+ */
+internal val fixtureBeacon =
+    countingSource(
+        name = "Fixture Beacon",
+        cardType = CardType.ARTIFACT,
+        subtypes = persistentSetOf(),
+        powerToughness = null,
+    )
+
+/** What a [fixturePylon] adds with a [fixtureReactor] beside it — the Urza's Tower amount. */
+internal const val FIXTURE_PYLON_ASSEMBLED: Int = 3
+
+/** What a [fixtureReactor] adds with a [fixturePylon] beside it — the Urza's Mine amount. */
+internal const val FIXTURE_REACTOR_ASSEMBLED: Int = 2
+
+/** A land whose one mana ability adds [ifMet] colorless while its controller has a [requires]. */
+private fun conditionalLand(
+    name: String,
+    subtype: Subtype,
+    requires: Subtype,
+    ifMet: Int,
+): CardDefinition =
+    object : CardDefinition {
+        override val characteristics =
+            PrintedCharacteristics(
+                name = name,
+                manaCost = null,
+                supertypes = persistentSetOf(),
+                cardTypes = persistentSetOf(CardType.LAND),
+                subtypes = persistentSetOf(subtype),
+                powerToughness = null,
+            )
+        override val manaAbilities =
+            persistentListOf(
+                ManaAbility(
+                    options = persistentListOf(ManaType.COLORLESS),
+                    amount =
+                        ManaAmount.Conditional(
+                            requires = persistentListOf(PermanentFilter(requires, controlledByYou = true)),
+                            ifMet = ifMet,
+                            otherwise = 1,
+                        ),
+                ),
+            )
+    }
+
+/** A source adding one `{G}` per `Fixture Kin` on the battlefield, whoever controls it. */
+private fun countingSource(
+    name: String,
+    cardType: CardType,
+    subtypes: PersistentSet<Subtype>,
+    powerToughness: PrintedPowerToughness?,
+): CardDefinition =
+    object : CardDefinition {
+        override val characteristics =
+            PrintedCharacteristics(
+                name = name,
+                manaCost = null,
+                supertypes = persistentSetOf(),
+                cardTypes = persistentSetOf(cardType),
+                subtypes = subtypes,
+                powerToughness = powerToughness,
+            )
+        override val manaAbilities =
+            persistentListOf(
+                ManaAbility(
+                    options = persistentListOf(ManaType.GREEN),
+                    amount = ManaAmount.PerPermanent(PermanentFilter(FIXTURE_KIN_TYPE, controlledByYou = false)),
+                ),
+            )
+    }
+
 /** "Fixture Bolt" — `{R}` instant, any target: the targeted player loses 3 life. */
 internal val fixtureBolt =
     spellFixture(
@@ -218,6 +349,10 @@ internal val fixtureDefinitions: Map<CardRef, CardDefinition> =
         fixtureWastes,
         fixtureManaElf,
         fixtureManaSpawn,
+        fixturePylon,
+        fixtureReactor,
+        fixtureElder,
+        fixtureBeacon,
         fixtureBolt,
         fixtureComet,
         fixtureMeditation,

@@ -46,7 +46,12 @@ class MenuFormatSpec :
         "CR 601.2g-h: a payment menu renders each plan's activations and what they pay" {
             val plan =
                 PaymentPlan(
-                    listOf(ManaActivation(SourceClassKey(CardRef("Mountain"), listOf(ManaType.RED)), ManaType.RED)),
+                    listOf(
+                        ManaActivation(
+                            SourceClassKey(CardRef("Mountain"), listOf(listOf(ManaType.RED))),
+                            listOf(ManaType.RED),
+                        ),
+                    ),
                     listOf(SymbolPayment.WithMana(ManaType.RED)),
                 )
             val request = DecisionRequest.ChoosePaymentPlan(rid, ObjectId(4), CardRef("Lightning Bolt"), listOf(plan))

@@ -71,7 +71,16 @@ internal fun abilityCostPayable(
 ): Boolean =
     ability.cost.all { component ->
         when (component) {
-            is AbilityCost.Mana -> enumeratePaymentPlans(state, seat, component.cost).isNotEmpty()
+            // The source is excluded from funding its own cost when a sibling component has claimed
+            // it (CR 602.1, triage trap T17) — otherwise legality would say yes to a plan that taps
+            // the very permanent the `{T}` component then needs untapped.
+            is AbilityCost.Mana ->
+                enumeratePaymentPlans(
+                    state,
+                    seat,
+                    component.cost,
+                    manaSourcesReservedBy(state, source, ability),
+                ).isNotEmpty()
             AbilityCost.TapSelf ->
                 scope == AbilityZoneScope.Battlefield &&
                     !source.tapped &&

@@ -64,14 +64,16 @@ class AuraCastingSpec :
         "CR 613 layer 6: a mana-granting Aura lets an enchanted land tap for the granted color in payment enumeration" {
             // Meadow ({T}: add {G}) enchanted by Fixture Growth (grants {T}: add one mana of any color).
             val enchanted = auraState(listOf(bfObject(0, "Meadow"), bfObject(1, "Fixture Growth", attachedTo = 0)))
+            // One alternative per grantable colour, each adding a single mana (CR 605.1a).
             productionProfile(enchanted, enchanted.bf("Meadow")) shouldBe
                 listOf(ManaType.WHITE, ManaType.BLUE, ManaType.BLACK, ManaType.RED, ManaType.GREEN)
+                    .map { listOf(it) }
             // {W} is payable now — only because of the grant.
             enumeratePaymentPlans(enchanted, alice, ManaCost.parse("{W}")).shouldNotBeEmpty()
 
             // Without the Aura the Meadow makes only {G}, so {W} is unpayable.
             val plain = auraState(listOf(bfObject(0, "Meadow")))
-            productionProfile(plain, plain.bf("Meadow")) shouldBe listOf(ManaType.GREEN)
+            productionProfile(plain, plain.bf("Meadow")) shouldBe listOf(listOf(ManaType.GREEN))
             enumeratePaymentPlans(plain, alice, ManaCost.parse("{W}")).shouldBeEmpty()
         }
 

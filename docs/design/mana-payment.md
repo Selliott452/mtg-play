@@ -1,11 +1,12 @@
-# Design note — mana payment enumeration (P2.1, amended P8.3 and P-MANASICK)
+# Design note — mana payment enumeration (P2.1, amended P8.3, P-MANASICK and FW-MANA)
 
 The reference for the payment model built in P2.1, extended by P2.2 (real basics) and Phase 5
 (triggered mana abilities, additional/alternative costs), **reshaped in P8.3** so that one
-activation of a mana ability can pay more than one cost symbol, and corrected by `P-MANASICK`
-(§2.1) when the pool gained its first creature mana source. PLAN.md §7 names payment
-combinatorics a top risk; the mitigation is this model: **declarative plans over collapsed
-source classes**, enumerated exhaustively, chosen by index (ADR-005).
+activation of a mana ability can pay more than one cost symbol, corrected by `P-MANASICK`
+(§2.1) when the pool gained its first creature mana source, and **extended on the production side
+by `FW-MANA`** (§8) when it gained its first sources whose amount is read off the board. PLAN.md §7
+names payment combinatorics a top risk; the mitigation is this model: **declarative plans over
+collapsed source classes**, enumerated exhaustively, chosen by index (ADR-005).
 
 > **P8.3 amendment, in one paragraph.** Up to P8.2 a plan was a flat list of per-symbol
 > payments, each naming its own source, so *one tap paid exactly one symbol*. That made a
@@ -30,7 +31,7 @@ data class PaymentPlan(
     val payments: List<SymbolPayment>,      // CR 601.2h — what each cost symbol is paid with
 )
 
-data class ManaActivation(val sourceClass: SourceClassKey, val produced: ManaType)
+data class ManaActivation(val sourceClass: SourceClassKey, val produced: List<ManaType>)
 
 sealed interface SymbolPayment {
     data class WithMana(val mana: ManaType) : SymbolPayment
@@ -39,11 +40,12 @@ sealed interface SymbolPayment {
 ```
 
 - **`activations`** is a multiset of mana-ability activations, held in a canonical order
-  (§3). Each names a **source class** (§2) and the `ManaType` chosen for that source's own
-  ability — the choice an "add one mana of any color" source offers. Its **yield** is
-  everything the activation puts in the pool: `[produced] + sourceClass.bonus`, the bonus
-  being the CR 605.1b triggered mana the attached Auras add. One activation may yield several
-  mana; nothing in the plan shape cares how many.
+  (§3). Each names a **source class** (§2) and the *production alternative* chosen for that
+  source's own ability — the choice an "add one mana of any color" source offers, and, since
+  `FW-MANA`, itself a multiset rather than a single type (§8.1). Its **yield** is everything the
+  activation puts in the pool: `produced + sourceClass.bonus`, the bonus being the CR 605.1b
+  triggered mana the attached Auras add. One activation may yield several mana; nothing in the
+  plan shape cares how many.
 - **`payments`** has one entry per expanded cost symbol, in printed order (`{N}` expands to
   `N` copies of `{1}`, `{0}` to none). A payment names only *what* pays the symbol: one mana
   of a `ManaType`, or the CR 107.4 Phyrexian alternative of 2 life. It no longer names a
@@ -122,11 +124,43 @@ clause is a property of the **object**, not of its printed card, so it never bel
 equivalence relation below: two otherwise-identical Elves, one sick, are the same class with a
 membership of one.
 
+### 2.2 Sources reserved by a sibling cost component (`FW-MANA`, triage trap T17)
+
+`enumeratePaymentPlans` is given a cost and a seat, and until `FW-MANA` nothing else — so it did not
+know *what* the cost belonged to. For an activated ability like "{1}, {T}: …" printed on a permanent
+that is **also** a mana source, it would offer a plan that taps that very permanent to pay the `{1}`.
+The plan enumerated, the agent picked it, mana was paid, and the `{T}` component then threw
+"CR 602.2a: a {T} cost requires an untapped source". A crash, but the defect is the enumeration, not
+the throw: an action in the enumerated space that the rules do not permit is the ADR-005 failure
+§2.1 exists to prevent, and it is the same failure the summoning-sickness gap was.
+
+`enumeratePaymentPlans` and `manaSourceClasses` therefore take a `reserved: Set<ObjectId>`, computed
+at the two activation call sites by `manaSourcesReservedBy`. The exclusion is **by object, not by
+class**: it shrinks a class's capacity by one and deletes the class only when it had a single member,
+which is right — a second copy of the same card is a perfectly good payer.
+
+What is reserved is deliberately exact, because over-reserving would trade a crash for a *silently
+missing* legal plan, which is the worse of the two:
+
+- **`TapSelf`** reserves the source outright. Every way of producing mana from it either taps it
+  (breaking the `{T}`) or sacrifices it (removing it).
+- **`SacrificeSelf`** reserves the source only when it is a *sacrifice*-cost mana source, which would
+  consume it before the cost's own sacrifice. Tapping a permanent for mana and then sacrificing it is
+  legal Magic, and that plan stays enumerated.
+- **A mana-only cost reserves nothing.** An ability whose cost is just `{1}` may be paid by tapping
+  its own source, and always could.
+
+Two notes on scope. The same shape does *not* affect a **spell's** cost: a cast's sacrifice
+additional cost (Fireblast's two Mountains) is paid after CR 601.2g, and sacrificing an
+already-tapped Mountain is legal, so no plan is offered that execution cannot carry out. And the
+reservation is a property of the *cost*, not of the source class, so — like usability — it stays out
+of the equivalence relation.
+
 **Equivalence relation.** Two usable battlefield objects controlled by the caster are
 payment-equivalent iff they have the same printed card (`CardRef`) **and** the same
-*production profile* — the canonical list of mana-type options their tap-for-mana abilities
-can add — **and** the same CR 605.1b bonus, **and** the same activation cost (tap vs
-sacrifice). Same-profile is the load-bearing half (it is what makes activating either
+*production profile* — the canonical list of production alternatives their tap-for-mana abilities
+offer, each a multiset of mana types (§8.1) — **and** the same CR 605.1b bonus, **and** the same
+activation cost (tap vs sacrifice). Same-profile is the load-bearing half (it is what makes activating either
 indistinguishable in every future game state); same-card is a deliberate safety margin: costs
 that care about the card itself (Fireblast's "sacrifice two Mountains", Lava Dart's
 flashback — docs/decklists.md) can never be wronged by an over-eager merge, at the price of
@@ -136,8 +170,15 @@ The P8.3 reshape **does not touch the relation**. An Utopia-Sprawl-enchanted For
 already a distinct class from a bare Forest, because `bonus` is part of the key. What changed
 is only what the enumerator *does* with that bonus: it is now the activation's yield rather
 than a tag that exists to keep classes apart. This is the same "refine the profile, never the
-relation" line Phase 5 drew, taken one step further — and it is the reason F10 (§8) is a
+relation" line Phase 5 drew, taken one step further — and it predicted that F10 (§8) would be a
 profile problem rather than a relation problem.
+
+**`FW-MANA` confirmed the prediction and did not touch the relation either.** The clause above still
+reads exactly as written; what changed is only what a profile *is* (§8.1). An Urza's Tower with Tron
+assembled forms a distinct class from one without, automatically, because the profile is computed
+from state and the profile is what the key hashes on — and two Towers in the same state are still
+payment-equivalent to each other, which is the whole point. The relation is now three packets old
+and has survived every one of them; that is evidence it is the right cut.
 
 ## 3. Ordering, dedup, and why the enumeration is duplicate-free
 
@@ -325,42 +366,176 @@ space presented to a training agent. The lesson for future notes: "the extra sta
 runtime" does not imply "the enumerator can see it", and for an enumerated-action engine only
 the second one counts.
 
-## 8. What F10 (Tron / conditional multi-mana production) still owes
+## 8. Conditional and variable-amount production (`FW-MANA`)
 
-`docs/design/cost-modification.md` §8 predicted this reshape and assigned it here. It is now
-done, and the parts of the payment model F10 was going to have to reshape — `PaymentPlan`,
-`SymbolPayment`, the payment search, the dedup rule and the executor — are **settled**. An
-activation that yields three mana is already the ordinary case: `yield(a)` is a list, coverage
-sums over it, the no-idle matching reads it, and execution simply adds whatever the ability
-resolves to.
+P8.3 predicted this section and settled the hard half of it in advance. Everything §8 of the P8.3
+note listed as "the parts F10 would reshape" — `PaymentPlan`, `SymbolPayment`, the payment search,
+the dedup rule and the executor — **did not change**, and the prediction that `activationYield` was
+"the seam, and the only one" held, with one qualification recorded in §8.2.
 
-What F10 still has to add is entirely on the **production** side:
+### 8.1 The production descriptor
 
-1. **A production descriptor richer than `SourceClassKey.profile`.** Today `profile` is the
-   list of mana types one activation may *choose between*, and yield is
-   `[produced] + bonus` — exactly one mana of choice plus a fixed bonus. Urza's Tower adds
-   `{C}{C}{C}` and Urza's Mine/Power Plant `{C}{C}`: a *count*, and in general a multiset, on
-   the primary production. The key needs the alternatives a member's ability may produce as
-   multisets (`List<List<ManaType>>`) rather than as single types, and `ManaActivation.produced`
-   becomes a choice among them. This is a `SourceClassKey` change and a change to the single
-   function `activationYield`; it is the seam, and it is the only one.
-2. **`ManaAbility` multi-mana vocabulary.** `ManaAbility(options, viaSacrifice)` adds exactly
-   one mana per activation and its KDoc says so. Tron needs a definition-level way to say
-   "adds `{C}{C}{C}`". That is new DSL vocabulary in `mtg-core`/`mtg-rules`, per ADR-003.
-3. **The board-state condition, evaluated at activation time (CR 605.2).** The Urza count is
-   read when the mana ability *resolves*, mid-payment, and is never locked in the way a CR
-   601.2f cost reduction is. `productionProfile` already reads live state through
-   `layeredCharacteristics`, so the condition belongs there; what F10 must prove is that the
-   count the enumerator used to build the plan is the count execution produces — the same
-   planner/executor correspondence P8.3 tests directly (§9), re-run for a state-conditional
-   profile. A Tron piece leaving the battlefield between enumeration and payment is impossible
-   inside one payment window, but the test is what keeps it that way.
-4. **A revisit of the no-idle bound.** With three-mana activations, "one yielded mana is
-   spent" admits plans that waste two. That is still legal Magic and still bounded
-   (`|activations| ≤ |payments|`), but the Tron packet should measure the option count on a
-   real Monster Tron board before accepting it, exactly as §4 does here.
+`SourceClassKey.profile` was the list of mana types one activation may *choose between*, and an
+activation's yield was `[produced] + bonus` — exactly one mana of choice plus a fixed bonus. It is
+now the list of **alternatives**, each a multiset:
 
-Nothing on that list touches the plan shape. That is the point of this amendment.
+```kotlin
+data class SourceClassKey(
+    val card: CardRef,
+    val profile: List<List<ManaType>>,   // the alternatives; never empty, none empty
+    val bonus: List<ManaType> = emptyList(),
+    val viaSacrifice: Boolean = false,
+)
+
+data class ManaActivation(val sourceClass: SourceClassKey, val produced: List<ManaType>)
+
+fun activationYield(key: SourceClassKey, produced: List<ManaType>) = produced + key.bonus
+```
+
+A Forest is `[[G]]`, a Bridge offering a choice is `[[U], [R]]`, an Urza's Tower with Tron
+assembled is `[[C, C, C]]`, a Priest of Titania with three Elves out is `[[G, G, G]]`. One
+*option* in the activation search is one alternative, not one mana, which is why nothing in that
+search had to change: the option list's length tracks the choices a source offers, and how much
+each choice adds is only ever read through `activationYield`.
+
+Three consequences worth stating.
+
+- **An alternative that evaluates to zero mana is dropped**, and a source all of whose alternatives
+  do is not a mana source in that state (`productionProfile` returns `null`). A Priest of Titania
+  with no Elf on the battlefield taps for nothing, and no legal plan could have contained it anyway
+  — the no-idle rule (§4) rejects any plan with an activation that spends nothing. Pruning it at the
+  profile keeps the key's "no empty alternative" invariant exact rather than aspirational.
+- **The alternatives are canonically ordered** lexicographically by `ManaType` ordinal, shorter
+  first. On the singleton alternatives that make up almost the whole pool this is exactly the old
+  WUBRG-then-colorless type order, so no ordinary board's enumeration order moved (ADR-006).
+- **A mixed multiset is expressible in the key but not yet in a definition.** Azorius Chancery's
+  "{T}: Add {W}{U}" is a legal `profile` value today; what is missing is `ManaAbility` vocabulary
+  to *declare* it, because `ManaAmount` multiplies a single chosen type. That is deliberate — the
+  key is the thing that is expensive to change, so it was made general; the definition vocabulary
+  is cheap to extend and so was kept to what a card in the pool prints.
+
+### 8.2 The definition vocabulary, and CR 605.2 versus CR 601.2f
+
+`ManaAbility` keeps `options` — the types the activator chooses between — and gains `amount`,
+defaulting to `ManaAmount.Fixed(1)`, so every existing definition is untouched:
+
+```kotlin
+sealed interface ManaAmount {
+    data class Fixed(val count: Int)
+    data class PerPermanent(val each: PermanentFilter)                                   // Priest of Titania
+    data class Conditional(requires: List<PermanentFilter>, ifMet: Int, otherwise: Int)  // the Urza lands
+}
+
+data class PermanentFilter(val subtype: Subtype, val controlledByYou: Boolean)
+```
+
+**The two rules are different, and the difference is the point of the packet.** A cost reduction is
+CR 601.2f: the total cost is *determined* once, early in casting, and nothing that happens while
+paying can change it — that is what makes cost-modification.md's lock-in tests meaningful. A mana
+ability's amount is never determined in advance at all. The ability resolves during CR 601.2g, in
+the middle of paying a cost that was already fixed, and the count is read at that moment; CR 605.2's
+own worked example is a counted mana ability. So with Tron assembled a cost locked in at `{7}` is
+paid by three activations producing 2 + 2 + 3, and nothing about the count feeds back into the cost
+or vice versa.
+
+For this engine the practical consequence is uncomfortable rather than academic: **the enumerator
+must build a plan around a number it does not own.** §8.3 is how that is made safe.
+
+The one qualification to P8.3's "`activationYield` is the only seam": the seam is only one
+*function*, but the derivation around it — `productionProfile`, `triggeredManaBonus`,
+`sourceClassKeyOf` — had to move into one file (`ManaSourceClass.kt`) and gain a single caller-pair
+discipline, because `resolveTapForMana` used to rebuild the key inline. `P-MANASICK` had already
+flagged that inline rebuild as "a standing hazard of the same shape: a future change to the key that
+misses this call site fails the same way", and making the key state-dependent *was* that future
+change. The hazard is closed structurally, not by care.
+
+### 8.3 Planner/executor correspondence under a state-conditional count
+
+This is the packet's central risk, and the answer is that **the source class key is the
+correspondence certificate.**
+
+The state-derived count lives *inside* `profile`, which lives inside the key, and the key is what a
+plan names. Execution does not take the count from the plan: `resolveTapForMana` re-derives the
+whole key from live state via the shared `sourceClassKeyOf` and activates the first usable member
+whose re-derived key **equals** the planned one. So an activation whose count moved between
+enumeration and payment matches no member and fails loudly, rather than quietly adding a different
+amount of mana than the plan declared. Correspondence is structural: there is no code path that
+adds a re-derived amount to the pool while the plan says something else.
+
+**What the argument rests on, given the oracle's blind spot.** `PaymentEnumerationOracle` imports
+`manaSourceClasses` by design (§10), so it can never independently catch a source-derivation bug —
+if the profile were wrong, the oracle would be wrong in exactly the same way and the set comparison
+would still pass. The correctness of production therefore rests on three things that are *not* the
+oracle:
+
+1. **The correspondence property** (`assertExecutesAsDeclared`), which executes every enumerated
+   plan and asserts the resulting pool equals `pool_before ⊎ yields ⊖ demand`. Execution reaches the
+   pool through `resolveTapForMana`, which re-derives its own key; the expectation reaches it
+   through `activationYield` on the *planned* key. Two different routes to the same number, so a
+   derivation bug shows up as a mismatch rather than cancelling out. It now runs over six
+   board-dependent scenarios as well as the static ones.
+2. **Per-card definition tests** in `mtg-cards`, which assert the printed shape against the oracle
+   text — that the Tower's `ifMet` is three and the Mine's is two, that the Urza conditions name
+   subtypes and that `Urza's Power-Plant` is hyphenated where the card's name is not, that Priest of
+   Titania's filter is `controlledByYou = false`. A profile computed correctly from a wrong
+   declaration is the failure mode the oracle structurally cannot see, and this is what sees it.
+3. **The end-to-end acceptance measurements** (`MonsterTronBudgetAcceptanceSpec`), which reach the
+   options through a real cast and pin both an assembled and a broken board — a control column, so
+   "the condition is read" is asserted by difference rather than by a single number.
+
+**The residual gap, precisely.** Execution runs activations in plan order, and one activation can in
+principle change another's count — only by *removing* a counted permanent, which only a
+sacrifice-cost mana ability does. No board in the gauntlet pool can build it: the sole sacrifice
+mana source is an Eldrazi Spawn, which is neither an Elf nor an Urza land. A rules fixture that
+does build it is tested, and it throws (`CR 605.2: a production count that moves mid-payment fails
+loudly…`). Tapping, by contrast, can never move a count in this pool, because every condition reads
+control or presence and none reads tapped-ness. When a card does make the combination reachable the
+fix is an execution-order rule — battlefield-removing activations last — or a per-plan order the
+enumerator validates; it is **not** a licence to let execution use the planned amount, because that
+would be CR 601.2f behaviour on a CR 605.2 ability.
+
+### 8.4 The no-idle bound, re-measured
+
+§4's bound is deliberately weak: "every activation spends at least one of its yielded mana" admits
+a plan that taps an Urza's Tower to pay one symbol and wastes two. The consequence it *does* still
+guarantee — `|activations| ≤ |WithMana payments|`, because each activation claims a distinct unit of
+demand — is unaffected by how much a single tap yields, so the search's length bound is unchanged.
+
+Measured on a realistic Monster Tron board (`MonsterTronBudgetAcceptanceSpec`, pinned as tests).
+Board: five lands — an Urza's Mine, an Urza's Tower, an Urza's Power Plant, a second Urza's Mine and
+a Forest — plus a Gladecover Scout for the Auras. Assembled, that is eleven mana in four source
+classes. The **control** column is the same five lands with the Power Plant swapped for a Forest,
+which fails all three conditions at once: every Urza land back to one mana, which is also what the
+engine did for every source before this packet. Pool empty. "Lands" is the fewest activations any
+enumerated plan uses.
+
+| Card | Cost | Options, broken | Options, assembled | Lands, broken | Lands, assembled |
+|---|---|---:|---:|---:|---:|
+| Rancor | `{G}` | 1 | 1 | 1 | 1 |
+| Malevolent Rumble | `{1}{G}` | 3 | 3 | 2 | 2 |
+| Ancestral Mask | `{2}{G}` | 4 | **7** | 3 | **2** |
+| Scour from Existence | `{7}` | **0** | **7** | — | **3** |
+
+Three things to read off it.
+
+**The feared explosion did not happen.** Seven options is the *largest* number on the board, for a
+seven-symbol cost across four source classes — comfortably smaller than the Bogles board's 32 for a
+three-symbol cost, because the Urza lands all produce the same type and so collapse hard. The weak
+no-idle rule costs very little here: a plan that wastes two of a Tower's three mana exists, but only
+where wasting is the only way to pay the symbol at all.
+
+**The coloured costs get no discount, and that is correct.** The Urza lands add colorless, so `{G}`
+still needs the Forest and `{1}{G}` still needs two lands. The framework is credited with exactly
+the all-generic gain and nothing more, which is what the Rancor and Malevolent Rumble rows pin.
+
+**`{7}` went from unpayable to seven options.** That is the packet in one number: Monster Tron's
+whole plan is a cost bracket the engine could not previously reach, and a Monster Tron agent's
+action space now contains it.
+
+**The Bogles board is unchanged.** `BoglesRampBudgetAcceptanceSpec`'s pinned counts (3 / 16 / 32 /
+32 / 16) and its fewest-lands column pass **unmodified**. That is the expected result and is worth
+saying explicitly: no card on that board has a board-dependent amount, so every profile there is a
+singleton alternative and the reshape is a pure widening.
 
 ## 9. Known gaps
 
@@ -374,6 +549,23 @@ Nothing on that list touches the plan shape. That is the point of this amendment
   The MVP and gauntlet pools never mix the two on one source, and `isSacrificeSource` asserts
   the all-or-nothing shape rather than assuming it.
 
+- **A mana ability's cost is still only `{T}` or "sacrifice this".** Nothing else is expressible,
+  and four gauntlet cards want more: Saruli Caretaker's "{T}, Tap an untapped creature you
+  control", Conduit Pylons' and Giant's Boulder's "{1}, {T}", and Wall of Roots' "put a -0/-1
+  counter on this". This is a payment-**capacity** problem, not a production one, and it is the
+  larger of the two: an activation that taps a *second* permanent has to name that permanent's
+  class too, and the capacity check has to account for one class's activation consuming another
+  class's membership. `FW-MANA` deliberately did not build it, and Saruli Caretaker is absent
+  rather than approximated.
+
+- **An activation can, in principle, change another activation's CR 605.2 count.** The engine
+  throws rather than mispaying (§8.3). Unreachable in the gauntlet pool; the fix when it becomes
+  reachable is an execution-order rule, not a change to what execution reads.
+
+- **A mixed-type multiset is not declarable.** `SourceClassKey` holds arbitrary multisets, but
+  `ManaAmount` multiplies one chosen type, so Azorius Chancery's "{T}: Add {W}{U}" needs a new
+  `ManaAmount`-sized addition in `mtg-core` and **no** change to the payment model (§8.1).
+
 ## 10. Why enumeration completeness is testable
 
 The plan space for a fixed `(cost, sources, pool, life)` is finite and small, so tests keep a
@@ -382,6 +574,12 @@ multiset up to the length bound, keep the ones satisfying legality clauses 1–5
 independently of the enumerator, canonicalize, deduplicate, and set-compare against the
 enumerator's output. Equality proves both directions at once — no missing plan, no phantom
 plan, collapsing exactly right.
+
+**The oracle's blind spot, stated plainly.** It imports `manaSourceClasses` rather than re-deriving
+source classes, so it shares the enumerator's view of what each source produces. That is deliberate
+— re-implementing the layer system and the CR 605.2 evaluation inside a test would be
+re-implementing the engine — but it means the oracle proves *the search* correct and can never prove
+*the production* correct. What carries production instead is listed in §8.3.
 
 P8.3 adds a third property, the one a reshape most needs: **planner/executor correspondence.**
 For every enumerated plan, executing it must succeed, and the resulting pool must equal

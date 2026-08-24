@@ -35,11 +35,14 @@ private fun symbolPaymentLabel(payment: SymbolPayment): String =
 
 /**
  * One mana ability activation (CR 601.2g): tapping — or, for a sacrifice-cost ability (CR 605.1a),
- * sacrificing — a member of the named source class for the mana it was chosen to add.
+ * sacrificing — a member of the named source class for the mana it was chosen to add. The mana is a
+ * multiset, so an Urza's Tower with Tron assembled reads "tap Urza's Tower for {C}{C}{C}" and the
+ * player can tell an assembled Tron apart from an unassembled one without leaving the payment menu.
  */
 private fun activationLabel(activation: ManaActivation): String {
     val verb = if (activation.sourceClass.viaSacrifice) "sacrifice" else "tap"
-    return "$verb ${activation.sourceClass.card.name} for ${manaGlyph(activation.produced)}"
+    val mana = activation.produced.joinToString("") { manaGlyph(it) }
+    return "$verb ${activation.sourceClass.card.name} for $mana"
 }
 
 /** The brace glyph of a produced mana type (CR 106.1b), e.g. {R} for red or {C} for colorless. */
