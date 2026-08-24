@@ -12,7 +12,10 @@ import dev.mtgplay.rules.AdvanceResult
  * CR 601 pipeline (CR 305.4: lands are never cast) — so the whole action is this one pure
  * transition:
  * 1. the hand card moves to the battlefield, becoming a new object (CR 400.7) that enters
- *    untapped (CR 110.5a);
+ *    untapped (CR 110.5a) — unless its definition declares
+ *    [dev.mtgplay.core.definition.CardDefinition.entersTapped], the CR 614.1c self-replacement
+ *    "this land enters tapped", which modifies the entering event itself and so takes effect here
+ *    rather than as a subsequent tap;
  * 2. the turn's land-drop count advances (CR 305.2);
  * 3. [GameEvent.LandPlayed] narrates it;
  * 4. [player] receives priority again (CR 116.4 — taking a special action does not pass
@@ -32,16 +35,17 @@ internal fun executePlayLand(
     val index = hand.indexOfFirst { it.id == cardObjectId }
     require(index >= 0) { "CR 115.2a: object $cardObjectId is not in $player's hand" }
     val card = hand[index]
-    require(state.definitions[card.card].isLand()) {
+    val definition = state.definitions[card.card]
+    require(definition.isLand()) {
         "CR 305.1: ${card.card.name} is not a defined land card; enumeration must not have offered it (ADR-005)"
     }
     require(playLandIsLegal(state, player)) {
         "CR 116.2a: playing a land is not legal for $player now; enumeration must not have offered it (ADR-005)"
     }
     val (id, allocated) = state.allocateObjectId()
-    // CR 400.7: a new object with no memory of its former self; `tapped` is already false in
-    // hand (CR 110.5), so the copy enters the battlefield untapped (CR 110.5a).
-    val land = card.copy(id = id)
+    // CR 400.7: a new object with no memory of its former self. It enters untapped (CR 110.5a) unless
+    // the card's own CR 614.1c "this land enters tapped" replacement says otherwise.
+    val land = card.copy(id = id, tapped = definition?.entersTapped ?: false)
     val played =
         allocated
             .updatePlayer(player) { it.copy(hand = it.hand.removingAt(index)) }

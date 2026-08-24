@@ -20,6 +20,8 @@ package dev.mtgplay.core.card
  * alone among them changes a characteristic rather than combat — it makes
  * [PrintedCharacteristics.colors] colorless (CR 105.2, CR 702.114a) instead of deriving colour from
  * the mana cost.
+ * restriction on enumeration, and the damage-result lifegain, respectively); [INDESTRUCTIBLE] since
+ * P8.4 (the CR 704.5g lethal-damage exemption).
  */
 enum class Keyword {
     /** Flying (CR 702.9): can be blocked only by creatures with flying or reach. */
@@ -60,4 +62,17 @@ enum class Keyword {
      * its mana cost says. Unfathomable Truths' `{4}{U}` is colorless.
      */
     DEVOID,
+
+    /**
+     * Indestructible (CR 702.12): the permanent can't be destroyed — "destroy" effects and lethal
+     * damage do not destroy it (CR 702.12b). It is *not* general protection from dying: a
+     * toughness-0-or-less permanent still goes to the graveyard (CR 704.5f), because that is not
+     * destruction (see the `CreatureDeathCause` distinction in `mtg-rules`).
+     *
+     * The Bridge artifact lands print it. The only destruction the engine performs is the CR 704.5g
+     * lethal-damage state-based action, which honours this (P8.4); a *land* therefore never reaches a
+     * path where it matters today, and when a "destroy target permanent" effect first lands it must
+     * consult the effective-keyword accessor rather than re-deriving destruction.
+     */
+    INDESTRUCTIBLE,
 }

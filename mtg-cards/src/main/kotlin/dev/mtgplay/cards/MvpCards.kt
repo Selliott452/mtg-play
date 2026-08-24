@@ -27,6 +27,11 @@ import dev.mtgplay.core.identity.CardRef
  * loot, flash back). Its unencoded siblings — Brainstorm, Ponder, Preordain, Impulse, Winding Way, Lead
  * the Stampede — each need a library-ordering, scry, or choose-a-card-type decision the engine cannot
  * yet enumerate (ADR-005), so they are deliberately absent rather than approximated.
+ * The P8.4 pool broadens the gauntlet's mana bases with eight nonbasic lands (NonbasicLands.kt): the
+ * Mirrodin artifact lands [greatFurnace], [seatOfTheSynod], and [vaultOfWhispers]; the four
+ * enters-tapped indestructible Bridges [drossforgeBridge], [mistvaultBridge], [silverbluffBridge], and
+ * [slagwoodsBridge]; and [idyllicBeachfront], whose two mana abilities come from its Plains Island type
+ * line (CR 305.6).
  *
  * [definitions] is shaped for direct `MatchConfig.definitions` consumption: the engine carries
  * it into `GameState` in canonical name-sorted order regardless of this map's own order
@@ -42,6 +47,7 @@ object MvpCards {
             armadilloCloak,
             ashBarrens,
             cartoucheOfSolidarity,
+            drossforgeBridge,
             etherealArmor,
             faithlessLooting,
             fieryTemper,
@@ -49,10 +55,12 @@ object MvpCards {
             forest,
             gladecoverScout,
             grabThePrize,
+            greatFurnace,
             grizzlyBears,
             guttersnipe,
             highwayRobbery,
             hillGiant,
+            idyllicBeachfront,
             island,
             kessigFlamebreather,
             kruphixsInsight,
@@ -63,12 +71,16 @@ object MvpCards {
             malevolentRumble,
             meldedMoxite,
             mentalNote,
+            mistvaultBridge,
             mountain,
             plains,
             pursueThePast,
             rancor,
+            seatOfTheSynod,
             sentinelsEyes,
             silhanaLedgewalker,
+            silverbluffBridge,
+            slagwoodsBridge,
             slipperyBogle,
             sneakySnacker,
             standingTroops,
@@ -76,6 +88,7 @@ object MvpCards {
             thoughtScour,
             unfathomableTruths,
             utopiaSprawl,
+            vaultOfWhispers,
             voldarenEpicure,
             wildGrowth,
             windDrake,
