@@ -32,7 +32,10 @@ internal fun resolveTapForMana(
     val index =
         battlefield.indexOfFirst { obj ->
             obj.owner == player &&
-                (sourceClass.viaSacrifice || !obj.tapped) &&
+                // The same usability predicate the plan's class membership was built from —
+                // including the CR 302.6 summoning-sickness gate — so planner and executor pick
+                // from the identical member set (docs/design/mana-payment.md §10).
+                manaSourceUsable(state, obj) &&
                 productionProfile(state, obj)?.let {
                     SourceClassKey(obj.card, it, triggeredManaBonus(state, obj.id), isSacrificeSource(state, obj.id))
                 } == sourceClass

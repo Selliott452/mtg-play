@@ -48,8 +48,7 @@ internal fun manaSourceClasses(
 ): List<SourceClass> {
     val classes = LinkedHashMap<SourceClassKey, MutableList<ObjectId>>()
     state.sharedZones.battlefield
-        // A tap source must be untapped; a sacrifice source (Eldrazi Spawn) is usable tapped or not.
-        .filter { it.owner == seat && (!it.tapped || isSacrificeSource(state, it.id)) }
+        .filter { it.owner == seat && manaSourceUsable(state, it) }
         .forEach { obj ->
             productionProfile(state, obj)?.let { profile ->
                 val bonus = triggeredManaBonus(state, obj.id)
@@ -58,20 +57,6 @@ internal fun manaSourceClasses(
             }
         }
     return classes.map { (key, members) -> SourceClass(key, members.toList()) }
-}
-
-/**
- * Whether the battlefield source [id] produces mana by being **sacrificed** rather than tapped
- * (CR 605.1a) — an Eldrazi Spawn's "Sacrifice this token: Add {C}". True when its layered mana
- * abilities are non-empty and every one is a sacrifice ability; the MVP pool never mixes tap and
- * sacrifice mana abilities on one source, so this all-or-nothing test is exact.
- */
-internal fun isSacrificeSource(
-    state: GameState,
-    id: ObjectId,
-): Boolean {
-    val abilities = layeredCharacteristics(state, id).manaAbilities
-    return abilities.isNotEmpty() && abilities.all { it.viaSacrifice }
 }
 
 /**

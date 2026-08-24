@@ -46,6 +46,11 @@ import dev.mtgplay.core.identity.CardRef
  * `FW-ABILTGT` packet adds [lotlethGiant], the first card whose *ability* targets
  * (docs/design/targeted-abilities.md §7).
  *
+ * The `P-MANASICK` packet adds the pool's first **creature** mana sources (ManaCreatures.kt):
+ * [elvishMystic] and [fyndhornElves], the two `{T}`: Add `{G}` Elf Druids. They are the first
+ * objects that make the CR 302.6 summoning-sickness restriction observable from mana payment, and
+ * they landed together with the gate that enforces it (`manaSourceUsable`).
+ *
  * [definitions] is shaped for direct `MatchConfig.definitions` consumption: the engine carries
  * it into `GameState` in canonical name-sorted order regardless of this map's own order
  * (ADR-009 — definitions ride in the state; a [CardRef] without an entry is inert). The pool
@@ -62,12 +67,14 @@ object MvpCards {
             breathWeapon,
             cartoucheOfSolidarity,
             drossforgeBridge,
+            elvishMystic,
             endTheFestivities,
             etherealArmor,
             faithlessLooting,
             fieryTemper,
             fireblast,
             forest,
+            fyndhornElves,
             galvanicBlast,
             gladecoverScout,
             gnawToTheBone,

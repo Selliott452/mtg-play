@@ -2,6 +2,7 @@ package dev.mtgplay.rules
 
 import dev.mtgplay.core.card.CardType
 import dev.mtgplay.core.card.PrintedCharacteristics
+import dev.mtgplay.core.card.PrintedPowerToughness
 import dev.mtgplay.core.definition.CardDefinition
 import dev.mtgplay.core.definition.ManaAbility
 import dev.mtgplay.core.definition.ResolutionEffect
@@ -23,11 +24,16 @@ import kotlinx.collections.immutable.persistentSetOf
  * Phyrexian {R/P}, plus mono-color, any-color, and colorless mana sources.
  */
 
-/** A tap-for-mana source fixture: an untapped battlefield object producing [types]. */
+/**
+ * A tap-for-mana source fixture: a battlefield object producing [types]. [powerToughness] is
+ * non-null only for a creature source (CR 208.1), which is also the only shape for which the
+ * CR 302.6 summoning-sickness gate on mana payment is observable.
+ */
 private fun sourceFixture(
     name: String,
     cardType: CardType,
     vararg types: ManaType,
+    powerToughness: PrintedPowerToughness? = null,
 ): CardDefinition =
     object : CardDefinition {
         override val characteristics =
@@ -37,7 +43,7 @@ private fun sourceFixture(
                 supertypes = persistentSetOf(),
                 cardTypes = persistentSetOf(cardType),
                 subtypes = persistentSetOf(),
-                powerToughness = null,
+                powerToughness = powerToughness,
             )
         override val manaAbilities = persistentListOf(ManaAbility(persistentListOf(*types.toList().toTypedArray())))
     }
@@ -112,6 +118,40 @@ internal val fixturePrism =
 /** "Fixture Wastes" — a land source: `{T}: add {C}` (CR 107.4c's specifically colorless mana). */
 internal val fixtureWastes = sourceFixture("Fixture Wastes", CardType.LAND, ManaType.COLORLESS)
 
+/**
+ * "Fixture Mana Elf" — a **creature** source: a 1/1 with `{T}: add {G}` (Elvish Mystic's shape).
+ * The fixture that makes CR 302.6 reachable from mana payment: its mana ability is an activated
+ * ability with `{T}` in its cost, so it produces nothing while the creature is summoning sick.
+ */
+internal val fixtureManaElf =
+    sourceFixture(
+        "Fixture Mana Elf",
+        CardType.CREATURE,
+        ManaType.GREEN,
+        powerToughness = PrintedPowerToughness(power = 1, toughness = 1),
+    )
+
+/**
+ * "Fixture Mana Spawn" — a **creature** source whose mana ability's cost is sacrificing it rather
+ * than `{T}` (CR 605.1a). CR 302.6 restricts only `{T}` and `{Q}` abilities, so this one is
+ * usable the turn it arrives — the counterexample that keeps the summoning-sickness gate from
+ * being written too broadly.
+ */
+internal val fixtureManaSpawn =
+    object : CardDefinition {
+        override val characteristics =
+            PrintedCharacteristics(
+                name = "Fixture Mana Spawn",
+                manaCost = null,
+                supertypes = persistentSetOf(),
+                cardTypes = persistentSetOf(CardType.CREATURE),
+                subtypes = persistentSetOf(),
+                powerToughness = PrintedPowerToughness(power = 0, toughness = 1),
+            )
+        override val manaAbilities =
+            persistentListOf(ManaAbility(persistentListOf(ManaType.COLORLESS), viaSacrifice = true))
+    }
+
 /** "Fixture Bolt" — `{R}` instant, any target: the targeted player loses 3 life. */
 internal val fixtureBolt =
     spellFixture(
@@ -176,6 +216,8 @@ internal val fixtureDefinitions: Map<CardRef, CardDefinition> =
         fixtureIsland,
         fixturePrism,
         fixtureWastes,
+        fixtureManaElf,
+        fixtureManaSpawn,
         fixtureBolt,
         fixtureComet,
         fixtureMeditation,
