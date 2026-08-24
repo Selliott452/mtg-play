@@ -19,10 +19,11 @@ object Responders {
      * [ScriptedGame.passUntil]. It never casts and never attacks or blocks, so the casting
      * requests (CR 601.2) and the blocker-ordering request (CR 509.2, reachable only after a
      * block is declared) are all unreachable for it — reaching one fails loudly instead of
-     * guessing.
+     * guessing. The one exception is a target choice reached from **trigger placement** (CR 603.3d),
+     * which a passive game genuinely can reach: that takes the first enumerated target.
      */
     val PASS_AND_DISCARD_LOWEST: Responder =
-        Responder { request, _ ->
+        Responder { request, state ->
             when (request) {
                 is DecisionRequest.ChooseAction -> {
                     val passIndex = request.options.indexOfFirst { it is PriorityOption.Pass }
@@ -43,8 +44,16 @@ object Responders {
                 // CR 702.35b: a passive game may discard a madness card at cleanup; decline the reflexive cast.
                 is DecisionRequest.ChooseYesNo ->
                     Decision.SingleSelect(request.id, DecisionRequest.ChooseYesNo.DECLINE)
+                // CR 603.3d: a passive game still fires triggers, and a targeted one must choose its
+                // target as it is put on the stack — take the first enumerated target deterministically.
+                // A targets request with no trigger placement open can only have come from a cast or an
+                // activation, neither of which this policy takes, so that stays a loud failure.
                 is DecisionRequest.ChooseTargets ->
-                    error("the pass-everything responder never casts, but a targets request surfaced: $request")
+                    if (state.pendingTriggerTargets != null) {
+                        Decision.SingleSelect(request.id, 0)
+                    } else {
+                        error("the pass-everything responder never casts, but a targets request surfaced: $request")
+                    }
                 is DecisionRequest.ChoosePaymentPlan ->
                     error("the pass-everything responder never casts, but a payment request surfaced: $request")
                 is DecisionRequest.OrderBlockers ->

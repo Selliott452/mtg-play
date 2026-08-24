@@ -105,6 +105,14 @@ private fun StringBuilder.appendP62cPendingPositions(state: GameState) {
     append(state.pendingResolutionDiscard?.let { "${it.decider.seat}:${it.count}" } ?: "-")
     append("|pendingLibrarySearch=")
     append(state.pendingLibrarySearch?.let { "${it.decider.seat}" } ?: "-")
+    // CR 603.3d: a triggered ability choosing its targets as it is put on the stack — whose choice, and
+    // for which source. Which trigger is being placed is the front of that controller's pending group.
+    append("|pendingTrigTargets=")
+    append(
+        state.pendingTriggerTargets?.let {
+            "${it.controller.seat}:${it.sourceCard.name}@${it.sourceId.value}"
+        } ?: "-",
+    )
 }
 
 // The P6.2a mid-resolution / gathering pauses, each digested by cause (whose choice, which object).
@@ -114,7 +122,8 @@ private fun StringBuilder.appendP62aPendingPositions(state: GameState) {
     append(
         state.pendingActivation?.let {
             "${it.activator.seat}:${it.sourceObjectId.value}:${it.abilityIndex}:" +
-                (it.chosenDiscard?.joinToString("+") { id -> id.value.toString() } ?: "-")
+                (it.chosenDiscard?.joinToString("+") { id -> id.value.toString() } ?: "-") + ":" +
+                (it.chosenTargets?.joinToString("+") { target -> renderTarget(target) } ?: "-")
         } ?: "-",
     )
     append("|pendingOptDiscard=")
@@ -206,7 +215,13 @@ private fun StringBuilder.appendStackAndTriggers(state: GameState) {
                 // The additional-discard linked information (P6.2a) the resolution reads (Grab the Prize).
                 append(":disc=").append(entry.discardedForCost.joinToString("+") { it.name })
             }
-            is StackEntry.Ability -> append("|ability=").append(renderTrigger(entry.trigger))
+            // CR 603.3d / CR 602.2b: an ability's chosen targets are part of its stack record, and the
+            // CR 608.2b re-check reads them, so they are load-bearing for replay.
+            is StackEntry.Ability ->
+                append("|ability=")
+                    .append(renderTrigger(entry.trigger))
+                    .append(":targets=")
+                    .append(entry.targets.joinToString(",") { renderTarget(it) })
             is StackEntry.ActivatedAbilityOnStack ->
                 append("|activated=")
                     .append(entry.sourceCard.name)
@@ -214,6 +229,8 @@ private fun StringBuilder.appendStackAndTriggers(state: GameState) {
                     .append(entry.sourceId.value)
                     .append(':')
                     .append(entry.controller.seat)
+                    .append(":targets=")
+                    .append(entry.targets.joinToString(",") { renderTarget(it) })
         }
     }
     state.pendingTriggers.forEach { append("|pending=").append(renderTrigger(it)) }

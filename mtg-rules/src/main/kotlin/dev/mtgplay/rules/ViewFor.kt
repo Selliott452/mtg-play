@@ -58,6 +58,7 @@ fun viewFor(
             pendingOptionalCostDraw = state.pendingOptionalCostDraw,
             pendingResolutionDiscard = state.pendingResolutionDiscard,
             pendingLibrarySearch = state.pendingLibrarySearch,
+            pendingTriggerTargets = state.pendingTriggerTargets,
         )
     return projected.copy(cards = cardsOf(state.definitions, visibleCardRefs(projected)))
 }
@@ -102,6 +103,7 @@ private fun stackEntryViewOf(entry: StackEntry): StackEntryView =
                 sourceId = entry.trigger.sourceId,
                 sourceCard = entry.trigger.sourceCard,
                 controller = entry.trigger.controller,
+                targets = entry.targets.toList(),
             )
 
         is StackEntry.ActivatedAbilityOnStack ->
@@ -109,6 +111,7 @@ private fun stackEntryViewOf(entry: StackEntry): StackEntryView =
                 sourceId = entry.sourceId,
                 sourceCard = entry.sourceCard,
                 controller = entry.controller,
+                targets = entry.targets.toList(),
             )
     }
 

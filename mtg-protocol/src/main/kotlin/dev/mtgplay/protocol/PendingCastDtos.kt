@@ -61,6 +61,7 @@ data class PendingActivationDto(
     val source: AbilityZoneScopeDto,
     val abilityIndex: Int,
     val chosenDiscard: List<Long>?,
+    val chosenTargets: List<TargetDto>?,
 )
 
 /** [PendingActivation] to its wire form. */
@@ -71,6 +72,7 @@ fun PendingActivation.toDto(): PendingActivationDto =
         source = source.toDto(),
         abilityIndex = abilityIndex,
         chosenDiscard = chosenDiscard?.map(ObjectId::value),
+        chosenTargets = chosenTargets?.map { it.toDto() },
     )
 
 /** [PendingActivationDto] back to the engine value. */
@@ -81,6 +83,7 @@ fun PendingActivationDto.toDomain(): PendingActivation =
         source = source.toDomain(),
         abilityIndex = abilityIndex,
         chosenDiscard = chosenDiscard?.map(::ObjectId)?.toPersistentList(),
+        chosenTargets = chosenTargets?.map { it.toDomain() }?.toPersistentList(),
     )
 
 /** Wire form of [PendingPlot] (CR 702.140) — the fact and the plotting seat; the card stays in hand. */

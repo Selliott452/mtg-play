@@ -14,12 +14,21 @@ package dev.mtgplay.core.definition
  * The [effect] reuses the [ResolutionEffect] shape (P5.1 deliverable): the rules engine hands it a
  * [ResolutionContext] carrying the ability's controller plus the trigger's linked information —
  * [ResolutionContext.amount] (a damage-dealt "that much", CR 118.9) and [ResolutionContext.subject]
- * (a leaves-the-battlefield trigger's LKI object, CR 603.10). None of the four MVP halves targets
- * (CR 603.3d), so triggered-ability targets are not modeled here; they are the extension point for
- * P5.2/P6, alongside intervening-if conditions (CR 603.4).
+ * (a leaves-the-battlefield trigger's LKI object, CR 603.10) — and, for a targeting ability, the
+ * targets chosen at CR 603.3d in [ResolutionContext.targets].
+ *
+ * **Intervening-if conditions (CR 603.4) are still not modeled**, and putting the "if" inside
+ * [effect] implements only the resolution half of that rule. That gap is deliberate and separate
+ * from targeting (docs/design/targeted-abilities.md §12).
  *
  * @property condition the event pattern that fires this ability (CR 603.2).
  * @property effect what the ability does when it resolves (CR 608.2); reuses [ResolutionEffect].
+ * @property targetSpec what this ability demands as targets (CR 115); [TargetSpec.None] for an
+ *   untargeted ability. Additive, flagged core (`FW-ABILTGT`, docs/design/targeted-abilities.md).
+ *   The engine chooses the targets **as the ability is put on the stack** (CR 603.3d), not when it
+ *   fires and not when it resolves, and re-checks them on resolution (CR 608.2b). A triggered
+ *   ability with no legal target is still put on the stack, with no targets, and then does nothing
+ *   — unlike an activated ability, which cannot be activated at all in that position.
  * @property zoneScope the zone the ability functions from (CR 113.6); [TriggerZoneScope.Battlefield]
  *   for every MVP triggered half.
  * @property optionalDiscardDraw an optional "you may discard a card; if you do, draw N" clause the
@@ -34,4 +43,5 @@ data class TriggeredAbility(
     val effect: ResolutionEffect,
     val zoneScope: TriggerZoneScope = TriggerZoneScope.Battlefield,
     val optionalDiscardDraw: OptionalDiscardDraw? = null,
+    val targetSpec: TargetSpec = TargetSpec.None,
 )

@@ -85,6 +85,10 @@ import kotlinx.collections.immutable.persistentMapOf
  *   resolving as part of an activated ability (CR 701.18), or `null`. Additive, flagged core (P6.2c).
  *   Non-null only at the find-one pause, where the resolving ability is on top of the stack — see
  *   [PendingLibrarySearch].
+ * @property pendingTriggerTargets a fired triggered ability awaiting its CR 603.3d target choice as it is
+ *   put on the stack, or `null`. Additive, flagged core (`FW-ABILTGT`,
+ *   docs/design/targeted-abilities.md). Non-null only at that placement pause, where no priority round is
+ *   open and the ability is not yet on the stack — see [PendingTriggerTargets].
  */
 data class GameState(
     val players: PersistentMap<PlayerId, PlayerState>,
@@ -107,6 +111,7 @@ data class GameState(
     val pendingOptionalCostDraw: PendingOptionalCostDraw? = null,
     val pendingResolutionDiscard: PendingResolutionDiscard? = null,
     val pendingLibrarySearch: PendingLibrarySearch? = null,
+    val pendingTriggerTargets: PendingTriggerTargets? = null,
 ) {
     init {
         require(players.isNotEmpty()) { "a game has at least one seated player" }
@@ -157,6 +162,16 @@ data class GameState(
             requireNotNull(activator) { "pending activation names unseated activator ${activation.activator}" }
             require(activation.abilityIndex >= 0) {
                 "CR 602: a pending activation's ability index is non-negative, was ${activation.abilityIndex}"
+            }
+        }
+        val triggerTargets = pendingTriggerTargets
+        if (triggerTargets != null) {
+            require(triggerTargets.controller in players) {
+                "CR 603.3d: the targeting trigger's controller ${triggerTargets.controller} is not seated"
+            }
+            require(pendingTriggers.any { it.controller == triggerTargets.controller }) {
+                "CR 603.3d: targets are chosen as an ability is put on the stack, so the trigger being " +
+                    "placed must still be pending for ${triggerTargets.controller}"
             }
         }
     }

@@ -5,9 +5,13 @@ import dev.mtgplay.core.identity.PlayerId
 import dev.mtgplay.core.state.GameState
 import dev.mtgplay.core.state.PendingTrigger
 import dev.mtgplay.core.state.StackEntry
+import dev.mtgplay.core.state.Target
 import dev.mtgplay.rules.AdvanceResult
 import dev.mtgplay.rules.decision.DecisionRequest
 import dev.mtgplay.rules.decision.DecisionRequestId
+import kotlinx.collections.immutable.PersistentList
+import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.toPersistentList
 
 /*
  * Putting fired triggers on the stack (CR 603.3b): when a player would receive priority — after
@@ -22,6 +26,15 @@ import dev.mtgplay.rules.decision.DecisionRequestId
  * (Guttersnipe, P6) — where priority should return to the caster, not the active player — is a
  * documented P6 follow-up; no MVP mainboard card fires a trigger outside a checkpoint already heading
  * to the active player.
+ *
+ * **Targets are chosen here, one ability at a time (CR 603.3d).** A triggered ability that targets
+ * chooses its targets *as it is put on the stack* — not when it fires, and not when it resolves. So
+ * placement is a drain rather than a fold: the CR 603.3b ordering answer **rewrites**
+ * [GameState.pendingTriggers] into the chosen placement order, and [placeOrderedTriggers] then takes the
+ * front of the controller's group repeatedly, suspending for a [DecisionRequest.ChooseTargets] before
+ * any ability that has a legal target. The surviving list order *is* the remaining placement order,
+ * which is what makes a mid-batch pause resumable from the state alone (ADR-004). The target request and
+ * its answer live in `TriggerTargeting.kt`; see docs/design/targeted-abilities.md §3.
  */
 
 /** The minimum simultaneous triggers a single controller must have to need an ordering choice. */
@@ -43,11 +56,32 @@ internal fun placePendingTriggers(state: GameState): AdvanceResult {
     return if (group.size >= MINIMUM_ORDERED_TRIGGERS) {
         AdvanceResult.NeedsDecision(state, orderTriggersRequest(state, controller, group))
     } else {
-        val placed = putTriggerOnStack(state, group.single())
-        // CR 601.2i: resume toward the recorded recipient (the caster after a cast trigger), not
-        // blindly the active player.
-        priorityTo(placed, priorityRecipient(placed))
+        // A single trigger needs no ordering choice; it is placed straight away — pausing first for its
+        // CR 603.3d targets if it targets and any legal target exists.
+        placeOrderedTriggers(state, controller)
     }
+}
+
+/**
+ * Puts [controller]'s already-ordered pending triggers on the stack, front of the group first (CR
+ * 603.3b), pausing before each that must choose targets (CR 603.3d). When the group is empty the
+ * checkpoint resumes toward the recorded recipient (CR 601.2i — the caster after a cast trigger, not
+ * blindly the active player), which places the next controller's group or opens the priority window.
+ *
+ * A targeting ability with **no** legal target is still put on the stack, carrying no targets, and does
+ * nothing when it resolves (CR 603.3d, CR 608.2b) — the opposite of an activated ability, which cannot
+ * be activated at all in that position (CR 601.2c). That asymmetry is why this path does not share a
+ * "choose targets or abandon" helper with the activation path (docs/design/targeted-abilities.md §2.1).
+ */
+internal fun placeOrderedTriggers(
+    state: GameState,
+    controller: PlayerId,
+): AdvanceResult {
+    val next =
+        state.pendingTriggers.firstOrNull { it.controller == controller }
+            ?: return priorityTo(state, priorityRecipient(state))
+    return triggerTargetPause(state, controller, next)
+        ?: placeOrderedTriggers(putTriggerOnStack(state, next, persistentListOf()), controller)
 }
 
 /**
@@ -70,18 +104,22 @@ private fun apnapOrder(state: GameState): List<PlayerId> {
 }
 
 /**
- * Puts one fired [trigger] on the stack as a [StackEntry.Ability] (CR 603.3, CR 113.3c) and removes it
- * from [GameState.pendingTriggers]. No card moves — an ability on the stack is not a card (CR 113.7a).
+ * Puts one fired [trigger] on the stack as a [StackEntry.Ability] (CR 603.3, CR 113.3c) with the
+ * [targets] its controller chose as it was placed (CR 603.3d), and removes it from
+ * [GameState.pendingTriggers]. No card moves — an ability on the stack is not a card (CR 113.7a).
+ * [targets] is empty for an untargeted ability, and also for a targeting one whose controller had no
+ * legal choice.
  */
 internal fun putTriggerOnStack(
     state: GameState,
     trigger: PendingTrigger,
+    targets: PersistentList<Target>,
 ): GameState {
     val index = state.pendingTriggers.indexOf(trigger)
     require(index >= 0) { "trigger $trigger is not pending; only a pending trigger may be put on the stack" }
     return state
         .copy(pendingTriggers = state.pendingTriggers.removingAt(index))
-        .updateStack { it.adding(StackEntry.Ability(trigger)) }
+        .updateStack { it.adding(StackEntry.Ability(trigger, targets)) }
         .emit(
             dev.mtgplay.core.event.GameEvent
                 .TriggeredAbilityPutOnStack(trigger.controller, trigger.sourceCard),
@@ -123,9 +161,16 @@ internal fun pendingOrderTriggersRequest(state: GameState): DecisionRequest.Orde
 }
 
 /**
- * Applies [controller]'s chosen ordering of their simultaneous triggers (CR 603.3b): puts them on the
- * stack in the [order] the controller picked — index 0 first (resolving last of the group), the last
- * on top (resolving first) — then resumes the checkpoint toward the active player's window.
+ * Applies [controller]'s chosen ordering of their simultaneous triggers (CR 603.3b): index 0 is put on
+ * the stack first (so it sits at the bottom of this batch and resolves last), the last index on top
+ * (resolving first).
+ *
+ * The answer **rewrites [GameState.pendingTriggers] into the chosen placement order** rather than
+ * placing anything itself, and hands off to [placeOrderedTriggers]. That is what lets a targeting
+ * trigger (CR 603.3d) suspend part-way through the batch without losing the order: the remaining order
+ * is the surviving list order, so re-deriving from the paused state reproduces it (ADR-004). With no
+ * targeting trigger in the group the observable behaviour is unchanged — all of them are placed in the
+ * chosen order and the checkpoint resumes.
  */
 internal fun applyOrderTriggers(
     state: GameState,
@@ -133,10 +178,30 @@ internal fun applyOrderTriggers(
     order: List<Int>,
 ): AdvanceResult {
     val group = state.pendingTriggers.filter { it.controller == controller }
-    val placed = order.fold(state) { current, index -> putTriggerOnStack(current, group[index]) }
-    // CR 601.2i: resume toward the recorded recipient (preserved as the priority holder across the
-    // ordering suspension), not blindly the active player.
-    return priorityTo(placed, priorityRecipient(placed))
+    require(order.sorted() == group.indices.toList()) {
+        "CR 603.3b: a trigger order permutes all ${group.size} of the controller's triggers, was $order"
+    }
+    return placeOrderedTriggers(reorderPendingTriggers(state, controller, order.map { group[it] }), controller)
+}
+
+/**
+ * Rewrites [GameState.pendingTriggers] so [controller]'s triggers appear in [ordered] — the CR 603.3b
+ * placement order just chosen — while every other controller's trigger keeps its slot. Slot
+ * substitution rather than filter-and-append, so two indistinguishable triggers (same source, same
+ * ability, same linked information) are handled positionally and no other controller's relative order
+ * moves.
+ */
+private fun reorderPendingTriggers(
+    state: GameState,
+    controller: PlayerId,
+    ordered: List<PendingTrigger>,
+): GameState {
+    val remaining = ordered.iterator()
+    val rewritten =
+        state.pendingTriggers
+            .map { if (it.controller == controller) remaining.next() else it }
+            .toPersistentList()
+    return state.copy(pendingTriggers = rewritten)
 }
 
 /** A short human description of a pending trigger, for the ordering decision's display (ADR-005). */

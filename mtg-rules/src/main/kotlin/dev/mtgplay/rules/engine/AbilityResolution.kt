@@ -6,7 +6,6 @@ import dev.mtgplay.core.event.GameEvent
 import dev.mtgplay.core.state.GameState
 import dev.mtgplay.core.state.StackEntry
 import dev.mtgplay.rules.AdvanceResult
-import kotlinx.collections.immutable.persistentListOf
 
 /**
  * Resolves a triggered ability on the stack (CR 608.2, CR 113.7a) — reached when all players pass with
@@ -16,24 +15,33 @@ import kotlinx.collections.immutable.persistentListOf
  * (CR 113.7a): unlike a spell, no card moves to the graveyard — the ability was never a card. Any zone
  * changes the effect itself makes (a token, a draw, a return-to-hand) are the effect's own.
  *
- * A triggered ability has no targets in the MVP pool (CR 603.3d), so no CR 608.2b re-check applies; its
- * targets are the empty list. Afterwards the active player receives priority (CR 117.3b) in a fresh
- * round, exactly as after a spell resolves.
+ * **Target re-check (CR 608.2b).** If the ability targets and *every* target chosen at CR 603.3d is now
+ * illegal, it does not resolve: none of its instructions are performed, and it is simply removed from
+ * the stack. No card moves — unlike a fizzled spell's CR 608.2m graveyard move, an ability is not a card
+ * (CR 113.7a) — so the spell path's `putResolvedSpellOffStack` must **not** be reused here; only the
+ * verdict [allTargetsIllegal] is shared (docs/design/targeted-abilities.md §6). A targeting ability that
+ * was put on the stack with **no** targets — its controller had no legal choice (CR 603.3d) — is
+ * vacuously all-illegal, and correctly does nothing.
+ *
+ * Afterwards the active player receives priority (CR 117.3b) in a fresh round, exactly as after a spell
+ * resolves.
  */
 internal fun resolveAbility(
     state: GameState,
     entry: StackEntry.Ability,
 ): AdvanceResult {
     check(state.sharedZones.stack.lastOrNull() == entry) { "CR 608.1: only the topmost stack object may resolve" }
-    // Two triggered "you may" clauses are engine-orchestrated flows rather than plain effects: madness's
-    // reflexive cast (CR 702.35b) and the optional discard-then-draw (CR 601.3b, Melded Moxite).
-    val orchestrated = resolveOrchestratedTrigger(state, entry)
-    if (orchestrated != null) return orchestrated
     val trigger = entry.trigger
+    // CR 608.2b precedes CR 608.2c: an ability that does not resolve performs nothing at all, and must
+    // not begin an orchestrated "you may" flow it would then have to unwind. Then two triggered "you may"
+    // clauses are engine-orchestrated rather than plain effects: madness's reflexive cast (CR 702.35b)
+    // and the optional discard-then-draw (CR 601.3b, Melded Moxite).
+    val early = fizzleTrigger(state, entry) ?: resolveOrchestratedTrigger(state, entry)
+    if (early != null) return early
     val context =
         ResolutionContext(
             controller = trigger.controller,
-            targets = persistentListOf(),
+            targets = entry.targets,
             amount = trigger.amount,
             subject = trigger.subject,
         )
@@ -45,6 +53,24 @@ internal fun resolveAbility(
     val ceased = resolved.updateStack { it.removingAt(it.lastIndex) }
     return grantPriorityRound(
         ceased.emit(GameEvent.TriggeredAbilityResolved(trigger.controller, trigger.sourceCard)),
+    )
+}
+
+/**
+ * The CR 608.2b removal of a triggered ability whose every target is now illegal, or `null` when it
+ * resolves normally. **No card moves** — an ability is not a card (CR 113.7a) — so this is a bare stack
+ * removal plus its event, deliberately *not* the spell path's graveyard/exile move
+ * (docs/design/targeted-abilities.md §6).
+ */
+private fun fizzleTrigger(
+    state: GameState,
+    entry: StackEntry.Ability,
+): AdvanceResult? {
+    val trigger = entry.trigger
+    if (!allTargetsIllegal(state, trigger.ability.targetSpec, entry.targets, trigger.controller)) return null
+    val removed = state.updateStack { it.removingAt(it.lastIndex) }
+    return grantPriorityRound(
+        removed.emit(GameEvent.AbilityFizzled(trigger.controller, trigger.sourceCard, triggered = true)),
     )
 }
 

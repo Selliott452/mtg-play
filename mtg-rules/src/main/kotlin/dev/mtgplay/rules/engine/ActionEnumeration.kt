@@ -164,6 +164,6 @@ internal fun targetsAvailable(
 ): Boolean =
     when (spec) {
         TargetSpec.None -> true
-        TargetSpec.AnyTarget, TargetSpec.TargetPlayer, is TargetSpec.Enchantable ->
+        TargetSpec.AnyTarget, TargetSpec.TargetPlayer, TargetSpec.TargetOpponent, is TargetSpec.Enchantable ->
             legalTargets(state, spec, seat).isNotEmpty()
     }

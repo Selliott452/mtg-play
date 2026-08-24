@@ -458,6 +458,24 @@ sealed interface GameEvent {
     ) : GameEvent
 
     /**
+     * An ability did not resolve because every one of its targets was illegal (CR 608.2b):
+     * [sourceCard]'s ability, controlled by [controller], was removed from the stack and **none of its
+     * instructions were performed**. Added with `FW-ABILTGT` (docs/design/targeted-abilities.md).
+     *
+     * The ability counterpart of [SpellFizzled], and deliberately a distinct event: a fizzled spell's
+     * card is put into a graveyard or exile as a new object (CR 608.2m, CR 702.34e), while an ability
+     * simply ceases to exist (CR 113.7a) — there is no card and no final object id to report. Emitted
+     * for a triggered ability (CR 603.3d) and an activated one (CR 602.2b) alike; [triggered] says
+     * which, since the two have different narration in a log ("its trigger fizzled" vs "its ability
+     * fizzled").
+     */
+    data class AbilityFizzled(
+        val controller: PlayerId,
+        val sourceCard: CardRef,
+        val triggered: Boolean,
+    ) : GameEvent
+
+    /**
      * Cards were revealed from the top of a library (CR 701.16): [player] revealed [cards] (their
      * printed identities, top-first) as part of a resolving effect — Malevolent Rumble's "reveal the top
      * four cards". Added in P6.2a. Public information: the revealed identities are recorded here (they are

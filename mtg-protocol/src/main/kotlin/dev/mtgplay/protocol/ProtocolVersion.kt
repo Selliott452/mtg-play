@@ -17,5 +17,19 @@ package dev.mtgplay.protocol
  * peer would both misread an offered plan and send back one the strict codec rejects. That is a
  * major bump under semver, and it also absorbs P8.2's unbumped required [SeatViewDto.cards] field:
  * `1.0.0` and `2.0.0` are the only two shapes any consumer can have seen.
+ *
+ * **3.0.0 — `FW-ABILTGT`** (docs/design/targeted-abilities.md §10). Abilities can now target, which
+ * adds four **required** fields to server→client payloads inside [SeatViewDto]:
+ * [StackEntryViewDto.TriggeredAbilityOnStack] and [StackEntryViewDto.ActivatedAbilityOnStack] each
+ * gain `targets`, [PendingActivationDto] gains `chosenTargets`, and [SeatViewDto] gains
+ * `pendingTriggerTargets`. The codec is strict about unknown fields, so a `2.0.0` peer would reject a
+ * `3.0.0` seat view outright — the same reasoning that made P8.2's `cards` field a major change in
+ * retrospect, applied at the time rather than after the fact.
+ *
+ * The client→server direction is **unchanged**: this framework deliberately adds no `DecisionRequest`
+ * kind, reusing `ChooseTargets` for a cast, an activation, and a trigger placement alike, so
+ * [DecisionRequestKindDto] and every request DTO keep their shape. That makes the break narrower than
+ * P8.3's — but it is still a break, and the recorded standard is to say so with a major bump rather
+ * than to argue that nobody is listening.
  */
-const val PROTOCOL_VERSION: String = "2.0.0"
+const val PROTOCOL_VERSION: String = "3.0.0"

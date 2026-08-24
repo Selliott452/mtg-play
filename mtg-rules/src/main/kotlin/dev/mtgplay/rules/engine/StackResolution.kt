@@ -50,8 +50,7 @@ private fun resolveSpell(
     entry: StackEntry.Spell,
 ): AdvanceResult {
     val spec = entry.definition.targetSpec
-    val fizzles = spec != TargetSpec.None && entry.targets.none { isTargetLegal(state, spec, it, entry.controller) }
-    if (fizzles) {
+    if (allTargetsIllegal(state, spec, entry.targets, entry.controller)) {
         // CR 608.2b: a spell that does not resolve is put into its owner's graveyard and never
         // enters the battlefield, whatever its card type would have become — unless a flashback
         // leave-stack replacement exiles it instead (CR 702.34e).
@@ -183,7 +182,7 @@ internal fun putResolvedSpellOntoBattlefield(
  */
 private fun auraAttachmentTargetOf(entry: StackEntry.Spell): ObjectId? =
     when (entry.definition.targetSpec) {
-        TargetSpec.None, TargetSpec.AnyTarget, TargetSpec.TargetPlayer -> null
+        TargetSpec.None, TargetSpec.AnyTarget, TargetSpec.TargetPlayer, TargetSpec.TargetOpponent -> null
         is TargetSpec.Enchantable ->
             (entry.targets.singleOrNull() as? Target.Permanent)?.id
                 ?: error("CR 303.4f: an Aura must enter attached to its permanent target, got ${entry.targets}")

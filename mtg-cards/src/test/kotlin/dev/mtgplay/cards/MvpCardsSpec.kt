@@ -242,6 +242,7 @@ class MvpCardsSpec :
                     CardRef("Lifelink"),
                     CardRef("Lightning Bolt"),
                     CardRef("Lórien Revealed"),
+                    CardRef("Lotleth Giant"),
                     CardRef("Malevolent Rumble"),
                     CardRef("Melded Moxite"),
                     CardRef("Mental Note"),

@@ -42,6 +42,9 @@ import dev.mtgplay.core.identity.CardRef
  * [lifelink]; and [murmuringMystic] (MurmuringMystic.kt), whose [birdIllusionToken] — like
  * [bloodToken], [robotToken], [eldraziSpawnToken], and [warriorToken] — is created on demand rather
  * than being a top-level registry entry.
+ * [kruphixsInsight], [wildGrowth], and [lifelink] — the *card* named Lifelink, an Aura — for GW Bogles. The
+ * `FW-ABILTGT` packet adds [lotlethGiant], the first card whose *ability* targets
+ * (docs/design/targeted-abilities.md §7).
  *
  * [definitions] is shaped for direct `MatchConfig.definitions` consumption: the engine carries
  * it into `GameState` in canonical name-sorted order regardless of this map's own order
@@ -84,6 +87,7 @@ object MvpCards {
             lifelink,
             lightningBolt,
             lorienRevealed,
+            lotlethGiant,
             malevolentRumble,
             meldedMoxite,
             mentalNote,
