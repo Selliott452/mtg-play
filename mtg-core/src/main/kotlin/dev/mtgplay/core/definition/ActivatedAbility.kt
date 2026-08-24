@@ -15,8 +15,7 @@ import kotlinx.collections.immutable.PersistentList
  * (CR 113.7a). (Mana abilities — CR 605 — are a separate, stackless path and are not modeled here.)
  *
  * The [effect] reuses the [ResolutionEffect] shape: the engine hands it a [ResolutionContext] carrying
- * the ability's controller. Targeted activated abilities (CR 602.2b) are the extension point; no MVP
- * activated ability targets.
+ * the ability's controller and, for a targeting ability, the targets chosen at CR 602.2b.
  *
  * @property cost the ability's composite activation cost (CR 602.1), in printed order; never empty.
  * @property effect what the ability does when it resolves (CR 608.2); reuses [ResolutionEffect]. A no-op for
@@ -27,12 +26,19 @@ import kotlinx.collections.immutable.PersistentList
  *   resolution (CR 701.18), or `null` for an ability with none. Additive, flagged core (P6.2c). Ash Barrens'
  *   basic landcycling. Because it needs a mid-resolution selection and a seeded shuffle, `mtg-rules` runs it
  *   after the ordinary [effect], pausing for the find-one choice.
+ * @property targetSpec what this ability demands as targets (CR 115); [TargetSpec.None] for an untargeted
+ *   ability. Additive, flagged core (`FW-ABILTGT`, docs/design/targeted-abilities.md). The targets are
+ *   chosen as part of activating the ability (CR 602.2b, following CR 601.2b–i) — before any cost is paid
+ *   — and re-checked on resolution (CR 608.2b). An activated ability with no legal target **cannot be
+ *   activated** (CR 601.2c) and so is never enumerated, unlike a triggered ability, which is still put on
+ *   the stack in that position.
  */
 data class ActivatedAbility(
     val cost: PersistentList<AbilityCost>,
     val effect: ResolutionEffect,
     val zoneScope: AbilityZoneScope = AbilityZoneScope.Battlefield,
     val librarySearch: LibrarySearch? = null,
+    val targetSpec: TargetSpec = TargetSpec.None,
 ) {
     init {
         require(cost.isNotEmpty()) { "CR 602.1: an activated ability has a cost" }

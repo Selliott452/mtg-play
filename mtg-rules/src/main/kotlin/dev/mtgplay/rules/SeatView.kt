@@ -15,6 +15,7 @@ import dev.mtgplay.core.state.PendingOptionalDiscardDraw
 import dev.mtgplay.core.state.PendingPlot
 import dev.mtgplay.core.state.PendingReplacement
 import dev.mtgplay.core.state.PendingResolutionDiscard
+import dev.mtgplay.core.state.PendingTriggerTargets
 import dev.mtgplay.core.state.PriorityStatus
 import dev.mtgplay.core.state.Turn
 
@@ -63,7 +64,8 @@ import dev.mtgplay.core.state.Turn
  * @property battlefield the shared battlefield (CR 403); fully public — every permanent, with its
  *   tapped/summoning-sick/damage/attachment/chosen-colour status, is visible to all (ADR-007).
  * @property stack the shared stack (CR 405), top last; fully public — the [StackEntryView] of each
- *   entry carries its controller and (for a spell) its targets, which are chosen openly (CR 601.2c).
+ *   entry carries its controller and its targets, which are chosen openly whether the entry is a spell
+ *   (CR 601.2c), an activated ability (CR 602.2b), or a triggered one (CR 603.3d).
  * @property exile the shared exile zone (CR 406); fully public — every exile path in the MVP pool
  *   (madness, plot, flashback-exile, escape) puts its cards face-up (CR 406.3), so identities and
  *   the plotted-turn marker are visible to all.
@@ -91,9 +93,9 @@ import dev.mtgplay.core.state.Turn
  *   identity is not resolved here — it becomes public (face-up in exile) only on execution.
  * @property pendingColorChoice the "choose a colour as this enters" pause (CR 614.12), or `null`;
  *   public — it concerns a resolving permanent on the stack.
- * @property pendingActivation an activated ability gathering its cost (CR 602.2), or `null`; public
- *   — it concerns a public ability, and its chosen-discard field carries only opaque hand-object
- *   ids, no card identities.
+ * @property pendingActivation an activated ability gathering its choices (CR 602.2), or `null`; public
+ *   — it concerns a public ability; its chosen-discard field carries only opaque hand-object ids, no
+ *   card identities, and its chosen targets are public by CR 601.2c.
  * @property pendingReveal a "reveal top N, keep one" selection (CR 701.16), or `null`; the revealed
  *   cards are public to **both** seats (CR: they are revealed), so their identities are resolved
  *   here (see [PendingRevealView]) even though library contents are otherwise secret.
@@ -107,6 +109,13 @@ import dev.mtgplay.core.state.Turn
  *   the searching seat are public, but the matching cards are **not** — library contents stay
  *   secret mid-search, exposed only to the searching seat as its private request options and
  *   revealed to all only when the found card is chosen.
+ * @property pendingTriggerTargets a triggered ability choosing its targets as it is put on the stack
+ *   (CR 603.3d), or `null`; public — it names only the ability's controller and the source's
+ *   last-known id and printed identity, all of which [pendingTriggers] already discloses. The choice
+ *   itself is public (CR 601.2c), and its options are battlefield objects and players, so no hidden
+ *   information crosses the boundary. **The moment `Target` gains a member naming a card in a hidden
+ *   or semi-hidden zone (`FW-ZONETGT`, a graveyard or library card), this ruling must be revisited
+ *   together with [cards].**
  */
 data class SeatView(
     val viewer: PlayerId,
@@ -130,6 +139,7 @@ data class SeatView(
     val pendingOptionalCostDraw: PendingOptionalCostDraw? = null,
     val pendingResolutionDiscard: PendingResolutionDiscard? = null,
     val pendingLibrarySearch: PendingLibrarySearch? = null,
+    val pendingTriggerTargets: PendingTriggerTargets? = null,
 )
 
 /**

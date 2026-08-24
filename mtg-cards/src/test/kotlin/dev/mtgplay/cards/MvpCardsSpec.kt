@@ -232,6 +232,7 @@ class MvpCardsSpec :
                     CardRef("Lava Dart"),
                     CardRef("Lifelink"),
                     CardRef("Lightning Bolt"),
+                    CardRef("Lotleth Giant"),
                     CardRef("Malevolent Rumble"),
                     CardRef("Melded Moxite"),
                     CardRef("Mountain"),

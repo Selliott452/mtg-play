@@ -13,9 +13,19 @@ import dev.mtgplay.core.state.Target
  * and the resolution re-check (CR 608.2b) tests membership in it, so cast-time and
  * resolution-time legality can never drift apart.
  *
- * [you] is the deciding player — the caster at cast time, the spell's controller at resolution.
- * Most specs ignore it; an Aura's [TargetSpec.Enchantable] with a "you control" restriction reads
- * it (control is ownership in the MVP pool, docs/design/layer-system.md §4).
+ * [you] is the deciding player — the caster at cast time (CR 601.2c), the activator while activating
+ * an ability (CR 602.2b), the ability's controller as a trigger is put on the stack (CR 603.3d), and
+ * the spell's or ability's controller at the CR 608.2b resolution re-check. Most specs ignore it; an
+ * Aura's [TargetSpec.Enchantable] with a "you control" restriction reads it (control is ownership in
+ * the MVP pool, docs/design/layer-system.md §4).
+ *
+ * The one targeting restriction in the pool, hexproof (CR 702.11), is **opponent-relative**: its whole
+ * input is who is deciding, which is what [you] carries. Two further parameters are already designed
+ * and deliberately not added yet, because no card needs them and both would change every call site:
+ * a *prospective source*, which protection needs (CR 702.16b, docs/design/protection.md §2.4), and a
+ * *self-exclusion*, which targeting a spell on the stack needs (docs/design/countering-spells.md §4).
+ * Keeping every caller funnelled through this one function is what keeps each of those a one-file
+ * change (docs/design/targeted-abilities.md §5).
  */
 
 /**
@@ -30,8 +40,10 @@ import dev.mtgplay.core.state.Target
  * controller targets it freely ([targetableBy]). [TargetSpec.Enchantable] (CR 601.2c) enumerates
  * every battlefield object satisfying the Aura's enchant restriction (CR 303.4a) for [you] and
  * targetable by [you] — so a GW-Bogles player enchants their own hexproof creatures, but an
- * opponent's Aura cannot. [TargetSpec.None] enumerates nothing: an untargeted spell never surfaces
- * a target decision.
+ * opponent's Aura cannot. [TargetSpec.TargetOpponent] (CR 115.1a, CR 102.1) enumerates every player
+ * but [you], in turn order, and no permanent — the one spec whose enumeration depends on who is
+ * deciding rather than only on the board. [TargetSpec.None] enumerates nothing: an untargeted spell
+ * or ability never surfaces a target decision.
  */
 internal fun legalTargets(
     state: GameState,
@@ -40,6 +52,12 @@ internal fun legalTargets(
 ): List<Target> =
     when (spec) {
         TargetSpec.None -> emptyList()
+        // CR 115.1a/102.1: every player but the one choosing. A player is always targetable —
+        // hexproof and shroud are object qualities (CR 702.11) — so only the opponent test applies.
+        TargetSpec.TargetOpponent ->
+            state.players.keys
+                .filter { it != you }
+                .map { Target.Player(it) }
         TargetSpec.AnyTarget ->
             state.players.keys.map { Target.Player(it) } +
                 state.sharedZones.battlefield
@@ -87,3 +105,27 @@ internal fun isTargetLegal(
     target: Target,
     you: PlayerId,
 ): Boolean = target in legalTargets(state, spec, you)
+
+/**
+ * The CR 608.2b verdict, shared by every resolution: whether a resolving object that targets has **all**
+ * of its [targets] illegal now, so it does not resolve and none of its instructions are performed. An
+ * object with *some* legal targets still resolves, doing what it can — a distinction with no observable
+ * case until multi-target objects exist.
+ *
+ * Defined here, beside the enumeration that defines legality, so the three resolution sites — a spell
+ * (`StackResolution.kt`), a triggered ability and an activated one (`AbilityResolution.kt`,
+ * `ActivationExecution.kt`) — cannot drift on *when* the verdict is true. What they must **not** share is
+ * what happens next: a spell's card leaves the stack for a graveyard or exile as a new object
+ * (CR 608.2m, CR 702.34e), while an ability has no card and simply ceases to exist (CR 113.7a). See
+ * docs/design/targeted-abilities.md §6.
+ *
+ * An ability that targets and carries **no** targets — a triggered ability whose controller had no legal
+ * choice at CR 603.3d — is vacuously all-illegal here, which is exactly the right answer: it was put on
+ * the stack and now does nothing.
+ */
+internal fun allTargetsIllegal(
+    state: GameState,
+    spec: TargetSpec,
+    targets: List<Target>,
+    controller: PlayerId,
+): Boolean = spec != TargetSpec.None && targets.none { isTargetLegal(state, spec, it, controller) }

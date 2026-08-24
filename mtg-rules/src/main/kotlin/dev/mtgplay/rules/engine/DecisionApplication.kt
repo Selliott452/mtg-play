@@ -201,13 +201,26 @@ private fun discardSelectedCards(
     }
 }
 
+/**
+ * Applies a chosen target (CR 601.2c). One request serves three flows — a cast (CR 601.2c), an
+ * activation (CR 602.2b), and a triggered ability being put on the stack (CR 603.3d) — and the open
+ * pending record says which, exactly as [applyChosenYesNo] and [applyChosenPaymentPlan] disambiguate
+ * their flows. The branches are tested in the order [pendingDecisionRequest] derives them in, so the
+ * answer can never be routed to a flow other than the one that was asked.
+ */
 private fun applyChosenTargets(
     state: GameState,
     request: DecisionRequest.ChooseTargets,
     decision: Decision,
 ): AdvanceResult {
     check(decision is Decision.SingleSelect) { "unreachable: decision shape was validated against the request" }
-    return applyChosenTarget(state, request.options[decision.index])
+    val target = request.options[decision.index]
+    return when {
+        state.pendingCast != null -> applyChosenTarget(state, target)
+        state.pendingActivation != null -> applyChosenActivationTarget(state, target)
+        state.pendingTriggerTargets != null -> applyChosenTriggerTarget(state, target)
+        else -> error("a target was chosen with no cast, activation, or trigger placement awaiting one: $request")
+    }
 }
 
 private fun applyChosenPaymentPlan(

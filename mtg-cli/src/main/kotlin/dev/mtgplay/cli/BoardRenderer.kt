@@ -1,6 +1,7 @@
 package dev.mtgplay.cli
 
 import dev.mtgplay.core.state.StackEntry
+import dev.mtgplay.core.state.Target
 
 /*
  * The per-seat board view (P6.4 deliverable 1): the turn header, both players' public board, the
@@ -42,25 +43,34 @@ private fun stackLines(view: MatchView): List<String> {
     return listOf("Stack (top resolves first):") + entries
 }
 
-/** One stack entry's label (CR 405.2): a spell (with targets) or a triggered/activated ability. */
+/**
+ * One stack entry's label (CR 405.2): a spell or a triggered/activated ability, each with its chosen
+ * targets (CR 601.2c / 602.2b / 603.3d — all public).
+ */
 private fun stackEntryLabel(
     view: MatchView,
     entry: StackEntry,
 ): String =
     when (entry) {
-        is StackEntry.Spell -> {
-            val targets =
-                if (entry.targets.isEmpty()) {
-                    ""
-                } else {
-                    " targeting ${entry.targets.joinToString(", ") { targetLabel(view, it) }}"
-                }
-            "${entry.obj.card.name} - cast by ${view.nameOf(entry.controller)}$targets"
-        }
+        is StackEntry.Spell ->
+            "${entry.obj.card.name} - cast by ${view.nameOf(entry.controller)}${targetSuffix(view, entry.targets)}"
         is StackEntry.Ability ->
-            "${entry.trigger.sourceCard.name} (triggered ability) - ${view.nameOf(entry.trigger.controller)}"
+            "${entry.trigger.sourceCard.name} (triggered ability) - " +
+                "${view.nameOf(entry.trigger.controller)}${targetSuffix(view, entry.targets)}"
         is StackEntry.ActivatedAbilityOnStack ->
-            "${entry.sourceCard.name} (activated ability) - ${view.nameOf(entry.controller)}"
+            "${entry.sourceCard.name} (activated ability) - " +
+                "${view.nameOf(entry.controller)}${targetSuffix(view, entry.targets)}"
+    }
+
+/** The " targeting …" suffix of a stack entry, or the empty string when it targets nothing (CR 115.1). */
+private fun targetSuffix(
+    view: MatchView,
+    targets: List<Target>,
+): String =
+    if (targets.isEmpty()) {
+        ""
+    } else {
+        " targeting ${targets.joinToString(", ") { targetLabel(view, it) }}"
     }
 
 /** Turns an enum constant name into readable text, e.g. `PRECOMBAT_MAIN` -> `precombat main`. */

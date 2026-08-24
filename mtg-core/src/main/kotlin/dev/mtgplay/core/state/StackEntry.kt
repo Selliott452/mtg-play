@@ -68,9 +68,14 @@ sealed interface StackEntry {
      * the controller, and the trigger's linked information) rides in [trigger].
      *
      * @property trigger the fired triggered ability this stack entry resolves.
+     * @property targets the targets chosen **as the ability was put on the stack** (CR 603.3d), in the
+     *   order chosen; empty for an untargeted ability *and* for a targeting one whose controller had no
+     *   legal choice at placement — the latter still goes on the stack and then does nothing (CR 608.2b).
+     *   Additive, flagged core (`FW-ABILTGT`, docs/design/targeted-abilities.md).
      */
     data class Ability(
         val trigger: PendingTrigger,
+        val targets: PersistentList<Target> = persistentListOf(),
     ) : StackEntry
 
     /**
@@ -84,12 +89,17 @@ sealed interface StackEntry {
      * @property sourceCard the source's printed identity.
      * @property controller the player who activated and controls the ability (CR 602.2).
      * @property ability the activated ability itself (CR 602): its cost and its resolution effect.
+     * @property targets the targets chosen while activating (CR 602.2b, following CR 601.2c), in the order
+     *   chosen; empty for an untargeted ability. Never short: an ability with no legal target cannot be
+     *   activated (CR 601.2c) and is not enumerated. Additive, flagged core (`FW-ABILTGT`,
+     *   docs/design/targeted-abilities.md).
      */
     data class ActivatedAbilityOnStack(
         val sourceId: ObjectId,
         val sourceCard: CardRef,
         val controller: PlayerId,
         val ability: ActivatedAbility,
+        val targets: PersistentList<Target> = persistentListOf(),
     ) : StackEntry
 }
 

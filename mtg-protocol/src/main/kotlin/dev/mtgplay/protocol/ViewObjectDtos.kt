@@ -34,6 +34,7 @@ sealed interface StackEntryViewDto {
         val sourceId: Long,
         val sourceCard: String,
         val controller: Int,
+        val targets: List<TargetDto>,
     ) : StackEntryViewDto
 
     /** Wire form of [StackEntryView.ActivatedAbilityOnStack] (CR 113.3b). */
@@ -43,6 +44,7 @@ sealed interface StackEntryViewDto {
         val sourceId: Long,
         val sourceCard: String,
         val controller: Int,
+        val targets: List<TargetDto>,
     ) : StackEntryViewDto
 }
 
@@ -52,9 +54,19 @@ fun StackEntryView.toDto(): StackEntryViewDto =
         is StackEntryView.SpellOnStack ->
             StackEntryViewDto.SpellOnStack(objectId.value, card.name, controller.seat, targets.map { it.toDto() })
         is StackEntryView.TriggeredAbilityOnStack ->
-            StackEntryViewDto.TriggeredAbilityOnStack(sourceId.value, sourceCard.name, controller.seat)
+            StackEntryViewDto.TriggeredAbilityOnStack(
+                sourceId.value,
+                sourceCard.name,
+                controller.seat,
+                targets.map { it.toDto() },
+            )
         is StackEntryView.ActivatedAbilityOnStack ->
-            StackEntryViewDto.ActivatedAbilityOnStack(sourceId.value, sourceCard.name, controller.seat)
+            StackEntryViewDto.ActivatedAbilityOnStack(
+                sourceId.value,
+                sourceCard.name,
+                controller.seat,
+                targets.map { it.toDto() },
+            )
     }
 
 /** [StackEntryViewDto] back to the engine value. */
@@ -68,9 +80,19 @@ fun StackEntryViewDto.toDomain(): StackEntryView =
                 targets.map { it.toDomain() },
             )
         is StackEntryViewDto.TriggeredAbilityOnStack ->
-            StackEntryView.TriggeredAbilityOnStack(ObjectId(sourceId), CardRef(sourceCard), PlayerId(controller))
+            StackEntryView.TriggeredAbilityOnStack(
+                ObjectId(sourceId),
+                CardRef(sourceCard),
+                PlayerId(controller),
+                targets.map { it.toDomain() },
+            )
         is StackEntryViewDto.ActivatedAbilityOnStack ->
-            StackEntryView.ActivatedAbilityOnStack(ObjectId(sourceId), CardRef(sourceCard), PlayerId(controller))
+            StackEntryView.ActivatedAbilityOnStack(
+                ObjectId(sourceId),
+                CardRef(sourceCard),
+                PlayerId(controller),
+                targets.map { it.toDomain() },
+            )
     }
 
 /** Wire form of a [HandView] — the viewer's own hand in full, or an opponent's as a count only. */

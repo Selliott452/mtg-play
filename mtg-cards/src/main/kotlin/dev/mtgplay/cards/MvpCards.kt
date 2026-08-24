@@ -20,7 +20,9 @@ import dev.mtgplay.core.identity.CardRef
  * tokens ([bloodToken], [robotToken], [eldraziSpawnToken]) are created on demand and registered by the
  * create-token primitive, so — like [warriorToken] — they are not top-level registry entries. The P6.3
  * pool refreshes both decklists as they are now built: [kessigFlamebreather] for Mono-Red Madness, and
- * [kruphixsInsight], [wildGrowth], and [lifelink] — the *card* named Lifelink, an Aura — for GW Bogles.
+ * [kruphixsInsight], [wildGrowth], and [lifelink] — the *card* named Lifelink, an Aura — for GW Bogles. The
+ * `FW-ABILTGT` packet adds [lotlethGiant], the first card whose *ability* targets
+ * (docs/design/targeted-abilities.md §7).
  *
  * [definitions] is shaped for direct `MatchConfig.definitions` consumption: the engine carries
  * it into `GameState` in canonical name-sorted order regardless of this map's own order
@@ -53,6 +55,7 @@ object MvpCards {
             lavaDart,
             lifelink,
             lightningBolt,
+            lotlethGiant,
             malevolentRumble,
             meldedMoxite,
             mountain,

@@ -6,6 +6,12 @@ import dev.mtgplay.acceptance.mountains
 import dev.mtgplay.acceptance.playerWithZones
 import dev.mtgplay.acceptance.twoPlayerState
 import dev.mtgplay.cards.MvpCards
+import dev.mtgplay.core.definition.AbilityCost
+import dev.mtgplay.core.definition.ActivatedAbility
+import dev.mtgplay.core.definition.ResolutionEffect
+import dev.mtgplay.core.definition.TargetSpec
+import dev.mtgplay.core.definition.TriggerCondition
+import dev.mtgplay.core.definition.TriggeredAbility
 import dev.mtgplay.core.identity.CardRef
 import dev.mtgplay.core.identity.ObjectId
 import dev.mtgplay.core.mana.Color
@@ -17,8 +23,12 @@ import dev.mtgplay.core.state.CombatState
 import dev.mtgplay.core.state.GameObject
 import dev.mtgplay.core.state.GameState
 import dev.mtgplay.core.state.PendingResolutionDiscard
+import dev.mtgplay.core.state.PendingTrigger
+import dev.mtgplay.core.state.PendingTriggerTargets
 import dev.mtgplay.core.state.PriorityStatus
 import dev.mtgplay.core.state.SharedZones
+import dev.mtgplay.core.state.StackEntry
+import dev.mtgplay.core.state.Target
 import dev.mtgplay.core.state.Turn
 import dev.mtgplay.core.state.TurnPhase
 import dev.mtgplay.core.state.TurnStep
@@ -467,7 +477,104 @@ class InvariantCheckerSpec :
                 )
             checkPendingResolutionSanity(clean).shouldBeEmpty()
         }
+
+        // --- ABILITY_TARGET_SANITY ---------------------------------------------------------
+
+        "CR 601.2c: an untargeted ability carrying a target is one ABILITY_TARGET_SANITY violation" {
+            val entry =
+                StackEntry.Ability(
+                    PendingTrigger(ObjectId(0), CardRef("Fixture"), alice, untargetedAbility()),
+                    persistentListOf(Target.Player(bob)),
+                )
+            checkAbilityTargetSanity(abilityStackState(entry)).map { it.invariant } shouldContainExactly
+                listOf(Invariant.ABILITY_TARGET_SANITY)
+        }
+
+        "CR 603.3d: a triggered ability on the stack with no legal target found is NOT a violation" {
+            // The load-bearing asymmetry: a trigger goes on the stack target-less when its controller
+            // had no legal choice, and CR 608.2b removes it later. Only an *activated* ability may not.
+            val entry =
+                StackEntry.Ability(
+                    PendingTrigger(ObjectId(0), CardRef("Fixture"), alice, targetingAbility()),
+                    persistentListOf(),
+                )
+            checkAbilityTargetSanity(abilityStackState(entry)).shouldBeEmpty()
+        }
+
+        "CR 601.2c: an activated ability on the stack with no target is one ABILITY_TARGET_SANITY violation" {
+            val entry =
+                StackEntry.ActivatedAbilityOnStack(
+                    sourceId = ObjectId(0),
+                    sourceCard = CardRef("Fixture"),
+                    controller = alice,
+                    ability =
+                        ActivatedAbility(
+                            cost = persistentListOf(AbilityCost.TapSelf),
+                            targetSpec = TargetSpec.TargetOpponent,
+                            effect = ResolutionEffect { state, _ -> state },
+                        ),
+                )
+            checkAbilityTargetSanity(abilityStackState(entry)).map { it.invariant } shouldContainExactly
+                listOf(Invariant.ABILITY_TARGET_SANITY)
+        }
+
+        "CR 603.3d: a trigger-targeting pause whose trigger does not target is one violation" {
+            val paused =
+                twoPlayerState(
+                    turn = precombatMain,
+                    aliceState = playerWithZones(),
+                    bobState = playerWithZones(),
+                    nextObjectId = 1,
+                ).copy(
+                    pendingTriggers =
+                        persistentListOf(PendingTrigger(ObjectId(0), CardRef("Fixture"), alice, untargetedAbility())),
+                    pendingTriggerTargets = PendingTriggerTargets(alice, ObjectId(0), CardRef("Fixture")),
+                )
+            checkAbilityTargetSanity(paused).map { it.invariant } shouldContainExactly
+                listOf(Invariant.ABILITY_TARGET_SANITY)
+        }
+
+        "ability-target sanity: a well-formed targeting trigger and its pause produce no violation" {
+            val trigger = PendingTrigger(ObjectId(0), CardRef("Fixture"), alice, targetingAbility())
+            val paused =
+                twoPlayerState(
+                    turn = precombatMain,
+                    aliceState = playerWithZones(),
+                    bobState = playerWithZones(),
+                    nextObjectId = 1,
+                ).copy(
+                    pendingTriggers = persistentListOf(trigger),
+                    pendingTriggerTargets = PendingTriggerTargets(alice, ObjectId(0), CardRef("Fixture")),
+                )
+            checkAbilityTargetSanity(paused).shouldBeEmpty()
+        }
     })
+
+/** A fixture triggered ability that targets nothing. */
+private fun untargetedAbility(): TriggeredAbility =
+    TriggeredAbility(
+        condition = TriggerCondition.EnteredBattlefieldSelf,
+        effect = ResolutionEffect { state, _ -> state },
+    )
+
+/** A fixture triggered ability that targets an opponent (CR 115.1a). */
+private fun targetingAbility(): TriggeredAbility =
+    TriggeredAbility(
+        condition = TriggerCondition.EnteredBattlefieldSelf,
+        targetSpec = TargetSpec.TargetOpponent,
+        effect = ResolutionEffect { state, _ -> state },
+    )
+
+/** A two-player state whose stack holds the single ability [entry], for the ability-target checks. */
+private fun abilityStackState(entry: StackEntry): GameState =
+    GameState(
+        players = persistentMapOf(alice to playerWithZones(), bob to playerWithZones()),
+        turn = Turn(alice, 1, TurnPhase.PRECOMBAT_MAIN, null),
+        sharedZones = SharedZones(persistentListOf(), persistentListOf(entry), persistentListOf()),
+        nextObjectId = 1,
+        rng = Rng(0),
+        events = persistentListOf(),
+    )
 
 // A handcrafted state at the declare-attackers step with the given battlefield and (optional)
 // combat, for the combat-reference checks. The combat may reference ids the battlefield lacks —

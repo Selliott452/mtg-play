@@ -1,10 +1,12 @@
 package dev.mtgplay.protocol
 
+import dev.mtgplay.core.identity.CardRef
 import dev.mtgplay.core.identity.ObjectId
 import dev.mtgplay.core.identity.PlayerId
 import dev.mtgplay.core.state.PendingMadness
 import dev.mtgplay.core.state.PendingMulligan
 import dev.mtgplay.core.state.PendingReplacement
+import dev.mtgplay.core.state.PendingTriggerTargets
 import kotlinx.serialization.Serializable
 
 /*
@@ -53,3 +55,23 @@ fun PendingMulligan.toDto(): PendingMulliganDto = PendingMulliganDto(deciding.se
 /** [PendingMulliganDto] back to the engine value. */
 fun PendingMulliganDto.toDomain(): PendingMulligan =
     PendingMulligan(PlayerId(deciding), mulliganCount, stage.toDomain())
+
+/**
+ * Wire form of [PendingTriggerTargets] (CR 603.3d) — a triggered ability choosing its targets as it is
+ * put on the stack. Fully public: it names only the ability's controller and its source's last-known
+ * id and printed identity, all of which the seat view's pending-trigger list already discloses.
+ */
+@Serializable
+data class PendingTriggerTargetsDto(
+    val controller: Int,
+    val sourceId: Long,
+    val sourceCard: String,
+)
+
+/** [PendingTriggerTargets] to its wire form. */
+fun PendingTriggerTargets.toDto(): PendingTriggerTargetsDto =
+    PendingTriggerTargetsDto(controller.seat, sourceId.value, sourceCard.name)
+
+/** [PendingTriggerTargetsDto] back to the engine value. */
+fun PendingTriggerTargetsDto.toDomain(): PendingTriggerTargets =
+    PendingTriggerTargets(PlayerId(controller), ObjectId(sourceId), CardRef(sourceCard))

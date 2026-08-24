@@ -208,4 +208,18 @@ enum class Invariant {
      * object). Cheap sanity guarding the new pending positions the fingerprint also digests.
      */
     PENDING_RESOLUTION_SANITY,
+
+    /**
+     * Every ability that targets is well-formed, on the stack and at the CR 603.3d placement pause.
+     * Added with `FW-ABILTGT` (docs/design/targeted-abilities.md §8). An ability entry's target count
+     * matches its [dev.mtgplay.core.definition.TargetSpec]'s arity — none for
+     * [dev.mtgplay.core.definition.TargetSpec.None], at most one otherwise — with the deliberate
+     * exception that a *triggered* ability may carry **zero** targets while targeting (CR 603.3d: no
+     * legal target existed as it was put on the stack; CR 608.2b then removes it doing nothing). The
+     * same emptiness on an *activated* ability is a violation, because CR 601.2c forbids activating one
+     * with no legal target — this is where that asymmetry is machine-checked. And whenever
+     * [dev.mtgplay.core.state.GameState.pendingTriggerTargets] is open, its controller is seated with a
+     * pending trigger that genuinely targets, and no cast or activation gathering coexists.
+     */
+    ABILITY_TARGET_SANITY,
 }

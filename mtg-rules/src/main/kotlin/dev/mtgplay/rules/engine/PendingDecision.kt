@@ -47,8 +47,13 @@ internal fun cleanupDiscardRequest(state: GameState): DecisionRequest.ChooseDisc
  *    it precedes the whole game, so no player holds priority and the stack is empty here;
  * 1. a cast gathering decisions — [GameState.pendingCast] is open (CR 601.2); the caster also
  *    holds priority throughout the gathering, so this check must precede the window's;
- * 2. simultaneous triggers await ordering — [GameState.pendingTriggers] is non-empty (CR 603.3b);
- *    triggers are put on the stack before any player receives priority, so no window is open here;
+ * 2. a triggered ability being put on the stack awaits its targets — [GameState.pendingTriggerTargets]
+ *    is set (CR 603.3d) — or, failing that, simultaneous triggers await ordering —
+ *    [GameState.pendingTriggers] is non-empty (CR 603.3b). Triggers are placed before any player
+ *    receives priority, so no window is open here. The target check comes **first**: mid-batch, the
+ *    controller's group may still hold two or more triggers whose order they have already chosen, and
+ *    re-deriving an ordering request there would re-ask an answered question
+ *    (docs/design/targeted-abilities.md §3.3);
  * 3. some player holds priority (a [DecisionRequest.ChooseAction] window, CR 117.1);
  * 4. a combat turn-based-action decision is due — declaring attackers/blockers or ordering
  *    blockers, all of which happen *before* the step grants priority (CR 508.1, CR 509.1–2), so
@@ -73,6 +78,9 @@ internal fun pendingDecisionRequest(state: GameState): DecisionRequest? {
         ?: gatheringPauseRequest(state, holder)
         ?: midTransitionPauseRequest(state)
         ?: when {
+            // CR 603.3d: a triggered ability chooses its targets as it is put on the stack — checked
+            // before the ordering request, which is answered first and must not be re-asked mid-batch.
+            state.pendingTriggerTargets != null -> pendingTriggerTargetsRequest(state)
             // CR 603.3b: pending triggers are ordered and placed before any priority window opens.
             state.pendingTriggers.isNotEmpty() -> pendingOrderTriggersRequest(state)
             holder != null -> chooseActionRequest(state, holder)
