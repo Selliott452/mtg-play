@@ -218,7 +218,10 @@ class MvpCardsSpec :
                     CardRef("Guttersnipe"),
                     CardRef("Highway Robbery"),
                     CardRef("Hill Giant"),
+                    CardRef("Kessig Flamebreather"),
+                    CardRef("Kruphix's Insight"),
                     CardRef("Lava Dart"),
+                    CardRef("Lifelink"),
                     CardRef("Lightning Bolt"),
                     CardRef("Malevolent Rumble"),
                     CardRef("Melded Moxite"),
@@ -232,6 +235,7 @@ class MvpCardsSpec :
                     CardRef("Standing Troops"),
                     CardRef("Utopia Sprawl"),
                     CardRef("Voldaren Epicure"),
+                    CardRef("Wild Growth"),
                     CardRef("Wind Drake"),
                     CardRef("Youthful Knight"),
                 )

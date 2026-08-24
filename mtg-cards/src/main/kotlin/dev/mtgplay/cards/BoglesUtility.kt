@@ -27,12 +27,15 @@ import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.persistentSetOf
 
 /*
- * The GW-Bogles utility cards of the MVP pool that are not Auras or hexproof bodies (docs/decklists.md):
- * Utopia Sprawl (the Forest-enchanting ramp Aura, encoded here for its triggered-mana-ability and as-enters
- * colour choice — distinct machinery from the P4.2 static Auras in Auras.kt), Malevolent Rumble (library
- * manipulation plus an Eldrazi Spawn token), and Ash Barrens (a colorless-fixing land with basic
- * landcycling, whose [LibrarySearch] effect P6.2c completed). Every mechanism is a published DSL primitive
- * (ADR-003), so each is a faithful oracle translation; no card action is gap-avoided.
+ * The GW-Bogles utility cards of the MVP pool that are not static-effect Auras or hexproof bodies
+ * (docs/decklists.md): the two ramp Auras — Utopia Sprawl (Forest-enchanting, with an as-enters colour
+ * choice) and Wild Growth (any land, a printed additional {G}) — encoded here rather than in Auras.kt
+ * because their whole grant is a *triggered mana ability* (CR 605.1b), distinct machinery from the P4.2
+ * static Auras; the two library-manipulation spells Malevolent Rumble (reveal four, keep one permanent
+ * card, plus an Eldrazi Spawn token) and Kruphix's Insight (reveal six, keep up to three enchantment
+ * cards); and Ash Barrens (a colorless-fixing land with basic landcycling, whose [LibrarySearch] effect
+ * P6.2c completed). Every mechanism is a published DSL primitive (ADR-003), so each is a faithful oracle
+ * translation; no card action is gap-avoided.
  */
 
 /** The number of top-of-library cards Malevolent Rumble reveals (CR 701.16). */
@@ -115,6 +118,80 @@ val malevolentRumble: SpellDefinition =
         override val resolution =
             ResolutionEffect { state, context -> createToken(state, context.controller, eldraziSpawnToken) }
         override val libraryReveal = LibraryReveal(MALEVOLENT_RUMBLE_REVEAL, RevealedCardFilter.PERMANENT_CARD)
+    }
+
+/**
+ * Wild Growth — `{G}` Enchantment — Aura. "Enchant land. Whenever enchanted land is tapped for mana,
+ * its controller adds an additional `{G}`." The list's second ramp Aura (P6.3), sharing Utopia Sprawl's
+ * triggered-mana-ability machinery (CR 605.1b) and differing from it in exactly two printed ways:
+ * - it enchants **any** land ([EnchantRestriction.LAND], CR 303.4a), not only a Forest, so it can sit
+ *   on a Plains;
+ * - the additional mana is the printed `{G}` ([TriggeredManaAbility.AddFixedMana]), so — unlike Utopia
+ *   Sprawl — it makes **no** as-it-enters colour choice (CR 614.12) and carries no `chosenColor`.
+ *
+ * Resolution is entering attached (CR 303.4f, CR 608.3). The bonus resolves inside the enchanted land's
+ * tap-for-mana resolution, adding `{G}` to the pool with no stack (CR 605.3).
+ */
+val wildGrowth: SpellDefinition =
+    object : SpellDefinition {
+        override val characteristics =
+            PrintedCharacteristics(
+                name = "Wild Growth",
+                manaCost = ManaCost.parse("{G}"),
+                supertypes = persistentSetOf(),
+                cardTypes = persistentSetOf(CardType.ENCHANTMENT),
+                subtypes = persistentSetOf(Subtype("Aura")),
+                powerToughness = null,
+            )
+        override val timing = TimingClass.SORCERY_SPEED
+        override val targetSpec = TargetSpec.Enchantable(EnchantRestriction.LAND)
+        override val resolution = ResolutionEffect { state, _ -> state }
+        override val triggeredManaAbilities =
+            persistentListOf<TriggeredManaAbility>(TriggeredManaAbility.AddFixedMana(ManaType.GREEN, 1))
+    }
+
+/** The number of top-of-library cards Kruphix's Insight reveals (CR 701.16). */
+const val KRUPHIXS_INSIGHT_REVEAL: Int = 6
+
+/** How many revealed enchantment cards Kruphix's Insight may put into the hand — "up to three". */
+const val KRUPHIXS_INSIGHT_KEEP: Int = 3
+
+/**
+ * Kruphix's Insight — `{2}{G}` Sorcery. "Reveal the top six cards of your library. Put up to three
+ * enchantment cards from among them into your hand and the rest of the revealed cards into your
+ * graveyard." The list's card-advantage engine (P6.3), and the second client of the [LibraryReveal]
+ * primitive after [malevolentRumble] — the extension it required is the *keep allowance*: this is
+ * `LibraryReveal(6, ENCHANTMENT_CARD, toHandCount = 3)` against the Rumble's implicit one.
+ *
+ * Two consequences worth stating, both faithful to the oracle text rather than to the analogue:
+ * - the filter is **enchantment card**, not permanent card, so a revealed Forest or Gladecover Scout
+ *   is *not* keepable and goes to the graveyard with the rest (CR 303.1);
+ * - "the rest of the revealed cards" is every revealed card not put into the hand — including
+ *   keepable enchantments the controller chose to leave (keeping fewer than three is legal).
+ *
+ * The whole card is the reveal clause, so its ordinary [ResolutionEffect] is a no-op; `mtg-rules`
+ * reveals, gathers the keeps, and distributes.
+ */
+val kruphixsInsight: SpellDefinition =
+    object : SpellDefinition {
+        override val characteristics =
+            PrintedCharacteristics(
+                name = "Kruphix's Insight",
+                manaCost = ManaCost.parse("{2}{G}"),
+                supertypes = persistentSetOf(),
+                cardTypes = persistentSetOf(CardType.SORCERY),
+                subtypes = persistentSetOf(),
+                powerToughness = null,
+            )
+        override val timing = TimingClass.SORCERY_SPEED
+        override val targetSpec = TargetSpec.None
+        override val resolution = ResolutionEffect { state, _ -> state }
+        override val libraryReveal =
+            LibraryReveal(
+                count = KRUPHIXS_INSIGHT_REVEAL,
+                toHand = RevealedCardFilter.ENCHANTMENT_CARD,
+                toHandCount = KRUPHIXS_INSIGHT_KEEP,
+            )
     }
 
 /**

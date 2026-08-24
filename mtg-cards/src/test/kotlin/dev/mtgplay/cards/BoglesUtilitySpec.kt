@@ -27,6 +27,7 @@ import dev.mtgplay.core.state.SharedZones
 import dev.mtgplay.core.state.Turn
 import dev.mtgplay.core.state.TurnPhase
 import io.kotest.core.spec.style.StringSpec
+import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
@@ -77,6 +78,44 @@ class BoglesUtilitySpec :
             resolved.sharedZones.battlefield.count { it.card == CardRef("Eldrazi Spawn") } shouldBe 1
         }
 
+        "CR 303 / CR 605.1b: Wild Growth enchants any land and adds a printed additional {G} on tap" {
+            with(wildGrowth.characteristics) {
+                name shouldBe "Wild Growth"
+                manaCost?.render() shouldBe "{G}"
+                cardTypes shouldBe persistentSetOf(CardType.ENCHANTMENT)
+                subtypes shouldBe persistentSetOf(Subtype("Aura"))
+            }
+            wildGrowth.timing shouldBe TimingClass.SORCERY_SPEED
+            // "Enchant land", not Utopia Sprawl's "Enchant Forest" (CR 303.4a).
+            wildGrowth.targetSpec shouldBe TargetSpec.Enchantable(EnchantRestriction.LAND)
+            // The bonus mana is printed, so — unlike Utopia Sprawl — there is no as-it-enters choice.
+            wildGrowth.choosesColorAsItEnters shouldBe false
+            wildGrowth.triggeredManaAbilities shouldContainExactly
+                listOf(TriggeredManaAbility.AddFixedMana(ManaType.GREEN, 1))
+            wildGrowth.staticContinuousEffects.shouldBeEmpty()
+        }
+
+        "CR 701.16: Kruphix's Insight reveals six and may keep up to three enchantment cards" {
+            with(kruphixsInsight.characteristics) {
+                name shouldBe "Kruphix's Insight"
+                manaCost?.render() shouldBe "{2}{G}"
+                cardTypes shouldBe persistentSetOf(CardType.SORCERY)
+            }
+            kruphixsInsight.timing shouldBe TimingClass.SORCERY_SPEED
+            kruphixsInsight.targetSpec shouldBe TargetSpec.None
+            // The filter is enchantment card, not Malevolent Rumble's permanent card, and the
+            // allowance is three, not one (CR 303.1, CR 701.16).
+            kruphixsInsight.libraryReveal shouldBe
+                LibraryReveal(
+                    count = KRUPHIXS_INSIGHT_REVEAL,
+                    toHand = RevealedCardFilter.ENCHANTMENT_CARD,
+                    toHandCount = KRUPHIXS_INSIGHT_KEEP,
+                )
+            // The reveal clause is the whole card: the ordinary resolution effect does nothing.
+            val base = boardState(alice, bob)
+            kruphixsInsight.resolution.resolve(base, noTargets(alice)) shouldBe base
+        }
+
         "CR 111.4 / CR 605.1a: the Eldrazi Spawn is a 0/1 that sacrifices for {C}" {
             with(eldraziSpawnToken.characteristics) {
                 name shouldBe "Eldrazi Spawn"
@@ -113,6 +152,8 @@ class BoglesUtilitySpec :
         "the utility cards register as the expected definition types" {
             utopiaSprawl.shouldBeInstanceOf<SpellDefinition>()
             malevolentRumble.shouldBeInstanceOf<SpellDefinition>()
+            wildGrowth.shouldBeInstanceOf<SpellDefinition>()
+            kruphixsInsight.shouldBeInstanceOf<SpellDefinition>()
         }
     })
 

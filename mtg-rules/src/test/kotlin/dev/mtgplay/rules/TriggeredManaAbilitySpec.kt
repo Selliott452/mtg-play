@@ -41,10 +41,12 @@ import kotlinx.collections.immutable.toPersistentList
 import kotlinx.collections.immutable.toPersistentMap
 
 /**
- * The P6.2a as-enters colour choice (CR 614.12) and triggered mana ability (CR 605.1b), mirroring
- * Utopia Sprawl's "Enchant Forest. As this Aura enters, choose a colour. Whenever enchanted Forest is
- * tapped for mana, its controller adds an additional one mana of the chosen colour." The
- * `mtg-rules`-names-no-card rule holds.
+ * The as-enters colour choice (CR 614.12) and both triggered-mana-ability shapes (CR 605.1b), driven on
+ * fixtures: P6.2a's chosen-colour shape mirroring Utopia Sprawl's "Enchant Forest. As this Aura enters,
+ * choose a colour. Whenever enchanted Forest is tapped for mana, its controller adds an additional one
+ * mana of the chosen colour", and P6.3's *fixed*-mana shape mirroring Wild Growth's "Enchant land.
+ * Whenever enchanted land is tapped for mana, its controller adds an additional `{G}`" — printed mana,
+ * so no colour choice at all. The `mtg-rules`-names-no-card rule holds.
  */
 class TriggeredManaAbilitySpec :
     StringSpec({
@@ -108,6 +110,28 @@ class TriggeredManaAbilitySpec :
             // Two Forests, but two distinct classes: the bare one (no bonus) and the enchanted one (blue bonus).
             classes shouldHaveSize 2
             classes.map { it.key.bonus }.toSet() shouldBe setOf(emptyList(), listOf(ManaType.BLUE))
+        }
+
+        "CR 605.1b: a fixed-mana triggered ability adds its printed mana on tap, with no colour choice" {
+            // A Mountain enchanted by a "adds an additional {G}" Aura that has no chosenColor at all.
+            val state = enchantedMountainState()
+            val aura = state.sharedZones.battlefield.single { it.card == CardRef("Fixture Growth") }
+            aura.chosenColor shouldBe null
+            val mountainClass = manaSourceClasses(state, alice).single { it.key.card == mountain }
+            val tapped = resolveTapForMana(state, alice, mountainClass.key, ManaType.RED)
+            // Primary red plus the printed green bonus; no stack, no priority (CR 605.3).
+            tapped.players
+                .getValue(alice)
+                .manaPool
+                .toList() shouldContainExactly listOf(ManaType.RED, ManaType.GREEN)
+            tapped.sharedZones.stack.shouldHaveSize(0)
+        }
+
+        "CR 605.1b: a fixed-mana bonus keeps the enchanted land a distinct payment source class" {
+            val state = enchantedMountainState(withBareMountain = true)
+            val classes = manaSourceClasses(state, alice).filter { it.key.card == mountain }
+            classes shouldHaveSize 2
+            classes.map { it.key.bonus }.toSet() shouldBe setOf(emptyList(), listOf(ManaType.GREEN))
         }
     })
 
@@ -195,9 +219,32 @@ private fun mountainCard(): CardDefinition =
         override val manaAbilities = persistentListOf(ManaAbility(persistentListOf(ManaType.RED)))
     }
 
+/**
+ * The fixed-mana counterpart of [sprawlFixture] (Wild Growth's shape): enchants any land, makes no
+ * as-it-enters colour choice, and adds a printed additional `{G}` on tap (CR 605.1b).
+ */
+private val growthFixture: SpellDefinition =
+    object : SpellDefinition {
+        override val characteristics =
+            PrintedCharacteristics(
+                name = "Fixture Growth",
+                manaCost = ManaCost.parse("{1}"),
+                supertypes = persistentSetOf(),
+                cardTypes = persistentSetOf(CardType.ENCHANTMENT),
+                subtypes = persistentSetOf(Subtype("Aura")),
+                powerToughness = null,
+            )
+        override val timing = TimingClass.SORCERY_SPEED
+        override val targetSpec = TargetSpec.Enchantable(EnchantRestriction.LAND)
+        override val resolution = ResolutionEffect { state, _ -> state }
+        override val triggeredManaAbilities =
+            persistentListOf<TriggeredManaAbility>(TriggeredManaAbility.AddFixedMana(ManaType.GREEN, 1))
+    }
+
 private val sprawlRegistry: Map<CardRef, CardDefinition> =
     mapOf(
         CardRef("Fixture Sprawl") to sprawlFixture,
+        CardRef("Fixture Growth") to growthFixture,
         CardRef("Fixture Forest2") to forestCard(),
         CardRef("Fixture Mountain2") to mountainCard(),
     )
@@ -222,6 +269,22 @@ private fun enchantedForestState(chosen: Color): GameState {
     val aura = GameObject(ObjectId(1), CardRef("Fixture Sprawl"), alice, attachedTo = forest.id, chosenColor = chosen)
     val mountain = GameObject(ObjectId(2), CardRef("Fixture Mountain2"), alice)
     return sprawlGameState(persistentListOf(forest, aura, mountain), persistentListOf(), 3)
+}
+
+/**
+ * A Mountain enchanted by a fixed-mana "adds an additional {G}" Aura (Wild Growth's shape), optionally
+ * alongside a bare Mountain for the source-class comparison.
+ */
+private fun enchantedMountainState(withBareMountain: Boolean = false): GameState {
+    val enchanted = GameObject(ObjectId(0), CardRef("Fixture Mountain2"), alice)
+    val aura = GameObject(ObjectId(1), CardRef("Fixture Growth"), alice, attachedTo = enchanted.id)
+    val battlefield =
+        if (withBareMountain) {
+            persistentListOf(enchanted, aura, GameObject(ObjectId(2), CardRef("Fixture Mountain2"), alice))
+        } else {
+            persistentListOf(enchanted, aura)
+        }
+    return sprawlGameState(battlefield, persistentListOf(), battlefield.size.toLong())
 }
 
 /** A bare Forest plus a Forest enchanted by a Sprawl that chose [chosen]. */

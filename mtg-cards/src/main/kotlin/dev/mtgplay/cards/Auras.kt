@@ -30,7 +30,8 @@ import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.persistentSetOf
 
 /*
- * The seven real Bogles continuous-effect Auras of the MVP pool (CR 303), encoded on top of the
+ * The eight real Bogles continuous-effect Auras of the MVP pool (CR 303) — the seven of P4.2 plus
+ * P6.3's [lifelink], the card named Lifelink — encoded on top of the
  * P4.1 layer engine (docs/design/layer-system.md §1, the binding effect inventory). Each is an
  * enchantment permanent spell (CR 303) cast at sorcery speed (CR 601.3a) that targets the object it
  * will enchant while on the stack (CR 601.2c) and enters the battlefield attached to it (CR 303.4f);
@@ -303,6 +304,29 @@ val etherealArmor: SpellDefinition =
                 powerMod = perEnchantmentYouControl(1),
                 toughnessMod = perEnchantmentYouControl(1),
             ),
+    )
+
+/**
+ * Lifelink — `{W}` Enchantment — Aura. "Enchant creature. Enchanted creature has lifelink." The card
+ * *named* Lifelink (P6.3, the GW-Bogles maindeck one-of), not the keyword — though its current Oracle
+ * text grants exactly the keyword. Its 1997 printing read "Whenever a creature deals damage, you gain
+ * that much life"; the Oracle text this definition implements is the modern errata'd wording above
+ * (Scryfall, oracle id `4fe8316a-9cff-43e9-a1d5-993a0c9daf3a`), which is a plain layer-6 keyword grant
+ * (CR 613.3, layer 6; CR 702.15) and **not** a triggered ability.
+ *
+ * That makes it the pool's first real card to grant [Keyword.LIFELINK], and the deliberate contrast
+ * with [armadilloCloak]: the Cloak's "whenever enchanted creature deals damage, you gain that much
+ * life" is a triggered ability that uses the stack and gains life for the *Aura's* controller, while
+ * lifelink is a *result of the damage* — no stack, no trigger — gaining life for the damage source's
+ * controller (docs/decklists.md calls the pair out as a test trio with Spirit Link). A creature wearing
+ * both gains its controller the damage twice: once immediately, once off the Cloak trigger.
+ */
+val lifelink: SpellDefinition =
+    aura(
+        name = "Lifelink",
+        manaCost = "{W}",
+        restriction = EnchantRestriction.CREATURE,
+        effect = StaticContinuousEffect(grantedKeywords = persistentSetOf(Keyword.LIFELINK)),
     )
 
 /**

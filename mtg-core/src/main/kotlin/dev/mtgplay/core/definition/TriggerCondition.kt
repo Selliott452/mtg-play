@@ -49,26 +49,42 @@ sealed interface TriggerCondition {
 
     /**
      * "Whenever a spell is cast" (CR 603.2, CR 601.2i) — the cast-trigger seam, now filterable
-     * (P6.2a). A card carrying this fires as a spell finishes casting (CR 601.2i) **iff** the cast
-     * spell matches both filters:
+     * (P6.2a; [excludedSpellTypes] added in P6.3). A card carrying this fires as a spell finishes
+     * casting (CR 601.2i) **iff** the cast spell matches all three filters:
      * - [spellTypes]: the cast spell's printed card types must include at least one of these
      *   (CR 205.2); an **empty** set matches any spell (the bare "whenever a spell is cast").
+     * - [excludedSpellTypes]: the cast spell's printed card types must include **none** of these —
+     *   the "noncreature spell" shape (CR 205.2); an **empty** set excludes nothing.
      * - [controlledByYou]: when `true`, the spell's controller must be the trigger source's
      *   controller (CR 603.2e "a spell you control") — control is ownership in the MVP pool; when
      *   `false` any player's cast matches.
      *
      * Guttersnipe's "whenever you cast an instant or sorcery spell" is `SpellCast(spellTypes =
-     * {INSTANT, SORCERY}, controlledByYou = true)`. `mtg-rules` applies both filters at the
-     * `completeCast` detection site; the fired ability's [TriggeredAbility.effect] runs on resolution.
+     * {INSTANT, SORCERY}, controlledByYou = true)`; Kessig Flamebreather's "whenever you cast a
+     * noncreature spell" is `SpellCast(excludedSpellTypes = {CREATURE}, controlledByYou = true)` —
+     * a multi-type spell (an artifact creature) is a creature spell and so is excluded, which is why
+     * the exclusion is a type set rather than the complement of [spellTypes]. `mtg-rules` applies all
+     * three filters at the `completeCast` detection site; the fired ability's
+     * [TriggeredAbility.effect] runs on resolution.
      *
      * @property spellTypes the printed card types that qualify a cast (any one suffices); empty means
      *   any spell.
+     * @property excludedSpellTypes the printed card types that disqualify a cast (any one suffices to
+     *   disqualify); empty means nothing is excluded.
      * @property controlledByYou whether the cast spell must be controlled by the trigger's controller.
      */
     data class SpellCast(
         val spellTypes: PersistentSet<CardType> = persistentSetOf(),
+        val excludedSpellTypes: PersistentSet<CardType> = persistentSetOf(),
         val controlledByYou: Boolean = false,
-    ) : TriggerCondition
+    ) : TriggerCondition {
+        init {
+            require(spellTypes.none { it in excludedSpellTypes }) {
+                "CR 603.2: a cast trigger cannot both require and exclude a card type, got " +
+                    "$spellTypes and $excludedSpellTypes"
+            }
+        }
+    }
 
     /**
      * "When you draw your [n]th card in a turn" (CR 603.2) — a per-turn draw-count trigger. Sneaky

@@ -102,6 +102,26 @@ class MadnessDeckSpec :
             resolved.players.getValue(alice).life shouldBe STARTING_LIFE
         }
 
+        "CR 603.2e: Kessig Flamebreather fires on any noncreature spell you cast and pings each opponent for 1" {
+            with(kessigFlamebreather.characteristics) {
+                name shouldBe "Kessig Flamebreather"
+                manaCost?.render() shouldBe "{1}{R}"
+                cardTypes shouldBe persistentSetOf(CardType.CREATURE)
+                subtypes shouldBe persistentSetOf(Subtype("Human"), Subtype("Shaman"))
+                powerToughness shouldBe PrintedPowerToughness(1, 3)
+            }
+            val trigger = kessigFlamebreather.triggeredAbilities.single()
+            // The oracle text is "a noncreature spell": an exclusion, never an instant-or-sorcery whitelist.
+            trigger.condition shouldBe
+                TriggerCondition.SpellCast(
+                    excludedSpellTypes = persistentSetOf(CardType.CREATURE),
+                    controlledByYou = true,
+                )
+            val resolved = trigger.effect.resolve(twoPlayerState(alice, bob), noTargets(alice))
+            resolved.players.getValue(bob).life shouldBe STARTING_LIFE - KESSIG_FLAMEBREATHER_DAMAGE
+            resolved.players.getValue(alice).life shouldBe STARTING_LIFE
+        }
+
         "CR 603.2: Sneaky Snacker's third-draw return functions from the graveyard" {
             val trigger = sneakySnacker.triggeredAbilities.single()
             trigger.condition shouldBe TriggerCondition.DrewNthCardThisTurn(SNEAKY_SNACKER_DRAW_ORDINAL)

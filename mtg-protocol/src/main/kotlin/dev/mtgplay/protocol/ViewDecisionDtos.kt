@@ -34,19 +34,25 @@ fun PendingTriggerView.toDto(): PendingTriggerViewDto =
 fun PendingTriggerViewDto.toDomain(): PendingTriggerView =
     PendingTriggerView(ObjectId(sourceId), CardRef(sourceCard), PlayerId(controller), amount, subject?.let(::ObjectId))
 
-/** Wire form of a [PendingRevealView] — the revealed cards, public to both seats (CR 701.16). */
+/**
+ * Wire form of a [PendingRevealView] — the revealed cards and the keeps gathered so far, both public
+ * to both seats (CR 701.16). [kept] is non-empty only part-way through a multi-keep clause
+ * (Kruphix's Insight's "up to three"), so it defaults to empty on the wire.
+ */
 @Serializable
 data class PendingRevealViewDto(
     val decider: Int,
     val revealed: List<GameObjectDto>,
+    val kept: List<GameObjectDto> = emptyList(),
 )
 
 /** [PendingRevealView] to its wire form. */
-fun PendingRevealView.toDto(): PendingRevealViewDto = PendingRevealViewDto(decider.seat, revealed.map { it.toDto() })
+fun PendingRevealView.toDto(): PendingRevealViewDto =
+    PendingRevealViewDto(decider.seat, revealed.map { it.toDto() }, kept.map { it.toDto() })
 
 /** [PendingRevealViewDto] back to the engine value. */
 fun PendingRevealViewDto.toDomain(): PendingRevealView =
-    PendingRevealView(PlayerId(decider), revealed.map { it.toDomain() })
+    PendingRevealView(PlayerId(decider), revealed.map { it.toDomain() }, kept.map { it.toDomain() })
 
 /** Wire form of the broad decision kind a non-deciding seat sees (ADR-007); names mirror [DecisionRequestKind]. */
 @Serializable

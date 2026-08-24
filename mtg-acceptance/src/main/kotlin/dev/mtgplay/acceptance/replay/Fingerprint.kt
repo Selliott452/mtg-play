@@ -124,7 +124,8 @@ private fun StringBuilder.appendP62aPendingPositions(state: GameState) {
     append("|pendingReveal=")
     append(
         state.pendingRevealSelection?.let {
-            "${it.decider.seat}:${it.revealedIds.joinToString("+") { id -> id.value.toString() }}"
+            "${it.decider.seat}:${it.revealedIds.joinToString("+") { id -> id.value.toString() }}" +
+                ":${it.keptIds.joinToString("+") { id -> id.value.toString() }}"
         } ?: "-",
     )
 }
