@@ -599,7 +599,8 @@ has a look clause, so no existing fingerprint or coverage number moves except th
 ## 12. Non-goals (explicit)
 
 Out of scope, with where each slots: **surveil** (CR 701.44 — the same shape with a graveyard destination;
-Conduit Pylons, Lembas, Torch the Tower); **a filter on the keep** (`RevealedCardFilter` on the look path —
+Conduit Pylons, Torch the Tower — *not* Lembas or Giant's Boulder, whose printed triggers are scry 1 and
+scry 2 respectively; verified against Scryfall oracle text by `FW-CLAUSEHOOK`); **a filter on the keep** (`RevealedCardFilter` on the look path —
 Ancient Stirrings' colourless card, Augur of Bolas' instant or sorcery); **"reveal any number of matching
 cards"** (Lead the Stampede); **a resolution-time card-type choice** (Winding Way, `FW-MODAL`); **scry or
 surveil from a triggered or activated ability** rather than a spell resolution (Faerie Seer, Giant's
@@ -641,3 +642,10 @@ absence, never a silent approximation.
    `FW-ABILTGT` has just made abilities first-class. Recommendation: no — the post-resolution clause hook is
    spell-shaped for `libraryReveal`, `optionalCostThenDraw`, and `drawThenDiscard` alike, so generalising it
    is one packet that fixes all four clauses rather than a rider on this one. Flagged.
+
+   **Resolved.** Taken as its own packet, `FW-CLAUSEHOOK` (docs/design/resolution-clause-hook.md): all four
+   clauses moved onto a `ResolutionClauses` carrier that `TriggeredAbility` and `ActivatedAbility` implement
+   alongside `SpellDefinition`, with one orchestration and no new state, decision, or wire shape. Faerie Seer
+   and Sea Gate Oracle landed on it. Of the other three cards named above, only Lembas' *clause* was the
+   blocker — it also needs `FW-SHUFFLEIN` — while Conduit Pylons needs surveil and `FW-MANA`, and Giant's
+   Boulder needs `FW-MANA` and a targeted destroy.

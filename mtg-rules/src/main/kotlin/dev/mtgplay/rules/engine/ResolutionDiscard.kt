@@ -5,6 +5,7 @@ import dev.mtgplay.core.identity.ObjectId
 import dev.mtgplay.core.state.GameState
 import dev.mtgplay.core.state.PendingResolutionDiscard
 import dev.mtgplay.core.state.StackEntry
+import dev.mtgplay.core.state.resolutionController
 import dev.mtgplay.rules.AdvanceResult
 import dev.mtgplay.rules.decision.DecisionRequest
 import dev.mtgplay.rules.decision.DecisionRequestId
@@ -15,8 +16,10 @@ import dev.mtgplay.rules.effect.drawCards
  * The draws happen first, then the engine pauses for a mandatory selection of exactly M hand cards (clamped
  * to the hand size), each discarded through the CR 614/616 framework — so a discarded madness card (Fiery
  * Temper) is exiled instead and its reflexive cast fires, the Madness deck's flagship loot-into-madness line.
- * The resolving spell stays on top of the stack during the pause (like the library-reveal flow), so the
- * pending discard is a pure derivation of the state (ADR-004).
+ * The resolving object stays on top of the stack during the pause (like the library-reveal flow), so the
+ * pending discard is a pure derivation of the state (ADR-004). The clause is carried by
+ * [dev.mtgplay.core.definition.ResolutionClauses], so a resolving ability loots through this flow too
+ * (`FW-CLAUSEHOOK`).
  */
 
 /**
@@ -27,14 +30,14 @@ import dev.mtgplay.rules.effect.drawCards
  */
 internal fun orchestrateDrawThenDiscard(
     state: GameState,
-    entry: StackEntry.Spell,
+    entry: StackEntry,
     clause: DrawThenDiscard,
 ): AdvanceResult {
-    val decider = entry.controller
+    val decider = entry.resolutionController
     val drawn = drawCards(state, decider, clause.drawCount)
     // CR 601.2c: discard as many as told, but no more than the hand holds (a small library may leave fewer).
     val count = minOf(clause.discardCount, drawn.player(decider).hand.size)
-    if (count == 0) return completeInstantSorceryResolution(drawn, entry)
+    if (count == 0) return completeClauseResolution(drawn, entry)
     val paused = drawn.copy(pendingResolutionDiscard = PendingResolutionDiscard(decider, count))
     return AdvanceResult.NeedsDecision(paused, pendingResolutionDiscardRequest(paused))
 }
@@ -63,10 +66,8 @@ internal fun applyResolutionDiscards(
     objectIds: List<ObjectId>,
 ): AdvanceResult {
     val pending = state.pendingResolutionDiscard ?: error("no resolution discard is pending")
-    val entry =
-        state.sharedZones.stack.lastOrNull() as? StackEntry.Spell
-            ?: error("CR 608.1: a resolution discard requires a resolving spell on top of the stack")
+    val entry = resolvingClauseEntry(state)
     val cleared = state.copy(pendingResolutionDiscard = null)
     val discarded = objectIds.fold(cleared) { current, id -> discardApplyingReplacements(current, pending.decider, id) }
-    return completeInstantSorceryResolution(discarded, entry)
+    return completeClauseResolution(discarded, entry)
 }

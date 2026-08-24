@@ -66,6 +66,16 @@ import dev.mtgplay.core.identity.CardRef
  * *additional cost* — a new enumerated decision — and Cryoshatter needs trigger conditions for a
  * permanent becoming tapped or being dealt damage, which nothing in the engine watches for.
  *
+ * The `FW-CLAUSEHOOK` packet adds the first two cards whose *ability* carries a post-resolution clause
+ * (LibraryLookCreatures.kt): [faerieSeer], whose enters-the-battlefield trigger scries 2, and
+ * [seaGateOracle], whose looks at two and mandatorily keeps one. Both declare exactly the
+ * [dev.mtgplay.core.definition.LibraryLook] values [preordain] and [impulse] already declared — the packet
+ * lifted the four clauses off `SpellDefinition` onto a carrier a triggered or activated ability implements
+ * too (docs/design/resolution-clause-hook.md), so the cards needed no new engine mechanism at all. Three
+ * siblings from the same triage row stay absent, each on a *different* missing framework: Lembas needs
+ * `FW-SHUFFLEIN`, Conduit Pylons needs surveil (CR 701.44) plus `FW-MANA`, and Giant's Boulder — a scry 2
+ * card, not the surveil card it is sometimes filed as — needs `FW-MANA` and a targeted destroy ability.
+ *
  * [definitions] is shaped for direct `MatchConfig.definitions` consumption: the engine carries
  * it into `GameState` in canonical name-sorted order regardless of this map's own order
  * (ADR-009 — definitions ride in the state; a [CardRef] without an entry is inert). The pool
@@ -88,6 +98,7 @@ object MvpCards {
             elvishMystic,
             endTheFestivities,
             etherealArmor,
+            faerieSeer,
             faithlessLooting,
             fieryTemper,
             fireblast,
@@ -128,6 +139,7 @@ object MvpCards {
             pursueThePast,
             rancor,
             scourFromExistence,
+            seaGateOracle,
             seatOfTheSynod,
             sentinelsEyes,
             silhanaLedgewalker,

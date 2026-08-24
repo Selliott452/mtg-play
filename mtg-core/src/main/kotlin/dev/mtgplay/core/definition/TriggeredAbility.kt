@@ -17,6 +17,15 @@ package dev.mtgplay.core.definition
  * (a leaves-the-battlefield trigger's LKI object, CR 603.10) — and, for a targeting ability, the
  * targets chosen at CR 603.3d in [ResolutionContext.targets].
  *
+ * **Post-resolution clauses ([ResolutionClauses]).** A triggered ability carries the same four clauses a
+ * spell does — [libraryReveal], [libraryLook], [optionalCostThenDraw], and [drawThenDiscard] — because
+ * `FW-CLAUSEHOOK` lifted them off [SpellDefinition] onto a carrier (docs/design/resolution-clause-hook.md).
+ * Faerie Seer's "When this creature enters, scry 2" is CR 701.17a hanging off CR 603 rather than CR 601,
+ * and the engine runs it through exactly the orchestration Preordain uses. The clause runs **after** the
+ * ordinary [effect], and at most one may be declared. [optionalDiscardDraw] predates the carrier and is the
+ * narrower trigger-only spelling of [optionalCostThenDraw]'s discard mode; it is kept as-is rather than
+ * migrated, because retiring it would move wire-visible state.
+ *
  * **Intervening-if conditions (CR 603.4) are still not modeled**, and putting the "if" inside
  * [effect] implements only the resolution half of that rule. That gap is deliberate and separate
  * from targeting (docs/design/targeted-abilities.md §12).
@@ -44,4 +53,12 @@ data class TriggeredAbility(
     val zoneScope: TriggerZoneScope = TriggerZoneScope.Battlefield,
     val optionalDiscardDraw: OptionalDiscardDraw? = null,
     val targetSpec: TargetSpec = TargetSpec.None,
-)
+    override val libraryReveal: LibraryReveal? = null,
+    override val libraryLook: LibraryLook? = null,
+    override val optionalCostThenDraw: OptionalCostThenDraw? = null,
+    override val drawThenDiscard: DrawThenDiscard? = null,
+) : ResolutionClauses {
+    init {
+        requireAtMostOneClause(this) { "the $condition triggered ability" }
+    }
+}

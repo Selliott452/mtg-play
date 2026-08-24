@@ -204,6 +204,7 @@ internal fun resolveActivatedAbility(
         "CR 113.7a: an activated ability's effect performs its instructions but does not move the ability " +
             "off the stack — that cessation is the engine's move"
     }
-    val ceased = resolved.updateStack { it.removingAt(it.lastIndex) }
-    return grantPriorityRound(ceased.emit(GameEvent.AbilityResolved(entry.controller, entry.sourceCard)))
+    // CR 608.2c: a post-resolution clause the ability carries runs after its ordinary effect and may pause
+    // (`FW-CLAUSEHOOK`). With no clause this is the bare CR 113.7a cessation.
+    return orchestrateResolutionClauses(resolved, entry)
 }

@@ -80,22 +80,11 @@ private fun resolveSpell(
         require(resolved.sharedZones.stack == state.sharedZones.stack) {
             "CR 608.2m: a resolution effect must not move the resolving spell — that is the engine's move"
         }
-        // A resolution post-effect hook may run last and pause for a mid-resolution decision; otherwise the
-        // spell simply leaves the stack now. CR 701.16: reveal top N, keep one (Malevolent Rumble). CR 701.14a:
-        // look at cards privately and arrange them (Preordain, Ponder, Impulse, Brainstorm). CR 601.3b:
-        // an optional "you may discard/sacrifice; if you do, draw" cost-then-draw (Highway Robbery). CR 601.2c:
-        // a mandatory "draw N, then discard M" (Faithless Looting). At most one such clause per MVP spell.
-        val reveal = entry.definition.libraryReveal
-        val look = entry.definition.libraryLook
-        val costDraw = entry.definition.optionalCostThenDraw
-        val drawDiscard = entry.definition.drawThenDiscard
-        when {
-            reveal != null -> orchestrateLibraryReveal(resolved, entry, reveal)
-            look != null -> orchestrateLibraryLook(resolved, entry, look)
-            costDraw != null -> orchestrateOptionalCostDraw(resolved, entry, costDraw)
-            drawDiscard != null -> orchestrateDrawThenDiscard(resolved, entry, drawDiscard)
-            else -> completeInstantSorceryResolution(resolved, entry)
-        }
+        // A post-resolution clause may run last and pause for a mid-resolution decision; otherwise the spell
+        // simply leaves the stack now. The dispatch is the shared `FW-CLAUSEHOOK` hook (ResolutionClauseHook.kt),
+        // which a resolving ability reaches through the same call — the clauses are carried by
+        // [dev.mtgplay.core.definition.ResolutionClauses], not by a spell definition.
+        orchestrateResolutionClauses(resolved, entry)
     }
 }
 

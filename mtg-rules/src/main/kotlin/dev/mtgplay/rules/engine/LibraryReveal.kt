@@ -10,6 +10,8 @@ import dev.mtgplay.core.state.GameObject
 import dev.mtgplay.core.state.GameState
 import dev.mtgplay.core.state.PendingRevealSelection
 import dev.mtgplay.core.state.StackEntry
+import dev.mtgplay.core.state.resolutionClauses
+import dev.mtgplay.core.state.resolutionController
 import dev.mtgplay.rules.AdvanceResult
 import dev.mtgplay.rules.decision.DecisionRequest
 import dev.mtgplay.rules.decision.DecisionRequestId
@@ -19,7 +21,9 @@ import kotlinx.collections.immutable.toPersistentList
  * Library manipulation (CR 701.16): reveal the top N cards, put up to M matching cards into the hand,
  * and put the rest into the graveyard — Malevolent Rumble (M = 1) and Kruphix's Insight (M = 3). The
  * keep choice is a mid-resolution decision, so the engine orchestrates the reveal around the pure
- * resolution effect: the top N cards are revealed (public information, [GameEvent.CardsRevealed]) and,
+ * resolution effect. The clause is carried by
+ * [dev.mtgplay.core.definition.ResolutionClauses], so a resolving ability reveals through this flow too
+ * (`FW-CLAUSEHOOK`): the top N cards are revealed (public information, [GameEvent.CardsRevealed]) and,
  * if any match the filter, the resolving spell's controller is asked which to keep before the cards are
  * distributed. When nothing matches, all revealed cards go straight to the graveyard with no pause.
  *
@@ -43,10 +47,10 @@ private val PERMANENT_CARD_TYPES: Set<CardType> =
  */
 internal fun orchestrateLibraryReveal(
     state: GameState,
-    entry: StackEntry.Spell,
+    entry: StackEntry,
     reveal: LibraryReveal,
 ): AdvanceResult {
-    val controller = entry.controller
+    val controller = entry.resolutionController
     val revealed = state.player(controller).library.take(reveal.count)
     val announced =
         if (revealed.isEmpty()) state else state.emit(GameEvent.CardsRevealed(controller, revealed.map { it.card }))
@@ -94,9 +98,7 @@ internal fun applyRevealSelection(
     keptObjectId: ObjectId?,
 ): AdvanceResult {
     val pending = state.pendingRevealSelection ?: error("no reveal selection is pending")
-    val entry =
-        state.sharedZones.stack.lastOrNull() as? StackEntry.Spell
-            ?: error("CR 701.16: a reveal selection requires a resolving spell on top of the stack")
+    val entry = resolvingClauseEntry(state)
     val reveal = revealClauseOf(state)
     if (keptObjectId == null) {
         return finishReveal(state, entry, pending.decider, pending.revealedIds, pending.keptIds.toSet())
@@ -115,27 +117,28 @@ internal fun applyRevealSelection(
 
 /**
  * Closes the reveal (CR 701.16): clears the pending selection, moves [kept] to [player]'s hand and every
- * other revealed card to their graveyard, and finishes the resolving spell [entry].
+ * other revealed card to their graveyard, and finishes the resolving object [entry] — a spell's CR 608.2m
+ * graveyard move or an ability's CR 113.7a cessation, whichever [completeClauseResolution] says.
  */
 private fun finishReveal(
     state: GameState,
-    entry: StackEntry.Spell,
+    entry: StackEntry,
     player: PlayerId,
     revealedIds: List<ObjectId>,
     kept: Set<ObjectId>,
 ): AdvanceResult {
     val cleared = state.copy(pendingRevealSelection = null)
     val distributed = putRevealedIntoGraveyard(cleared, player, revealedIds, kept)
-    return completeInstantSorceryResolution(distributed, entry)
+    return completeClauseResolution(distributed, entry)
 }
 
 /**
- * The [LibraryReveal] clause of the spell resolving on top of the stack — the clause the open pending
+ * The [LibraryReveal] clause of the object resolving on top of the stack — the clause the open pending
  * selection belongs to. Fails loudly rather than guessing a filter or an allowance.
  */
 private fun revealClauseOf(state: GameState): LibraryReveal =
-    (state.sharedZones.stack.lastOrNull() as? StackEntry.Spell)?.definition?.libraryReveal
-        ?: error("CR 701.16: a reveal selection requires a resolving spell with a reveal clause on the stack")
+    resolvingClauseEntry(state).resolutionClauses.libraryReveal
+        ?: error("CR 701.16: a reveal selection requires a resolving object with a reveal clause on the stack")
 
 /**
  * The revealed cards still keepable in [pending] (CR 701.16): those matching [reveal].toHand that are
