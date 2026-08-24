@@ -65,6 +65,13 @@ data class LoadedDeck(
     /** The distinct mainboard [CardRef]s, in first-appearance order — the definition-coverage domain. */
     fun distinctMainRefs(): List<CardRef> = main.map { it.ref }.distinct()
 
+    /**
+     * The distinct sideboard [CardRef]s, in first-appearance order. Reported separately from
+     * [distinctMainRefs] by [DefinitionCoverage]: a card may sit on both boards, and merging the two
+     * would hide whether the *mainboard* is playable.
+     */
+    fun distinctSideboardRefs(): List<CardRef> = sideboard.map { it.ref }.distinct()
+
     /** The distinct [CardRef]s across both boards, in first-appearance order. */
     fun distinctRefs(): List<CardRef> = (main + sideboard).map { it.ref }.distinct()
 }

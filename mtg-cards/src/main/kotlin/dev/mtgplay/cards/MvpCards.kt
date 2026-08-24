@@ -5,7 +5,8 @@ import dev.mtgplay.core.identity.CardRef
 
 /**
  * The registry of every card `mtg-cards` defines so far. The P2.2 pool: the basic lands
- * [mountain], [forest], and [plains], and [lightningBolt]. The P3.2 pool adds the first real
+ * [mountain], [forest], and [plains], and [lightningBolt]; the gauntlet Tranche 0 packet completes
+ * the five basics with [island] and [swamp]. The P3.2 pool adds the first real
  * creatures (CR 302): [grizzlyBears], [hillGiant], [windDrake], [youthfulKnight], and
  * [standingTroops]. The P4.2 pool adds the seven real Bogles continuous-effect Auras (CR 303):
  * [rancor], [armadilloCloak], [cartoucheOfSolidarity], [sentinelsEyes], [etherealArmor],
@@ -44,6 +45,7 @@ object MvpCards {
             guttersnipe,
             highwayRobbery,
             hillGiant,
+            island,
             lavaDart,
             lightningBolt,
             malevolentRumble,
@@ -56,6 +58,7 @@ object MvpCards {
             slipperyBogle,
             sneakySnacker,
             standingTroops,
+            swamp,
             utopiaSprawl,
             voldarenEpicure,
             windDrake,

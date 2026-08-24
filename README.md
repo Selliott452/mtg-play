@@ -41,8 +41,15 @@ This compiles every module, runs the tests, and enforces the zero-warning lint p
 Card metadata (names, mana costs, type lines, oracle text, and format legalities) is sourced from
 [Scryfall](https://scryfall.com) and used under the
 [Creative Commons Attribution 4.0 International (CC BY 4.0)](https://creativecommons.org/licenses/by/4.0/)
-license (ADR-003). The `mtg-pauper` module ingests a trimmed snapshot of this data; the snapshot's
-provenance is embedded in the data and surfaced through the format layer's API.
+license (ADR-003). The `mtg-pauper` module ingests a trimmed snapshot of this data
+(`mtg-pauper/src/main/resources/scryfall-mvp.json`): the cards named by the bundled decklists, cut
+down to the fields the format layer reads. The snapshot's attribution — creator, copyright notice,
+license link, and the fact that the data was modified — is embedded in its `source` field and
+surfaced through `CardCatalog.attribution`.
+
+Regenerate the snapshot with `python tools/fetch_scryfall_snapshot.py` (Python 3.9+, standard
+library only). It derives its card list from the decklist resources, so adding a decklist and
+re-running the script is the whole update path.
 
 Magic: The Gathering is © Wizards of the Coast. This project is an unofficial, non-commercial rules
 engine for research and AI training and is not affiliated with or endorsed by Wizards of the Coast or

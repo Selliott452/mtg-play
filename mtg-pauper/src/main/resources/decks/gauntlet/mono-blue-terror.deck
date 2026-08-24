@@ -1,0 +1,28 @@
+# mtg-play decklist format (P6.1): blank lines and '#' comments are ignored; a "Name:" line sets
+# the deck name; "Main"/"Sideboard" headers switch section; every other line is "<count> <name>".
+# Gauntlet deck, transcribed verbatim from the mtg-ai gauntlet source list.
+Name: Mono-Blue Terror
+
+Main
+4 Cryptic Serpent
+4 Tolarian Terror
+4 Brainstorm
+4 Counterspell
+4 Force Spike
+4 Mental Note
+4 Thought Scour
+2 Dispel
+2 Spell Pierce
+4 Lórien Revealed
+4 Ponder
+3 Deem Inferior
+2 Sleep of the Dead
+15 Island
+
+Sideboard
+4 Hydroblast
+3 Steel Sabotage
+2 Annul
+2 Blue Elemental Blast
+2 Gut Shot
+2 Murmuring Mystic

@@ -1,0 +1,25 @@
+# mtg-play decklist format (P6.1): blank lines and '#' comments are ignored; a "Name:" line sets
+# the deck name; "Main"/"Sideboard" headers switch section; every other line is "<count> <name>".
+# Gauntlet deck, transcribed verbatim from the mtg-ai gauntlet source list.
+Name: Mono-Red Madness
+
+Main
+4 Kessig Flamebreather
+4 Sneaky Snacker
+4 Voldaren Epicure
+3 Guttersnipe
+4 Fiery Temper
+4 Lava Dart
+4 Lightning Bolt
+3 Fireblast
+4 Faithless Looting
+4 Grab the Prize
+4 Highway Robbery
+18 Mountain
+
+Sideboard
+4 Pyroblast
+4 Searing Blaze
+3 Relic of Progenitus
+2 Cast into the Fire
+2 Smash to Smithereens

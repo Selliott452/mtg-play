@@ -3,6 +3,7 @@ package dev.mtgplay.pauper
 import dev.mtgplay.core.mana.Color
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.StringSpec
+import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
@@ -17,8 +18,33 @@ class ScryfallIngestSpec :
         val catalog = MvpCardPool.catalog
 
         "the snapshot ingests every staged card" {
-            // The staged snapshot carries the 43 MVP-pool cards (packet fixture).
+            // The staged snapshot carries the union of the MVP pool and all thirteen gauntlet 75s.
             catalog.cards.size shouldBe EXPECTED_SNAPSHOT_CARD_COUNT
+        }
+
+        "every card named by every bundled decklist resolves in the snapshot" {
+            val loader = DeckLoader(catalog)
+            (MvpDecks.all + GauntletDecks.all).forEach { deckList -> loader.load(deckList) }
+        }
+
+        "CR 715.3a: an Adventure card is keyed by the creature's name, with both halves' text kept" {
+            val fangDragon = catalog.metadataFor("Fang Dragon") ?: error("Fang Dragon missing from the snapshot")
+            fangDragon.typeLine shouldContain "Adventure"
+            fangDragon.oracleText shouldContain "Flying"
+            fangDragon.oracleText shouldContain "Forktail Sweep"
+        }
+
+        "CR 205.4a: a snow basic land keeps both supertypes and is still Basic" {
+            val snowIsland = catalog.metadataFor("Snow-Covered Island") ?: error("Snow-Covered Island missing")
+            snowIsland.typeLine shouldBe "Basic Snow Land — Island"
+            snowIsland.isBasic shouldBe true
+        }
+
+        "every snapshot card is Pauper-legal — the gauntlet pool carries no illegal card" {
+            catalog.cards
+                .filterNot { it.pauperLegality == Legality.LEGAL }
+                .map { it.name }
+                .shouldBeEmpty()
         }
 
         "the attribution string is carried through for the CC BY 4.0 obligation (ADR-003)" {
@@ -72,5 +98,8 @@ class ScryfallIngestSpec :
         }
     })
 
-/** The card count of the architect-staged snapshot (P6.1 fixture). */
-private const val EXPECTED_SNAPSHOT_CARD_COUNT = 43
+/**
+ * The card count of the staged snapshot: the union of the MVP pool and the distinct cards across
+ * all thirteen gauntlet 75s (gauntlet Tranche 0).
+ */
+private const val EXPECTED_SNAPSHOT_CARD_COUNT = 227

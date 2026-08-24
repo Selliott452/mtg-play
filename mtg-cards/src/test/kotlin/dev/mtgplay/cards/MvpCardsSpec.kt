@@ -46,7 +46,15 @@ class MvpCardsSpec :
                 mountain to Triple("Mountain", ManaType.RED, Subtype("Mountain")),
                 forest to Triple("Forest", ManaType.GREEN, Subtype("Forest")),
                 plains to Triple("Plains", ManaType.WHITE, Subtype("Plains")),
+                island to Triple("Island", ManaType.BLUE, Subtype("Island")),
+                swamp to Triple("Swamp", ManaType.BLACK, Subtype("Swamp")),
             )
+
+        "CR 305.6: all five basic land types are defined, each with its own subtype" {
+            basics.keys.size shouldBe BASIC_LAND_TYPE_COUNT
+            basics.values.map { (name, _, _) -> name } shouldBe
+                listOf("Mountain", "Forest", "Plains", "Island", "Swamp")
+        }
 
         "CR 305: each basic land is a Basic Land of its own subtype with no mana cost and no P/T box" {
             basics.forEach { (definition, expected) ->
@@ -218,6 +226,7 @@ class MvpCardsSpec :
                     CardRef("Guttersnipe"),
                     CardRef("Highway Robbery"),
                     CardRef("Hill Giant"),
+                    CardRef("Island"),
                     CardRef("Lava Dart"),
                     CardRef("Lightning Bolt"),
                     CardRef("Malevolent Rumble"),
@@ -230,6 +239,7 @@ class MvpCardsSpec :
                     CardRef("Slippery Bogle"),
                     CardRef("Sneaky Snacker"),
                     CardRef("Standing Troops"),
+                    CardRef("Swamp"),
                     CardRef("Utopia Sprawl"),
                     CardRef("Voldaren Epicure"),
                     CardRef("Wind Drake"),
@@ -249,6 +259,9 @@ class MvpCardsSpec :
                 .shouldNotBeInstanceOf<SpellDefinition>()
         }
     })
+
+/** The five basic land types (CR 305.6): Plains, Island, Swamp, Mountain, Forest. */
+private const val BASIC_LAND_TYPE_COUNT: Int = 5
 
 private fun playerAt20(): PlayerState =
     PlayerState(
