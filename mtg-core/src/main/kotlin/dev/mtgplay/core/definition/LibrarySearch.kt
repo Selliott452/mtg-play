@@ -17,8 +17,8 @@ data class LibrarySearch(
 
 /**
  * Which cards a [LibrarySearch] may find (CR 701.18) — the pool needs "a basic land card" (Ash Barrens'
- * basic landcycling) and "an Island card" (Lórien Revealed's islandcycling). An enum so `mtg-rules`
- * interprets it exhaustively; other predicates are the extension point.
+ * basic landcycling), "an Island card" (Lórien Revealed's islandcycling), and "a land card" (Expedition
+ * Map). An enum so `mtg-rules` interprets it exhaustively; other predicates are the extension point.
  */
 enum class LibrarySearchFilter {
     /** A basic land card (CR 205.4, CR 305.6): a land card with the basic supertype (Mountain, Forest, Plains). */
@@ -30,4 +30,13 @@ enum class LibrarySearchFilter {
      * (CR 702.28b), so the basic supertype is deliberately not required here.
      */
     ISLAND_CARD,
+
+    /**
+     * A **land card** (CR 205.2, CR 305): any card whose printed card types include land, basic and
+     * nonbasic alike. Expedition Map's "search your library for a land card". The widest of the three
+     * land filters: it requires neither the Basic supertype [BASIC_LAND_CARD] demands nor the land
+     * subtype [ISLAND_CARD] demands, so an artifact land and a typeless utility land are both legal
+     * finds.
+     */
+    LAND_CARD,
 }

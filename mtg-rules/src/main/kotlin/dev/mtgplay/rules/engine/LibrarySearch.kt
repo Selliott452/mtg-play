@@ -141,6 +141,13 @@ private fun matchesSearchFilter(
                 CardType.LAND in characteristics.cardTypes &&
                 Supertype.BASIC in characteristics.supertypes
         }
+        // CR 205.2, CR 305: "a land card" is the card type alone — no supertype and no subtype demanded.
+        LibrarySearchFilter.LAND_CARD ->
+            CardType.LAND in
+                state.definitions[obj.card]
+                    ?.characteristics
+                    ?.cardTypes
+                    .orEmpty()
         // CR 205.3b, CR 702.28b: typecycling names a land *subtype*; the basic supertype is not required.
         LibrarySearchFilter.ISLAND_CARD ->
             ISLAND in

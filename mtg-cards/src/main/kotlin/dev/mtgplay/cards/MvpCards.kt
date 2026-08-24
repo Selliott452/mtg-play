@@ -52,6 +52,16 @@ import dev.mtgplay.core.identity.CardRef
  * [snowCoveredPlains] — CR 205.4a two-supertype basics — and [skred], the first card to target a
  * creature and nothing else, whose damage counts snow permanents at resolution (CR 608.2).
  *
+ * The colourless-utility packet adds four gauntlet cards whose whole printed text the published
+ * vocabulary already covers: [glacialFloodplain] and [volatileFjord] (Snow.kt), the two snow dual
+ * lands that are [idyllicBeachfront] plus `Supertype.SNOW`; and, in ColorlessArtifacts.kt,
+ * [ichorWellspring] — an enters-**or**-dies draw, one printed ability carrying two conditions — and
+ * [expeditionMap], the first client of the packet's one new primitive,
+ * `LibrarySearchFilter.LAND_CARD`. Bonder's Ornament and Haunted Fengraf were written and dropped:
+ * each would be the pool's first permanent that is both a mana source and the source of a
+ * `{T}`-costed activated ability with a mana component, and payment enumeration offers a plan that
+ * taps it for mana and then cannot pay its own `{T}` (see that file's header and the packet report).
+ *
  * The `P-MANASICK` packet adds the pool's first **creature** mana sources (ManaCreatures.kt):
  * [elvishMystic] and [fyndhornElves], the two `{T}`: Add `{G}` Elf Druids. They are the first
  * objects that make the CR 302.6 summoning-sickness restriction observable from mana payment, and
@@ -88,12 +98,14 @@ object MvpCards {
             elvishMystic,
             endTheFestivities,
             etherealArmor,
+            expeditionMap,
             faithlessLooting,
             fieryTemper,
             fireblast,
             forest,
             fyndhornElves,
             galvanicBlast,
+            glacialFloodplain,
             gladecoverScout,
             gnawToTheBone,
             grabThePrize,
@@ -104,6 +116,7 @@ object MvpCards {
             healerOfTheGlade,
             highwayRobbery,
             hillGiant,
+            ichorWellspring,
             idyllicBeachfront,
             impulse,
             island,
@@ -150,6 +163,7 @@ object MvpCards {
             unionOfTheThirdPath,
             utopiaSprawl,
             vaultOfWhispers,
+            volatileFjord,
             voldarenEpicure,
             wellwisher,
             wildGrowth,

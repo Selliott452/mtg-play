@@ -21,7 +21,8 @@ import kotlinx.collections.immutable.persistentSetOf
 
 /*
  * The gauntlet's snow cards: the three Snow-Covered basics Jeskai Ephemerate's mana base is built
- * from, and [skred], the one card in the whole thirteen-deck gauntlet that cares (docs/decklists.md).
+ * from, the two snow dual lands [glacialFloodplain] and [volatileFjord] that finish it, and [skred],
+ * the one card in the whole thirteen-deck gauntlet that cares (docs/decklists.md).
  *
  * **Snow is not a framework here, and this file is the evidence.** `Supertype.SNOW` (CR 205.4a)
  * already existed in `mtg-core` before this packet, and **no gauntlet card uses `{S}` snow mana at
@@ -64,6 +65,39 @@ val snowCoveredMountain: CardDefinition =
  */
 val snowCoveredPlains: CardDefinition =
     snowBasicLand(name = "Snow-Covered Plains", subtype = "Plains", produces = ManaType.WHITE)
+
+/**
+ * Glacial Floodplain — `Snow Land — Plains Island`. "({T}: Add {W} or {U}.) This land enters tapped."
+ *
+ * [idyllicBeachfront] with the Snow supertype, and nothing else: the whole card is its type line plus
+ * the CR 614.1c enters-tapped clause ([CardDefinition.entersTapped]). The parenthesised line is
+ * reminder text for the two separate intrinsic abilities CR 305.6 gives any permanent with the Plains
+ * and Island land types — "{T}: Add {W}" and "{T}: Add {U}" — written out as two [ManaAbility] entries
+ * for the reason recorded on [idyllicBeachfront]: two abilities is the faithful shape, and both cost
+ * `{T}` on a permanent that can only be tapped once.
+ *
+ * **Snow (CR 205.4a) is a supertype and grants nothing.** Unlike the three Snow-Covered basics this
+ * card is *not* Basic (CR 205.4b: a nonbasic land with basic land types stays nonbasic), so it is
+ * subject to the four-of limit and is never a legal find for "search for a basic land card". Its only
+ * rules significance is that [skred] counts it.
+ */
+val glacialFloodplain: CardDefinition =
+    snowDualLand(
+        name = "Glacial Floodplain",
+        first = "Plains" to ManaType.WHITE,
+        second = "Island" to ManaType.BLUE,
+    )
+
+/**
+ * Volatile Fjord — `Snow Land — Island Mountain`. "({T}: Add {U} or {R}.) This land enters tapped."
+ * [glacialFloodplain]'s blue-red counterpart, identical in every structural respect.
+ */
+val volatileFjord: CardDefinition =
+    snowDualLand(
+        name = "Volatile Fjord",
+        first = "Island" to ManaType.BLUE,
+        second = "Mountain" to ManaType.RED,
+    )
 
 /**
  * Skred — `{R}` Instant. "Skred deals damage to target creature equal to the number of snow
@@ -124,6 +158,35 @@ private fun isSnow(
         ?.characteristics
         ?.supertypes
         ?.contains(Supertype.SNOW) == true
+
+/**
+ * A snow dual land (CR 205.4a, CR 305.6): the Snow supertype **without** Basic (CR 205.4b — basic land
+ * types do not make a card basic), the Land card type, the two land types [first] and [second], the
+ * CR 614.1c enters-tapped clause, and the two separate intrinsic mana abilities those land types grant,
+ * in printed order.
+ */
+private fun snowDualLand(
+    name: String,
+    first: Pair<String, ManaType>,
+    second: Pair<String, ManaType>,
+): CardDefinition =
+    object : CardDefinition {
+        override val characteristics =
+            PrintedCharacteristics(
+                name = name,
+                manaCost = null,
+                supertypes = persistentSetOf(Supertype.SNOW),
+                cardTypes = persistentSetOf(CardType.LAND),
+                subtypes = persistentSetOf(Subtype(first.first), Subtype(second.first)),
+                powerToughness = null,
+            )
+        override val manaAbilities: PersistentList<ManaAbility> =
+            persistentListOf(
+                ManaAbility(persistentListOf(first.second)),
+                ManaAbility(persistentListOf(second.second)),
+            )
+        override val entersTapped = true
+    }
 
 /**
  * A Snow-Covered basic land (CR 305, CR 205.4a): both the Basic and Snow supertypes, the Land card

@@ -453,6 +453,37 @@ failure: a dynamic magnitude tracks the Gate count for the rest of the turn, so 
 grows an already-resolved pump. Nothing crashes, no invariant fires. Its X is **snapshotted**
 (CR 608.2h, 611.2d) — the opposite semantics to the one dynamic type the engine has.
 
+**T17 — A permanent that is both a mana source and the source of a `{T}`-costed activated ability
+crashes the engine.** `abilityCostPayable` and the activation's payment request both call
+`enumeratePaymentPlans(state, seat, cost)`, which knows nothing about *which* source is paying. For a
+permanent whose own mana ability could fund its own ability's mana component, the enumerator therefore
+offers a plan that taps it for mana; `payAbilityCost` then pays the mana component first and
+`tapObjectForCost` throws on the CR 602.2a "requires an untapped source" check. This is an
+enumerated-but-illegal action (ADR-005), not a rules corner.
+
+No card in the pool reaches it: every existing `{T}` ability either belongs to a non-source (Blood
+token, Melded Moxite, Murmuring Mystic's Bird), has no mana component (Wellwisher), or functions from
+the hand (Ash Barrens' landcycling). The **first** card to reach it is whichever of **Bonder's
+Ornament** (`{T}`: Add one mana of any color / `{4}`, `{T}`: …), **Haunted Fengraf** (`{T}`: Add `{C}` /
+`{3}`, `{T}`, Sacrifice: …), **Barrels of Blasting Jelly**, **Bender's Waterskin**, **Conduit Pylons**,
+**Giant's Boulder**, or **Basilisk Gate** lands first — so it must be gated in the same packet, exactly
+as T1 was. Reproduced by the card-sweep packet with Bonder's Ornament: with four Mountains and an
+untapped Ornament, plan **0** for `{4}` taps the Ornament (white is first in the WUBRG candidate order)
+and the activation throws `CR 602.2a: a {T} cost requires an untapped source`. The fix belongs to
+`manaSourceClasses` / `enumeratePaymentPlans`, because a `ManaActivation` names a payment-equivalence
+*class* rather than an object — filtering finished plans is not enough.
+
+**T18 — A played land's enters-the-battlefield trigger is never detected.**
+`detectEnterBattlefieldTriggers` is called from the resolving-permanent path (`AsEntersColor.kt`) and
+from `returnToBattlefieldTapped`, but **not** from `executePlayLand` — a land is played, not cast
+(CR 305.1), and takes its own transition. No gauntlet land encoded so far has an ETB trigger, so the
+gap is currently unreachable and completely silent: the land arrives, nothing fires, and no invariant
+notices. **Bojuka Bog**, **Mortuary Mire**, **Azorius Chancery**, **Conduit Pylons**, and **Gingerbread
+Cabin** each make it reachable, and each would look perfectly encoded while doing nothing. Whichever
+lands first must add the detector call to the play-land special action (CR 603.6a applies to a land
+exactly as it does to a resolving permanent) and check that the fired trigger reaches the stack at the
+priority grant `executePlayLand` already performs.
+
 ---
 
 ## 8. The 187, classified
