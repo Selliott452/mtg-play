@@ -51,6 +51,9 @@ internal fun beginCastGathering(
             TargetSpec.TargetCreature,
             TargetSpec.TargetPlayer,
             TargetSpec.TargetOpponent,
+            // An Aura (CR 601.2c), any-target, target-player, target-opponent and target-permanent
+            // all need a target choice before payment.
+            is TargetSpec.TargetPermanent,
             is TargetSpec.Enchantable,
             -> null
         }

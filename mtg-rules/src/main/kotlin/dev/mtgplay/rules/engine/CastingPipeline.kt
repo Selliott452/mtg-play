@@ -194,6 +194,7 @@ private fun establishTargets(
         TargetSpec.TargetCreature,
         TargetSpec.TargetPlayer,
         TargetSpec.TargetOpponent,
+        is TargetSpec.TargetPermanent,
         is TargetSpec.Enchantable,
         -> {
             require(entry.targets.size == 1) {

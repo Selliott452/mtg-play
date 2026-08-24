@@ -155,7 +155,9 @@ internal fun timingPermitsCast(
  * Whether every target [spec] requires has at least one legal choice for caster [seat] (CR 601.2c):
  * a spell that cannot be fully targeted cannot legally be cast, so it is excluded from enumeration
  * (ADR-005) rather than allowed to dead-end mid-pipeline. An Aura whose enchant restriction matches
- * no battlefield object (CR 303.4a) is likewise uncastable.
+ * no battlefield object (CR 303.4a) is likewise uncastable, as is a removal spell whose
+ * [TargetSpec.TargetPermanent] restriction matches nothing on the battlefield — Terminate is simply
+ * not an option with no creature in play.
  */
 internal fun targetsAvailable(
     state: GameState,
@@ -168,6 +170,7 @@ internal fun targetsAvailable(
         TargetSpec.TargetCreature,
         TargetSpec.TargetPlayer,
         TargetSpec.TargetOpponent,
+        is TargetSpec.TargetPermanent,
         is TargetSpec.Enchantable,
         -> legalTargets(state, spec, seat).isNotEmpty()
     }

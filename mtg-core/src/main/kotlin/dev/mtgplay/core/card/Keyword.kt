@@ -14,14 +14,13 @@ package dev.mtgplay.core.card
  * (never by reading a definition directly), so Phase 4 can reroute the read without touching the
  * combat rules.
  *
- * All seven change engine behaviour: [FLYING], [FIRST_STRIKE], and [VIGILANCE] since P3.1;
+ * All eight change engine behaviour: [FLYING], [FIRST_STRIKE], and [VIGILANCE] since P3.1;
  * [TRAMPLE], [HEXPROOF], and [LIFELINK] since P5.3 (the trample assignment decision, the targeting
- * restriction on enumeration, and the damage-result lifegain, respectively); and [DEVOID], which
- * alone among them changes a characteristic rather than combat — it makes
- * [PrintedCharacteristics.colors] colorless (CR 105.2, CR 702.114a) instead of deriving colour from
- * the mana cost.
  * restriction on enumeration, and the damage-result lifegain, respectively); [INDESTRUCTIBLE] since
- * P8.4 (the CR 704.5g lethal-damage exemption).
+ * P8.4 (the CR 704.5g lethal-damage exemption, and the CR 701.7a destroy effect since the removal
+ * packet); and [DEVOID], which alone among them changes a characteristic rather than combat — it
+ * makes [PrintedCharacteristics.colors] colorless (CR 105.2, CR 702.114a) instead of deriving
+ * colour from the mana cost.
  */
 enum class Keyword {
     /** Flying (CR 702.9): can be blocked only by creatures with flying or reach. */
@@ -69,10 +68,11 @@ enum class Keyword {
      * toughness-0-or-less permanent still goes to the graveyard (CR 704.5f), because that is not
      * destruction (see the `CreatureDeathCause` distinction in `mtg-rules`).
      *
-     * The Bridge artifact lands print it. The only destruction the engine performs is the CR 704.5g
-     * lethal-damage state-based action, which honours this (P8.4); a *land* therefore never reaches a
-     * path where it matters today, and when a "destroy target permanent" effect first lands it must
-     * consult the effective-keyword accessor rather than re-deriving destruction.
+     * The Bridge artifact lands print it. The engine destroys in exactly two places, and both honour
+     * this through the one effective-keyword seam (`isIndestructible` in `EffectiveCharacteristics.kt`)
+     * rather than re-deriving it: the CR 704.5g lethal-damage state-based action (P8.4), and the
+     * CR 701.7a destroy effect (the removal-and-destruction packet). The second is what made the
+     * keyword live on a Bridge — an opposing Ancient Grudge now finds one and destroys nothing.
      */
     INDESTRUCTIBLE,
 }
