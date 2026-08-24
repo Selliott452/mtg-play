@@ -1,8 +1,10 @@
 package dev.mtgplay.rules
 
 import dev.mtgplay.core.card.CardType
+import dev.mtgplay.core.card.Keyword
 import dev.mtgplay.core.card.PrintedCharacteristics
 import dev.mtgplay.core.card.PrintedPowerToughness
+import dev.mtgplay.core.card.Subtype
 import dev.mtgplay.core.definition.CardDefinition
 import dev.mtgplay.core.definition.LibraryReveal
 import dev.mtgplay.core.definition.ResolutionEffect
@@ -10,6 +12,7 @@ import dev.mtgplay.core.definition.RevealedCardFilter
 import dev.mtgplay.core.definition.SpellDefinition
 import dev.mtgplay.core.definition.TargetSpec
 import dev.mtgplay.core.definition.TimingClass
+import dev.mtgplay.core.definition.TokenDefinition
 import dev.mtgplay.core.identity.CardRef
 import dev.mtgplay.core.identity.ObjectId
 import dev.mtgplay.core.identity.PlayerId
@@ -25,7 +28,9 @@ import dev.mtgplay.core.state.Turn
 import dev.mtgplay.core.state.TurnPhase
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.StringSpec
+import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldContainExactly
+import io.kotest.matchers.collections.shouldNotContain
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.collections.immutable.persistentListOf
@@ -103,6 +108,45 @@ class SeatViewSpec :
 
         "ADR-007: viewFor rejects a seat that is not seated" {
             shouldThrow<IllegalArgumentException> { viewFor(twoSeatFixture(), PlayerId(9)) }
+        }
+
+        "CR 111: a token on the battlefield is described to every seat, and marked as a token" {
+            val state = cardTableFixture()
+
+            // A token is a public object with public characteristics (CR 111), so both seats get them.
+            for (view in listOf(viewFor(state, alice), viewFor(state, bob))) {
+                val token = view.cards.getValue(CardRef("Table Warrior"))
+                token.isToken shouldBe true
+                token.characteristics.powerToughness shouldBe PrintedPowerToughness(1, 1)
+                token.characteristics.keywords shouldContain Keyword.VIGILANCE
+                // A real card on the same battlefield is described too, and is not a token.
+                view.cards.getValue(CardRef("Table Bear")).isToken shouldBe false
+            }
+        }
+
+        "ADR-007: the card table describes exactly the cards a seat's own view names" {
+            val state = cardTableFixture()
+
+            // Alice: the public battlefield and graveyard plus her own hand — never Bob's hand, and
+            // never either library, though the match registry defines all of them.
+            viewFor(state, alice).cards.keys.map { it.name } shouldContainExactly
+                listOf("Table Bear", "Table Bolt", "Table Cantrip", "Table Warrior")
+            // Bob: the same public cards, with his own hand card instead of Alice's.
+            viewFor(state, bob).cards.keys.map { it.name } shouldContainExactly
+                listOf("Table Bear", "Table Bogle", "Table Cantrip", "Table Warrior")
+        }
+
+        "P2.1: a card with no definition is inert and simply has no card-table entry" {
+            val aliceView = viewFor(cardTableFixture(), alice)
+
+            // The undefined permanent is a visible object; the engine invents no characteristics for it.
+            aliceView.battlefield.map { it.card.name } shouldContain "Table Relic"
+            aliceView.cards.keys shouldNotContain CardRef("Table Relic")
+        }
+
+        "ADR-007: viewFor is a pure derivation — two calls on the same state and seat are equal" {
+            val state = cardTableFixture()
+            viewFor(state, alice) shouldBe viewFor(state, alice)
         }
     })
 
@@ -229,6 +273,88 @@ private fun revealPauseState(): GameState {
             mapOf(
                 CardRef("View Reveal") to revealSpellDefinition,
                 CardRef("View Bear") to creatureDefinition("View Bear"),
+            ).toPersistentMap(),
+    )
+}
+
+/** A non-creature spell card, for a hand or graveyard card the card table must describe. */
+private fun spellCardDefinition(name: String): CardDefinition =
+    object : CardDefinition {
+        override val characteristics =
+            PrintedCharacteristics(
+                name = name,
+                manaCost = ManaCost.parse("{R}"),
+                supertypes = persistentSetOf(),
+                cardTypes = persistentSetOf(CardType.INSTANT),
+                subtypes = persistentSetOf(),
+                powerToughness = null,
+            )
+    }
+
+/**
+ * A 1/1 Warrior creature token with vigilance (CR 111.4) — registered the way the create-token
+ * primitive registers one: under its name-[CardRef], as a [TokenDefinition], only once it exists.
+ */
+private val tableWarriorToken =
+    TokenDefinition(
+        characteristics =
+            PrintedCharacteristics(
+                name = "Table Warrior",
+                manaCost = null,
+                supertypes = persistentSetOf(),
+                cardTypes = persistentSetOf(CardType.CREATURE),
+                subtypes = persistentSetOf(Subtype("Warrior")),
+                powerToughness = PrintedPowerToughness(1, 1),
+                keywords = persistentSetOf(Keyword.VIGILANCE),
+            ),
+    )
+
+/**
+ * A state whose match registry defines **more** than either seat can see: both hands, both libraries,
+ * the shared battlefield and a graveyard, plus a token created on the battlefield. "Table Relic" is
+ * deliberately left undefined — an inert card (P2.1). The card-table scope is observable by name.
+ */
+private fun cardTableFixture(): GameState {
+    val aliceState =
+        PlayerState(
+            life = STARTING_LIFE,
+            library = persistentListOf(obj(30, "Table Secret", alice)),
+            hand = persistentListOf(obj(31, "Table Bolt", alice)),
+            graveyard = persistentListOf(obj(32, "Table Cantrip", alice)),
+        )
+    val bobState =
+        PlayerState(
+            life = STARTING_LIFE,
+            library = persistentListOf(obj(33, "Table Other Secret", bob)),
+            hand = persistentListOf(obj(34, "Table Bogle", bob)),
+            graveyard = persistentListOf(),
+        )
+    return GameState(
+        players = persistentMapOf(alice to aliceState, bob to bobState),
+        turn = Turn(activePlayer = alice, number = 4, phase = TurnPhase.PRECOMBAT_MAIN, step = null),
+        sharedZones =
+            SharedZones(
+                battlefield =
+                    listOf(
+                        obj(35, "Table Bear", alice),
+                        obj(36, "Table Warrior", bob),
+                        obj(37, "Table Relic", alice),
+                    ).toPersistentList(),
+                stack = persistentListOf(),
+                exile = persistentListOf(),
+            ),
+        nextObjectId = 38,
+        rng = Rng(0),
+        events = persistentListOf(),
+        definitions =
+            mapOf(
+                CardRef("Table Bear") to creatureDefinition("Table Bear"),
+                CardRef("Table Bogle") to creatureDefinition("Table Bogle"),
+                CardRef("Table Bolt") to spellCardDefinition("Table Bolt"),
+                CardRef("Table Cantrip") to spellCardDefinition("Table Cantrip"),
+                CardRef("Table Other Secret") to creatureDefinition("Table Other Secret"),
+                CardRef("Table Secret") to creatureDefinition("Table Secret"),
+                CardRef("Table Warrior") to tableWarriorToken,
             ).toPersistentMap(),
     )
 }

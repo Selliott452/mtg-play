@@ -25,35 +25,41 @@ fun viewFor(
 ): SeatView {
     require(seat in state.players) { "ADR-007: cannot build a view for unseated seat $seat" }
     val pendingRequest = pendingRequestOf(state)
-    return SeatView(
-        viewer = seat,
-        players = state.players.map { (id, player) -> playerViewOf(id, player, viewer = seat) },
-        battlefield = state.sharedZones.battlefield.toList(),
-        stack = state.sharedZones.stack.map(::stackEntryViewOf),
-        exile = state.sharedZones.exile.toList(),
-        turn = state.turn,
-        pendingDecision =
-            pendingRequest?.let { request ->
-                if (request.seat == seat) {
-                    DecisionView.ToDecide(request)
-                } else {
-                    DecisionView.Elsewhere(request.seat, kindOf(request))
-                }
-            },
-        pendingCast = state.pendingCast,
-        pendingTriggers = state.pendingTriggers.map(::pendingTriggerViewOf),
-        pendingMadness = state.pendingMadness,
-        pendingReplacement = state.pendingReplacement,
-        pendingMulligan = state.pendingMulligan,
-        pendingPlot = state.pendingPlot,
-        pendingColorChoice = state.pendingColorChoice,
-        pendingActivation = state.pendingActivation,
-        pendingReveal = state.pendingRevealSelection?.let { revealViewOf(state, it) },
-        pendingOptionalDiscardDraw = state.pendingOptionalDiscardDraw,
-        pendingOptionalCostDraw = state.pendingOptionalCostDraw,
-        pendingResolutionDiscard = state.pendingResolutionDiscard,
-        pendingLibrarySearch = state.pendingLibrarySearch,
-    )
+    // Two steps on purpose: the card table describes exactly the cards the *finished* projection names
+    // (docs/design/seat-view-definitions.md §2), so it is derived from the projection rather than from
+    // the raw state. The table-less intermediate never escapes this function.
+    val projected =
+        SeatView(
+            viewer = seat,
+            cards = emptyMap(),
+            players = state.players.map { (id, player) -> playerViewOf(id, player, viewer = seat) },
+            battlefield = state.sharedZones.battlefield.toList(),
+            stack = state.sharedZones.stack.map(::stackEntryViewOf),
+            exile = state.sharedZones.exile.toList(),
+            turn = state.turn,
+            pendingDecision =
+                pendingRequest?.let { request ->
+                    if (request.seat == seat) {
+                        DecisionView.ToDecide(request)
+                    } else {
+                        DecisionView.Elsewhere(request.seat, kindOf(request))
+                    }
+                },
+            pendingCast = state.pendingCast,
+            pendingTriggers = state.pendingTriggers.map(::pendingTriggerViewOf),
+            pendingMadness = state.pendingMadness,
+            pendingReplacement = state.pendingReplacement,
+            pendingMulligan = state.pendingMulligan,
+            pendingPlot = state.pendingPlot,
+            pendingColorChoice = state.pendingColorChoice,
+            pendingActivation = state.pendingActivation,
+            pendingReveal = state.pendingRevealSelection?.let { revealViewOf(state, it) },
+            pendingOptionalDiscardDraw = state.pendingOptionalDiscardDraw,
+            pendingOptionalCostDraw = state.pendingOptionalCostDraw,
+            pendingResolutionDiscard = state.pendingResolutionDiscard,
+            pendingLibrarySearch = state.pendingLibrarySearch,
+        )
+    return projected.copy(cards = cardsOf(state.definitions, visibleCardRefs(projected)))
 }
 
 /** One seat's [PlayerView]: the own hand in full (CR 402), an opponent's as a count only (ADR-007). */

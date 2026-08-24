@@ -8,9 +8,11 @@ package dev.mtgplay.protocol
  * compile-time break of the exhaustive DTO mapping, so schema versions track engine versions. Bump
  * this whenever the wire shape changes in a way a peer must know about.
  *
- * **Held at 1.0.0 through P7.3.** The [ServerMessage.Error] variant added in P7.3 is a purely additive
- * schema change and the protocol is still pre-release with no external consumers, so the version is
- * deliberately not bumped: there is no deployed peer that could observe the difference. The first bump
- * is reserved for the first change that a *released* consumer must be told about.
+ * **Held at 1.0.0 through P8.2.** The [ServerMessage.Error] variant added in P7.3 is purely additive,
+ * and the [SeatViewDto.cards] table added in P8.2 is a new required field on the seat-update payload —
+ * a change an already-deployed peer *would* notice, since the codec is strict. The protocol is still
+ * pre-release with no released consumer, so the version is deliberately not bumped: there is no
+ * deployed peer that could observe the difference. The first bump is reserved for the first change
+ * that a *released* consumer must be told about.
  */
 const val PROTOCOL_VERSION: String = "1.0.0"
