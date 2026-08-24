@@ -76,6 +76,10 @@ object Responders {
                     error("the pass-everything responder never activates a library search: $request")
                 is DecisionRequest.ChooseLibraryArrangement ->
                     error("the pass-everything responder never resolves a library look: $request")
+                // CR 118.3a: an unless-pay pause only exists while a counter this policy never cast is
+                // resolving, so reaching one is a defect, not a decision.
+                is DecisionRequest.ChooseCounterPayment ->
+                    error("the pass-everything responder never casts a counter: $request")
                 // CR 103.4/103.5: the passive policy keeps every hand at seven — so no bottoming ever
                 // follows — but bottoms the lowest indices if a mulligan game is ever driven this way.
                 is DecisionRequest.MulliganRequest -> keepAtSeven(request)

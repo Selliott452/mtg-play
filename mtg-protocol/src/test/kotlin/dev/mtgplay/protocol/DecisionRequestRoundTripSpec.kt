@@ -30,7 +30,7 @@ import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 
 /**
- * The schema round-trip (ADR-008): every one of the 25 [DecisionRequest] kinds, and every
+ * The schema round-trip (ADR-008): every one of the 26 [DecisionRequest] kinds, and every
  * [Decision] shape, survives engine value -> DTO -> JSON -> DTO -> engine value unchanged, through
  * the strict [ProtocolJson] codec. The `allRequests` fixture is asserted to cover every kind, so the
  * exhaustive mapping is exercised end to end.
@@ -151,7 +151,32 @@ private val richPaymentWindow: DecisionRequest.ChoosePaymentPlan =
         ),
     )
 
-/** One representative instance of every [DecisionRequest] kind (all 24). */
+/**
+ * A resolving counter's unless-pay window (CR 118.3a) carrying both answers: the decline at index 0 and
+ * a payment plan after it, so the fused shape's sealed option hierarchy round-trips in both arms.
+ */
+private val richCounterPaymentWindow: DecisionRequest.ChooseCounterPayment =
+    DecisionRequest.ChooseCounterPayment(
+        ID,
+        CardRef("Lightning Bolt"),
+        ManaCost.parse("{1}"),
+        listOf(
+            DecisionRequest.ChooseCounterPayment.Option.Decline,
+            DecisionRequest.ChooseCounterPayment.Option.Pay(
+                PaymentPlan(
+                    listOf(
+                        ManaActivation(
+                            SourceClassKey(CardRef("Island"), listOf(ManaType.BLUE), viaSacrifice = false),
+                            ManaType.BLUE,
+                        ),
+                    ),
+                    listOf(SymbolPayment.WithMana(ManaType.BLUE)),
+                ),
+            ),
+        ),
+    )
+
+/** One representative instance of every [DecisionRequest] kind. */
 private val allRequests: List<DecisionRequest> =
     listOf(
         richPriorityWindow,
@@ -160,9 +185,14 @@ private val allRequests: List<DecisionRequest> =
             ID,
             ObjectId(1),
             CardRef("Lightning Bolt"),
-            listOf(Target.Player(PlayerId(1)), Target.Permanent(ObjectId(9))),
+            listOf(
+                Target.Player(PlayerId(1)),
+                Target.Permanent(ObjectId(9)),
+                Target.SpellOnStack(ObjectId(11)),
+            ),
         ),
         richPaymentWindow,
+        richCounterPaymentWindow,
         DecisionRequest.DeclareAttackers(
             ID,
             listOf(DecisionRequest.DeclareAttackers.Option(ObjectId(9), CardRef("Grizzly Bears"), PlayerId(1))),

@@ -5,7 +5,7 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 /**
- * Wire form of the full [DecisionRequest] hierarchy (ADR-004/ADR-005) — all 25 request kinds, each
+ * Wire form of the full [DecisionRequest] hierarchy (ADR-004/ADR-005) — all 26 request kinds, each
  * carrying its stable [id] and its enumerated options. The mapping to and from the engine
  * ([toDto]/[toDomain]) is exhaustive in both directions, so a new request kind is a compile-time
  * schema break (ADR-008 amendment).
@@ -259,6 +259,20 @@ sealed interface DecisionRequestDto {
         override val id: DecisionRequestIdDto,
         val options: List<CardObjectOptionDto>,
     ) : ChoiceCountSelectionDto
+
+    /**
+     * Wire form of [DecisionRequest.ChooseCounterPayment] (CR 118.3a) — a resolving counter's
+     * "unless its controller pays". [cost] is the Scryfall brace string, as every mana cost on the wire
+     * is. Index 0 of [options] is always the decline; the rest pay.
+     */
+    @Serializable
+    @SerialName("choose_counter_payment")
+    data class ChooseCounterPayment(
+        override val id: DecisionRequestIdDto,
+        val card: String,
+        val cost: String,
+        val options: List<CounterPaymentOptionDto>,
+    ) : SingleOptionSelectionDto
 
     /** Wire form of [DecisionRequest.ChooseMulligan] (CR 103.4). */
     @Serializable

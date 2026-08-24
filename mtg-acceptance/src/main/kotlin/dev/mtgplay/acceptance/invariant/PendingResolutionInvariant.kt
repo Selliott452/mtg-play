@@ -3,6 +3,7 @@ package dev.mtgplay.acceptance.invariant
 import dev.mtgplay.core.definition.LibraryLookSource
 import dev.mtgplay.core.identity.PlayerId
 import dev.mtgplay.core.state.GameState
+import dev.mtgplay.core.state.StackEntry
 import dev.mtgplay.core.state.resolutionClauses
 
 /**
@@ -57,7 +58,11 @@ internal fun checkPendingResolutionSanity(state: GameState): List<Violation> =
         checkPause("library search", state.pendingLibrarySearch?.decider)
         checkPause("library reveal", state.pendingRevealSelection?.decider)
         checkPause("library look", state.pendingLibraryLook?.decider)
+        // CR 118.3a: the one pause whose decider is the *targeted* spell's controller, not the resolving
+        // counter's — so "is seated" is a real check here and not a restatement.
+        checkPause("counter payment", state.pendingCounterPayment?.decider)
         addAll(checkLibraryLookPool(state))
+        addAll(checkCounterPaymentTarget(state))
 
         val reveal = state.pendingRevealSelection
         val allowance =
@@ -76,6 +81,29 @@ internal fun checkPendingResolutionSanity(state: GameState): List<Violation> =
             )
         }
     }
+
+/**
+ * The target half of the unless-pay pause (CR 118.3a, CR 701.5a): the spell that would be countered is
+ * still on the stack. The CR 608.2b re-check runs before the pause is entered, so a target that has left
+ * means the engine paused for a counter that should have fizzled — the ordering the whole Spell Pierce
+ * case turns on.
+ */
+private fun checkCounterPaymentTarget(state: GameState): List<Violation> {
+    val pending = state.pendingCounterPayment ?: return emptyList()
+    val present =
+        state.sharedZones.stack.any { (it as? StackEntry.Spell)?.obj?.id == pending.counteredObjectId }
+    return if (present) {
+        emptyList()
+    } else {
+        listOf(
+            Violation(
+                Invariant.PENDING_RESOLUTION_SANITY,
+                "CR 608.2b: the unless-pay pause names spell ${pending.counteredObjectId}, which is not on " +
+                    "the stack — its counter should have fizzled instead of asking for payment",
+            ),
+        )
+    }
+}
 
 /**
  * The pool half of the library-look pause (CR 701.14a, CR 400.7): the resolving object carries a look

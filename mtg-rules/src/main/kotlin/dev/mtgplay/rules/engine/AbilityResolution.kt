@@ -44,9 +44,13 @@ internal fun resolveAbility(
             targets = entry.targets,
             amount = trigger.amount,
             subject = trigger.subject,
+            source = trigger.sourceId,
         )
     val resolved = trigger.ability.effect.resolve(state, context)
-    require(resolved.sharedZones.stack == state.sharedZones.stack) {
+    // Relaxed by `FW-COUNTER` from "the stack is unchanged", which is false for any ability that
+    // counters a spell (Spellstutter Sprite's, CR 701.5a). What must still hold is that the resolving
+    // *ability* is still the topmost object: its CR 113.7a cessation is the engine's move alone.
+    require(resolved.sharedZones.stack.lastOrNull() == entry) {
         "CR 113.7a: a triggered ability's effect performs its instructions but does not move the ability " +
             "off the stack — that cessation is the engine's move"
     }
@@ -66,7 +70,10 @@ private fun fizzleTrigger(
     entry: StackEntry.Ability,
 ): AdvanceResult? {
     val trigger = entry.trigger
-    if (!allTargetsIllegal(state, trigger.ability.targetSpec, entry.targets, trigger.controller)) return null
+    // CR 113.7a: an ability on the stack is not a card and has no residence id, so it excludes nothing.
+    if (!allTargetsIllegal(state, trigger.ability.targetSpec, entry.targets, trigger.controller, self = null)) {
+        return null
+    }
     val removed = state.updateStack { it.removingAt(it.lastIndex) }
     return grantPriorityRound(
         removed.emit(GameEvent.AbilityFizzled(trigger.controller, trigger.sourceCard, triggered = true)),

@@ -5,6 +5,7 @@ import dev.mtgplay.core.card.Subtype
 import dev.mtgplay.core.card.Supertype
 import dev.mtgplay.core.definition.CardDefinition
 import dev.mtgplay.core.definition.ManaAbility
+import dev.mtgplay.core.definition.PermanentRestriction
 import dev.mtgplay.core.definition.SpellDefinition
 import dev.mtgplay.core.definition.TargetSpec
 import dev.mtgplay.core.definition.TimingClass
@@ -110,7 +111,7 @@ class SnowSpec :
                 powerToughness.shouldBeNull()
             }
             skred.timing shouldBe TimingClass.INSTANT_SPEED
-            skred.targetSpec shouldBe TargetSpec.TargetCreature
+            skred.targetSpec shouldBe TargetSpec.TargetPermanent(PermanentRestriction.CREATURE)
         }
 
         "the six snow cards are registered under their printed names (CR 201)" {

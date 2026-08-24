@@ -75,6 +75,7 @@ class RandomRemoteAgent(
             is DecisionRequestDto.ChooseColor -> request.options.size
             is DecisionRequestDto.ChooseReplacement -> request.options.size
             is DecisionRequestDto.ChooseLibraryArrangement -> request.options.size
+            is DecisionRequestDto.ChooseCounterPayment -> request.options.size
         }
 
     // The number of selectable indices of a "choose one, or opt out" request (real options + one opt-out).

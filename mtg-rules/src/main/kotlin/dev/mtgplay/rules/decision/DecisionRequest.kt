@@ -5,6 +5,7 @@ import dev.mtgplay.core.identity.CardRef
 import dev.mtgplay.core.identity.ObjectId
 import dev.mtgplay.core.identity.PlayerId
 import dev.mtgplay.core.mana.Color
+import dev.mtgplay.core.mana.ManaCost
 import dev.mtgplay.core.state.Target
 
 /**
@@ -1033,6 +1034,67 @@ sealed interface DecisionRequest {
                 val all = toHand + toTop + toBottom
                 return all.size == poolSize && all.toSet() == (0 until poolSize).toSet()
             }
+        }
+    }
+
+    /**
+     * The "unless its controller pays [cost]" payment of a resolving counter (CR 701.5, CR 118.3a) — Force
+     * Spike, Spell Pierce. [seat] is the **targeted spell's** controller, not the counter's: the one
+     * request in the hierarchy whose decider is normally not the resolving object's controller. Additive,
+     * flagged (`FW-COUNTER`, docs/design/countering-spells.md §7.1).
+     *
+     * **One fused request, not a yes/no followed by a payment request.** A separate yes/no would have to
+     * offer "yes" to a player who cannot pay — an option that dead-ends mid-flow, which ADR-005 forbids
+     * ("illegal actions are unrepresentable rather than rejected"). Fusing makes the option set exactly the
+     * legal answers: [Option.Decline] at index 0, then one [Option.Pay] per enumerated payment plan. With
+     * no affordable plan the request holds a single option and is still surfaced, per the
+     * [ChoosePaymentPlan] precedent — a uniform decision sequence keeps replay logs canonical (ADR-004).
+     *
+     * A member of [SingleOptionSelection] and **not** of [ChoiceCountSelection] on purpose: declining is a
+     * genuine enumerated answer with a game consequence (the spell is countered), not an opt-out from a
+     * list, and it is typed as one of the options rather than left as a magic trailing index.
+     *
+     * Paying is not a cast and grants nobody priority (CR 605.3b permits the mana abilities, CR 605.3a
+     * resolves them without the stack), so the counter's controller cannot respond to the answer.
+     *
+     * @property card the printed identity of the spell that would be countered, for display.
+     * @property cost the mana [seat] must pay in full to save it (CR 118.3a).
+     * @property options the legal answers: index 0 declines, the rest pay by a distinct plan.
+     */
+    data class ChooseCounterPayment(
+        override val id: DecisionRequestId,
+        val card: CardRef,
+        val cost: ManaCost,
+        val options: List<Option>,
+    ) : SingleOptionSelection {
+        override val optionCount: Int get() = options.size
+
+        init {
+            require(options.firstOrNull() == Option.Decline) {
+                "CR 118.3a: declining is always legal and is index 0, got ${options.firstOrNull()}"
+            }
+            require(options.drop(1).all { it is Option.Pay }) {
+                "CR 118.3a: every option after the decline pays a plan, got $options"
+            }
+        }
+
+        /** One legal answer to "unless its controller pays". */
+        sealed interface Option {
+            /**
+             * Do not pay (CR 118.3a): the targeted spell is countered (CR 701.5a). Always legal, always
+             * index 0 — a player may decline even when they could pay.
+             */
+            data object Decline : Option
+
+            /**
+             * Pay the full cost by [plan] (CR 118.3a): the targeted spell is saved and the counter
+             * resolves having done nothing.
+             *
+             * @property plan the payment plan, in the deterministic order of docs/design/mana-payment.md.
+             */
+            data class Pay(
+                val plan: PaymentPlan,
+            ) : Option
         }
     }
 }

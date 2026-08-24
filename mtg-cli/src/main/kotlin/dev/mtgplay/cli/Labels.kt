@@ -6,6 +6,7 @@ import dev.mtgplay.core.card.PrintedCharacteristics
 import dev.mtgplay.core.identity.ObjectId
 import dev.mtgplay.core.state.GameObject
 import dev.mtgplay.core.state.GameState
+import dev.mtgplay.core.state.StackEntry
 import dev.mtgplay.core.state.Target
 import dev.mtgplay.rules.engine.layeredCharacteristics
 
@@ -111,7 +112,12 @@ fun handCardLabel(
     return "${obj.card.name}$cost$types"
 }
 
-/** A target's label (CR 115.1): a player by name, or a battlefield permanent by name and id. */
+/**
+ * A target's label (CR 115.1): a player by name, a battlefield permanent by name and id, or a spell on
+ * the stack by name and id (CR 111.1). A spell whose stack entry has already gone is still labelled,
+ * opaquely — a stale target is exactly what the CR 608.2b re-check is about to fizzle, and hiding it
+ * would hide the reason.
+ */
 fun targetLabel(
     view: MatchView,
     target: Target,
@@ -123,5 +129,12 @@ fun targetLabel(
                 view.state.sharedZones.battlefield
                     .firstOrNull { it.id == target.id }
             if (obj != null) "${obj.card.name}#${target.id.value}" else "permanent#${target.id.value}"
+        }
+        is Target.SpellOnStack -> {
+            val spell =
+                view.state.sharedZones.stack
+                    .filterIsInstance<StackEntry.Spell>()
+                    .firstOrNull { it.obj.id == target.id }
+            if (spell != null) "${spell.obj.card.name}#${target.id.value}" else "spell#${target.id.value}"
         }
     }

@@ -28,9 +28,14 @@ internal fun renderTrigger(trigger: PendingTrigger): String =
 internal fun renderPendingMulligan(state: GameState): String =
     state.pendingMulligan?.let { "${it.deciding.seat}:${it.mulliganCount}:${it.stage.name}" } ?: "-"
 
-/** A canonical descriptor of a target (CR 115.1): a player by seat, or a permanent by object id. */
+/**
+ * A canonical descriptor of a target (CR 115.1): a player by seat, a permanent by object id, or a spell
+ * on the stack by its stack-residence object id. The two object kinds are rendered under distinct
+ * prefixes because their ids live in different zones and could otherwise collide in a fingerprint.
+ */
 internal fun renderTarget(target: Target): String =
     when (target) {
         is Target.Player -> "player${target.id.seat}"
         is Target.Permanent -> "permanent${target.id.value}"
+        is Target.SpellOnStack -> "spell${target.id.value}"
     }

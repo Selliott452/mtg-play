@@ -126,6 +126,9 @@ enum class DecisionRequestKind {
 
     /** [DecisionRequest.ChooseLibraryArrangement] — arrange privately looked-at cards (CR 701.14a, CR 701.17a). */
     CHOOSE_LIBRARY_ARRANGEMENT,
+
+    /** [DecisionRequest.ChooseCounterPayment] — a counter's "unless its controller pays" (CR 118.3a). */
+    CHOOSE_COUNTER_PAYMENT,
 }
 
 /**
@@ -160,6 +163,7 @@ private fun singleOptionSelectionKind(request: DecisionRequest.SingleOptionSelec
         is DecisionRequest.ChooseColor -> DecisionRequestKind.CHOOSE_COLOR
         is DecisionRequest.ChooseReplacement -> DecisionRequestKind.CHOOSE_REPLACEMENT
         is DecisionRequest.ChooseLibraryArrangement -> DecisionRequestKind.CHOOSE_LIBRARY_ARRANGEMENT
+        is DecisionRequest.ChooseCounterPayment -> DecisionRequestKind.CHOOSE_COUNTER_PAYMENT
     }
 
 /** The kind of one fixed-size subset selection (CR 514.1 / 601.2b/h / 602.2b). */

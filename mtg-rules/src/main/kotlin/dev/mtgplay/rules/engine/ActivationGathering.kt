@@ -97,7 +97,7 @@ internal fun pendingActivationRequest(state: GameState): DecisionRequest {
                 id = id,
                 cardObjectId = pending.sourceObjectId,
                 card = source.card,
-                options = legalTargets(state, ability.targetSpec, pending.activator),
+                options = legalTargets(state, ability.targetSpec, pending.activator, self = null),
             )
         pending.chosenDiscard == null ->
             DecisionRequest.ChooseAbilityDiscard(

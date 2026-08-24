@@ -49,15 +49,14 @@ private fun resolveSpell(
     state: GameState,
     entry: StackEntry.Spell,
 ): AdvanceResult {
-    val spec = entry.definition.targetSpec
-    if (allTargetsIllegal(state, spec, entry.targets, entry.controller)) {
-        // CR 608.2b: a spell that does not resolve is put into its owner's graveyard and never
-        // enters the battlefield, whatever its card type would have become — unless a flashback
-        // leave-stack replacement exiles it instead (CR 702.34e).
-        val (finished, finalId, exiled) = putResolvedSpellOffStack(state, entry)
-        val fizzled = finished.emit(GameEvent.SpellFizzled(entry.controller, entry.obj.id, entry.obj.card, finalId))
-        return grantPriorityRound(narrateLeaveStackExile(fizzled, entry, finalId, exiled))
-    }
+    // CR 608.2b precedes everything: a spell that does not resolve performs nothing at all. Then
+    // CR 118.3a's "unless its controller pays" is engine-orchestrated rather than a resolution effect,
+    // because the payment is a decision (ADR-004) — and because it comes *second*, a counter whose
+    // target has already gone fizzles and nobody is ever asked to pay.
+    val early =
+        fizzleSpell(state, entry)
+            ?: entry.definition.counterUnlessPaid?.let { orchestrateCounterUnlessPaid(state, entry, it) }
+    if (early != null) return early
     return if (isPermanentSpell(entry)) {
         // CR 614.12: a permanent that chooses a colour as it enters (Utopia Sprawl) pauses here for the
         // choice before it enters; the spell stays on top of the stack until the colour arrives.
@@ -75,10 +74,16 @@ private fun resolveSpell(
                     controller = entry.controller,
                     targets = entry.targets,
                     discardedForCost = entry.discardedForCost,
+                    source = entry.obj.id,
                 ),
             )
-        require(resolved.sharedZones.stack == state.sharedZones.stack) {
-            "CR 608.2m: a resolution effect must not move the resolving spell — that is the engine's move"
+        // Relaxed by `FW-COUNTER` from "the stack is unchanged" to what that assertion actually meant.
+        // A counter's whole job is to modify the stack (CR 701.5a), so the old form was false for every
+        // counter; what must still hold is that the effect did not move the **resolving** spell, whose
+        // CR 608.2m departure is the engine's move alone — and CR 608.1 says that spell is topmost.
+        require((resolved.sharedZones.stack.lastOrNull() as? StackEntry.Spell)?.obj?.id == entry.obj.id) {
+            "CR 608.2m: a resolution effect must not move the resolving spell off the top of the stack — " +
+                "that is the engine's move"
         }
         // A post-resolution clause may run last and pause for a mid-resolution decision; otherwise the spell
         // simply leaves the stack now. The dispatch is the shared `FW-CLAUSEHOOK` hook (ResolutionClauseHook.kt),
@@ -86,6 +91,26 @@ private fun resolveSpell(
         // [dev.mtgplay.core.definition.ResolutionClauses], not by a spell definition.
         orchestrateResolutionClauses(resolved, entry)
     }
+}
+
+/**
+ * The CR 608.2b removal of a spell whose every target is now illegal, or  when it resolves
+ * normally. Unlike an ability's fizzle, a card moves: the spell is put into its owner's graveyard and
+ * never enters the battlefield, whatever its card type would have become — unless a flashback
+ * leave-stack replacement exiles it instead (CR 702.34e).
+ */
+private fun fizzleSpell(
+    state: GameState,
+    entry: StackEntry.Spell,
+): AdvanceResult? {
+    val spec = entry.definition.targetSpec
+    if (!allTargetsIllegal(state, spec, entry.targets, entry.controller, entry.obj.id)) return null
+    val left = putResolvedSpellOffStack(state, entry)
+    val fizzled =
+        left.state.emit(
+            GameEvent.SpellFizzled(entry.controller, entry.obj.id, entry.obj.card, left.newObjectId),
+        )
+    return grantPriorityRound(narrateLeaveStackExile(fizzled, entry, left))
 }
 
 /**
@@ -97,25 +122,13 @@ internal fun completeInstantSorceryResolution(
     state: GameState,
     entry: StackEntry.Spell,
 ): AdvanceResult {
-    val (finished, finalId, exiled) = putResolvedSpellOffStack(state, entry)
-    val narrated = finished.emit(GameEvent.SpellResolved(entry.controller, entry.obj.id, entry.obj.card, finalId))
-    return grantPriorityRound(narrateLeaveStackExile(narrated, entry, finalId, exiled))
-}
-
-/** Emits the flashback exile-instead event (CR 702.34e) when the resolved spell left the stack to exile. */
-private fun narrateLeaveStackExile(
-    state: GameState,
-    entry: StackEntry.Spell,
-    finalObjectId: ObjectId,
-    exiled: Boolean,
-): GameState =
-    if (exiled) {
-        state.emit(
-            GameEvent.SpellExiledInsteadOfGraveyard(entry.controller, entry.obj.id, entry.obj.card, finalObjectId),
+    val left = putResolvedSpellOffStack(state, entry)
+    val narrated =
+        left.state.emit(
+            GameEvent.SpellResolved(entry.controller, entry.obj.id, entry.obj.card, left.newObjectId),
         )
-    } else {
-        state
-    }
+    return grantPriorityRound(narrateLeaveStackExile(narrated, entry, left))
+}
 
 /**
  * Whether [entry] is a permanent spell (CR 608.3): every card type in the MVP pool is either an
@@ -176,10 +189,10 @@ private fun auraAttachmentTargetOf(entry: StackEntry.Spell): ObjectId? =
     when (entry.definition.targetSpec) {
         TargetSpec.None,
         TargetSpec.AnyTarget,
-        TargetSpec.TargetCreature,
         TargetSpec.TargetPlayer,
         TargetSpec.TargetOpponent,
         is TargetSpec.TargetPermanent,
+        is TargetSpec.SpellOnStack,
         -> null
         is TargetSpec.Enchantable ->
             (entry.targets.singleOrNull() as? Target.Permanent)?.id
@@ -187,27 +200,14 @@ private fun auraAttachmentTargetOf(entry: StackEntry.Spell): ObjectId? =
     }
 
 /**
- * The CR 608.2m move for an instant or sorcery leaving the stack (on resolution or a fizzle): the
- * spell's card leaves the stack and is put on top of its owner's graveyard as a new object (CR 400.7)
- * — **unless** it was cast via a permission that exiles it instead as it leaves the stack (flashback,
- * CR 702.34e), in which case it goes to exile. Returns the new object's id and whether it was exiled;
- * the caller narrates the exile.
+ * The CR 608.2m move for an instant or sorcery leaving the stack **on resolution or a fizzle**: the
+ * topmost-ness assertion CR 608.1 licenses here, plus the shared, position-agnostic move
+ * ([putSpellOffStack]) that a counter (CR 701.5a) reaches from anywhere on the stack.
  */
 private fun putResolvedSpellOffStack(
     state: GameState,
     entry: StackEntry.Spell,
-): Triple<GameState, ObjectId, Boolean> {
-    val stack = state.sharedZones.stack
-    check(stack.lastOrNull() == entry) { "CR 608.1: only the topmost stack object may resolve" }
-    val exilesInstead = entry.castVia?.exilesOnLeaveStack == true
-    val (id, allocated) = state.allocateObjectId()
-    val reborn = entry.obj.copy(id = id)
-    val destacked = allocated.updateStack { it.removingAt(it.lastIndex) }
-    val moved =
-        if (exilesInstead) {
-            destacked.updateExile { it.adding(reborn) }
-        } else {
-            destacked.updatePlayer(entry.obj.owner) { it.copy(graveyard = it.graveyard.adding(reborn)) }
-        }
-    return Triple(moved, id, exilesInstead)
+): SpellLeftStack {
+    check(state.sharedZones.stack.lastOrNull() == entry) { "CR 608.1: only the topmost stack object may resolve" }
+    return putSpellOffStack(state, entry)
 }

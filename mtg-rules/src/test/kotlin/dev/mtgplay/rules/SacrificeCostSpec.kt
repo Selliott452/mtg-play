@@ -204,6 +204,7 @@ private fun burnFixture(
                 when (val target = context.targets.single()) {
                     is Target.Player -> loseLife(state, target.id, 4)
                     is Target.Permanent -> error("fixture unexpectedly targeted a permanent: $target")
+                    is Target.SpellOnStack -> error("fixture unexpectedly targeted a spell: $target")
                 }
             }
         override val castingPermissions = permissions

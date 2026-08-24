@@ -206,6 +206,14 @@ enum class Invariant {
      * each hang on a resolving object: whenever one is open, its decider is a seated player and the resolving
      * spell or activated ability is still on the stack (an empty stack would mean the pause outlived its
      * object). Cheap sanity guarding the new pending positions the fingerprint also digests.
+     *
+     * `FW-COUNTER` adds the unless-pay pause
+     * ([dev.mtgplay.core.state.GameState.pendingCounterPayment], Force Spike) with the same two
+     * properties plus one of its own: the spell it would counter is **still on the stack**. That is the
+     * whole of what the pause hangs on — the CR 608.2b re-check already ran, so a target that has gone
+     * means the engine entered the pause for a counter that should have fizzled. It is also the one
+     * pause whose decider is normally *not* the resolving object's controller, so "decider is seated"
+     * is a real check here rather than a restatement.
      */
     PENDING_RESOLUTION_SANITY,
 

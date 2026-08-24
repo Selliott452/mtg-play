@@ -205,6 +205,34 @@ sealed interface GameEvent {
     ) : GameEvent
 
     /**
+     * The spell [objectId], controlled by [controller], was **countered** (CR 701.5a) by
+     * [counteredBy]: it was removed from the stack so that it does not resolve, none of its
+     * instructions were performed, and the card was put into its owner's graveyard as the new object
+     * [graveyardObjectId] (CR 400.7) — or into exile, narrated by [SpellExiledInsteadOfGraveyard], if
+     * it was cast via flashback (CR 702.34e). Additive, flagged (`FW-COUNTER`,
+     * docs/design/countering-spells.md §3). Its costs stay paid (CR 701.5a): nothing is refunded, and
+     * the "whenever a player casts a spell" triggers that fired at CR 601.2i are unaffected.
+     *
+     * **Deliberately not [SpellFizzled], and deliberately not a flag on it.** The two produce the same
+     * state transition for entirely different reasons, and modern CR 608.2b drops the older "is
+     * countered" wording on purpose: a card that watches for "whenever a spell is countered" does not
+     * see a fizzle, and a spell that "can't be countered" still fizzles for want of a legal target.
+     * Nothing in this pool observes the difference — which is precisely the condition under which a
+     * wrong merge survives review and ships as silently-wrong-but-plausible behaviour.
+     *
+     * @property controller the countered spell's controller (CR 108.4), not the countering player.
+     * @property counteredBy the object id of the spell whose resolution countered it — the event log is
+     *   the narration surface, and "Counterspell countered Lightning Bolt" needs both halves.
+     */
+    data class SpellCountered(
+        val controller: PlayerId,
+        val objectId: ObjectId,
+        val card: CardRef,
+        val graveyardObjectId: ObjectId,
+        val counteredBy: ObjectId,
+    ) : GameEvent
+
+    /**
      * The permanent spell [objectId], controlled by [controller], resolved and entered the
      * battlefield (CR 608.3, CR 400.7): the resolving spell becomes a permanent under its
      * controller's control as the new battlefield object [battlefieldObjectId], summoning sick

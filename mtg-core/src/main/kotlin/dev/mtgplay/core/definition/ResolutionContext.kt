@@ -33,6 +33,13 @@ import kotlinx.collections.immutable.persistentListOf
  *   cost (CR 601.2b), in the order discarded; empty for a spell with no such cost. Additive, flagged
  *   core (P6.2a). The linked information Grab the Prize's resolution reads ("if the discarded card
  *   wasn't a land card"); supplied from [dev.mtgplay.core.state.StackEntry.Spell.discardedForCost].
+ * @property source the resolving object's **own** identity: a spell's stack-residence object id
+ *   (CR 400.7), an activated or triggered ability's source object id as of activation or firing
+ *   (CR 113.7c last-known information), or `null` where the engine has none to give. Additive, flagged
+ *   core (`FW-COUNTER`, docs/design/countering-spells.md §2). An effect needs this the moment its
+ *   outcome names the object performing it rather than only the object performed upon — countering,
+ *   whose `SpellCountered` event narrates *what* countered *what*. Distinct from [subject], which is a
+ *   further object the effect acts *on*.
  */
 data class ResolutionContext(
     val controller: PlayerId,
@@ -40,4 +47,5 @@ data class ResolutionContext(
     val amount: Int = 0,
     val subject: ObjectId? = null,
     val discardedForCost: PersistentList<CardRef> = persistentListOf(),
+    val source: ObjectId? = null,
 )

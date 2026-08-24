@@ -6,6 +6,7 @@ import dev.mtgplay.core.definition.CastSource
 import dev.mtgplay.core.definition.SpellDefinition
 import dev.mtgplay.core.definition.TargetSpec
 import dev.mtgplay.core.definition.TimingClass
+import dev.mtgplay.core.identity.ObjectId
 import dev.mtgplay.core.identity.PlayerId
 import dev.mtgplay.core.mana.ManaCost
 import dev.mtgplay.core.state.GameState
@@ -118,10 +119,10 @@ private fun castIsLegal(
     state: GameState,
     seat: PlayerId,
     definition: SpellDefinition,
-    castObjectId: dev.mtgplay.core.identity.ObjectId,
+    castObjectId: ObjectId,
 ): Boolean =
     timingPermitsCast(state, seat, definition.timing) &&
-        targetsAvailable(state, definition.targetSpec, seat) &&
+        targetsAvailable(state, definition.targetSpec, seat, self = castObjectId) &&
         additionalDiscardSatisfiable(state, seat, definition, castObjectId, CastSource.HAND) &&
         enumeratePaymentPlans(state, seat, castableCost(definition)).isNotEmpty()
 
@@ -152,25 +153,32 @@ internal fun timingPermitsCast(
     }
 
 /**
- * Whether every target [spec] requires has at least one legal choice for caster [seat] (CR 601.2c):
- * a spell that cannot be fully targeted cannot legally be cast, so it is excluded from enumeration
- * (ADR-005) rather than allowed to dead-end mid-pipeline. An Aura whose enchant restriction matches
- * no battlefield object (CR 303.4a) is likewise uncastable, as is a removal spell whose
- * [TargetSpec.TargetPermanent] restriction matches nothing on the battlefield — Terminate is simply
- * not an option with no creature in play.
+ * Whether every target [spec] requires has at least one legal choice for caster or activator [seat]
+ * (CR 601.2c): a spell or ability that cannot be fully targeted cannot legally be cast or activated, so
+ * it is excluded from enumeration (ADR-005) rather than allowed to dead-end mid-pipeline. An Aura whose
+ * enchant restriction matches no battlefield object (CR 303.4a) is likewise uncastable, as is a removal
+ * spell whose [TargetSpec.TargetPermanent] restriction matches nothing on the battlefield — Terminate is
+ * simply not an option with no creature in play — and a counter with no legal spell on the stack, which
+ * is the first spec whose answer changes several times inside one priority round.
+ *
+ * [self] is the object that would be doing the choosing, excluded from its own enumeration; `null` where
+ * the caller has none. It never changes the answer at *enumeration* time — the card is still in its
+ * source zone and so is not on the stack — but naming it keeps every call site honest about the identity
+ * whose absence CR 601.2c's re-validation later depends on.
  */
 internal fun targetsAvailable(
     state: GameState,
     spec: TargetSpec,
     seat: PlayerId,
+    self: ObjectId?,
 ): Boolean =
     when (spec) {
         TargetSpec.None -> true
         TargetSpec.AnyTarget,
-        TargetSpec.TargetCreature,
         TargetSpec.TargetPlayer,
         TargetSpec.TargetOpponent,
         is TargetSpec.TargetPermanent,
         is TargetSpec.Enchantable,
-        -> legalTargets(state, spec, seat).isNotEmpty()
+        is TargetSpec.SpellOnStack,
+        -> legalTargets(state, spec, seat, self = self).isNotEmpty()
     }

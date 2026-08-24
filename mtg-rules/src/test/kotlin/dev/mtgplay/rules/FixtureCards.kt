@@ -84,6 +84,7 @@ private fun targetPlayerLosesLife(amount: Int): ResolutionEffect =
             // These fixtures target players only (TargetSpec.AnyTarget enumerates players in the
             // P2.x pool); a permanent target reaching here is an engine defect, not a silent case.
             is Target.Permanent -> error("fixture $target unexpectedly targeted a permanent")
+            is Target.SpellOnStack -> error("fixture $target unexpectedly targeted a spell on the stack")
         }
     }
 

@@ -85,6 +85,14 @@ import dev.mtgplay.core.identity.CardRef
  * siblings from the same triage row stay absent, each on a *different* missing framework: Lembas needs
  * `FW-SHUFFLEIN`, Conduit Pylons needs surveil (CR 701.44) plus `FW-MANA`, and Giant's Boulder — a scry 2
  * card, not the surveil card it is sometimes filed as — needs `FW-MANA` and a targeted destroy ability.
+ * The `FW-COUNTER` packet adds the gauntlet's eight pure counters (Counters.kt): [counterspell],
+ * [dispel], [negate], [annul], [envelop], and [removeSoul], plus the two unless-pay counters
+ * [forceSpike] and [spellPierce]. They are the first cards to target a **spell on the stack**
+ * (`TargetSpec.SpellOnStack`) and the first clients of the CR 701.5a counter primitive; [forceSpike]
+ * and [spellPierce] additionally open the first decision this engine puts to someone other than the
+ * resolving spell's controller (CR 118.3a). Their siblings are deliberately absent: the Blasts and Steel
+ * Sabotage need modes (CR 700.2), Prohibit needs kicker (CR 702.33), and Spellstutter Sprite needs a
+ * *triggered* ability with a dynamic target restriction (docs/design/countering-spells.md §11).
  *
  * [definitions] is shaped for direct `MatchConfig.definitions` consumption: the engine carries
  * it into `GameState` in canonical name-sorted order regardless of this map's own order
@@ -98,21 +106,26 @@ object MvpCards {
             abundantGrowth,
             ancestralMask,
             ancientGrudge,
+            annul,
             armadilloCloak,
             ashBarrens,
             brainstorm,
             breathWeapon,
             cartoucheOfSolidarity,
             castDown,
+            counterspell,
+            dispel,
             drossforgeBridge,
             elvishMystic,
             endTheFestivities,
+            envelop,
             etherealArmor,
             expeditionMap,
             faerieSeer,
             faithlessLooting,
             fieryTemper,
             fireblast,
+            forceSpike,
             forest,
             fyndhornElves,
             galvanicBlast,
@@ -145,12 +158,14 @@ object MvpCards {
             mistvaultBridge,
             mountain,
             murmuringMystic,
+            negate,
             outlawMedic,
             plains,
             ponder,
             preordain,
             pursueThePast,
             rancor,
+            removeSoul,
             scourFromExistence,
             seaGateOracle,
             seatOfTheSynod,
@@ -165,6 +180,7 @@ object MvpCards {
             snowCoveredIsland,
             snowCoveredMountain,
             snowCoveredPlains,
+            spellPierce,
             spinewoodsPaladin,
             spiritLink,
             standingTroops,

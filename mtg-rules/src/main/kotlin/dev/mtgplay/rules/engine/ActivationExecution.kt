@@ -108,7 +108,7 @@ private fun establishActivationTargets(
         "CR 601.2c: ${entry.sourceCard.name}'s ability demands exactly one target, got ${entry.targets}"
     }
     entry.targets.forEach { target ->
-        require(isTargetLegal(state, spec, target, entry.controller)) {
+        require(isTargetLegal(state, spec, target, entry.controller, self = null)) {
             "CR 601.2c: $target is not a legal target for ${entry.sourceCard.name}'s ability"
         }
     }
@@ -124,7 +124,10 @@ private fun fizzleActivatedAbility(
     state: GameState,
     entry: StackEntry.ActivatedAbilityOnStack,
 ): AdvanceResult? {
-    if (!allTargetsIllegal(state, entry.ability.targetSpec, entry.targets, entry.controller)) return null
+    // CR 113.7a: an ability on the stack is not a card and has no residence id, so it excludes nothing.
+    if (!allTargetsIllegal(state, entry.ability.targetSpec, entry.targets, entry.controller, self = null)) {
+        return null
+    }
     val removed = state.updateStack { it.removingAt(it.lastIndex) }
     return grantPriorityRound(
         removed.emit(GameEvent.AbilityFizzled(entry.controller, entry.sourceCard, triggered = false)),
@@ -199,7 +202,8 @@ internal fun resolveActivatedAbility(
         fizzleActivatedAbility(state, entry)
             ?: entry.ability.librarySearch?.let { orchestrateLibrarySearch(state, entry, it) }
     if (early != null) return early
-    val resolved = entry.ability.effect.resolve(state, ResolutionContext(entry.controller, entry.targets))
+    val context = ResolutionContext(entry.controller, entry.targets, source = entry.sourceId)
+    val resolved = entry.ability.effect.resolve(state, context)
     require(resolved.sharedZones.stack == state.sharedZones.stack) {
         "CR 113.7a: an activated ability's effect performs its instructions but does not move the ability " +
             "off the stack — that cessation is the engine's move"

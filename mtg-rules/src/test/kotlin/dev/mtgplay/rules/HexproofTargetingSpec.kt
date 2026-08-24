@@ -35,7 +35,7 @@ class HexproofTargetingSpec :
             val aliceWarden = Target.Permanent(state.creatureOf("Warden", alice).id)
             val bobWarden = Target.Permanent(state.creatureOf("Warden", bob).id)
 
-            val aliceTargets = legalTargets(state, TargetSpec.AnyTarget, alice)
+            val aliceTargets = legalTargets(state, TargetSpec.AnyTarget, alice, self = null)
             // alice may target her own hexproof Warden, but not bob's.
             aliceTargets shouldContain aliceWarden
             aliceTargets shouldNotContain bobWarden
@@ -45,7 +45,7 @@ class HexproofTargetingSpec :
             aliceTargets shouldContain Target.Player(bob)
 
             // The exclusion is symmetric: bob may target his own Warden, not alice's.
-            val bobTargets = legalTargets(state, TargetSpec.AnyTarget, bob)
+            val bobTargets = legalTargets(state, TargetSpec.AnyTarget, bob, self = null)
             bobTargets shouldContain bobWarden
             bobTargets shouldNotContain aliceWarden
         }
@@ -53,7 +53,7 @@ class HexproofTargetingSpec :
         "CR 702.11 and 601.2c: an Aura can enchant its own hexproof creature but not an opponent's" {
             val state = board()
             val enchantable = TargetSpec.Enchantable(EnchantRestriction.CREATURE)
-            val aliceTargets = legalTargets(state, enchantable, alice)
+            val aliceTargets = legalTargets(state, enchantable, alice, self = null)
 
             // The Bogles strategy: alice enchants her own hexproof Warden…
             aliceTargets shouldContain Target.Permanent(state.creatureOf("Warden", alice).id)
@@ -75,15 +75,15 @@ class HexproofTargetingSpec :
             val grantedHexproof = Target.Permanent(state.creatureOf("Ogre", bob).id)
 
             // alice (bob's opponent) can no longer target the now-hexproof Ogre…
-            legalTargets(state, TargetSpec.AnyTarget, alice) shouldNotContain grantedHexproof
+            legalTargets(state, TargetSpec.AnyTarget, alice, self = null) shouldNotContain grantedHexproof
             // …but bob still can (his own object).
-            legalTargets(state, TargetSpec.AnyTarget, bob) shouldContain grantedHexproof
+            legalTargets(state, TargetSpec.AnyTarget, bob, self = null) shouldContain grantedHexproof
         }
 
         "enumeration completeness: removing the hexproof grant makes the creature targetable by the opponent again" {
             // Same board without the aura: the printed-plain Ogre is targetable by alice.
             val state = keywordState(listOf(combatObject(0, "Ogre", bob)))
-            legalTargets(state, TargetSpec.AnyTarget, alice) shouldContain
+            legalTargets(state, TargetSpec.AnyTarget, alice, self = null) shouldContain
                 Target.Permanent(state.creatureOf("Ogre", bob).id)
         }
     })

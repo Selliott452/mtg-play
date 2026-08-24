@@ -61,6 +61,7 @@ fun viewFor(
             pendingLibrarySearch = state.pendingLibrarySearch,
             pendingLibraryLook = state.pendingLibraryLook?.let { lookViewOf(state, it) },
             pendingTriggerTargets = state.pendingTriggerTargets,
+            pendingCounterPayment = state.pendingCounterPayment,
         )
     return projected.copy(cards = cardsOf(state.definitions, visibleCardRefs(projected)))
 }
