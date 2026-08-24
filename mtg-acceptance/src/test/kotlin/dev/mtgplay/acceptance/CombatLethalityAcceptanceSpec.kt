@@ -124,6 +124,8 @@ private val ALL_OUT_ATTACK: Responder =
                 error("the all-out-attack policy resolves no cost-then-draw spells, but one surfaced: $request")
             is DecisionRequest.ChooseFromLibrary ->
                 error("the all-out-attack policy activates no library searches, but one surfaced: $request")
+            is DecisionRequest.ChooseLibraryArrangement ->
+                error("the all-out-attack policy resolves no library looks, but one surfaced: $request")
             is DecisionRequest.MulliganRequest ->
                 error("the all-out-attack policy runs mulligan-free games, but a mulligan request surfaced: $request")
         }

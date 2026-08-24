@@ -25,7 +25,7 @@ class RandomRemoteAgent(
 ) : RemoteAgent {
     private var rng: Rng = Rng(seed)
 
-    /** Picks a legal [DecisionDto] for [request]. Dispatch is grouped by the DTO's four families to stay flat. */
+    /** Picks a legal [DecisionDto] for [request]. Dispatch is grouped by the DTO's five families to stay flat. */
     override fun decide(request: DecisionRequestDto): DecisionDto =
         when (request) {
             is DecisionRequestDto.SizedSelectionDto -> sizedSelection(request)
@@ -33,12 +33,9 @@ class RandomRemoteAgent(
             is DecisionRequestDto.ChoiceCountSelectionDto -> singleSelect(request.id, choiceCount(request))
             is DecisionRequestDto.MulliganRequestDto -> mulligan(request)
             is DecisionRequestDto.ChooseAction -> singleSelect(request.id, request.options.size)
-            is DecisionRequestDto.ChooseTargets -> singleSelect(request.id, request.options.size)
-            is DecisionRequestDto.ChoosePaymentPlan -> singleSelect(request.id, request.options.size)
-            is DecisionRequestDto.AssignTrampleDamage -> singleSelect(request.id, request.options.size)
+            // Every "pick exactly one of these options" request is a uniform pick over its own options.
+            is DecisionRequestDto.SingleOptionSelectionDto -> singleSelect(request.id, singleOptionCount(request))
             is DecisionRequestDto.ChooseYesNo -> singleSelect(request.id, YES_NO_OPTION_COUNT)
-            is DecisionRequestDto.ChooseColor -> singleSelect(request.id, request.options.size)
-            is DecisionRequestDto.ChooseReplacement -> singleSelect(request.id, request.options.size)
             is DecisionRequestDto.DeclareAttackers -> anySubset(request.id, request.options.size)
             is DecisionRequestDto.DeclareBlockers -> blockAssignment(request.id, request.options)
         }
@@ -68,6 +65,17 @@ class RandomRemoteAgent(
             }
         return DecisionDto.MultiSelect(request.id, subset(size, size))
     }
+
+    // The number of options a "pick exactly one of these" request offers (no opt-out index).
+    private fun singleOptionCount(request: DecisionRequestDto.SingleOptionSelectionDto): Int =
+        when (request) {
+            is DecisionRequestDto.ChooseTargets -> request.options.size
+            is DecisionRequestDto.ChoosePaymentPlan -> request.options.size
+            is DecisionRequestDto.AssignTrampleDamage -> request.options.size
+            is DecisionRequestDto.ChooseColor -> request.options.size
+            is DecisionRequestDto.ChooseReplacement -> request.options.size
+            is DecisionRequestDto.ChooseLibraryArrangement -> request.options.size
+        }
 
     // The number of selectable indices of a "choose one, or opt out" request (real options + one opt-out).
     private fun choiceCount(request: DecisionRequestDto.ChoiceCountSelectionDto): Int =

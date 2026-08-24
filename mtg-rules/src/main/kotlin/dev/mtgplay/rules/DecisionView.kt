@@ -8,9 +8,11 @@ import dev.mtgplay.rules.decision.DecisionRequest
  * request is part of *its* view context, while every other seat sees only who decides and the broad
  * kind — never another seat's private option contents.
  *
- * Only one request kind has options that are intrinsically secret from a non-deciding seat: a
+ * Two request kinds have options that are intrinsically secret from a non-deciding seat: a
  * library search ([DecisionRequestKind.CHOOSE_FROM_LIBRARY]) exposes matching library cards, which
- * are secret mid-search (CR 701.18). Several other kinds enumerate the deciding seat's own hand
+ * are secret mid-search (CR 701.18), and a library arrangement
+ * ([DecisionRequestKind.CHOOSE_LIBRARY_ARRANGEMENT]) exposes privately *looked at* cards, which no other
+ * player ever sees (CR 701.14a). Several other kinds enumerate the deciding seat's own hand
  * (the cleanup/cost/resolution discards, mulligan bottoming) — equally private to an opponent. So
  * the general principle is encoded rather than special-casing library search: a non-deciding seat
  * receives no request options at all, only [Elsewhere]. No information is lost by this — the public
@@ -46,7 +48,7 @@ sealed interface DecisionView {
  * non-deciding seat in [DecisionView.Elsewhere] so it knows *what* choice is pending without seeing
  * the private options.
  *
- * Exhaustive with [DecisionRequest]'s 24 leaves: [kindOf] `when`s over every leaf, so a new request
+ * Exhaustive with [DecisionRequest]'s 25 leaves: [kindOf] `when`s over every leaf, so a new request
  * kind breaks compilation here until it is classified.
  */
 enum class DecisionRequestKind {
@@ -121,6 +123,9 @@ enum class DecisionRequestKind {
 
     /** [DecisionRequest.ChooseFromLibrary] — find one from a library search (CR 701.18). */
     CHOOSE_FROM_LIBRARY,
+
+    /** [DecisionRequest.ChooseLibraryArrangement] — arrange privately looked-at cards (CR 701.14a, CR 701.17a). */
+    CHOOSE_LIBRARY_ARRANGEMENT,
 }
 
 /**
@@ -128,26 +133,33 @@ enum class DecisionRequestKind {
  * new [DecisionRequest] kind forces a classification here or in one of the family helpers below.
  *
  * Dispatch is grouped by [DecisionRequest]'s sealed sub-interfaces (mirroring the engine's own
- * decision-application idiom), keeping this top-level `when` flat: the four families
+ * decision-application idiom), keeping this top-level `when` flat: the five families
  * ([DecisionRequest.SizedSelection], [DecisionRequest.PermutationSelection],
- * [DecisionRequest.ChoiceCountSelection], [DecisionRequest.MulliganRequest]) delegate to a helper,
- * and the standalone leaves map directly.
+ * [DecisionRequest.ChoiceCountSelection], [DecisionRequest.SingleOptionSelection],
+ * [DecisionRequest.MulliganRequest]) delegate to a helper, and the standalone leaves map directly.
  */
 fun kindOf(request: DecisionRequest): DecisionRequestKind =
     when (request) {
         is DecisionRequest.ChooseAction -> DecisionRequestKind.CHOOSE_ACTION
-        is DecisionRequest.ChooseTargets -> DecisionRequestKind.CHOOSE_TARGETS
-        is DecisionRequest.ChoosePaymentPlan -> DecisionRequestKind.CHOOSE_PAYMENT_PLAN
         is DecisionRequest.DeclareAttackers -> DecisionRequestKind.DECLARE_ATTACKERS
         is DecisionRequest.DeclareBlockers -> DecisionRequestKind.DECLARE_BLOCKERS
-        is DecisionRequest.AssignTrampleDamage -> DecisionRequestKind.ASSIGN_TRAMPLE_DAMAGE
         is DecisionRequest.ChooseYesNo -> DecisionRequestKind.CHOOSE_YES_NO
-        is DecisionRequest.ChooseColor -> DecisionRequestKind.CHOOSE_COLOR
-        is DecisionRequest.ChooseReplacement -> DecisionRequestKind.CHOOSE_REPLACEMENT
+        is DecisionRequest.SingleOptionSelection -> singleOptionSelectionKind(request)
         is DecisionRequest.SizedSelection -> sizedSelectionKind(request)
         is DecisionRequest.PermutationSelection -> permutationSelectionKind(request)
         is DecisionRequest.ChoiceCountSelection -> choiceCountSelectionKind(request)
         is DecisionRequest.MulliganRequest -> mulliganRequestKind(request)
+    }
+
+/** The kind of one "pick exactly one option" request (CR 601.2c / 601.2g / 702.19e / 614.12 / 616.1 / 701.17a). */
+private fun singleOptionSelectionKind(request: DecisionRequest.SingleOptionSelection): DecisionRequestKind =
+    when (request) {
+        is DecisionRequest.ChooseTargets -> DecisionRequestKind.CHOOSE_TARGETS
+        is DecisionRequest.ChoosePaymentPlan -> DecisionRequestKind.CHOOSE_PAYMENT_PLAN
+        is DecisionRequest.AssignTrampleDamage -> DecisionRequestKind.ASSIGN_TRAMPLE_DAMAGE
+        is DecisionRequest.ChooseColor -> DecisionRequestKind.CHOOSE_COLOR
+        is DecisionRequest.ChooseReplacement -> DecisionRequestKind.CHOOSE_REPLACEMENT
+        is DecisionRequest.ChooseLibraryArrangement -> DecisionRequestKind.CHOOSE_LIBRARY_ARRANGEMENT
     }
 
 /** The kind of one fixed-size subset selection (CR 514.1 / 601.2b/h / 602.2b). */

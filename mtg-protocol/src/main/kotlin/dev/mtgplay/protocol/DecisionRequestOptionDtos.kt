@@ -73,3 +73,19 @@ data class TriggerOptionDto(
 data class ReplacementOptionDto(
     val description: String,
 )
+
+/**
+ * One complete arrangement of a privately looked-at pool (CR 701.14a, CR 701.17a). Each list holds
+ * **indices into the request's `pool`**, and the three together cover every pool index exactly once.
+ *
+ * @property toHand the cards put into the deciding seat's hand, in the order they enter it.
+ * @property toTop the cards put on top of the library, topmost first.
+ * @property toBottom the cards put on the bottom of the library, in placement order — the first ends up
+ *   above the last.
+ */
+@Serializable
+data class LibraryArrangementDto(
+    val toHand: List<Int>,
+    val toTop: List<Int>,
+    val toBottom: List<Int>,
+)

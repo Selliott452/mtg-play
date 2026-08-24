@@ -488,6 +488,34 @@ sealed interface GameEvent {
     ) : GameEvent
 
     /**
+     * [player] **looked at** [count] cards privately as part of a resolving effect (CR 701.14a) — a scry,
+     * Ponder's top three, Impulse's top four. Added with `FW-LIBLOOK` (docs/design/library-look.md). The
+     * deliberate counterpart of [CardsRevealed]: a look is seen by its controller and *no other player*, so
+     * only the count is recorded here, never the identities. That a look happened and over how many cards
+     * is publicly observable at the table; what was seen is not.
+     */
+    data class CardsLookedAt(
+        val player: PlayerId,
+        val count: Int,
+    ) : GameEvent
+
+    /**
+     * [player] put [card] onto their library from another zone as the new object [objectId] (CR 400.7) —
+     * Brainstorm's "put two cards from your hand on top of your library". Added with `FW-LIBLOOK`. Emitted
+     * once per card, in the order placed. [onTop] distinguishes the top of the library from the bottom.
+     *
+     * Only a **zone change** is narrated: a card the same effect merely reorders *within* the library (a
+     * scry's top and bottom groups) has not moved zones, keeps its object id, and is deliberately silent,
+     * since its new position is private to the player who chose it (CR 701.14a).
+     */
+    data class CardPutOnLibrary(
+        val player: PlayerId,
+        val objectId: ObjectId,
+        val card: CardRef,
+        val onTop: Boolean,
+    ) : GameEvent
+
+    /**
      * A card was plotted (CR 702.140): [player] paid its plot cost and exiled [card] from their hand as
      * the new exile object [objectId] (CR 400.7), marked plotted this turn
      * ([dev.mtgplay.core.state.GameObject.plottedTurn]). Added in P6.2a — the card may be cast for free

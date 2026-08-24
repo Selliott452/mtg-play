@@ -30,7 +30,7 @@ import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 
 /**
- * The schema round-trip (ADR-008): every one of the 24 [DecisionRequest] kinds, and every
+ * The schema round-trip (ADR-008): every one of the 25 [DecisionRequest] kinds, and every
  * [Decision] shape, survives engine value -> DTO -> JSON -> DTO -> engine value unchanged, through
  * the strict [ProtocolJson] codec. The `allRequests` fixture is asserted to cover every kind, so the
  * exhaustive mapping is exercised end to end.
@@ -268,5 +268,24 @@ private val allRequests: List<DecisionRequest> =
         DecisionRequest.ChooseFromLibrary(
             ID,
             listOf(DecisionRequest.ChooseFromLibrary.Option(ObjectId(1), CardRef("Mountain"))),
+        ),
+        // CR 701.17a: a scry 2's six arrangements over a two-card pool, the framework's smallest real space.
+        DecisionRequest.ChooseLibraryArrangement(
+            ID,
+            prompt = "Scry 2",
+            pool =
+                listOf(
+                    DecisionRequest.ChooseLibraryArrangement.PoolCard(ObjectId(1), CardRef("Mountain")),
+                    DecisionRequest.ChooseLibraryArrangement.PoolCard(ObjectId(2), CardRef("Bog")),
+                ),
+            options =
+                listOf(
+                    DecisionRequest.ChooseLibraryArrangement.Option(emptyList(), listOf(0, 1), emptyList()),
+                    DecisionRequest.ChooseLibraryArrangement.Option(emptyList(), listOf(1, 0), emptyList()),
+                    DecisionRequest.ChooseLibraryArrangement.Option(emptyList(), listOf(1), listOf(0)),
+                    DecisionRequest.ChooseLibraryArrangement.Option(emptyList(), listOf(0), listOf(1)),
+                    DecisionRequest.ChooseLibraryArrangement.Option(emptyList(), emptyList(), listOf(0, 1)),
+                    DecisionRequest.ChooseLibraryArrangement.Option(emptyList(), emptyList(), listOf(1, 0)),
+                ),
         ),
     )

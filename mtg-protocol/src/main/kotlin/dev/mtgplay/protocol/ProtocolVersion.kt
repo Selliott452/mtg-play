@@ -31,5 +31,14 @@ package dev.mtgplay.protocol
  * [DecisionRequestKindDto] and every request DTO keep their shape. That makes the break narrower than
  * P8.3's — but it is still a break, and the recorded standard is to say so with a major bump rather
  * than to argue that nobody is listening.
+ *
+ * **4.0.0 — `FW-LIBLOOK`** (docs/design/library-look.md §10). Cards can now look at a library privately
+ * and arrange what they saw, which breaks the wire in **both** directions. Server→client, [SeatViewDto]
+ * gains a required `pendingLibraryLook`, which a `3.0.0` peer's strict codec would reject outright. And
+ * — unlike `FW-ABILTGT` — this framework *does* add a `DecisionRequest` kind: [DecisionRequestDto] gains
+ * [DecisionRequestDto.ChooseLibraryArrangement] and [DecisionRequestKindDto] gains
+ * `CHOOSE_LIBRARY_ARRANGEMENT`, whose `valueOf` mapping fails at **runtime** rather than at compile
+ * time, so an old peer meets it as a decode exception mid-match. That is the sharper of the two break
+ * modes and a strictly larger break than `3.0.0`'s, so the major bump is not a judgement call.
  */
-const val PROTOCOL_VERSION: String = "3.0.0"
+const val PROTOCOL_VERSION: String = "4.0.0"

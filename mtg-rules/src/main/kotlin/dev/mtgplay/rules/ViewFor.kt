@@ -58,6 +58,7 @@ fun viewFor(
             pendingOptionalCostDraw = state.pendingOptionalCostDraw,
             pendingResolutionDiscard = state.pendingResolutionDiscard,
             pendingLibrarySearch = state.pendingLibrarySearch,
+            pendingLibraryLook = state.pendingLibraryLook?.let { lookViewOf(state, it) },
             pendingTriggerTargets = state.pendingTriggerTargets,
         )
     return projected.copy(cards = cardsOf(state.definitions, visibleCardRefs(projected)))
@@ -124,6 +125,28 @@ private fun pendingTriggerViewOf(trigger: PendingTrigger): PendingTriggerView =
         amount = trigger.amount,
         subject = trigger.subject,
     )
+
+/**
+ * Projects a [PendingLibraryLook] onto its count-only [PendingLibraryLookView] (ADR-007, CR 701.14a) —
+ * the deliberate opposite of [revealViewOf]. A reveal resolves its ids to identities because CR 701.16a
+ * shows them to everyone; a look resolves nothing, and does not even carry the ids across, because
+ * CR 701.14a shows them to the looking player alone (docs/design/library-look.md §3). The source zone is
+ * read from the resolving spell's clause, which is public — an opponent watches which zone was touched.
+ */
+private fun lookViewOf(
+    state: GameState,
+    look: dev.mtgplay.core.state.PendingLibraryLook,
+): PendingLibraryLookView {
+    val clause =
+        (state.sharedZones.stack.lastOrNull() as? StackEntry.Spell)?.definition?.libraryLook
+            ?: error("CR 701.14a: a pending look requires a resolving spell with a look clause on the stack")
+    return PendingLibraryLookView(
+        decider = look.decider,
+        source = clause.mode.source,
+        count = look.poolIds.size,
+        awaitingShuffle = look.awaitingShuffle,
+    )
+}
 
 /**
  * Resolves a [PendingRevealSelection] into a [PendingRevealView], exposing the revealed cards — and

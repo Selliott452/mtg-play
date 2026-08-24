@@ -7,7 +7,7 @@ import dev.mtgplay.rules.decision.DecisionRequest
 
 /*
  * DTO -> engine half of the exhaustive [DecisionRequest] mapping (ADR-008 amendment). Dispatch is
- * grouped by the four sealed families so every `when` stays flat and a new request kind breaks
+ * grouped by the five sealed families so every `when` stays flat and a new request kind breaks
  * compilation. The engine -> DTO half is in DecisionRequestToDto.kt.
  */
 
@@ -16,46 +16,11 @@ fun DecisionRequestDto.toDomain(): DecisionRequest =
     when (this) {
         is DecisionRequestDto.ChooseAction ->
             DecisionRequest.ChooseAction(id.toDomain(), options.map { it.toDomain() })
-        is DecisionRequestDto.ChooseTargets ->
-            DecisionRequest.ChooseTargets(
-                id.toDomain(),
-                ObjectId(cardObjectId),
-                CardRef(card),
-                options.map { it.toDomain() },
-            )
-        is DecisionRequestDto.ChoosePaymentPlan ->
-            DecisionRequest.ChoosePaymentPlan(
-                id.toDomain(),
-                ObjectId(cardObjectId),
-                CardRef(card),
-                options.map { it.toDomain() },
-            )
         is DecisionRequestDto.DeclareAttackers -> declareAttackersToDomain(this)
         is DecisionRequestDto.DeclareBlockers -> declareBlockersToDomain(this)
-        is DecisionRequestDto.AssignTrampleDamage ->
-            DecisionRequest.AssignTrampleDamage(
-                id.toDomain(),
-                ObjectId(attacker),
-                CardRef(attackerCard),
-                PlayerId(defendingPlayer),
-                options,
-            )
         is DecisionRequestDto.ChooseYesNo ->
             DecisionRequest.ChooseYesNo(id.toDomain(), prompt, ObjectId(cardObjectId), CardRef(card))
-        is DecisionRequestDto.ChooseColor ->
-            DecisionRequest.ChooseColor(
-                id.toDomain(),
-                ObjectId(cardObjectId),
-                CardRef(card),
-                options.map { it.toDomain() },
-            )
-        is DecisionRequestDto.ChooseReplacement ->
-            DecisionRequest.ChooseReplacement(
-                id.toDomain(),
-                options.map {
-                    DecisionRequest.ChooseReplacement.Option(it.description)
-                },
-            )
+        is DecisionRequestDto.SingleOptionSelectionDto -> singleOptionSelectionToDomain(this)
         is DecisionRequestDto.SizedSelectionDto -> sizedSelectionToDomain(this)
         is DecisionRequestDto.PermutationSelectionDto -> permutationSelectionToDomain(this)
         is DecisionRequestDto.ChoiceCountSelectionDto -> choiceCountSelectionToDomain(this)
@@ -86,6 +51,54 @@ private fun declareBlockersToDomain(dto: DecisionRequestDto.DeclareBlockers): De
             )
         },
     )
+
+/** The "pick exactly one of these options" family (CR 601.2c/601.2g/702.19e/614.12/616.1/701.17a). */
+private fun singleOptionSelectionToDomain(dto: DecisionRequestDto.SingleOptionSelectionDto): DecisionRequest =
+    when (dto) {
+        is DecisionRequestDto.ChooseTargets ->
+            DecisionRequest.ChooseTargets(
+                dto.id.toDomain(),
+                ObjectId(dto.cardObjectId),
+                CardRef(dto.card),
+                dto.options.map { it.toDomain() },
+            )
+        is DecisionRequestDto.ChoosePaymentPlan ->
+            DecisionRequest.ChoosePaymentPlan(
+                dto.id.toDomain(),
+                ObjectId(dto.cardObjectId),
+                CardRef(dto.card),
+                dto.options.map { it.toDomain() },
+            )
+        is DecisionRequestDto.AssignTrampleDamage ->
+            DecisionRequest.AssignTrampleDamage(
+                dto.id.toDomain(),
+                ObjectId(dto.attacker),
+                CardRef(dto.attackerCard),
+                PlayerId(dto.defendingPlayer),
+                dto.options,
+            )
+        is DecisionRequestDto.ChooseColor ->
+            DecisionRequest.ChooseColor(
+                dto.id.toDomain(),
+                ObjectId(dto.cardObjectId),
+                CardRef(dto.card),
+                dto.options.map { it.toDomain() },
+            )
+        is DecisionRequestDto.ChooseReplacement ->
+            DecisionRequest.ChooseReplacement(
+                dto.id.toDomain(),
+                dto.options.map { DecisionRequest.ChooseReplacement.Option(it.description) },
+            )
+        is DecisionRequestDto.ChooseLibraryArrangement ->
+            DecisionRequest.ChooseLibraryArrangement(
+                dto.id.toDomain(),
+                dto.prompt,
+                dto.pool.mapOptions { o, c -> DecisionRequest.ChooseLibraryArrangement.PoolCard(o, c) },
+                dto.options.map {
+                    DecisionRequest.ChooseLibraryArrangement.Option(it.toHand, it.toTop, it.toBottom)
+                },
+            )
+    }
 
 private fun sizedSelectionToDomain(dto: DecisionRequestDto.SizedSelectionDto): DecisionRequest =
     when (dto) {

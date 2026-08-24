@@ -128,7 +128,8 @@ private fun gatheringPauseRequest(
  * (CR 614.12), a reveal-keep-one (CR 701.16), a CR 616.1 replacement ordering, an optional
  * discard-then-draw (CR 601.3b), an optional cost-then-draw mode/object (CR 601.3b, Highway Robbery),
  * a mandatory resolution discard (CR 601.2c, Faithless Looting), a library search find-one (CR 701.18,
- * Ash Barrens), or a madness yes/no (CR 702.35b) — or `null` if none is open.
+ * Ash Barrens), a private look's arrangement or its optional shuffle (CR 701.14a/701.17a, Preordain and
+ * Ponder), or a madness yes/no (CR 702.35b) — or `null` if none is open.
  */
 private fun midTransitionPauseRequest(state: GameState): DecisionRequest? =
     when {
@@ -149,6 +150,10 @@ private fun midTransitionPauseRequest(state: GameState): DecisionRequest? =
             }
         state.pendingResolutionDiscard != null -> pendingResolutionDiscardRequest(state)
         state.pendingLibrarySearch != null -> pendingLibrarySearchRequest(state)
+        // CR 701.14a/701.17a: a private look, in either of its two stages — the arrangement, then the
+        // clause's optional shuffle (Ponder). The stage is recorded on the pending look (ADR-004).
+        state.pendingLibraryLook?.awaitingShuffle == true -> libraryLookShuffleRequest(state)
+        state.pendingLibraryLook != null -> pendingLibraryLookRequest(state)
         state.pendingMadness != null -> pendingMadnessRequest(state)
         else -> null
     }

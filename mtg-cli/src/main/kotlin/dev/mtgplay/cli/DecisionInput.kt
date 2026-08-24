@@ -21,11 +21,9 @@ fun parseDecision(
     val trimmed = input.trim()
     return when (request) {
         is DecisionRequest.ChooseAction -> singleSelect(request.id, trimmed, request.options.size)
-        is DecisionRequest.ChooseTargets -> singleSelect(request.id, trimmed, request.options.size)
-        is DecisionRequest.ChoosePaymentPlan -> singleSelect(request.id, trimmed, request.options.size)
-        is DecisionRequest.AssignTrampleDamage -> singleSelect(request.id, trimmed, request.options.size)
-        is DecisionRequest.ChooseColor -> singleSelect(request.id, trimmed, request.options.size)
-        is DecisionRequest.ChooseReplacement -> singleSelect(request.id, trimmed, request.options.size)
+        // Every "pick exactly one of these options" request parses identically (CR 601.2c/601.2g/
+        // 702.19e/614.12/616.1/701.17a): one one-based number, no opt-out index.
+        is DecisionRequest.SingleOptionSelection -> singleSelect(request.id, trimmed, request.optionCount)
         is DecisionRequest.ChoiceCountSelection -> singleSelect(request.id, trimmed, request.choiceCount)
         is DecisionRequest.ChooseYesNo -> parseYesNo(request, trimmed)
         is DecisionRequest.DeclareAttackers -> parseSubset(request.id, trimmed, request.options.size, exactly = null)

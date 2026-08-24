@@ -36,6 +36,7 @@ data class SeatViewDto(
     val pendingOptionalCostDraw: PendingOptionalCostDrawDto?,
     val pendingResolutionDiscard: PendingResolutionDiscardDto?,
     val pendingLibrarySearch: PendingLibrarySearchDto?,
+    val pendingLibraryLook: PendingLibraryLookViewDto?,
     val pendingTriggerTargets: PendingTriggerTargetsDto?,
 )
 
@@ -63,6 +64,7 @@ fun SeatView.toDto(): SeatViewDto =
         pendingOptionalCostDraw = pendingOptionalCostDraw?.toDto(),
         pendingResolutionDiscard = pendingResolutionDiscard?.toDto(),
         pendingLibrarySearch = pendingLibrarySearch?.toDto(),
+        pendingLibraryLook = pendingLibraryLook?.toDto(),
         pendingTriggerTargets = pendingTriggerTargets?.toDto(),
     )
 
@@ -90,5 +92,6 @@ fun SeatViewDto.toDomain(): SeatView =
         pendingOptionalCostDraw = pendingOptionalCostDraw?.toDomain(),
         pendingResolutionDiscard = pendingResolutionDiscard?.toDomain(),
         pendingLibrarySearch = pendingLibrarySearch?.toDomain(),
+        pendingLibraryLook = pendingLibraryLook?.toDomain(),
         pendingTriggerTargets = pendingTriggerTargets?.toDomain(),
     )

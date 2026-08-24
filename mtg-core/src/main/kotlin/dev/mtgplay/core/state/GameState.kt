@@ -85,6 +85,10 @@ import kotlinx.collections.immutable.persistentMapOf
  *   resolving as part of an activated ability (CR 701.18), or `null`. Additive, flagged core (P6.2c).
  *   Non-null only at the find-one pause, where the resolving ability is on top of the stack — see
  *   [PendingLibrarySearch].
+ * @property pendingLibraryLook a private "look at these cards, then arrange them" the engine is resolving
+ *   as part of a spell (CR 701.14, CR 701.17), or `null`. Additive, flagged core (`FW-LIBLOOK`,
+ *   docs/design/library-look.md). Non-null only at the arrangement pause or the optional-shuffle pause
+ *   that may follow it, where the resolving spell is on top of the stack — see [PendingLibraryLook].
  * @property pendingTriggerTargets a fired triggered ability awaiting its CR 603.3d target choice as it is
  *   put on the stack, or `null`. Additive, flagged core (`FW-ABILTGT`,
  *   docs/design/targeted-abilities.md). Non-null only at that placement pause, where no priority round is
@@ -111,6 +115,7 @@ data class GameState(
     val pendingOptionalCostDraw: PendingOptionalCostDraw? = null,
     val pendingResolutionDiscard: PendingResolutionDiscard? = null,
     val pendingLibrarySearch: PendingLibrarySearch? = null,
+    val pendingLibraryLook: PendingLibraryLook? = null,
     val pendingTriggerTargets: PendingTriggerTargets? = null,
 ) {
     init {
@@ -162,6 +167,17 @@ data class GameState(
             requireNotNull(activator) { "pending activation names unseated activator ${activation.activator}" }
             require(activation.abilityIndex >= 0) {
                 "CR 602: a pending activation's ability index is non-negative, was ${activation.abilityIndex}"
+            }
+        }
+        val look = pendingLibraryLook
+        if (look != null) {
+            val decider = players[look.decider]
+            requireNotNull(decider) { "CR 701.14a: a pending look names unseated decider ${look.decider}" }
+            val resident = decider.library.asSequence() + decider.hand.asSequence()
+            val residentIds = resident.map(GameObject::id).toSet()
+            require(look.poolIds.all { it in residentIds }) {
+                "CR 701.14a: a looked-at card stays in its source zone until the arrangement is applied; " +
+                    "${look.poolIds.filterNot { it in residentIds }} is not in ${look.decider}'s library or hand"
             }
         }
         val triggerTargets = pendingTriggerTargets

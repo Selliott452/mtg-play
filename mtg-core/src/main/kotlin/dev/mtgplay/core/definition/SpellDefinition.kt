@@ -70,6 +70,19 @@ interface SpellDefinition : CardDefinition {
     val libraryReveal: LibraryReveal? get() = null
 
     /**
+     * A private "look at these cards, then arrange them between the top of your library, the bottom of your
+     * library, and your hand" part of this spell's resolution (CR 701.14, CR 701.17), or `null` for a spell
+     * with none. Additive, flagged core (`FW-LIBLOOK`, docs/design/library-look.md). Preordain's scry 2,
+     * Ponder's reorder-the-top-three, Impulse's one-to-hand, Brainstorm's two-from-hand-on-top.
+     *
+     * The sibling of [libraryReveal], never a mode of it: a look is private (CR 701.14a) where a reveal is
+     * public (CR 701.16a), and its whole decision is an *ordering*. Because it needs a mid-resolution
+     * decision, the engine runs it after the ordinary [resolution] effect, pausing for the arrangement, the
+     * optional shuffle, and then performing the clause's trailing draw.
+     */
+    val libraryLook: LibraryLook? get() = null
+
+    /**
      * An optional "you may [discard a card | sacrifice a land]; if you do, draw N" part of this spell's
      * resolution (CR 601.3b), or `null` for a spell with none. Additive, flagged core (P6.2c). Highway
      * Robbery's clause. Because it needs a mode choice and then a cost-object selection, the engine runs it
