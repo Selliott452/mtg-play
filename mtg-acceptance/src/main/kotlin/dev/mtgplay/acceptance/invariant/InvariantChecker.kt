@@ -101,15 +101,29 @@ object InvariantChecker {
     /**
      * [Invariant.MANA_POOL_EMPTY_AT_PAUSE]: every seat's mana pool is empty at an observed pause
      * (CR 500.4), **except** the declared triggered-mana-ability exception the invariant's KDoc promised:
-     * a seat that controls a permanent with a triggered mana ability (CR 605.1b — Utopia Sprawl) may hold
-     * the extra mana that ability floats between the cast and the step's end. A seat with floating mana and
-     * no such source is engine wrongness (the P2.x rule still bites for every other deck).
+     * a seat that controls a permanent *enchanted by* an Aura with a triggered mana ability (CR 605.1b —
+     * Utopia Sprawl) may hold the extra mana that ability floats between the cast and the step's end. A seat
+     * with floating mana and no such source is engine wrongness (the P2.x rule still bites for every other
+     * deck).
+     *
+     * The exemption is keyed on the controller of the **enchanted permanent**, not of the Aura. A triggered
+     * mana ability adds its mana when the enchanted permanent is tapped, and that mana goes to whoever
+     * tapped it; `PaymentEnumeration.triggeredManaBonus` credits it exactly that way, gathering the Auras
+     * attached to the tapped source. The two controllers differ whenever a Utopia Sprawl enchants an
+     * opponent's Forest, which the card permits — it enchants *any* Forest.
+     *
+     * Keying on the Aura's controller therefore excused the wrong seat and reported the right one: 7,920
+     * spurious violations over 2,000 GW Bogles mirror games. It never surfaced against Mono-Red Madness,
+     * which plays no Forests, so no existing suite caught it.
+     *
+     * An Aura attached to nothing adds no mana and so grants no exemption.
      */
     internal fun checkManaPoolEmptiness(state: GameState): List<Violation> {
+        val permanentsById = state.sharedZones.battlefield.associateBy { it.id }
         val seatsThatMayFloat =
             state.sharedZones.battlefield
                 .filter { state.definitions[it.card]?.triggeredManaAbilities?.isNotEmpty() == true }
-                .map { it.owner }
+                .mapNotNull { aura -> aura.attachedTo?.let { permanentsById[it]?.owner } }
                 .toSet()
         return state.players.entries
             .sortedBy { it.key.seat }
