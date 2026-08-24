@@ -53,9 +53,10 @@ val vaultOfWhispers: CardDefinition = artifactLand(name = "Vault of Whispers", p
  * Drossforge Bridge — Artifact Land. "This land enters tapped. Indestructible. {T}: Add {B} or {R}."
  * The black-red Bridge: a dual-producing artifact land whose cost for the fixing is entering tapped
  * (CR 614.1c, [CardDefinition.entersTapped]). Its printed indestructible (CR 702.12) is a
- * characteristic here; the engine honours it wherever it destroys, which today is only the CR 704.5g
- * lethal-damage state-based action — a land never reaches that, so the keyword is inert on a Bridge
- * until a destruction effect exists.
+ * characteristic here; the engine honours it wherever it destroys — the CR 704.5g lethal-damage
+ * state-based action, which a land never reaches, and the CR 701.7a destroy effect, which is what
+ * makes the keyword matter: an opposing [ancientGrudge] or [smashToSmithereens] targets a Bridge
+ * legally and destroys nothing (CR 702.12b).
  */
 val drossforgeBridge: CardDefinition = bridge(name = "Drossforge Bridge", ManaType.BLACK, ManaType.RED)
 

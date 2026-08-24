@@ -50,6 +50,28 @@ sealed interface TargetSpec {
     data object TargetPlayer : TargetSpec
 
     /**
+     * "Target &lt;permanent&gt;" (CR 115.1b): one target that must be a battlefield permanent
+     * satisfying [restriction], never a player. Additive, flagged core (the removal-and-destruction
+     * packet) — Terminate's "target creature", Cast Down's "target nonlegendary creature", Ancient
+     * Grudge's "target artifact", Scour from Existence's "target permanent", Last Breath's "target
+     * creature with power 2 or less".
+     *
+     * Narrower than [AnyTarget] in both directions: no player is ever a legal choice, and the
+     * permanents offered are only those satisfying [restriction] — so it is its own member rather
+     * than a filter over the any-target enumeration. Unlike [Enchantable] it carries no attachment
+     * meaning: a spell with this spec never enters the battlefield attached to what it targeted.
+     *
+     * A permanent target stops being legal the moment it leaves the battlefield, so a removal spell
+     * whose target has already died fizzles at the CR 608.2b re-check — the reachable fizzle
+     * `Targets.kt` documents.
+     *
+     * @property restriction which permanents are legal choices (CR 115.1b).
+     */
+    data class TargetPermanent(
+        val restriction: PermanentRestriction,
+    ) : TargetSpec
+
+    /**
      * An Aura's enchant ability (CR 303.4a, CR 601.2c): the one object it may be attached to,
      * restricted by [restriction]. Additive, flagged core (P4.1). An Aura spell targets the object
      * it will enchant while on the stack (CR 601.2c) and enters the battlefield attached to it

@@ -46,6 +46,15 @@ import dev.mtgplay.core.identity.CardRef
  * `FW-ABILTGT` packet adds [lotlethGiant], the first card whose *ability* targets
  * (docs/design/targeted-abilities.md §7).
  *
+ * The removal-and-destruction packet adds the gauntlet's first targeted answers (Removal.kt):
+ * [castDown] and [terminate] (destroy a creature), [smashToSmithereens] and [ancientGrudge] (destroy
+ * an artifact, the second with flashback), [scourFromExistence] (exile any permanent), and
+ * [lastBreath] (exile a small creature and give its controller life). They are the first clients of
+ * the CR 701.7a destroy and CR 701.3a exile effect primitives and of "target &lt;permanent&gt;"
+ * (`TargetSpec.TargetPermanent`). Two siblings are deliberately absent: Raze needs a sacrifice
+ * *additional cost* — a new enumerated decision — and Cryoshatter needs trigger conditions for a
+ * permanent becoming tapped or being dealt damage, which nothing in the engine watches for.
+ *
  * [definitions] is shaped for direct `MatchConfig.definitions` consumption: the engine carries
  * it into `GameState` in canonical name-sorted order regardless of this map's own order
  * (ADR-009 — definitions ride in the state; a [CardRef] without an entry is inert). The pool
@@ -57,10 +66,12 @@ object MvpCards {
         listOf(
             abundantGrowth,
             ancestralMask,
+            ancientGrudge,
             armadilloCloak,
             ashBarrens,
             breathWeapon,
             cartoucheOfSolidarity,
+            castDown,
             drossforgeBridge,
             endTheFestivities,
             etherealArmor,
@@ -83,6 +94,7 @@ object MvpCards {
             island,
             kessigFlamebreather,
             kruphixsInsight,
+            lastBreath,
             lavaDart,
             lifelink,
             lightningBolt,
@@ -98,17 +110,20 @@ object MvpCards {
             plains,
             pursueThePast,
             rancor,
+            scourFromExistence,
             seatOfTheSynod,
             sentinelsEyes,
             silhanaLedgewalker,
             silverbluffBridge,
             slagwoodsBridge,
             slipperyBogle,
+            smashToSmithereens,
             sneakySnacker,
             spinewoodsPaladin,
             spiritLink,
             standingTroops,
             swamp,
+            terminate,
             thoughtScour,
             unfathomableTruths,
             unionOfTheThirdPath,

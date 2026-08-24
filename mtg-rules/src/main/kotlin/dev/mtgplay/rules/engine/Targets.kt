@@ -42,7 +42,12 @@ import dev.mtgplay.core.state.Target
  * controller targets it freely ([targetableBy]). [TargetSpec.Enchantable] (CR 601.2c) enumerates
  * every battlefield object satisfying the Aura's enchant restriction (CR 303.4a) for [you] and
  * targetable by [you] — so a GW-Bogles player enchants their own hexproof creatures, but an
- * opponent's Aura cannot. [TargetSpec.TargetOpponent] (CR 115.1a, CR 102.1) enumerates every player
+ * opponent's Aura cannot. [TargetSpec.TargetPermanent] (CR 115.1b) enumerates every battlefield
+ * permanent satisfying its [dev.mtgplay.core.definition.PermanentRestriction]
+ * ([satisfiesPermanentRestriction]) and targetable by [you], in battlefield order, and never a
+ * player — the removal specs. Its enumeration is the *only* thing that makes a removal spell's
+ * CR 608.2b fizzle reachable, because a permanent leaves the battlefield in ways a player never
+ * leaves the game. [TargetSpec.TargetOpponent] (CR 115.1a, CR 102.1) enumerates every player
  * but [you], in turn order, and no permanent — the one spec whose enumeration depends on who is
  * deciding rather than only on the board. [TargetSpec.None] enumerates nothing: an untargeted spell
  * or ability never surfaces a target decision.
@@ -67,6 +72,14 @@ internal fun legalTargets(
                 state.sharedZones.battlefield
                     .filter { isCreature(state, it) && targetableBy(state, it, you) }
                     .map { Target.Permanent(it.id) }
+        // CR 115.1b: every battlefield permanent satisfying the restriction, in battlefield order
+        // (CR 302.1); no player is ever offered.
+        is TargetSpec.TargetPermanent ->
+            state.sharedZones.battlefield
+                .filter {
+                    satisfiesPermanentRestriction(state, spec.restriction, it) &&
+                        targetableBy(state, it, you)
+                }.map { Target.Permanent(it.id) }
         is TargetSpec.Enchantable ->
             state.sharedZones.battlefield
                 .filter {

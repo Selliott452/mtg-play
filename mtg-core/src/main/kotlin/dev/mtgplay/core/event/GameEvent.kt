@@ -513,6 +513,39 @@ sealed interface GameEvent {
     ) : GameEvent
 
     /**
+     * A permanent was **destroyed** (CR 701.7a): a destruction effect moved the battlefield object
+     * [objectId] ([card]) to its owner's graveyard as the new object [graveyardObjectId] (CR 400.7)
+     * — Terminate, Cast Down, Ancient Grudge. Added by the removal-and-destruction packet.
+     *
+     * Deliberately *not* the same event as [CreatureDied]: that one narrates the CR 704.5f/g
+     * state-based actions, which the game performs on its own, one of which (zero toughness) is not
+     * destruction at all. A destruction effect that finds an indestructible permanent (CR 702.12b)
+     * destroys nothing and emits nothing — the absence of this event is how the log records that.
+     */
+    data class PermanentDestroyed(
+        val objectId: ObjectId,
+        val card: CardRef,
+        val graveyardObjectId: ObjectId,
+    ) : GameEvent
+
+    /**
+     * A permanent was **exiled** from the battlefield (CR 701.3a): an exile effect moved the
+     * battlefield object [objectId] ([card]) to the exile zone as the new object [exileObjectId]
+     * (CR 400.7) — Scour from Existence, Last Breath. Added by the removal-and-destruction packet.
+     *
+     * Distinct from every other exile event in this log because it names a *battlefield* departure:
+     * [CardExiledByMadness] replaces a discard, [SpellExiledInsteadOfGraveyard] replaces a
+     * leave-the-stack move, and [CardsExiledForCost] pays a cost from a graveyard. Exiling is not
+     * destroying: indestructible (CR 702.12b) does not stop it, and nothing that watches for a
+     * permanent being put into a graveyard (CR 603.6b) sees it.
+     */
+    data class PermanentExiled(
+        val objectId: ObjectId,
+        val card: CardRef,
+        val exileObjectId: ObjectId,
+    ) : GameEvent
+
+    /**
      * [player] milled [card] (CR 701.13a): the top card of their library moved to their graveyard,
      * becoming the new object [objectId] there (CR 400.7). One event per milled card, in the order
      * milled (top-first). Distinct from [CardDiscarded] on purpose — a mill is not a discard, so
