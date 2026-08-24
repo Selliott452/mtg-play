@@ -117,6 +117,11 @@ object InvariantChecker {
      * which plays no Forests, so no existing suite caught it.
      *
      * An Aura attached to nothing adds no mana and so grants no exemption.
+     *
+     * P8.3 (docs/design/mana-payment.md) **narrows** what actually floats without narrowing the
+     * exemption: a payment plan may now spend a CR 605.1b bonus inside the cast that produced it, so
+     * the bonus reaches a pause only when the plan genuinely had no use for it. The exemption stays
+     * keyed on the same seats, because the same Auras are still the only things that can float mana.
      */
     internal fun checkManaPoolEmptiness(state: GameState): List<Violation> {
         val permanentsById = state.sharedZones.battlefield.associateBy { it.id }

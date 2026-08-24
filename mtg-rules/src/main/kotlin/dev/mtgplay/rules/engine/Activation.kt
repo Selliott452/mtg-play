@@ -131,7 +131,7 @@ private fun advanceActivationGathering(state: GameState): AdvanceResult {
         pending.chosenDiscard == null -> AdvanceResult.NeedsDecision(state, pendingActivationRequest(state))
         manaComponent(ability) != null -> AdvanceResult.NeedsDecision(state, pendingActivationRequest(state))
         // No further decisions: pay the cost (with an empty plan) and put the ability on the stack.
-        else -> executeActivation(state, PaymentPlan(emptyList()))
+        else -> executeActivation(state, PaymentPlan(emptyList(), emptyList()))
     }
 }
 

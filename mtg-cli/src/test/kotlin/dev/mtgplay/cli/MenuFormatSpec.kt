@@ -6,7 +6,7 @@ import dev.mtgplay.core.mana.Color
 import dev.mtgplay.core.mana.ManaType
 import dev.mtgplay.rules.decision.DecisionRequest
 import dev.mtgplay.rules.decision.DecisionRequestId
-import dev.mtgplay.rules.decision.ManaSourceChoice
+import dev.mtgplay.rules.decision.ManaActivation
 import dev.mtgplay.rules.decision.PaymentPlan
 import dev.mtgplay.rules.decision.PriorityOption
 import dev.mtgplay.rules.decision.SourceClassKey
@@ -43,20 +43,16 @@ class MenuFormatSpec :
             text shouldContain "[Enter] = pass"
         }
 
-        "CR 601.2g: a payment menu renders each plan's symbol assignments" {
+        "CR 601.2g-h: a payment menu renders each plan's activations and what they pay" {
             val plan =
                 PaymentPlan(
-                    listOf(
-                        SymbolPayment.WithMana(
-                            ManaType.RED,
-                            ManaSourceChoice.ByTapping(SourceClassKey(CardRef("Mountain"), listOf(ManaType.RED))),
-                        ),
-                    ),
+                    listOf(ManaActivation(SourceClassKey(CardRef("Mountain"), listOf(ManaType.RED)), ManaType.RED)),
+                    listOf(SymbolPayment.WithMana(ManaType.RED)),
                 )
             val request = DecisionRequest.ChoosePaymentPlan(rid, ObjectId(4), CardRef("Lightning Bolt"), listOf(plan))
             val text = menu(request)
-            text shouldContain "{R}"
-            text shouldContain "tapping Mountain"
+            text shouldContain "tap Mountain for {R}"
+            text shouldContain "pay {R}"
         }
 
         "CR 508.1: a declare-attackers menu shows each attacker's effective P/T and its defender" {

@@ -1,27 +1,28 @@
 package dev.mtgplay.rules
 
+import dev.mtgplay.core.mana.Color
 import dev.mtgplay.core.mana.ManaCost
 import dev.mtgplay.core.mana.ManaType
 import dev.mtgplay.core.state.GameState
-import dev.mtgplay.rules.decision.ManaSourceChoice
+import dev.mtgplay.rules.decision.ManaActivation
 import dev.mtgplay.rules.decision.PaymentPlan
-import dev.mtgplay.rules.decision.SourceClassKey
 import dev.mtgplay.rules.decision.SymbolPayment
 import dev.mtgplay.rules.engine.enumeratePaymentPlans
-import dev.mtgplay.rules.engine.expandToUnits
 import dev.mtgplay.rules.engine.manaSourceClasses
-import dev.mtgplay.rules.engine.paymentSatisfies
+import io.kotest.assertions.withClue
 import io.kotest.core.spec.style.StringSpec
 import io.kotest.matchers.collections.shouldBeEmpty
+import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.collections.shouldHaveSize
+import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
-import kotlinx.collections.immutable.persistentListOf
 
 /**
  * Payment-plan enumeration (CR 601.2g–h) against docs/design/mana-payment.md: equivalence
- * collapsing, every MVP cost shape, life-bound Phyrexian plans, and — via a brute-force
- * oracle — enumeration completeness in both directions.
+ * collapsing, every MVP cost shape, life-bound Phyrexian plans, the P8.3 multi-mana activation
+ * (CR 605.1b) that pays two symbols off one tap, and — via a brute-force oracle and a
+ * planner/executor correspondence property — enumeration completeness in both directions.
  */
 class PaymentEnumerationSpec :
     StringSpec({
@@ -39,8 +40,8 @@ class PaymentEnumerationSpec :
             plans shouldHaveSize 1
             val mountainClass = manaSourceClasses(state, alice).single()
             mountainClass.members shouldHaveSize 5
-            plans.single().payments.single() shouldBe
-                SymbolPayment.WithMana(ManaType.RED, ManaSourceChoice.ByTapping(mountainClass.key))
+            plans.single().activations shouldContainExactly listOf(ManaActivation(mountainClass.key, ManaType.RED))
+            plans.single().payments shouldContainExactly listOf(SymbolPayment.WithMana(ManaType.RED))
         }
 
         "CR 107.4: a hybrid {G/U} cost with both colors available enumerates exactly two plans" {
@@ -66,6 +67,8 @@ class PaymentEnumerationSpec :
                 .shouldBeInstanceOf<SymbolPayment.WithMana>()
                 .mana shouldBe ManaType.RED
             plans[1].payments.single() shouldBe SymbolPayment.WithTwoLife
+            // The life plan activates nothing: paying life needs no mana ability (CR 107.4).
+            plans[1].activations.shouldBeEmpty()
         }
 
         "CR 118.8: the 2-life plan is enumerated at exactly 2 life but not at 1" {
@@ -96,8 +99,11 @@ class PaymentEnumerationSpec :
                     "{1}{R}",
                     SeatSetup(battlefield = listOf("Fixture Mountain", "Fixture Mountain", "Fixture Forest")),
                 )
-            // The {R} unit must tap a Mountain; the generic unit taps a Mountain or the Forest.
+            // Two Mountains, or a Mountain and the Forest; which symbol each pays is no longer a
+            // distinction, so the cross-run permutation duplicate of the pre-P8.3 model is gone.
             plans shouldHaveSize 2
+            plans.map { plan -> plan.activations.map { it.produced } } shouldBe
+                listOf(listOf(ManaType.RED, ManaType.RED), listOf(ManaType.RED, ManaType.GREEN))
         }
 
         "an unaffordable cost enumerates no plans" {
@@ -106,24 +112,21 @@ class PaymentEnumerationSpec :
             plansFor("{R}", SeatSetup()).shouldBeEmpty()
         }
 
-        "design note: pooled mana enumerates ahead of tapping and is a distinct plan" {
+        "design note: a {0} cost enumerates exactly one plan — the empty one" {
+            val plans = plansFor("{0}", SeatSetup(battlefield = listOf("Fixture Mountain")))
+            plans shouldHaveSize 1
+            plans.single() shouldBe PaymentPlan(emptyList(), emptyList())
+        }
+
+        "design note: paying from the pool and tapping anyway are distinct plans, the pooled one first" {
             val base = stateWith(SeatSetup(battlefield = listOf("Fixture Mountain")))
-            val pooled =
-                base.copy(
-                    players =
-                        base.players.putting(
-                            alice,
-                            base.players.getValue(alice).copy(manaPool = persistentListOf(ManaType.RED)),
-                        ),
-                )
+            val pooled = base.withPool(ManaType.RED)
             val plans = enumeratePaymentPlans(pooled, alice, ManaCost.parse("{R}"))
+            // Spending the float leaves the Mountain untapped; tapping it leaves the float alive.
+            // Both are legal and leave different states, so both are enumerated (ADR-005).
             plans shouldHaveSize 2
-            plans[0]
-                .payments
-                .single()
-                .shouldBeInstanceOf<SymbolPayment.WithMana>()
-                .source shouldBe
-                ManaSourceChoice.FromPool
+            plans[0].activations.shouldBeEmpty()
+            plans[1].activations shouldHaveSize 1
         }
 
         "a tapped source is no payment source" {
@@ -142,107 +145,104 @@ class PaymentEnumerationSpec :
             enumeratePaymentPlans(tapped, alice, ManaCost.parse("{R}")).shouldBeEmpty()
         }
 
+        // ---- P8.3: one activation, several symbols (CR 605.1b) -----------------------------------
+
+        "CR 605.1b: one activation of a ramp-enchanted Forest pays {1}{G} as a single plan" {
+            // The defect this packet closes: before P8.3 the CR 605.1b bonus could not pay a symbol
+            // of the very cost whose payment produced it, so this cost enumerated no plan at all.
+            val state = rampState(chosen = Color.GREEN)
+            val plans = enumeratePaymentPlans(state, alice, ManaCost.parse("{1}{G}"))
+            plans shouldHaveSize 1
+            val plan = plans.single()
+            plan.activations shouldHaveSize 1
+            plan.activations
+                .single()
+                .sourceClass.bonus shouldContainExactly listOf(ManaType.GREEN)
+            plan.payments shouldContainExactly
+                listOf(SymbolPayment.WithMana(ManaType.GREEN), SymbolPayment.WithMana(ManaType.GREEN))
+        }
+
+        "CR 500.4: an activation whose bonus goes unspent is still legal — the surplus simply floats" {
+            val state = rampState(chosen = Color.GREEN)
+            val plans = enumeratePaymentPlans(state, alice, ManaCost.parse("{G}"))
+            plans shouldHaveSize 1
+            plans.single().activations shouldHaveSize 1
+            // One activation, one symbol paid: the additional {G} is produced and left floating.
+            plans.single().payments shouldHaveSize 1
+        }
+
+        "CR 605.1b: the bonus mana alone may pay a symbol its source's own mana cannot" {
+            // The Aura chose RED on a Forest, so one activation yields {G} and {R}; a {R} cost is
+            // payable even though nothing on the battlefield taps for red.
+            val state = rampState(chosen = Color.RED)
+            val plans = enumeratePaymentPlans(state, alice, ManaCost.parse("{R}"))
+            plans shouldHaveSize 1
+            plans
+                .single()
+                .activations
+                .single()
+                .produced shouldBe ManaType.GREEN
+            plans.single().payments shouldContainExactly listOf(SymbolPayment.WithMana(ManaType.RED))
+        }
+
+        "docs/design/mana-payment.md §4: no plan activates a source none of whose mana it spends" {
+            // Two ramp Forests and a {G} cost: one activation covers it, and no plan taps both.
+            val state = rampState(chosen = Color.GREEN, ramps = 2)
+            val plans = enumeratePaymentPlans(state, alice, ManaCost.parse("{G}"))
+            plans.forEach { it.activations shouldHaveSize 1 }
+        }
+
+        // ---- completeness -------------------------------------------------------------------------
+
         "oracle: enumeration is complete and duplicate-free for every MVP cost shape" {
-            val scenarios =
-                listOf(
-                    "{R}" to SeatSetup(battlefield = List(3) { "Fixture Mountain" }),
-                    "{1}{R}" to
-                        SeatSetup(battlefield = listOf("Fixture Mountain", "Fixture Mountain", "Fixture Forest")),
-                    "{2}" to SeatSetup(battlefield = listOf("Fixture Mountain", "Fixture Forest", "Fixture Prism")),
-                    "{G/U}" to
-                        SeatSetup(battlefield = listOf("Fixture Forest", "Fixture Island", "Fixture Prism")),
-                    "{R/P}{R/P}" to SeatSetup(battlefield = listOf("Fixture Mountain"), life = 3),
-                    "{C}{1}" to SeatSetup(battlefield = listOf("Fixture Wastes", "Fixture Mountain")),
-                    "{0}" to SeatSetup(battlefield = listOf("Fixture Mountain")),
-                )
-            scenarios.forEach { (cost, setup) ->
-                val state = stateWith(setup)
-                val parsed = ManaCost.parse(cost)
-                val enumerated = enumeratePaymentPlans(state, alice, parsed)
-                val canonical = enumerated.map { canonicalForm(parsed, it) }
-                // No duplicates survive collapsing…
-                canonical.toSet() shouldHaveSize enumerated.size
-                // …and the set equals the naive oracle's: complete in both directions.
-                canonical.toSet() shouldBe oraclePlans(state, parsed)
+            oracleScenarios().forEach { (label, scenario) ->
+                val (state, cost) = scenario
+                val enumerated = enumeratePaymentPlans(state, alice, cost)
+                val canonical = enumerated.map { canonicalForm(cost, it) }
+                withClue(label) {
+                    // No duplicates survive collapsing…
+                    canonical.toSet() shouldHaveSize enumerated.size
+                    // …and the set equals the naive oracle's: complete in both directions.
+                    canonical.toSet() shouldBe oraclePlans(state, cost)
+                }
             }
         }
+
+        "CR 601.2g–h: every enumerated plan executes, and lands exactly the pool it declared" {
+            oracleScenarios().forEach { (label, scenario) ->
+                val (state, cost) = scenario
+                val plans = enumeratePaymentPlans(state, alice, cost)
+                plans.forEach { plan ->
+                    withClue("$label / $plan") { assertExecutesAsDeclared(state, cost, plan) }
+                }
+            }
+        }
+
+        "ADR-006: enumeration is a pure function of the state — equal states enumerate equal lists" {
+            oracleScenarios().forEach { (label, scenario) ->
+                val (state, cost) = scenario
+                withClue(label) {
+                    enumeratePaymentPlans(state, alice, cost) shouldBe enumeratePaymentPlans(state, alice, cost)
+                }
+            }
+        }
+
+        "docs/design/mana-payment.md §4: the activation count never exceeds the mana the plan spends" {
+            oracleScenarios().forEach { (label, scenario) ->
+                val (state, cost) = scenario
+                enumeratePaymentPlans(state, alice, cost).forEach { plan ->
+                    val manaPayments = plan.payments.count { it is SymbolPayment.WithMana }
+                    withClue("$label / $plan") { (plan.activations.size <= manaPayments) shouldBe true }
+                }
+            }
+        }
+
+        "the ramp scenarios genuinely exercise multi-mana activations" {
+            // Guards the oracle suite: a scenario set with no two-mana activation would pass
+            // vacuously and prove nothing about the P8.3 reshape.
+            oracleScenarios()
+                .flatMap { (_, scenario) -> enumeratePaymentPlans(scenario.first, alice, scenario.second) }
+                .count { plan -> plan.activations.any { it.sourceClass.bonus.isNotEmpty() } }
+                .shouldBeGreaterThan(0)
+        }
     })
-
-/**
- * The brute-force oracle of docs/design/mana-payment.md: naively generate every raw assignment
- * of a payable payment per expanded symbol, keep the resource-feasible ones (source-class
- * capacity, CR 118.8 life bound; the pool is empty in the oracle scenarios), and canonicalize.
- * The enumerator must produce exactly this set.
- */
-private fun oraclePlans(
-    state: GameState,
-    cost: ManaCost,
-): Set<Map<Int, Map<SymbolPayment, Int>>> {
-    val units = expandToUnits(cost)
-    val classes = manaSourceClasses(state, alice)
-    val rawCandidates: List<List<SymbolPayment>> =
-        units.map { symbol ->
-            buildList {
-                for (type in ManaType.entries) {
-                    for (sourceClass in classes) {
-                        if (type in sourceClass.key.profile) {
-                            add(SymbolPayment.WithMana(type, ManaSourceChoice.ByTapping(sourceClass.key)))
-                        }
-                    }
-                }
-                add(SymbolPayment.WithTwoLife)
-            }.filter { paymentSatisfies(symbol, it) }
-        }
-    val capacities = classes.associate { it.key to it.members.size }
-    val life = state.players.getValue(alice).life
-    return cartesianProduct(rawCandidates)
-        .filter { feasible(it, capacities, life) }
-        .map { canonicalForm(cost, PaymentPlan(it)) }
-        .toSet()
-}
-
-private fun cartesianProduct(candidates: List<List<SymbolPayment>>): List<List<SymbolPayment>> =
-    candidates.fold(listOf(emptyList())) { acc, options ->
-        acc.flatMap { prefix -> options.map { prefix + it } }
-    }
-
-private fun feasible(
-    assignment: List<SymbolPayment>,
-    classCapacity: Map<SourceClassKey, Int>,
-    life: Int,
-): Boolean {
-    val taps = mutableMapOf<SourceClassKey, Int>()
-    var lifePaid = 0
-    for (payment in assignment) {
-        when (payment) {
-            is SymbolPayment.WithMana ->
-                when (val source = payment.source) {
-                    ManaSourceChoice.FromPool -> return false
-                    is ManaSourceChoice.ByTapping -> taps.merge(source.sourceClass, 1, Int::plus)
-                }
-            SymbolPayment.WithTwoLife -> lifePaid += 2
-        }
-    }
-    return lifePaid <= life && taps.all { (key, count) -> count <= (classCapacity[key] ?: 0) }
-}
-
-/**
- * A plan's canonical form: per run of identical expanded symbols, the multiset of payments —
- * exactly the equivalence the design note's non-decreasing rule collapses by.
- */
-private fun canonicalForm(
-    cost: ManaCost,
-    plan: PaymentPlan,
-): Map<Int, Map<SymbolPayment, Int>> {
-    val units = expandToUnits(cost)
-    val runIndex = IntArray(units.size)
-    var run = 0
-    units.forEachIndexed { index, symbol ->
-        if (index > 0 && symbol != units[index - 1]) run += 1
-        runIndex[index] = run
-    }
-    return plan.payments
-        .withIndex()
-        .groupBy({ runIndex[it.index] }, { it.value })
-        .mapValues { (_, payments) -> payments.groupingBy { it }.eachCount() }
-}

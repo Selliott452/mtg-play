@@ -1,7 +1,7 @@
 package dev.mtgplay.protocol
 
 import dev.mtgplay.core.identity.CardRef
-import dev.mtgplay.rules.decision.ManaSourceChoice
+import dev.mtgplay.rules.decision.ManaActivation
 import dev.mtgplay.rules.decision.PaymentPlan
 import dev.mtgplay.rules.decision.SourceClassKey
 import dev.mtgplay.rules.decision.SymbolPayment
@@ -9,24 +9,37 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 /**
- * Wire form of one enumerated [PaymentPlan] (CR 601.2g–h): a payment per expanded cost symbol.
+ * Wire form of one enumerated [PaymentPlan] (CR 601.2g–h): the mana abilities to activate, then a
+ * payment per expanded cost symbol.
  *
+ * @property activations the mana abilities activated before paying (CR 601.2g); empty when the
+ *   pool already covers the cost. One activation may pay several symbols.
  * @property payments one payment per cost symbol, in printed order; empty for a `{0}` cost.
  */
 @Serializable
 data class PaymentPlanDto(
+    val activations: List<ManaActivationDto>,
     val payments: List<SymbolPaymentDto>,
+)
+
+/**
+ * Wire form of one [ManaActivation]: activate a member of [sourceClass] for one mana of
+ * [produced] (CR 601.2g, CR 605.1a).
+ */
+@Serializable
+data class ManaActivationDto(
+    val sourceClass: SourceClassKeyDto,
+    val produced: ManaTypeDto,
 )
 
 /** Wire form of one [SymbolPayment] — one mana, or a Phyrexian symbol's 2-life alternative. */
 @Serializable
 sealed interface SymbolPaymentDto {
-    /** Pay the symbol with one [mana] from [source] (CR 601.2h). */
+    /** Pay the symbol with one [mana] from the pool (CR 601.2h). */
     @Serializable
     @SerialName("with_mana")
     data class WithMana(
         val mana: ManaTypeDto,
-        val source: ManaSourceChoiceDto,
     ) : SymbolPaymentDto
 
     /** Pay a Phyrexian symbol's 2-life alternative (CR 107.4). */
@@ -35,28 +48,13 @@ sealed interface SymbolPaymentDto {
     data object WithTwoLife : SymbolPaymentDto
 }
 
-/** Wire form of a [ManaSourceChoice] — mana from the pool, or by tapping a source class. */
-@Serializable
-sealed interface ManaSourceChoiceDto {
-    /** Mana already in the pool (CR 106.4). */
-    @Serializable
-    @SerialName("from_pool")
-    data object FromPool : ManaSourceChoiceDto
-
-    /** Tap one member of [sourceClass] for its mana (CR 605.3). */
-    @Serializable
-    @SerialName("by_tapping")
-    data class ByTapping(
-        val sourceClass: SourceClassKeyDto,
-    ) : ManaSourceChoiceDto
-}
-
 /**
  * Wire form of a [SourceClassKey]: the identity of one class of payment-equivalent mana sources.
  *
  * @property card the printed card every member shares.
- * @property profile the canonical mana a member's tap adds, in WUBRG-then-colorless order.
- * @property bonus extra mana a triggered mana ability adds (CR 605.1b); empty for an ordinary source.
+ * @property profile the canonical mana a member's own ability may add, in WUBRG-then-colorless order.
+ * @property bonus extra mana a triggered mana ability adds on activation (CR 605.1b); empty for an
+ *   ordinary source. Part of an activation's yield, so it is spendable by the plan that produced it.
  * @property viaSacrifice whether a member is sacrificed rather than tapped (CR 605.1a).
  */
 @Serializable
@@ -68,37 +66,30 @@ data class SourceClassKeyDto(
 )
 
 /** [PaymentPlan] to its wire form. */
-fun PaymentPlan.toDto(): PaymentPlanDto = PaymentPlanDto(payments.map { it.toDto() })
+fun PaymentPlan.toDto(): PaymentPlanDto = PaymentPlanDto(activations.map { it.toDto() }, payments.map { it.toDto() })
 
 /** [PaymentPlanDto] back to the engine value. */
-fun PaymentPlanDto.toDomain(): PaymentPlan = PaymentPlan(payments.map { it.toDomain() })
+fun PaymentPlanDto.toDomain(): PaymentPlan =
+    PaymentPlan(activations.map { it.toDomain() }, payments.map { it.toDomain() })
+
+/** [ManaActivation] to its wire form. */
+fun ManaActivation.toDto(): ManaActivationDto = ManaActivationDto(sourceClass.toDto(), produced.toDto())
+
+/** [ManaActivationDto] back to the engine value. */
+fun ManaActivationDto.toDomain(): ManaActivation = ManaActivation(sourceClass.toDomain(), produced.toDomain())
 
 /** [SymbolPayment] to its wire form. */
 fun SymbolPayment.toDto(): SymbolPaymentDto =
     when (this) {
-        is SymbolPayment.WithMana -> SymbolPaymentDto.WithMana(mana.toDto(), source.toDto())
+        is SymbolPayment.WithMana -> SymbolPaymentDto.WithMana(mana.toDto())
         SymbolPayment.WithTwoLife -> SymbolPaymentDto.WithTwoLife
     }
 
 /** [SymbolPaymentDto] back to the engine value. */
 fun SymbolPaymentDto.toDomain(): SymbolPayment =
     when (this) {
-        is SymbolPaymentDto.WithMana -> SymbolPayment.WithMana(mana.toDomain(), source.toDomain())
+        is SymbolPaymentDto.WithMana -> SymbolPayment.WithMana(mana.toDomain())
         SymbolPaymentDto.WithTwoLife -> SymbolPayment.WithTwoLife
-    }
-
-/** [ManaSourceChoice] to its wire form. */
-fun ManaSourceChoice.toDto(): ManaSourceChoiceDto =
-    when (this) {
-        ManaSourceChoice.FromPool -> ManaSourceChoiceDto.FromPool
-        is ManaSourceChoice.ByTapping -> ManaSourceChoiceDto.ByTapping(sourceClass.toDto())
-    }
-
-/** [ManaSourceChoiceDto] back to the engine value. */
-fun ManaSourceChoiceDto.toDomain(): ManaSourceChoice =
-    when (this) {
-        ManaSourceChoiceDto.FromPool -> ManaSourceChoice.FromPool
-        is ManaSourceChoiceDto.ByTapping -> ManaSourceChoice.ByTapping(sourceClass.toDomain())
     }
 
 /** [SourceClassKey] to its wire form. */
