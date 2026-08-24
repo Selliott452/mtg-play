@@ -93,6 +93,29 @@ internal fun oracleScenarios(): List<Pair<String, PaymentScenario>> =
             (rampState(Color.GREEN).withPool(ManaType.GREEN) to ManaCost.parse("{1}{G}")),
         "{G} off a fixed-mana ramp Forest" to (fixedRampState() to ManaCost.parse("{G}")),
         "{1}{G} off a fixed-mana ramp Forest" to (fixedRampState() to ManaCost.parse("{1}{G}")),
+    ) + creatureSourceScenarios()
+
+/**
+ * The scenarios whose sources are **creatures** (CR 302), the only shape for which the CR 302.6
+ * summoning-sickness gate on mana payment is observable. Kept apart from [oracleScenarios]' body
+ * only so neither list outgrows a readable length.
+ */
+private fun creatureSourceScenarios(): List<Pair<String, PaymentScenario>> =
+    listOf(
+        "{1}{G} over two settled creature mana sources and a Forest" to
+            (
+                fixtureBoard(
+                    SeatSetup(battlefield = listOf("Fixture Mana Elf", "Fixture Mana Elf", "Fixture Forest")),
+                ).settled() to ManaCost.parse("{1}{G}")
+            ),
+        "{G} over a summoning-sick creature mana source and a Forest" to
+            (
+                fixtureBoard(SeatSetup(battlefield = listOf("Fixture Mana Elf", "Fixture Forest"))) to
+                    ManaCost.parse("{G}")
+            ),
+        // CR 302.6 restricts {T} and {Q} costs only, so a sacrifice source is usable while sick.
+        "{C} over a summoning-sick sacrifice creature source" to
+            (fixtureBoard(SeatSetup(battlefield = listOf("Fixture Mana Spawn"))) to ManaCost.parse("{C}")),
     )
 
 /**
@@ -173,6 +196,20 @@ internal fun assertExecutesAsDeclared(
     after.manaPool.groupingBy { it }.eachCount() shouldBe expected.filterValues { it > 0 }
     after.life shouldBe before.life - PHYREXIAN_LIFE * plan.payments.count { it == SymbolPayment.WithTwoLife }
 }
+
+/**
+ * The state with no battlefield permanent summoning sick — the board as it stands after its
+ * controller's untap step (CR 302.6). `fixtureState` builds battlefield objects with the
+ * [dev.mtgplay.core.state.GameObject.summoningSick] default, which is right for a permanent that
+ * just arrived and wrong for one that has been there since before the turn.
+ */
+internal fun GameState.settled(): GameState =
+    copy(
+        sharedZones =
+            sharedZones.copy(
+                battlefield = sharedZones.battlefield.map { it.copy(summoningSick = false) }.toPersistentList(),
+            ),
+    )
 
 /** The state with [mana] added to alice's pool, standing in for mana floated earlier in the step. */
 internal fun GameState.withPool(mana: ManaType): GameState =

@@ -1,0 +1,84 @@
+package dev.mtgplay.cards
+
+import dev.mtgplay.core.card.CardType
+import dev.mtgplay.core.card.PrintedCharacteristics
+import dev.mtgplay.core.card.PrintedPowerToughness
+import dev.mtgplay.core.card.Subtype
+import dev.mtgplay.core.definition.ManaAbility
+import dev.mtgplay.core.definition.ResolutionEffect
+import dev.mtgplay.core.definition.SpellDefinition
+import dev.mtgplay.core.definition.TargetSpec
+import dev.mtgplay.core.definition.TimingClass
+import dev.mtgplay.core.mana.ManaCost
+import dev.mtgplay.core.mana.ManaType
+import kotlinx.collections.immutable.PersistentSet
+import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.persistentSetOf
+
+/*
+ * The pool's first **creature** mana sources (CR 605.1a on a CR 302 permanent): the two `{G}`
+ * one-drop mana Elves the gauntlet's Elves list runs.
+ *
+ * Nothing about the definitions is new — a creature spell with an intrinsic [ManaAbility], both
+ * primitives long published (ADR-003). What *is* new is that the mana-payment path now has to
+ * answer a question it had never been asked: a land is never summoning sick in any way that
+ * matters, so until these two cards existed **CR 302.6 was unreachable from mana payment**, and
+ * `PaymentEnumeration.manaSourceClasses` did not check it. It does now, through the shared
+ * `manaSourceUsable` predicate: a Mystic played this turn funds no payment plan, exactly as the
+ * `{T}` cost component of a non-mana activated ability has always behaved.
+ *
+ * That gate is the reason these two land together with the fix rather than after it: the failure
+ * it prevents is silent and in the agent's favour — mana offered in the enumerated action space
+ * that the rules do not permit (PLAN.md §7, docs/gauntlet-card-triage.md §7 T1).
+ */
+
+/**
+ * The resolution of a permanent spell with no CR 608.2c instructions of its own (CR 608.3): the
+ * rules engine moves it from the stack onto the battlefield. Both mana Elves' printed work is
+ * their mana ability, never a resolution instruction.
+ */
+private val entersTheBattlefield: ResolutionEffect = ResolutionEffect { state, _ -> state }
+
+/** The creature types both mana Elves print (CR 205.3m). */
+private val ELF_DRUID: PersistentSet<Subtype> = persistentSetOf(Subtype("Elf"), Subtype("Druid"))
+
+/**
+ * A 1/1 Elf Druid for `{G}` whose whole printed text is the intrinsic mana ability
+ * `{T}: Add {G}` (CR 605.1a). A creature spell is cast at sorcery speed and targets nothing
+ * (CR 302.1, CR 601.2c); on the battlefield its mana ability resolves immediately, with no stack
+ * and no priority round (CR 605.3), and — being an activated ability with `{T}` in its cost on a
+ * creature — cannot be activated at all while the creature is summoning sick (CR 302.6).
+ */
+private fun greenManaElf(name: String): SpellDefinition =
+    object : SpellDefinition {
+        override val characteristics =
+            PrintedCharacteristics(
+                name = name,
+                manaCost = ManaCost.parse("{G}"),
+                supertypes = persistentSetOf(),
+                cardTypes = persistentSetOf(CardType.CREATURE),
+                subtypes = ELF_DRUID,
+                powerToughness = PrintedPowerToughness(power = 1, toughness = 1),
+            )
+
+        // CR 302.1: a creature spell is cast at sorcery speed (it is not an instant).
+        override val timing = TimingClass.SORCERY_SPEED
+        override val targetSpec = TargetSpec.None
+        override val resolution = entersTheBattlefield
+        override val manaAbilities = persistentListOf(ManaAbility(persistentListOf(ManaType.GREEN)))
+    }
+
+/**
+ * Elvish Mystic — `{G}` Creature — Elf Druid, a 1/1 with "`{T}`: Add `{G}`". The pool's first
+ * creature mana source, and therefore the first object for which the CR 302.6 summoning-sickness
+ * gate on mana payment is observable.
+ */
+val elvishMystic: SpellDefinition = greenManaElf("Elvish Mystic")
+
+/**
+ * Fyndhorn Elves — `{G}` Creature — Elf Druid, a 1/1 with "`{T}`: Add `{G}`". A functional
+ * reprint of [elvishMystic]; the two are nonetheless **distinct payment source classes**, because
+ * the payment equivalence relation keys on the printed card as well as the production profile
+ * (docs/design/mana-payment.md §2) — a deliberate safety margin, not an oversight.
+ */
+val fyndhornElves: SpellDefinition = greenManaElf("Fyndhorn Elves")

@@ -48,7 +48,7 @@ class GauntletCoverageSpec :
                 )
             } shouldBe
                 listOf(
-                    Pinned("Elves", 2, 16, 2, 5),
+                    Pinned("Elves", 4, 16, 2, 5),
                     Pinned("Gates", 8, 17, 1, 5),
                     Pinned("Grixis Affinity", 8, 22, 1, 7),
                     Pinned("GW Bogles", 18, 18, 3, 8),
@@ -103,8 +103,8 @@ private const val SIDEBOARD_SIZE = 15
 private const val TOTAL_DISTINCT_MAIN = 178
 
 /** Of those, how many `mtg-cards` defines — the number this burn-down drives to [TOTAL_DISTINCT_MAIN]. */
-private const val TOTAL_ENCODED_MAIN = 56
-private const val TOTAL_MISSING_MAIN = 122
+private const val TOTAL_ENCODED_MAIN = 58
+private const val TOTAL_MISSING_MAIN = 120
 
 /** Distinct cards named by at least one gauntlet sideboard. */
 private const val TOTAL_DISTINCT_SIDEBOARD = 48
@@ -112,7 +112,7 @@ private const val TOTAL_ENCODED_SIDEBOARD = 9
 private const val TOTAL_MISSING_SIDEBOARD = 39
 
 /** The whole backlog: distinct undefined cards across both boards of all thirteen decks. */
-private const val TOTAL_MISSING_BOTH_BOARDS = 157
+private const val TOTAL_MISSING_BOTH_BOARDS = 155
 
 /** Of the backlog, the cards that appear only in sideboards. */
 private const val TOTAL_MISSING_SIDEBOARD_ONLY = 35

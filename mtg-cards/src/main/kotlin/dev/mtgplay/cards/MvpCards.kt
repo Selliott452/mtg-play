@@ -49,6 +49,11 @@ import dev.mtgplay.core.identity.CardRef
  * [snowCoveredPlains] — CR 205.4a two-supertype basics — and [skred], the first card to target a
  * creature and nothing else, whose damage counts snow permanents at resolution (CR 608.2).
  *
+ * The `P-MANASICK` packet adds the pool's first **creature** mana sources (ManaCreatures.kt):
+ * [elvishMystic] and [fyndhornElves], the two `{T}`: Add `{G}` Elf Druids. They are the first
+ * objects that make the CR 302.6 summoning-sickness restriction observable from mana payment, and
+ * they landed together with the gate that enforces it (`manaSourceUsable`).
+ *
  * [definitions] is shaped for direct `MatchConfig.definitions` consumption: the engine carries
  * it into `GameState` in canonical name-sorted order regardless of this map's own order
  * (ADR-009 — definitions ride in the state; a [CardRef] without an entry is inert). The pool
@@ -65,12 +70,14 @@ object MvpCards {
             breathWeapon,
             cartoucheOfSolidarity,
             drossforgeBridge,
+            elvishMystic,
             endTheFestivities,
             etherealArmor,
             faithlessLooting,
             fieryTemper,
             fireblast,
             forest,
+            fyndhornElves,
             galvanicBlast,
             gladecoverScout,
             gnawToTheBone,

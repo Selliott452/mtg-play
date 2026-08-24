@@ -365,6 +365,13 @@ mana is there, the game continues, and the enumerated action space is wrong in t
 `P-MANASICK` must land in the same packet as the first creature mana source. **This is the single
 most dangerous item in the whole triage.**
 
+> **Resolved.** Landed with Elvish Mystic and Fyndhorn Elves, the pool's first creature mana
+> sources. The gate is now one shared predicate, `manaSourceUsable`
+> (`mtg-rules/.../engine/ManaSourceUsability.kt`), read by `manaSourceClasses` *and* by
+> `resolveTapForMana` — the executor had the same gap, and would have tapped a summoning-sick
+> member of a class the planner counted without one. See docs/design/mana-payment.md §2.1 and
+> `ManaSourceSummoningSicknessSpec`.
+
 **T2 — Lotus Petal is not `viaSacrifice`.** `ManaAbility.viaSacrifice` means *sacrifice instead of
 tapping* (Eldrazi Spawn), and `manaSourceClasses` deliberately treats a sacrifice source as usable
 **while tapped**. Lotus Petal's cost is `{T}` **and** sacrifice. Encoding it with `viaSacrifice=true`

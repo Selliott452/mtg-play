@@ -1,8 +1,9 @@
-# Design note — mana payment enumeration (P2.1, amended P8.3)
+# Design note — mana payment enumeration (P2.1, amended P8.3 and P-MANASICK)
 
 The reference for the payment model built in P2.1, extended by P2.2 (real basics) and Phase 5
-(triggered mana abilities, additional/alternative costs), and **reshaped in P8.3** so that one
-activation of a mana ability can pay more than one cost symbol. PLAN.md §7 names payment
+(triggered mana abilities, additional/alternative costs), **reshaped in P8.3** so that one
+activation of a mana ability can pay more than one cost symbol, and corrected by `P-MANASICK`
+(§2.1) when the pool gained its first creature mana source. PLAN.md §7 names payment
 combinatorics a top risk; the mitigation is this model: **declarative plans over collapsed
 source classes**, enumerated exhaustively, chosen by index (ADR-005).
 
@@ -60,7 +61,7 @@ determined by `activations`, and tagging it per symbol would only manufacture du
    `RED`; `{C}` demands `COLORLESS` specifically (CR 107.4c); `{G/U}` accepts `GREEN` or
    `BLUE`; `{R/P}` accepts `RED` or `WithTwoLife`; generic accepts any type (CR 107.4d).
 2. **Capacity** — for each source class, the number of activations of it does not exceed the
-   class's untapped (or, for a sacrifice ability, usable) membership.
+   class's **usable** membership (§2.1).
 3. **Life** (CR 118.8) — `2 ×` the number of `WithTwoLife` payments does not exceed the
    caster's life total. Paying *down to* 0 or into a lethal SBA is legal; per CR 704.5a the
    death follows.
@@ -89,13 +90,37 @@ does not spend **floats** until the step ends (CR 500.4), which stays legal and 
 deliberately enumerable: tapping a Sprawl'd Forest for a single `{G}` is a legal plan whose
 bonus mana is simply never claimed.
 
-## 2. Equivalence and collapsing (unchanged)
+## 2. Usability, equivalence, and collapsing
 
 Without collapsing, "tap 2 of my 5 Mountains for `{1}{R}`" is C(5,2)·permutations of plans
 that differ only in which physically-identical land taps. The model collapses them at the
 representation level: a plan never names a source object. It names a **source class** — the
 equivalence class of interchangeable sources — and execution picks concrete members
 deterministically.
+
+### 2.1 What "usable" means (P-MANASICK)
+
+Before the relation partitions anything, a filter decides which battlefield objects are *usable*
+mana sources at all — the membership every capacity check counts. It is one predicate,
+`manaSourceUsable`, and it has exactly two callers by design: `manaSourceClasses` (the planner)
+and `resolveTapForMana` (the executor). They must agree exactly; two filter expressions in two
+files is how they stop agreeing.
+
+- A **sacrifice**-cost mana ability (CR 605.1a) is usable whether or not the source is tapped —
+  its cost has no `{T}`.
+- A `{T}` mana ability needs an untapped source (CR 602.2a).
+- **CR 302.6** — a creature's activated ability with `{T}` in its cost can't be activated unless
+  the creature has been under its controller's control continuously since their most recent turn
+  began. A mana ability *is* an activated ability, so a summoning-sick Elvish Mystic taps for
+  nothing.
+
+The third clause was **missing** until the first creature mana source was encoded, and it could
+not be observed before then: every mana source in the MVP pool was a land or an artifact. It is
+the failure mode this whole document exists to avoid — not a crash, but mana in the enumerated
+action space (ADR-005) that the rules do not permit, wrong *in the agent's favour*. Note the
+clause is a property of the **object**, not of its printed card, so it never belongs in the
+equivalence relation below: two otherwise-identical Elves, one sick, are the same class with a
+membership of one.
 
 **Equivalence relation.** Two usable battlefield objects controlled by the caster are
 payment-equivalent iff they have the same printed card (`CardRef`) **and** the same
