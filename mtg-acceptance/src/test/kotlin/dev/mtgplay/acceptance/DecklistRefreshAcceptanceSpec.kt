@@ -24,6 +24,7 @@ import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
+import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.collections.shouldNotContain
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
@@ -36,8 +37,9 @@ import kotlinx.collections.immutable.toPersistentMap
  * The P6.3 cards that refresh the two encoded decklists, driven end-to-end through the real engine by
  * [ScriptedGame] (which invariant-checks every transition): Kessig Flamebreather's noncreature cast
  * trigger — including the enchantment cast that fires it where Guttersnipe's instant-or-sorcery
- * whitelist would not — Wild Growth's additional `{G}` floating out of a real payment on both a Forest
- * and a Plains, and Kruphix's Insight's up-to-three enchantment-card keep. The fourth card, the one
+ * whitelist would not — Wild Growth's additional `{G}` in a real payment, both spent inside the cast that
+ * produced it (the P8.3 direct line, one tap paying `{1}{G}`) and left floating when the cast does not
+ * need it, and Kruphix's Insight's up-to-three enchantment-card keep. The fourth card, the one
  * *named* Lifelink, is a combat behaviour and lives in [BoglesTriggerAcceptanceSpec] beside Armadillo
  * Cloak, the trigger it contrasts with. Every state is a valid engine input by construction (ADR-004).
  */
@@ -119,10 +121,52 @@ class DecklistRefreshAcceptanceSpec :
                 .life shouldBe STARTING_LIFE - KESSIG_PING
         }
 
-        "CR 605.1b: Wild Growth's enchanted Forest floats an additional {G} that pays a second spell" {
-            // A Forest enchanted by Wild Growth is alice's only mana source. Tapping it for the {G}
-            // Rancor floats a second green; once Rancor resolves, that floated green alone pays a {G}
-            // Gladecover Scout with no untapped land left — one land, two one-drops.
+        "CR 605.1b: Wild Growth's enchanted Forest pays a two-mana spell off one tap, as a single plan" {
+            // The direct line, and the reason P8.3 exists. A Forest enchanted by Wild Growth is alice's
+            // ONLY land, and its single activation pays the whole of Malevolent Rumble's {1}{G}: the
+            // Forest's own {G} and the Aura's printed additional {G}. Before CR 601.2g production was
+            // split from CR 601.2h payment, one tap could pay only one symbol and this cast enumerated
+            // no plan at all — a legal line missing from the action space (ADR-005).
+            val game =
+                refreshGame(
+                    alice =
+                        RefreshBoard(
+                            hand = listOf(obj(10, "Malevolent Rumble")),
+                            battlefield =
+                                listOf(obj(0, "Forest"), obj(1, "Wild Growth").copy(attachedTo = ObjectId(0))),
+                            library =
+                                listOf(
+                                    obj(20, "Gladecover Scout"),
+                                    obj(21, "Lightning Bolt"),
+                                    obj(22, "Forest"),
+                                    obj(23, "Mountain"),
+                                ),
+                        ),
+                )
+            game.castOption("Malevolent Rumble")
+            val payment = game.pendingRequest.shouldBeInstanceOf<DecisionRequest.ChoosePaymentPlan>()
+            payment.options shouldHaveSize 1
+            payment.options.single().activations shouldHaveSize 1
+            payment.options.single().payments shouldHaveSize 2
+            game.apply(Decision.SingleSelect(payment.id, 0))
+            // One tap, both symbols paid, nothing left floating (CR 601.2g-h).
+            game.state.sharedZones.battlefield
+                .single { it.id == ObjectId(0) }
+                .tapped
+                .shouldBeTrue()
+            game.state.players
+                .getValue(alice)
+                .manaPool
+                .shouldBeEmpty()
+            game.state.events
+                .filterIsInstance<GameEvent.ManaAdded>()
+                .map { it.mana } shouldContainExactly listOf(ManaType.GREEN, ManaType.GREEN)
+        }
+
+        "CR 500.4: Wild Growth's bonus still floats when the cast does not spend it, and pays a second spell" {
+            // Floating stays legal: tapping the enchanted Forest for a {G} Rancor spends only the primary
+            // green, and the Aura's additional green survives to pay a {G} Gladecover Scout with no
+            // untapped land left — one land, two one-drops. The surplus half of the same model.
             val game =
                 refreshGame(
                     alice =

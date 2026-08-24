@@ -17,7 +17,7 @@ import dev.mtgplay.rules.DecisionRequestKind
 import dev.mtgplay.rules.decision.Decision
 import dev.mtgplay.rules.decision.DecisionRequest
 import dev.mtgplay.rules.decision.DecisionRequestId
-import dev.mtgplay.rules.decision.ManaSourceChoice
+import dev.mtgplay.rules.decision.ManaActivation
 import dev.mtgplay.rules.decision.PaymentPlan
 import dev.mtgplay.rules.decision.PriorityOption
 import dev.mtgplay.rules.decision.SourceClassKey
@@ -119,7 +119,7 @@ private val richPriorityWindow: DecisionRequest.ChooseAction =
         ),
     )
 
-/** A payment window exercising every [SymbolPayment]/[ManaSourceChoice] shape. */
+/** A payment window exercising every [ManaActivation]/[SymbolPayment] shape. */
 private val richPaymentWindow: DecisionRequest.ChoosePaymentPlan =
     DecisionRequest.ChoosePaymentPlan(
         ID,
@@ -128,18 +128,23 @@ private val richPaymentWindow: DecisionRequest.ChoosePaymentPlan =
         listOf(
             PaymentPlan(
                 listOf(
-                    SymbolPayment.WithMana(ManaType.RED, ManaSourceChoice.FromPool),
-                    SymbolPayment.WithMana(
-                        ManaType.GREEN,
-                        ManaSourceChoice.ByTapping(
-                            SourceClassKey(
-                                CardRef("Forest"),
-                                listOf(ManaType.GREEN),
-                                listOf(ManaType.GREEN),
-                                viaSacrifice = false,
-                            ),
+                    ManaActivation(
+                        SourceClassKey(
+                            CardRef("Forest"),
+                            listOf(ManaType.GREEN),
+                            listOf(ManaType.GREEN),
+                            viaSacrifice = false,
                         ),
+                        ManaType.GREEN,
                     ),
+                    ManaActivation(
+                        SourceClassKey(CardRef("Eldrazi Spawn"), listOf(ManaType.COLORLESS), viaSacrifice = true),
+                        ManaType.COLORLESS,
+                    ),
+                ),
+                listOf(
+                    SymbolPayment.WithMana(ManaType.RED),
+                    SymbolPayment.WithMana(ManaType.GREEN),
                     SymbolPayment.WithTwoLife,
                 ),
             ),

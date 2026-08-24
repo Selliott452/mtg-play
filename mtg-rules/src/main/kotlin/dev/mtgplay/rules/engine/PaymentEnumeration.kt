@@ -8,16 +8,19 @@ import dev.mtgplay.core.mana.ManaSymbol
 import dev.mtgplay.core.mana.ManaType
 import dev.mtgplay.core.state.GameObject
 import dev.mtgplay.core.state.GameState
-import dev.mtgplay.rules.decision.ManaSourceChoice
 import dev.mtgplay.rules.decision.PaymentPlan
 import dev.mtgplay.rules.decision.SourceClassKey
 import dev.mtgplay.rules.decision.SymbolPayment
 
 /*
  * Payment-plan enumeration (CR 601.2g–h), implementing docs/design/mana-payment.md: every
- * distinct way to pay a cost from the caster's untapped sources, pooled mana, and (for
+ * distinct way to pay a cost from the caster's usable mana sources, pooled mana, and (for
  * Phyrexian symbols) life — interchangeable sources collapsed into classes, plans
  * deduplicated and deterministically ordered (ADR-005, ADR-006).
+ *
+ * Since P8.3 a plan is split into CR 601.2g activations and CR 601.2h payments, so one
+ * activation may pay several symbols; the activation half of the search lives in
+ * ActivationEnumeration.kt.
  */
 
 /** The life a Phyrexian symbol's alternative costs (CR 107.4). */
@@ -26,7 +29,7 @@ internal const val PHYREXIAN_LIFE_COST: Int = 2
 /**
  * One class of payment-equivalent mana sources: the [key] every member shares and the members
  * themselves, in battlefield order (docs/design/mana-payment.md — same printed card, same
- * production profile, untapped, same controller).
+ * production profile, same CR 605.1b bonus, same activation cost, usable, same controller).
  */
 internal data class SourceClass(
     val key: SourceClassKey,
@@ -34,7 +37,7 @@ internal data class SourceClass(
 )
 
 /**
- * The payment-equivalence classes of [seat]'s untapped battlefield mana sources, ordered by
+ * The payment-equivalence classes of [seat]'s usable battlefield mana sources, ordered by
  * first appearance in battlefield order (the stable class order of
  * docs/design/mana-payment.md). Controller is owner until control-changing effects exist
  * (Phase 4+).
@@ -72,13 +75,13 @@ internal fun isSacrificeSource(
 }
 
 /**
- * The extra mana a tap of the battlefield source [sourceId] adds *in addition to* its primary
- * production (CR 605.1b): the [dev.mtgplay.core.definition.TriggeredManaAbility]s of every Aura attached
- * to it — Utopia Sprawl's "add one mana of the chosen colour" on an enchanted Forest, Wild Growth's
- * additional `{G}` on an enchanted land — expanded to [ManaType]s, in battlefield-then-ability order.
- * Empty for a source with no such Aura. This is the [SourceClassKey.bonus] that keeps an enchanted
- * Forest a distinct source class, and the mana [resolveTapForMana] floats into the pool after the
- * primary mana.
+ * The extra mana an activation of the battlefield source [sourceId] adds *in addition to* its
+ * primary production (CR 605.1b): the [dev.mtgplay.core.definition.TriggeredManaAbility]s of every Aura
+ * attached to it — Utopia Sprawl's "add one mana of the chosen colour" on an enchanted Forest, Wild
+ * Growth's additional `{G}` on an enchanted land — expanded to [ManaType]s, in battlefield-then-ability
+ * order. Empty for a source with no such Aura. This is the [SourceClassKey.bonus] that keeps an
+ * enchanted Forest a distinct source class, and — since P8.3 — the second half of the activation's
+ * [activationYield], spendable by the very cost whose payment produced it.
  */
 internal fun triggeredManaBonus(
     state: GameState,
@@ -101,14 +104,30 @@ internal fun triggeredManaBonus(
         }
 
 /**
+ * Everything one activation of [key] choosing [produced] puts in the pool (CR 605.1a–b): the
+ * source's own mana, plus the CR 605.1b triggered bonus of the Auras attached to it. All of it is
+ * spendable by the plan that declared the activation; whatever the plan does not spend floats
+ * until the step ends (CR 500.4).
+ *
+ * **This is the F10 seam** (docs/design/mana-payment.md §8). A source whose own ability adds
+ * several mana — Urza's Tower's `{C}{C}{C}` — fits by making the primary half a multiset rather
+ * than a single [ManaType]; the plan shape, the search, the dedup rule and the executor are all
+ * indifferent to how long this list is.
+ */
+internal fun activationYield(
+    key: SourceClassKey,
+    produced: ManaType,
+): List<ManaType> = listOf(produced) + key.bonus
+
+/**
  * The production profile of the battlefield object [obj]: the canonical (WUBRG-then-colorless,
- * CR 105.1) list of mana types its tap-for-mana abilities can add, or `null` if it is no mana source
+ * CR 105.1) list of mana types its own mana abilities may add, or `null` if it is no mana source
  * — no definition, or none with mana abilities. Reads the object's **layered** mana abilities
  * ([layeredCharacteristics]), so a land granted "{T}: add one mana of any color" by an Abundant
- * Growth (CR 613 layer 6) taps for the granted colors here (docs/design/layer-system.md §6). Utopia
- * Sprawl's *triggered* mana ability (CR 605.1b) and its chosen colour remain Phase 5 — this seam
- * carries only the plain, non-triggered layer-6 grant. The profile *shape* is what the payment
- * equivalence relation keys on, so a grant changes an object's class without reshaping anything.
+ * Growth (CR 613 layer 6) taps for the granted colors here (docs/design/layer-system.md §6). The
+ * CR 605.1b *triggered* bonus is [triggeredManaBonus], kept separate because it is added rather
+ * than chosen between. The profile *shape* is what the payment equivalence relation keys on, so a
+ * grant changes an object's class without reshaping anything.
  */
 internal fun productionProfile(
     state: GameState,
@@ -124,12 +143,14 @@ internal fun productionProfile(
 
 /**
  * Enumerates every distinct payment plan for [seat] paying [cost] in [state], per
- * docs/design/mana-payment.md: symbols in printed order (generics expanded in place),
- * candidates per symbol in the fixed order — mana types in WUBRG-then-colorless order, pool
- * before tapping, classes in battlefield order, the Phyrexian life alternative last — with
- * assignments non-decreasing within runs of identical symbols, which makes the result
- * duplicate-free and deterministically ordered by construction. Empty exactly when the cost is
- * unaffordable, which is what excludes the cast from enumeration (ADR-005).
+ * docs/design/mana-payment.md: a two-level search with **payments outer, activations inner**.
+ * Symbols are visited in printed order (generics expanded in place) and each symbol's candidate
+ * payments tried in a fixed order — mana types in WUBRG-then-colorless order, the Phyrexian life
+ * alternative last — with assignments non-decreasing within runs of identical symbols; for each
+ * payment assignment the activation multisets that cover it are enumerated in the canonical order
+ * of [enumerateActivationSets]. The result is duplicate-free and deterministically ordered by
+ * construction (§3.3). Empty exactly when the cost is unaffordable, which is what excludes the
+ * cast from enumeration (ADR-005).
  *
  * Life legality (CR 118.8): a plan's summed life payments must not exceed [seat]'s life total;
  * paying down to 0 or less is legal and the CR 704.5a state-based action follows.
@@ -139,20 +160,16 @@ internal fun enumeratePaymentPlans(
     seat: PlayerId,
     cost: ManaCost,
 ): List<PaymentPlan> {
-    val classes = manaSourceClasses(state, seat)
     val player = state.player(seat)
+    val supply =
+        manaSupply(
+            pool = player.manaPool.groupingBy { it }.eachCount(),
+            classes = manaSourceClasses(state, seat),
+            life = player.life,
+        )
     val units = expandToUnits(cost)
-    val search = PlanSearch(units, units.map { candidatesFor(it, classes) })
-    search.run(
-        index = 0,
-        minCandidate = 0,
-        resources =
-            PaymentResources(
-                pool = player.manaPool.groupingBy { it }.eachCount(),
-                classRemaining = classes.associate { it.key to it.members.size },
-                lifeRemaining = player.life,
-            ),
-    )
+    val search = PaymentSearch(units, units.map { candidatesFor(it, supply.obtainable) }, supply)
+    search.run(index = 0, minCandidate = 0)
     return search.plans()
 }
 
@@ -180,109 +197,111 @@ internal fun manaTypeOf(color: Color): ManaType =
         Color.GREEN -> ManaType.GREEN
     }
 
+/** The mana types one [symbol] accepts (CR 107.4), before the life alternative. */
+private fun payableTypes(symbol: ManaSymbol): List<ManaType> =
+    when (symbol) {
+        is ManaSymbol.Colored -> listOf(manaTypeOf(symbol.color))
+        ManaSymbol.Colorless -> listOf(ManaType.COLORLESS)
+        // CR 107.4d: generic is payable by mana of any type.
+        is ManaSymbol.Generic -> ManaType.entries
+        // CR 107.4: a hybrid symbol is payable with either of its component colors.
+        is ManaSymbol.Hybrid -> listOf(manaTypeOf(symbol.first), manaTypeOf(symbol.second))
+        is ManaSymbol.Phyrexian -> listOf(manaTypeOf(symbol.color))
+    }
+
 /**
- * The static candidate payments for one cost unit, in the fixed enumeration order of
- * docs/design/mana-payment.md. Availability against resources is checked during the search;
- * this list is the *ordering*, and the non-decreasing rule for identical symbols indexes
- * into it.
+ * The candidate payments for one cost unit, in the fixed enumeration order of
+ * docs/design/mana-payment.md: mana types in WUBRG-then-colorless order, the Phyrexian 2-life
+ * alternative last. Types [obtainable] names are the only ones any plan could supply, so
+ * restricting to them prunes without removing a legal plan. The non-decreasing rule for identical
+ * symbols indexes into this list.
  */
 private fun candidatesFor(
     symbol: ManaSymbol,
-    classes: List<SourceClass>,
-): List<SymbolPayment> {
-    val payable: List<ManaType> =
-        when (symbol) {
-            is ManaSymbol.Colored -> listOf(manaTypeOf(symbol.color))
-            ManaSymbol.Colorless -> listOf(ManaType.COLORLESS)
-            // CR 107.4d: generic is payable by mana of any type.
-            is ManaSymbol.Generic -> ManaType.entries
-            // CR 107.4: a hybrid symbol is payable with either of its component colors.
-            is ManaSymbol.Hybrid -> listOf(manaTypeOf(symbol.first), manaTypeOf(symbol.second))
-            is ManaSymbol.Phyrexian -> listOf(manaTypeOf(symbol.color))
-        }
-    return buildList {
-        for (type in payable.sortedBy(ManaType::ordinal)) {
-            add(SymbolPayment.WithMana(type, ManaSourceChoice.FromPool))
-            for (sourceClass in classes) {
-                if (type in sourceClass.key.profile) {
-                    add(SymbolPayment.WithMana(type, ManaSourceChoice.ByTapping(sourceClass.key)))
-                }
-            }
-        }
+    obtainable: Set<ManaType>,
+): List<SymbolPayment> =
+    buildList {
+        payableTypes(symbol)
+            .sortedBy(ManaType::ordinal)
+            .filter { it in obtainable }
+            .forEach { add(SymbolPayment.WithMana(it)) }
         // CR 107.4: the Phyrexian alternative — 2 life instead of the mana; always last.
         if (symbol is ManaSymbol.Phyrexian) add(SymbolPayment.WithTwoLife)
     }
-}
 
 /**
- * What remains available to pay with at one point of the search: pooled mana by type, untapped
- * members per source class, and the life not yet committed (CR 118.8).
+ * The depth-first search of docs/design/mana-payment.md §3.1 over the units' candidate payments.
+ * `minCandidate` carries the previous unit's candidate index and constrains a unit only when its
+ * symbol equals the previous one — the non-decreasing rule that suppresses permutation
+ * duplicates. Every legality clause is a predicate on the whole plan and is invariant under
+ * permuting payments within a run, so the canonical representative is feasible exactly when any
+ * permutation of it is (§3.1) — which is what makes the rule lossless now that one activation can
+ * pay several symbols.
+ *
+ * The running demand and life are pruned against [ManaSupply.maxAvailable] as the search
+ * descends; a leaf then hands its demand to [enumerateActivationSets] for the inner half.
  */
-private data class PaymentResources(
-    val pool: Map<ManaType, Int>,
-    val classRemaining: Map<SourceClassKey, Int>,
-    val lifeRemaining: Int,
-) {
-    /** The resources after drawing one pooled [mana], or `null` if none remains. */
-    fun spendingPooled(mana: ManaType): PaymentResources? {
-        val available = pool[mana] ?: 0
-        return if (available > 0) copy(pool = pool + (mana to available - 1)) else null
-    }
-
-    /** The resources after tapping one member of [sourceClass], or `null` if none remains. */
-    fun tappingMemberOf(sourceClass: SourceClassKey): PaymentResources? {
-        val available = classRemaining[sourceClass] ?: 0
-        return if (available > 0) copy(classRemaining = classRemaining + (sourceClass to available - 1)) else null
-    }
-
-    /** The resources after committing 2 life (CR 107.4), or `null` if life cannot cover it. */
-    fun payingTwoLife(): PaymentResources? =
-        if (lifeRemaining >= PHYREXIAN_LIFE_COST) copy(lifeRemaining = lifeRemaining - PHYREXIAN_LIFE_COST) else null
-}
-
-/**
- * The depth-first search of docs/design/mana-payment.md over the units' candidate payments.
- * `minCandidate` carries the previous unit's candidate index and constrains a unit only when
- * its symbol equals the previous one — the non-decreasing rule that suppresses permutation
- * duplicates, making the collected plans duplicate-free and deterministically ordered by
- * construction.
- */
-private class PlanSearch(
+private class PaymentSearch(
     private val units: List<ManaSymbol>,
     private val candidates: List<List<SymbolPayment>>,
+    private val supply: ManaSupply,
 ) {
     private val chosen = mutableListOf<SymbolPayment>()
+    private val demand = IntArray(ManaType.entries.size)
+    private var lifeCommitted = 0
     private val found = mutableListOf<PaymentPlan>()
 
     fun run(
         index: Int,
         minCandidate: Int,
-        resources: PaymentResources,
     ) {
         if (index == units.size) {
-            found += PaymentPlan(chosen.toList())
+            emitPlans()
             return
         }
         val startsRun = index == 0 || units[index] != units[index - 1]
-        val from = if (startsRun) 0 else minCandidate
-        for (candidateIndex in from until candidates[index].size) {
+        for (candidateIndex in (if (startsRun) 0 else minCandidate) until candidates[index].size) {
             val payment = candidates[index][candidateIndex]
-            val remaining = resources.consuming(payment) ?: continue
-            chosen += payment
-            run(index + 1, candidateIndex, remaining)
-            chosen.removeAt(chosen.lastIndex)
+            if (!take(payment)) continue
+            run(index + 1, candidateIndex)
+            release(payment)
         }
     }
 
     fun plans(): List<PaymentPlan> = found.toList()
 
-    private fun PaymentResources.consuming(payment: SymbolPayment): PaymentResources? =
-        when (payment) {
-            is SymbolPayment.WithMana ->
-                when (val source = payment.source) {
-                    ManaSourceChoice.FromPool -> spendingPooled(payment.mana)
-                    is ManaSourceChoice.ByTapping -> tappingMemberOf(source.sourceClass)
+    /** Commits [payment] to the partial plan, or leaves the search state untouched and returns false. */
+    private fun take(payment: SymbolPayment): Boolean {
+        val fits =
+            when (payment) {
+                is SymbolPayment.WithMana -> {
+                    val ordinal = payment.mana.ordinal
+                    demand[ordinal] + 1 <= supply.maxAvailable[ordinal]
                 }
-            SymbolPayment.WithTwoLife -> payingTwoLife()
+                // CR 118.8: the summed life payments may not exceed the caster's life total.
+                SymbolPayment.WithTwoLife -> lifeCommitted + PHYREXIAN_LIFE_COST <= supply.life
+            }
+        if (!fits) return false
+        when (payment) {
+            is SymbolPayment.WithMana -> demand[payment.mana.ordinal] += 1
+            SymbolPayment.WithTwoLife -> lifeCommitted += PHYREXIAN_LIFE_COST
         }
+        chosen += payment
+        return true
+    }
+
+    private fun release(payment: SymbolPayment) {
+        when (payment) {
+            is SymbolPayment.WithMana -> demand[payment.mana.ordinal] -= 1
+            SymbolPayment.WithTwoLife -> lifeCommitted -= PHYREXIAN_LIFE_COST
+        }
+        chosen.removeAt(chosen.lastIndex)
+    }
+
+    private fun emitPlans() {
+        val payments = chosen.toList()
+        enumerateActivationSets(supply, demand).forEach { activations ->
+            found += PaymentPlan(activations, payments)
+        }
+    }
 }

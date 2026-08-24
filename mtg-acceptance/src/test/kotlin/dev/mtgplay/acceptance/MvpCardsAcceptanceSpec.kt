@@ -26,8 +26,10 @@ import dev.mtgplay.rules.decision.DecisionRequest
 import dev.mtgplay.rules.decision.PriorityOption
 import io.kotest.core.spec.style.StringSpec
 import io.kotest.matchers.booleans.shouldBeTrue
+import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
+import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import io.kotest.matchers.types.shouldBeInstanceOf
@@ -219,10 +221,62 @@ class MvpCardsAcceptanceSpec :
             sprawl.chosenColor shouldBe Color.RED
         }
 
-        "CR 605.1b: Utopia Sprawl's bonus mana floats and pays a later spell in the same step" {
-            // A Forest enchanted by a Sprawl that chose RED is alice's only mana source. Tapping it for a
-            // {G} Gladecover Scout floats an extra red; that floated red then pays a {R} Lightning Bolt with
-            // no further tapping — the ramp, exercised through two real casts.
+        "CR 605.1b: Utopia Sprawl's ramp pays a two-mana spell off one tap, as a single enumerated plan" {
+            // The line P8.3 exists for. A Forest enchanted by a Sprawl that chose GREEN is alice's ONLY
+            // land, and it pays the whole of Malevolent Rumble's {1}{G} by itself: one activation, two
+            // symbols. Before the payment model split CR 601.2g production from CR 601.2h payment, one
+            // tap could pay only one symbol, so this cast was not enumerable at all — the mana was real
+            // but invisible to the plan, and a training agent on GW Bogles never saw the line (ADR-005).
+            val game =
+                gameFrom(
+                    alice =
+                        MvpBoard(
+                            hand = listOf(obj(10, "Malevolent Rumble")),
+                            battlefield =
+                                listOf(
+                                    obj(0, "Forest"),
+                                    obj(1, "Utopia Sprawl").copy(attachedTo = ObjectId(0), chosenColor = Color.GREEN),
+                                ),
+                            library =
+                                listOf(
+                                    obj(20, "Gladecover Scout"),
+                                    obj(21, "Lightning Bolt"),
+                                    obj(22, "Forest"),
+                                    obj(23, "Mountain"),
+                                ),
+                        ),
+                )
+            game.castOption("Malevolent Rumble")
+            val payment = game.pendingRequest.shouldBeInstanceOf<DecisionRequest.ChoosePaymentPlan>()
+            // Exactly one plan, and it activates exactly one mana ability to pay both symbols.
+            payment.options shouldHaveSize 1
+            payment.options.single().activations shouldHaveSize 1
+            payment.options.single().payments shouldHaveSize 2
+            game.apply(Decision.SingleSelect(payment.id, 0))
+            // One land tapped and nothing floating: the Forest's {G} and the Sprawl's {G} both paid.
+            game.state.sharedZones.battlefield
+                .count { it.tapped } shouldBe 1
+            game.state.players
+                .getValue(alice)
+                .manaPool
+                .shouldBeEmpty()
+            // The cast is real: the Rumble resolves, keeps a permanent card and makes its Spawn token.
+            game.driveUntil { game.pendingRequest is DecisionRequest.ChooseFromRevealed }
+            val reveal = game.pendingRequest.shouldBeInstanceOf<DecisionRequest.ChooseFromRevealed>()
+            game.apply(Decision.SingleSelect(reveal.id, 0))
+            game.driveUntil {
+                game.state.sharedZones.stack
+                    .isEmpty()
+            }
+            game.state.sharedZones.battlefield
+                .any { it.card == CardRef("Eldrazi Spawn") }
+                .shouldBeTrue()
+        }
+
+        "CR 500.4: Utopia Sprawl's bonus still floats when the cast does not spend it, and pays a later spell" {
+            // Floating remains legal and enumerable: a Sprawl that chose RED on alice's only land makes a
+            // {G} Gladecover Scout leave an unspent red behind, which then pays a {R} Lightning Bolt with
+            // no untapped land at all. The surplus half of the same model as the test above.
             val game =
                 gameFrom(
                     alice =
@@ -235,7 +289,6 @@ class MvpCardsAcceptanceSpec :
                                 ),
                         ),
                 )
-            // Cast the {G} Scout, tapping the enchanted Forest — this floats the bonus red into the pool.
             game.castOption("Gladecover Scout")
             game.payFirstPlan()
             game.state.players

@@ -4,7 +4,6 @@ import dev.mtgplay.core.identity.PlayerId
 import dev.mtgplay.core.mana.ManaCost
 import dev.mtgplay.core.state.GameState
 import dev.mtgplay.core.state.PendingCast
-import dev.mtgplay.rules.decision.ManaSourceChoice
 import dev.mtgplay.rules.decision.PaymentPlan
 import dev.mtgplay.rules.decision.SymbolPayment
 
@@ -15,11 +14,20 @@ import dev.mtgplay.rules.decision.SymbolPayment
  */
 
 /**
- * Executes the chosen [plan] to pay [cost] for [seat] (CR 601.2g–h, docs/design/mana-payment.md): each
- * `ByTapping` payment resolves a tap-for-mana ability immediately (no stack, no priority — CR 605.3),
- * pooled mana pays from the pool, and `WithTwoLife` pays the Phyrexian alternative. Shared by casting,
- * the plot special action (CR 702.140), and activated abilities (CR 602.2g). The plan is validated
- * against the cost first; enumeration guarantees it fits (ADR-005), so a mismatch is an engine defect.
+ * Executes the chosen [plan] to pay [cost] for [seat] (CR 601.2g–h, docs/design/mana-payment.md), in
+ * the CR's own two steps and in that order:
+ *
+ * 1. **CR 601.2g** — every [PaymentPlan.activations] entry activates the first usable member of its
+ *    source class, resolving the mana ability immediately (no stack, no priority — CR 605.3) and
+ *    adding its mana, and any CR 605.1b triggered bonus mana, to the pool.
+ * 2. **CR 601.2h** — every [PaymentPlan.payments] entry then removes one mana of its type from the
+ *    pool, or pays the Phyrexian 2-life alternative (CR 107.4).
+ *
+ * All production precedes all payment, which is both what the CR prescribes and what lets one
+ * activation pay several symbols. Whatever the plan produces and does not spend floats until the
+ * step ends (CR 500.4). Shared by casting, the plot special action (CR 702.140), and activated
+ * abilities (CR 602.2g). The plan is validated against the cost first; enumeration guarantees it
+ * fits (ADR-005), so a mismatch is an engine defect.
  */
 internal fun payManaPlan(
     state: GameState,
@@ -28,19 +36,14 @@ internal fun payManaPlan(
     plan: PaymentPlan,
 ): GameState {
     validatePlanShape(cost, plan)
-    return plan.payments.fold(state) { current, payment ->
+    val produced =
+        plan.activations.fold(state) { current, activation ->
+            resolveTapForMana(current, seat, activation.sourceClass, activation.produced)
+        }
+    return plan.payments.fold(produced) { current, payment ->
         when (payment) {
-            is SymbolPayment.WithMana ->
-                when (val source = payment.source) {
-                    ManaSourceChoice.FromPool ->
-                        removeManaFromPool(current, seat, payment.mana)
-                    is ManaSourceChoice.ByTapping -> {
-                        val produced = resolveTapForMana(current, seat, source.sourceClass, payment.mana)
-                        removeManaFromPool(produced, seat, payment.mana)
-                    }
-                }
-            SymbolPayment.WithTwoLife ->
-                changeLife(current, seat, -PHYREXIAN_LIFE_COST)
+            is SymbolPayment.WithMana -> removeManaFromPool(current, seat, payment.mana)
+            SymbolPayment.WithTwoLife -> changeLife(current, seat, -PHYREXIAN_LIFE_COST)
         }
     }
 }

@@ -8,9 +8,10 @@ import dev.mtgplay.rules.decision.SymbolPayment
 
 /**
  * Validates that [plan] pays exactly [cost]: one payment per expanded symbol, each satisfying
- * its symbol (CR 601.2g). Enumeration only builds satisfying plans (ADR-005), so a violation
- * here is an engine defect, not a player error — it fails loudly before payment executes,
- * which keeps the cast atomic (see the pipeline's contract).
+ * its symbol (CR 601.2g), and every activation choosing a mana its source class can actually
+ * add (CR 605.1a). Enumeration only builds satisfying plans (ADR-005), so a violation here is
+ * an engine defect, not a player error — it fails loudly before payment executes, which keeps
+ * the cast atomic (see the pipeline's contract).
  */
 internal fun validatePlanShape(
     cost: ManaCost,
@@ -23,6 +24,11 @@ internal fun validatePlanShape(
     units.zip(plan.payments).forEach { (symbol, payment) ->
         require(paymentSatisfies(symbol, payment)) {
             "CR 601.2g: $payment does not satisfy the symbol ${symbol.render()} of ${cost.render()}"
+        }
+    }
+    plan.activations.forEach { activation ->
+        require(activation.produced in activation.sourceClass.profile) {
+            "CR 605.1a: ${activation.sourceClass.card.name} cannot add ${activation.produced}"
         }
     }
 }
