@@ -42,6 +42,18 @@ sealed interface TargetSpec {
     data object AnyTarget : TargetSpec
 
     /**
+     * "Target creature" (CR 115.1a): one target that must be a creature on the battlefield, never a
+     * player. Additive, flagged core (`P-TGT`, docs/gauntlet-card-triage.md) — Skred is the first
+     * client. It is exactly the object half of [AnyTarget]: the same battlefield filter and the same
+     * hexproof restriction (CR 702.11), with no player ever offered.
+     *
+     * Unlike the players-only specs this one's CR 608.2b fizzle is genuinely reachable — a targeted
+     * creature that dies to a state-based action (CR 704.5g) before the spell resolves takes the
+     * whole spell with it.
+     */
+    data object TargetCreature : TargetSpec
+
+    /**
      * "Target player" (CR 115.1a): one target that must be a player, never an object. Additive,
      * flagged core (the card-selection packet). Thought Scour's "Target player mills two cards" is the first
      * client. Narrower than [AnyTarget] on purpose — a creature is not a legal choice — so it is

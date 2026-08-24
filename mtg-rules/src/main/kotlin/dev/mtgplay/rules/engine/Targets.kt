@@ -39,7 +39,9 @@ import dev.mtgplay.core.state.Target
  * [you] may target. Planeswalkers and battles are not in the MVP pool, so they never enter this
  * enumeration. Hexproof (CR 702.11) is the one targeting restriction in the pool: a creature with
  * hexproof among its effective keywords is excluded when [you] is *not* its controller — its own
- * controller targets it freely ([targetableBy]). [TargetSpec.Enchantable] (CR 601.2c) enumerates
+ * controller targets it freely ([targetableBy]). [TargetSpec.TargetCreature] (CR 115.1a) enumerates
+ * exactly that creature half — same battlefield order, same hexproof restriction — and never a
+ * player. [TargetSpec.Enchantable] (CR 601.2c) enumerates
  * every battlefield object satisfying the Aura's enchant restriction (CR 303.4a) for [you] and
  * targetable by [you] — so a GW-Bogles player enchants their own hexproof creatures, but an
  * opponent's Aura cannot. [TargetSpec.TargetOpponent] (CR 115.1a, CR 102.1) enumerates every player
@@ -67,6 +69,11 @@ internal fun legalTargets(
                 state.sharedZones.battlefield
                     .filter { isCreature(state, it) && targetableBy(state, it, you) }
                     .map { Target.Permanent(it.id) }
+        // CR 115.1a: "target creature" is the object half of "any target" and nothing else.
+        TargetSpec.TargetCreature ->
+            state.sharedZones.battlefield
+                .filter { isCreature(state, it) && targetableBy(state, it, you) }
+                .map { Target.Permanent(it.id) }
         is TargetSpec.Enchantable ->
             state.sharedZones.battlefield
                 .filter {
