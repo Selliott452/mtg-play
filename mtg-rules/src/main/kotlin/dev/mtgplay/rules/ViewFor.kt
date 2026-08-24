@@ -117,9 +117,10 @@ private fun pendingTriggerViewOf(trigger: PendingTrigger): PendingTriggerView =
     )
 
 /**
- * Resolves a [PendingRevealSelection] into a [PendingRevealView], exposing the revealed cards to all
- * seats (CR 701.16 — the cards are revealed, so public to both). The revealed ids reference the top
- * of the [PendingRevealSelection.decider]'s library; each is resolved to its actual object there.
+ * Resolves a [PendingRevealSelection] into a [PendingRevealView], exposing the revealed cards — and
+ * the keeps gathered so far in a multi-keep clause — to all seats (CR 701.16: the cards are revealed,
+ * so public to both). The revealed ids reference the top of the [PendingRevealSelection.decider]'s
+ * library; each is resolved to its actual object there.
  */
 private fun revealViewOf(
     state: GameState,
@@ -128,10 +129,13 @@ private fun revealViewOf(
     val library =
         state.players[reveal.decider]?.library
             ?: error("CR 701.16: a reveal selection names unseated decider ${reveal.decider}")
-    val revealed =
-        reveal.revealedIds.map { id ->
-            library.firstOrNull { it.id == id }
-                ?: error("CR 701.16: revealed id $id is not in ${reveal.decider}'s library")
-        }
-    return PendingRevealView(decider = reveal.decider, revealed = revealed)
+
+    fun resolve(id: dev.mtgplay.core.identity.ObjectId) =
+        library.firstOrNull { it.id == id }
+            ?: error("CR 701.16: revealed id $id is not in ${reveal.decider}'s library")
+    return PendingRevealView(
+        decider = reveal.decider,
+        revealed = reveal.revealedIds.map(::resolve),
+        kept = reveal.keptIds.map(::resolve),
+    )
 }

@@ -4,11 +4,15 @@ import dev.mtgplay.core.card.CardType
 import dev.mtgplay.core.card.PrintedCharacteristics
 import dev.mtgplay.core.definition.CardDefinition
 import dev.mtgplay.core.definition.ResolutionEffect
+import dev.mtgplay.core.definition.SpellDefinition
+import dev.mtgplay.core.definition.TargetSpec
+import dev.mtgplay.core.definition.TimingClass
 import dev.mtgplay.core.definition.TriggerCondition
 import dev.mtgplay.core.definition.TriggeredAbility
 import dev.mtgplay.core.identity.CardRef
 import dev.mtgplay.core.identity.ObjectId
 import dev.mtgplay.core.identity.PlayerId
+import dev.mtgplay.core.mana.ManaCost
 import dev.mtgplay.core.random.Rng
 import dev.mtgplay.core.state.GameObject
 import dev.mtgplay.core.state.GameState
@@ -29,11 +33,13 @@ import kotlinx.collections.immutable.persistentMapOf
 import kotlinx.collections.immutable.persistentSetOf
 import kotlinx.collections.immutable.toPersistentList
 import kotlinx.collections.immutable.toPersistentMap
+import kotlinx.collections.immutable.toPersistentSet
 
 /**
- * The P6.2a cast-trigger filter (CR 603.2e) and the caster-retained-priority nuance (CR 601.2i,
- * flagged in P5.1) with a fixture mirroring Guttersnipe's "whenever you cast an instant or sorcery
- * spell" — the `mtg-rules`-names-no-card rule holds; the P6.2b Guttersnipe encoding reuses this shape.
+ * The cast-trigger filters (CR 603.2e) and the caster-retained-priority nuance (CR 601.2i, flagged in
+ * P5.1), driven on fixtures: P6.2a's include-list mirroring Guttersnipe's "whenever you cast an instant
+ * or sorcery spell", and P6.3's *exclusion* list mirroring Kessig Flamebreather's "whenever you cast a
+ * noncreature spell". The `mtg-rules`-names-no-card rule holds; the card encodings reuse these shapes.
  */
 class CastTriggerFilterSpec :
     StringSpec({
@@ -110,6 +116,39 @@ class CastTriggerFilterSpec :
                 .shouldBeEmpty()
         }
 
+        "CR 603.2: a noncreature-filtered cast trigger fires on a noncreature permanent spell" {
+            // The exclusion filter is not the instant-or-sorcery whitelist: an enchantment cast fires it.
+            val state = noncreatureWatcherState(spellToCast = "Fixture Charm")
+            var current = engine.advance(state, castDecision(pausedRequestOf(state), "Fixture Charm"))
+            current = engine.advance(current.pausedState, planDecision(current.pending()))
+            val ability =
+                current.pausedState.sharedZones.stack
+                    .filterIsInstance<StackEntry.Ability>()
+                    .single()
+            ability.trigger.sourceCard shouldBe CardRef("Fixture Pyromancer")
+            ability.trigger.controller shouldBe alice
+        }
+
+        "CR 603.2: a noncreature-filtered cast trigger does NOT fire on a creature spell" {
+            val state = noncreatureWatcherState(spellToCast = "Fixture Golem")
+            var current = engine.advance(state, castDecision(pausedRequestOf(state), "Fixture Golem"))
+            current = engine.advance(current.pausedState, planDecision(current.pending()))
+            current.pausedState.sharedZones.stack
+                .filterIsInstance<StackEntry.Ability>()
+                .shouldBeEmpty()
+        }
+
+        "CR 205.2: an artifact creature spell is a creature spell, so the noncreature exclusion suppresses it" {
+            // The exclusion is by type, not by "not on the whitelist" — a multi-type spell whose types
+            // include creature is excluded even though it is also an artifact.
+            val state = noncreatureWatcherState(spellToCast = "Fixture Servo")
+            var current = engine.advance(state, castDecision(pausedRequestOf(state), "Fixture Servo"))
+            current = engine.advance(current.pausedState, planDecision(current.pending()))
+            current.pausedState.sharedZones.stack
+                .filterIsInstance<StackEntry.Ability>()
+                .shouldBeEmpty()
+        }
+
         "CR 601.2i: casting an instant on the opponent's turn returns priority to the caster after its trigger" {
             // Bob's turn; alice holds priority (bob has passed). Alice casts Fixture Bolt (instant) and
             // her Snipe fires. After the trigger is placed, priority must return to ALICE (the caster),
@@ -137,11 +176,76 @@ class CastTriggerFilterSpec :
         }
     })
 
+/**
+ * A fixture permanent mirroring Kessig Flamebreather: a cast trigger filtered by **exclusion**
+ * (`excludedSpellTypes = {CREATURE}` — "whenever you cast a noncreature spell", CR 603.2e), and the
+ * board that casts [spellToCast] under it.
+ */
+private fun noncreatureWatcherState(spellToCast: String): GameState {
+    val watcher = CardRef("Fixture Pyromancer")
+    return castTriggerState(
+        active = alice,
+        holder = alice,
+        aliceBoard =
+            Board(
+                hand = listOf(spellToCast),
+                battlefield = listOf("Fixture Mountain", watcher.name),
+            ),
+        definitions =
+            fixtureDefinitions +
+                noncreatureFixtures +
+                (
+                    watcher to
+                        snipeCard(
+                            watcher,
+                            controlledByYou = true,
+                            types = emptySet(),
+                            excluded = setOf(CardType.CREATURE),
+                        )
+                ),
+    )
+}
+
+/** The untargeted `{1}` permanent spells the exclusion tests cast: an enchantment, a creature, and both. */
+private val noncreatureFixtures: Map<CardRef, CardDefinition> =
+    listOf(
+        untargetedSpell("Fixture Charm", setOf(CardType.ENCHANTMENT)),
+        untargetedSpell("Fixture Golem", setOf(CardType.CREATURE)),
+        untargetedSpell("Fixture Servo", setOf(CardType.ARTIFACT, CardType.CREATURE)),
+    ).associateBy { CardRef(it.characteristics.name) }
+
+/** An untargeted `{1}` permanent spell of the given printed [types], resolving onto the battlefield. */
+private fun untargetedSpell(
+    name: String,
+    types: Set<CardType>,
+): SpellDefinition =
+    object : SpellDefinition {
+        override val characteristics =
+            PrintedCharacteristics(
+                name = name,
+                manaCost = ManaCost.parse("{1}"),
+                supertypes = persistentSetOf(),
+                cardTypes = types.toPersistentSet(),
+                subtypes = persistentSetOf(),
+                powerToughness =
+                    if (CardType.CREATURE in types) {
+                        dev.mtgplay.core.card
+                            .PrintedPowerToughness(1, 1)
+                    } else {
+                        null
+                    },
+            )
+        override val timing = TimingClass.SORCERY_SPEED
+        override val targetSpec = TargetSpec.None
+        override val resolution = ResolutionEffect { state, _ -> state }
+    }
+
 /** A fixture permanent mirroring Guttersnipe: a filtered cast trigger whose effect gains its controller 1 life. */
 private fun snipeCard(
     name: CardRef,
     controlledByYou: Boolean,
     types: Set<CardType> = setOf(CardType.INSTANT, CardType.SORCERY),
+    excluded: Set<CardType> = emptySet(),
 ): CardDefinition =
     object : CardDefinition {
         override val characteristics =
@@ -160,7 +264,8 @@ private fun snipeCard(
                 TriggeredAbility(
                     condition =
                         TriggerCondition.SpellCast(
-                            spellTypes = types.toPersistentList().let { persistentSetOf(*it.toTypedArray()) },
+                            spellTypes = types.toPersistentSet(),
+                            excludedSpellTypes = excluded.toPersistentSet(),
                             controlledByYou = controlledByYou,
                         ),
                     effect = ResolutionEffect { state, context -> gainLife(state, context.controller, 1) },

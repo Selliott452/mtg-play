@@ -74,10 +74,11 @@ internal fun isSacrificeSource(
 /**
  * The extra mana a tap of the battlefield source [sourceId] adds *in addition to* its primary
  * production (CR 605.1b): the [dev.mtgplay.core.definition.TriggeredManaAbility]s of every Aura attached
- * to it — Utopia Sprawl's "add one mana of the chosen colour" on an enchanted Forest — expanded to
- * [ManaType]s, in battlefield-then-ability order. Empty for a source with no such Aura. This is the
- * [SourceClassKey.bonus] that keeps an enchanted Forest a distinct source class, and the mana
- * [resolveTapForMana] floats into the pool after the primary mana.
+ * to it — Utopia Sprawl's "add one mana of the chosen colour" on an enchanted Forest, Wild Growth's
+ * additional `{G}` on an enchanted land — expanded to [ManaType]s, in battlefield-then-ability order.
+ * Empty for a source with no such Aura. This is the [SourceClassKey.bonus] that keeps an enchanted
+ * Forest a distinct source class, and the mana [resolveTapForMana] floats into the pool after the
+ * primary mana.
  */
 internal fun triggeredManaBonus(
     state: GameState,
@@ -92,6 +93,9 @@ internal fun triggeredManaBonus(
                         val color = aura.chosenColor
                         if (color == null) emptyList() else List(ability.amount) { manaTypeOf(color) }
                     }
+
+                    is dev.mtgplay.core.definition.TriggeredManaAbility.AddFixedMana ->
+                        List(ability.amount) { ability.manaType }
                 }
             }
         }

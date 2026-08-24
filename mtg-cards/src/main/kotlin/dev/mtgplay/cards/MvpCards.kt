@@ -18,7 +18,9 @@ import dev.mtgplay.core.identity.CardRef
  * [faithlessLooting], [meldedMoxite], and [highwayRobbery] (MadnessDeck.kt) — plus the remaining GW-Bogles
  * utility cards [utopiaSprawl], [malevolentRumble], and [ashBarrens] (BoglesUtility.kt). Their predefined
  * tokens ([bloodToken], [robotToken], [eldraziSpawnToken]) are created on demand and registered by the
- * create-token primitive, so — like [warriorToken] — they are not top-level registry entries.
+ * create-token primitive, so — like [warriorToken] — they are not top-level registry entries. The P6.3
+ * pool refreshes both decklists as they are now built: [kessigFlamebreather] for Mono-Red Madness, and
+ * [kruphixsInsight], [wildGrowth], and [lifelink] — the *card* named Lifelink, an Aura — for GW Bogles.
  *
  * [definitions] is shaped for direct `MatchConfig.definitions` consumption: the engine carries
  * it into `GameState` in canonical name-sorted order regardless of this map's own order
@@ -46,7 +48,10 @@ object MvpCards {
             highwayRobbery,
             hillGiant,
             island,
+            kessigFlamebreather,
+            kruphixsInsight,
             lavaDart,
+            lifelink,
             lightningBolt,
             malevolentRumble,
             meldedMoxite,
@@ -61,6 +66,7 @@ object MvpCards {
             swamp,
             utopiaSprawl,
             voldarenEpicure,
+            wildGrowth,
             windDrake,
             youthfulKnight,
         ).associateBy { CardRef(it.characteristics.name) }

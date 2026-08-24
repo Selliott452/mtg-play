@@ -31,7 +31,8 @@ import kotlinx.collections.immutable.toPersistentList
 import kotlinx.collections.immutable.toPersistentMap
 
 /**
- * The seven P4.2 Bogles Auras (CR 303): their printed characteristics against the oracle card
+ * The eight Bogles Auras (CR 303) — P4.2's seven plus P6.3's [lifelink]: their printed characteristics
+ * against the oracle card
  * (CR 201–205), each card's static continuous effect computing the right layered P/T, keyword, or
  * mana-ability grant on a real enchanted object (CR 613, layers 6 and 7c), and the named multi-aura
  * timestamp scenarios of docs/design/layer-system.md §8. Enchant-restriction *legality* through the
@@ -59,6 +60,7 @@ class AurasSpec :
                     etherealArmor to Expected("Ethereal Armor", "{W}", EnchantRestriction.CREATURE),
                     ancestralMask to Expected("Ancestral Mask", "{2}{G}", EnchantRestriction.CREATURE),
                     abundantGrowth to Expected("Abundant Growth", "{G}", EnchantRestriction.LAND),
+                    lifelink to Expected("Lifelink", "{W}", EnchantRestriction.CREATURE),
                 )
             auras.forEach { (definition, expected) ->
                 with(definition.characteristics) {
@@ -99,6 +101,28 @@ class AurasSpec :
                 layered.toughness shouldBe expected.toughness
                 layered.keywords.shouldContainExactlyInAnyOrder(*expected.keywords.toTypedArray())
             }
+        }
+
+        "CR 702.15 / CR 613 layer 6: the card named Lifelink grants the lifelink keyword and nothing else" {
+            // Current Oracle: "Enchanted creature has lifelink" — a pure layer-6 keyword grant, no P/T
+            // change and no triggered ability (unlike Armadillo Cloak's damage trigger).
+            val state = enchantedBears(listOf("Lifelink"))
+            val layered = layeredCharacteristics(state, ObjectId(0))
+            layered.power shouldBe 2
+            layered.toughness shouldBe 2
+            layered.keywords.shouldContainExactlyInAnyOrder(Keyword.LIFELINK)
+            lifelink.triggeredAbilities.shouldBeEmpty()
+        }
+
+        "CR 702.15 / CR 603.2: Lifelink and Armadillo Cloak stack — a keyword grant plus a damage trigger" {
+            // The pair docs/decklists.md calls out: the Cloak's lifegain is a triggered ability that
+            // uses the stack, Lifelink's is a result of the damage. A creature wearing both has the
+            // keyword *and* the trigger, so one damage event gains its controller the amount twice.
+            val state = enchantedBears(listOf("Lifelink", "Armadillo Cloak"))
+            val layered = layeredCharacteristics(state, ObjectId(0))
+            layered.keywords.shouldContainExactlyInAnyOrder(Keyword.LIFELINK, Keyword.TRAMPLE)
+            armadilloCloak.triggeredAbilities.size shouldBe 1
+            lifelink.triggeredAbilities.shouldBeEmpty()
         }
 
         "CR 613.3c: Ethereal Armor is +N/+N and first strike, N = enchantments you control (itself counts)" {

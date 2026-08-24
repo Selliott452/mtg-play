@@ -139,6 +139,66 @@ class BoglesTriggerAcceptanceSpec :
                 .life shouldBe STARTING_LIFE - 4
         }
 
+        "CR 702.15: the card named Lifelink grants the keyword — combat damage gains its controller that life" {
+            // Alice casts Lifelink on her Bears, then attacks: the granted keyword makes the 2 combat
+            // damage gain her 2 life as a *result of the damage* — no trigger goes on the stack.
+            val game =
+                gameFrom(
+                    alice =
+                        Board(
+                            hand = listOf(obj(10, "Lifelink")),
+                            battlefield = listOf(obj(0, "Plains"), notSick(obj(1, "Grizzly Bears"))),
+                        ),
+                )
+            game.castAuraOn("Lifelink", ObjectId(1))
+            game.driveUntil {
+                game.state.sharedZones.battlefield
+                    .any { it.card == CardRef("Lifelink") && it.attachedTo == ObjectId(1) }
+            }
+            game.marchToCombatAndAttack(listOf(ObjectId(1)))
+            game.driveUntil {
+                game.state.players
+                    .getValue(bob)
+                    .life < STARTING_LIFE
+            }
+            // Bears is still a 2/2 — Lifelink grants no bonus — so 2 damage and 2 life.
+            game.state.players
+                .getValue(bob)
+                .life shouldBe STARTING_LIFE - 2
+            game.state.players
+                .getValue(alice)
+                .life shouldBe STARTING_LIFE + 2
+        }
+
+        "CR 702.15 / CR 603.2: lifelink and Armadillo Cloak's trigger both pay out on one damage event" {
+            // The pair docs/decklists.md names: the keyword gains immediately (no stack), the Cloak
+            // trigger gains again on resolution. A 4/4 (2/2 + Cloak) hits for 4, so alice gains 8.
+            val game =
+                gameFrom(
+                    alice =
+                        Board(
+                            battlefield =
+                                listOf(
+                                    notSick(obj(1, "Grizzly Bears")),
+                                    enchant(2, "Armadillo Cloak", 1),
+                                    enchant(3, "Lifelink", 1),
+                                ),
+                        ),
+                )
+            game.marchToCombatAndAttack(listOf(ObjectId(1)))
+            game.driveUntil {
+                game.state.players
+                    .getValue(alice)
+                    .life >= STARTING_LIFE + 8
+            }
+            game.state.players
+                .getValue(alice)
+                .life shouldBe STARTING_LIFE + 8
+            game.state.players
+                .getValue(bob)
+                .life shouldBe STARTING_LIFE - 4
+        }
+
         "CR 704.5m -> CR 603.6b: a Rancor'd creature dies, Rancor falls off, then returns to its owner's hand" {
             // Bob holds priority; he Bolts alice's Rancor-enchanted Bears (2/2 -> 4/2), which is lethal.
             val game =

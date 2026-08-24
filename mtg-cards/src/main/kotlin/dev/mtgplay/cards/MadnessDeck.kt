@@ -38,7 +38,8 @@ import kotlinx.collections.immutable.toPersistentList
 
 /*
  * The Mono-Red Madness deck (docs/decklists.md), encoded over the engine as pure card data. Every mechanism
- * these cards use — spell-cast triggers, per-turn draw counting from the graveyard, ETB triggers with
+ * these cards use — spell-cast triggers (both the instant-or-sorcery filter of [guttersnipe] and the
+ * noncreature filter of [kessigFlamebreather]), per-turn draw counting from the graveyard, ETB triggers with
  * optional discard-then-draw, madness (discard→exile replacement + reflexive cast), flashback and its
  * non-mana sacrifice cost, alternative sacrifice costs, additional discard costs with linked information,
  * plot, composite activated-ability costs (now including a token's, see [bloodToken]), an optional
@@ -51,6 +52,9 @@ import kotlinx.collections.immutable.toPersistentList
 
 /** The damage Guttersnipe's spell-cast trigger deals to each opponent (CR 120.3a). */
 const val GUTTERSNIPE_DAMAGE: Int = 2
+
+/** The damage Kessig Flamebreather's noncreature-cast trigger deals to each opponent (CR 120.3a). */
+const val KESSIG_FLAMEBREATHER_DAMAGE: Int = 1
 
 /** The damage Voldaren Epicure's enters-the-battlefield trigger deals to each opponent (CR 120.3a). */
 const val VOLDAREN_EPICURE_DAMAGE: Int = 1
@@ -215,6 +219,48 @@ val guttersnipe: SpellDefinition =
                     effect =
                         ResolutionEffect { state, context ->
                             dealDamageToEachOpponent(state, context.controller, GUTTERSNIPE_DAMAGE)
+                        },
+                ),
+            )
+    }
+
+/**
+ * Kessig Flamebreather — `{1}{R}` Creature — Human Shaman, a 1/3. "Whenever you cast a noncreature
+ * spell, this creature deals 1 damage to each opponent." The deck's second cast-trigger body (P6.3,
+ * replacing Melded Moxite in the list): the body enters the battlefield with no resolution instructions
+ * (CR 608.3), and the printed text is one triggered ability (CR 603.2) on the cast-trigger seam.
+ *
+ * Its filter is the **noncreature** shape — `SpellCast(excludedSpellTypes = {CREATURE},
+ * controlledByYou = true)` (CR 603.2e) — not Guttersnipe's instant-or-sorcery whitelist: it also fires
+ * on this deck's artifact and enchantment spells, and an artifact *creature* spell is a creature spell,
+ * so it is excluded by type rather than by not being whitelisted. Its resolution deals
+ * [KESSIG_FLAMEBREATHER_DAMAGE] to each opponent (CR 120.3a).
+ */
+val kessigFlamebreather: SpellDefinition =
+    object : SpellDefinition {
+        override val characteristics =
+            PrintedCharacteristics(
+                name = "Kessig Flamebreather",
+                manaCost = ManaCost.parse("{1}{R}"),
+                supertypes = persistentSetOf(),
+                cardTypes = persistentSetOf(CardType.CREATURE),
+                subtypes = persistentSetOf(Subtype("Human"), Subtype("Shaman")),
+                powerToughness = PrintedPowerToughness(power = 1, toughness = 3),
+            )
+        override val timing = TimingClass.SORCERY_SPEED
+        override val targetSpec = TargetSpec.None
+        override val resolution = entersTheBattlefield
+        override val triggeredAbilities =
+            persistentListOf(
+                TriggeredAbility(
+                    condition =
+                        TriggerCondition.SpellCast(
+                            excludedSpellTypes = persistentSetOf(CardType.CREATURE),
+                            controlledByYou = true,
+                        ),
+                    effect =
+                        ResolutionEffect { state, context ->
+                            dealDamageToEachOpponent(state, context.controller, KESSIG_FLAMEBREATHER_DAMAGE)
                         },
                 ),
             )

@@ -154,10 +154,13 @@ internal fun fireEnchantedDamageTriggers(
 /**
  * Detects cast triggers (CR 603.2, CR 601.2i) when the spell [castEntry] finishes casting: each
  * battlefield permanent carrying a [TriggerCondition.SpellCast] ability whose filters match the cast
- * fires for its controller. Guttersnipe's "whenever you cast an instant or sorcery spell" fires here.
- * The two filters (P6.2a):
+ * fires for its controller. Guttersnipe's "whenever you cast an instant or sorcery spell" and Kessig
+ * Flamebreather's "whenever you cast a noncreature spell" both fire here. The three filters (P6.2a;
+ * the exclusion added in P6.3):
  * - [TriggerCondition.SpellCast.spellTypes]: the cast spell's printed card types must include one of
  *   them (empty set = any spell);
+ * - [TriggerCondition.SpellCast.excludedSpellTypes]: the cast spell's printed card types must include
+ *   none of them (empty set = nothing excluded) — the "noncreature spell" shape;
  * - [TriggerCondition.SpellCast.controlledByYou]: the cast's controller must be the source's
  *   controller (control is ownership in the MVP pool).
  *
@@ -178,6 +181,7 @@ internal fun detectCastTriggers(
                     ability.zoneScope == TriggerZoneScope.Battlefield &&
                         condition is TriggerCondition.SpellCast &&
                         (condition.spellTypes.isEmpty() || condition.spellTypes.any { it in castTypes }) &&
+                        condition.excludedSpellTypes.none { it in castTypes } &&
                         (!condition.controlledByYou || source.owner == castEntry.controller)
                 }.orEmpty()
         abilities.fold(current) { inner, ability ->

@@ -42,9 +42,11 @@ import kotlinx.collections.immutable.toPersistentMap
  * token's loot, Guttersnipe's filtered ping, Fireblast's and Lava Dart's non-mana costs, Utopia Sprawl's
  * ramp mana in a real payment, the ETB/activated token makers, Malevolent Rumble's reveal, Sneaky Snacker's
  * third-draw return, Highway Robbery's plot and both cost-then-draw modes, the flagship Faithless-Looting-
- * into-Fiery-Temper madness line, and Ash Barrens' end-to-end landcycling search. As of P6.2c every card
- * action runs for real — the four architect gaps are closed and nothing is gap-avoided. Every state is a
- * valid engine input by construction (ADR-004).
+ * into-Fiery-Temper madness line, and Ash Barrens' end-to-end landcycling search. The P6.3
+ * decklist-refresh cards have their own suite ([DecklistRefreshAcceptanceSpec], plus the card named
+ * Lifelink in [BoglesTriggerAcceptanceSpec], where the combat fixtures already live). As of P6.2c every
+ * card action runs for real — the four architect gaps are closed and nothing is gap-avoided. Every state
+ * is a valid engine input by construction (ADR-004).
  */
 class MvpCardsAcceptanceSpec :
     StringSpec({
