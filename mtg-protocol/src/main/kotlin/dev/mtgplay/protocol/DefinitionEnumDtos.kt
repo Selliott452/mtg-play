@@ -2,6 +2,7 @@ package dev.mtgplay.protocol
 
 import dev.mtgplay.core.definition.AbilityZoneScope
 import dev.mtgplay.core.definition.CastSource
+import dev.mtgplay.core.definition.LibraryLookSource
 import dev.mtgplay.core.definition.OptionalCostMode
 import dev.mtgplay.core.event.LossReason
 import kotlinx.serialization.Serializable
@@ -27,6 +28,24 @@ enum class AbilityZoneScopeDto { BATTLEFIELD, HAND }
 /** Wire form of [OptionalCostMode] (CR 601.3b) — a data-free sealed family, so an enum on the wire. */
 @Serializable
 enum class OptionalCostModeDto { DISCARD_CARD, SACRIFICE_LAND }
+
+/** Wire form of [LibraryLookSource] (CR 701.14a) — which zone a private look's pool came from. */
+@Serializable
+enum class LibraryLookSourceDto { TOP_OF_LIBRARY, HAND }
+
+/** [LibraryLookSource] to its wire form. */
+fun LibraryLookSource.toDto(): LibraryLookSourceDto =
+    when (this) {
+        LibraryLookSource.TOP_OF_LIBRARY -> LibraryLookSourceDto.TOP_OF_LIBRARY
+        LibraryLookSource.HAND -> LibraryLookSourceDto.HAND
+    }
+
+/** [LibraryLookSourceDto] back to the engine value. */
+fun LibraryLookSourceDto.toDomain(): LibraryLookSource =
+    when (this) {
+        LibraryLookSourceDto.TOP_OF_LIBRARY -> LibraryLookSource.TOP_OF_LIBRARY
+        LibraryLookSourceDto.HAND -> LibraryLookSource.HAND
+    }
 
 /** [CastSource] to its wire form. */
 fun CastSource.toDto(): CastSourceDto =

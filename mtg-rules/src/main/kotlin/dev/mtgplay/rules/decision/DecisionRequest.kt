@@ -65,6 +65,26 @@ sealed interface DecisionRequest {
     }
 
     /**
+     * A [Decision.SingleSelect] request answered by picking exactly one of its **own** enumerated options,
+     * with **no** opt-out index — the shape shared by a target choice (CR 601.2c), a payment plan
+     * (CR 601.2g), a trample assignment (CR 702.19e), an as-enters colour (CR 614.12), a replacement
+     * ordering (CR 616.1), and a library arrangement (CR 701.17a). Grouping them lets drivers, the CLI
+     * menus, and the enumeration probe handle "pick one of these" uniformly rather than one branch per
+     * request kind, exactly as [SizedSelection], [PermutationSelection], and [ChoiceCountSelection] group
+     * their own shapes. [optionCount] is the number of legal indices, all of which are real options.
+     *
+     * The deliberate non-members: [ChooseAction], whose priority window every driver special-cases
+     * (a pass is not just "option 0"); [ChooseYesNo], whose two indices are a fixed decline/accept pair
+     * rather than an enumerated list; and every [ChoiceCountSelection], whose last index is an opt-out and
+     * therefore is *not* one of its options — treating those two as the same shape is precisely the bug
+     * that would let a driver decline a mandatory choice.
+     */
+    sealed interface SingleOptionSelection : DecisionRequest {
+        /** How many options this request offers; every index in `0 until optionCount` is a real option. */
+        val optionCount: Int
+    }
+
+    /**
      * A priority window (CR 117): [seat] holds priority and must pick one of [options] by
      * index. In P1.2 the only option ever enumerated is [PriorityOption.Pass] — there is no
      * auto-pass in the engine, so every window surfaces, even with only one option
@@ -136,7 +156,9 @@ sealed interface DecisionRequest {
         val cardObjectId: ObjectId,
         val card: CardRef,
         val options: List<Target>,
-    ) : DecisionRequest {
+    ) : SingleOptionSelection {
+        override val optionCount: Int get() = options.size
+
         init {
             require(options.isNotEmpty()) {
                 "CR 601.2c: a targets request is only surfaced when a legal target exists (ADR-005)"
@@ -163,7 +185,9 @@ sealed interface DecisionRequest {
         val cardObjectId: ObjectId,
         val card: CardRef,
         val options: List<PaymentPlan>,
-    ) : DecisionRequest {
+    ) : SingleOptionSelection {
+        override val optionCount: Int get() = options.size
+
         init {
             require(options.isNotEmpty()) {
                 "CR 601.2g: a payment request is only surfaced when a payment plan exists (ADR-005)"
@@ -309,7 +333,9 @@ sealed interface DecisionRequest {
         val attackerCard: CardRef,
         val defendingPlayer: PlayerId,
         val options: List<Int>,
-    ) : DecisionRequest {
+    ) : SingleOptionSelection {
+        override val optionCount: Int get() = options.size
+
         init {
             require(options == options.indices.toList()) {
                 "CR 702.19e: trample options are the amounts 0..excess in order, got $options"
@@ -675,7 +701,9 @@ sealed interface DecisionRequest {
         val cardObjectId: ObjectId,
         val card: CardRef,
         val options: List<Color>,
-    ) : DecisionRequest {
+    ) : SingleOptionSelection {
+        override val optionCount: Int get() = options.size
+
         init {
             require(options.isNotEmpty()) { "CR 614.12: a colour choice offers at least one colour" }
         }
@@ -768,7 +796,9 @@ sealed interface DecisionRequest {
     data class ChooseReplacement(
         override val id: DecisionRequestId,
         val options: List<Option>,
-    ) : DecisionRequest {
+    ) : SingleOptionSelection {
+        override val optionCount: Int get() = options.size
+
         init {
             require(options.size >= MINIMUM_ORDERED_REPLACEMENTS) {
                 "CR 616.1: a replacement choice is surfaced only for two or more applicable replacements, " +
@@ -928,5 +958,81 @@ sealed interface DecisionRequest {
             val objectId: ObjectId,
             val card: CardRef,
         )
+    }
+
+    /**
+     * The arrangement choice of a private library look (CR 701.14, CR 701.17): [seat] has looked at [pool]
+     * — the top cards of their own library, or cards from their own hand — and picks one of [options], the
+     * enumerated complete arrangements of that pool across the hand, the top of the library, and the
+     * bottom of the library, by index (a [Decision.SingleSelect]). Additive, flagged
+     * (`FW-LIBLOOK`, docs/design/library-look.md §5).
+     *
+     * **[pool] is private to [seat]** (CR 701.14a: a look is seen by its controller and no other player).
+     * Every non-deciding seat receives [DecisionRequest]-less `Elsewhere` rather than this request, which
+     * is the whole information-hiding mechanism — there is no redaction inside the request itself.
+     *
+     * The enumeration *is* the legality rule (ADR-005): a mandatory keep is expressed by enumerating no
+     * arrangement with an empty hand, so no illegal decline exists as an index. Each option is a **total**
+     * assignment — every pool index appears exactly once across the three lists — in a deterministic,
+     * seed-independent order (docs/design/library-look.md §4.3). Always non-empty: even an empty pool
+     * (a look at an empty library) has the one empty arrangement, and the engine surfaces it rather than
+     * collapsing the decision (ADR-004).
+     *
+     * @property prompt a short human description of the clause, for display (ADR-005).
+     * @property pool the looked-at cards, in pool order — top-first for a library look, hand order for a
+     *   hand pool. [Option]'s index lists refer to positions in this list.
+     * @property options the enumerated complete arrangements, in the deterministic order defined by
+     *   docs/design/library-look.md §4.3; indices are stable within this request.
+     */
+    data class ChooseLibraryArrangement(
+        override val id: DecisionRequestId,
+        val prompt: String,
+        val pool: List<PoolCard>,
+        val options: List<Option>,
+    ) : SingleOptionSelection {
+        override val optionCount: Int get() = options.size
+
+        init {
+            require(options.isNotEmpty()) {
+                "CR 701.14a: a look always has at least one legal arrangement (the empty one)"
+            }
+            require(options.all { it.isTotalOver(pool.size) }) {
+                "CR 701.17a: every arrangement assigns each of the ${pool.size} looked-at card(s) exactly once"
+            }
+        }
+
+        /**
+         * One looked-at card.
+         *
+         * @property objectId the object in its source zone; it keeps this id unless the chosen arrangement
+         *   moves it to another zone (CR 400.7).
+         * @property card its printed identity — private to the deciding seat (CR 701.14a).
+         */
+        data class PoolCard(
+            val objectId: ObjectId,
+            val card: CardRef,
+        )
+
+        /**
+         * One complete arrangement of the pool. Each list holds **indices into [pool]**, and together they
+         * partition `0 until pool.size` exactly once.
+         *
+         * @property toHand the cards put into the deciding seat's hand, in the order they enter it
+         *   (CR 400.7 — each becomes a new object unless it was already in the hand).
+         * @property toTop the cards put on top of the library, **topmost first**.
+         * @property toBottom the cards put on the bottom of the library, in placement order — the first
+         *   ends up above the last, the convention [ChooseCardsToBottom] already documents (CR 103.5).
+         */
+        data class Option(
+            val toHand: List<Int>,
+            val toTop: List<Int>,
+            val toBottom: List<Int>,
+        ) {
+            /** Whether this arrangement assigns each of [poolSize] pool indices exactly once (CR 701.17a). */
+            fun isTotalOver(poolSize: Int): Boolean {
+                val all = toHand + toTop + toBottom
+                return all.size == poolSize && all.toSet() == (0 until poolSize).toSet()
+            }
+        }
     }
 }

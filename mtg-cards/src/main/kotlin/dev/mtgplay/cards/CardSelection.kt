@@ -37,9 +37,12 @@ import kotlinx.collections.immutable.persistentSetOf
  * ([TargetSpec.TargetPlayer], CR 115.1a), and the Island-card search filter
  * ([LibrarySearchFilter.ISLAND_CARD], CR 702.28).
  *
- * The rest of the family — Brainstorm, Ponder, Preordain, Impulse, Winding Way, Lead the Stampede —
- * is deliberately **not** here: each needs a library-ordering, scry, or choose-a-card-type decision the
- * engine cannot yet enumerate (ADR-005), which is a framework change, not a card. See the packet report.
+ * The rest of the family was deliberately **not** here, because each needed a library-ordering, scry, or
+ * choose-a-card-type decision the engine could not enumerate (ADR-005) — a framework change, not a card.
+ * Four of the six have since landed in LibraryLookCards.kt on the `FW-LIBLOOK` framework
+ * (docs/design/library-look.md): Brainstorm, Ponder, Preordain, and Impulse. Winding Way and Lead the
+ * Stampede remain absent, and remain framework-blocked — on a resolution-time card-type mode (`FW-MODAL`)
+ * and on a filtered variable keep from a public *reveal* respectively.
  */
 
 /** The cards Thought Scour's target player mills (CR 701.13a). */

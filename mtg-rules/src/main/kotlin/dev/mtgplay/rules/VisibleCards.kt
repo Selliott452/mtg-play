@@ -2,6 +2,7 @@ package dev.mtgplay.rules
 
 import dev.mtgplay.core.definition.CardDefinition
 import dev.mtgplay.core.identity.CardRef
+import dev.mtgplay.rules.decision.DecisionRequest
 
 /*
  * The [SeatView.cards] derivation (ADR-007): which printed identities a finished view already names,
@@ -20,6 +21,9 @@ import dev.mtgplay.core.identity.CardRef
  * Taking the already-filtered [view] as input rather than the raw
  * [dev.mtgplay.core.state.GameState] is deliberate: a hidden card can only reach this set by first
  * reaching the view, so the card table cannot leak what the view itself does not.
+ *
+ * The one entry that does *not* come from a zone is the viewer's own privately looked-at cards
+ * ([privateArrangementCardRefs]) — the `FW-LIBLOOK` exception documented on [SeatView.cards].
  */
 internal fun visibleCardRefs(view: SeatView): Set<CardRef> =
     buildSet {
@@ -28,11 +32,27 @@ internal fun visibleCardRefs(view: SeatView): Set<CardRef> =
         view.stack.forEach { add(stackEntryCard(it)) }
         view.pendingTriggers.forEach { add(it.sourceCard) }
         view.pendingReveal?.revealed?.forEach { add(it.card) }
+        addAll(privateArrangementCardRefs(view.pendingDecision))
         view.players.forEach { player ->
             player.graveyard.forEach { add(it.card) }
             addAll(handCardRefs(player.hand))
         }
     }
+
+/**
+ * The identities of cards the viewer is privately **looking at** (CR 701.14a) — non-empty only when the
+ * viewer is itself the deciding seat of a
+ * [DecisionRequest.ChooseLibraryArrangement], and empty for every other seat and every other request.
+ *
+ * The [DecisionView.ToDecide] match *is* the per-seat filter: [DecisionView.Elsewhere], which every
+ * non-deciding seat receives, structurally carries no request and so cannot reach this branch. See
+ * [SeatView.cards] for why this one request kind is excepted from the "zones only" rule and the library
+ * search (CR 701.18) deliberately is not.
+ */
+private fun privateArrangementCardRefs(decision: DecisionView?): List<CardRef> {
+    val request = (decision as? DecisionView.ToDecide)?.request
+    return if (request is DecisionRequest.ChooseLibraryArrangement) request.pool.map { it.card } else emptyList()
+}
 
 /**
  * The public characteristics of each of [refs] that [definitions] defines, in canonical card-name

@@ -23,11 +23,9 @@ import dev.mtgplay.rules.decision.PriorityOption
 fun defaultDecision(request: DecisionRequest): Decision =
     when (request) {
         is DecisionRequest.ChooseAction -> Decision.SingleSelect(request.id, passIndex(request))
-        is DecisionRequest.ChooseTargets -> Decision.SingleSelect(request.id, 0)
-        is DecisionRequest.ChoosePaymentPlan -> Decision.SingleSelect(request.id, 0)
-        is DecisionRequest.AssignTrampleDamage -> Decision.SingleSelect(request.id, 0)
-        is DecisionRequest.ChooseColor -> Decision.SingleSelect(request.id, 0)
-        is DecisionRequest.ChooseReplacement -> Decision.SingleSelect(request.id, 0)
+        // Every "pick exactly one of these options" request defaults to its first option, which is always
+        // legal (CR 601.2c/601.2g/702.19e/614.12/616.1/701.17a).
+        is DecisionRequest.SingleOptionSelection -> Decision.SingleSelect(request.id, 0)
         is DecisionRequest.ChooseYesNo -> Decision.SingleSelect(request.id, DecisionRequest.ChooseYesNo.DECLINE)
         is DecisionRequest.DeclareAttackers -> Decision.MultiSelect(request.id, emptyList())
         is DecisionRequest.DeclareBlockers -> Decision.MultiSelect(request.id, emptyList())

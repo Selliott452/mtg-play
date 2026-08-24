@@ -29,11 +29,7 @@ class RandomLegalChooser(
     fun choose(request: DecisionRequest): Decision =
         when (request) {
             is DecisionRequest.ChooseAction -> single(request.id, request.options.size)
-            is DecisionRequest.ChooseTargets -> single(request.id, request.options.size)
-            is DecisionRequest.ChoosePaymentPlan -> single(request.id, request.options.size)
-            is DecisionRequest.AssignTrampleDamage -> single(request.id, request.options.size)
-            is DecisionRequest.ChooseColor -> single(request.id, request.options.size)
-            is DecisionRequest.ChooseReplacement -> single(request.id, request.options.size)
+            is DecisionRequest.SingleOptionSelection -> single(request.id, request.optionCount)
             is DecisionRequest.ChooseYesNo -> single(request.id, DecisionRequest.ChooseYesNo.OPTION_COUNT)
             is DecisionRequest.ChoiceCountSelection -> single(request.id, request.choiceCount)
             is DecisionRequest.SizedSelection -> multi(request.id, subset(request.optionCount, request.requiredCount))

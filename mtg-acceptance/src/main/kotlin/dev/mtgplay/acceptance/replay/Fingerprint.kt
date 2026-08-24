@@ -105,6 +105,15 @@ private fun StringBuilder.appendP62cPendingPositions(state: GameState) {
     append(state.pendingResolutionDiscard?.let { "${it.decider.seat}:${it.count}" } ?: "-")
     append("|pendingLibrarySearch=")
     append(state.pendingLibrarySearch?.let { "${it.decider.seat}" } ?: "-")
+    // CR 701.14a/701.17a: a private look — whose, over which objects, and which of its two stages. The
+    // object ids are the position; the fingerprint is engine-internal and never a per-seat channel, so
+    // digesting them here is not the disclosure the seat view withholds.
+    append("|pendingLibraryLook=")
+    append(
+        state.pendingLibraryLook?.let {
+            "${it.decider.seat}:${it.poolIds.joinToString("+") { id -> id.value.toString() }}:${it.awaitingShuffle}"
+        } ?: "-",
+    )
     // CR 603.3d: a triggered ability choosing its targets as it is put on the stack — whose choice, and
     // for which source. Which trigger is being placed is the front of that controller's pending group.
     append("|pendingTrigTargets=")

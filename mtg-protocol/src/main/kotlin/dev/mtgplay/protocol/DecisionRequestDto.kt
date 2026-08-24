@@ -5,15 +5,17 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 /**
- * Wire form of the full [DecisionRequest] hierarchy (ADR-004/ADR-005) — all 24 request kinds, each
+ * Wire form of the full [DecisionRequest] hierarchy (ADR-004/ADR-005) — all 25 request kinds, each
  * carrying its stable [id] and its enumerated options. The mapping to and from the engine
  * ([toDto]/[toDomain]) is exhaustive in both directions, so a new request kind is a compile-time
  * schema break (ADR-008 amendment).
  *
- * The four family sub-interfaces mirror [DecisionRequest]'s own
+ * The five family sub-interfaces mirror [DecisionRequest]'s own
  * ([DecisionRequest.SizedSelection]/[DecisionRequest.PermutationSelection]/
- * [DecisionRequest.ChoiceCountSelection]/[DecisionRequest.MulliganRequest]), which lets the mapping
- * dispatch by family and keeps every `when` flat.
+ * [DecisionRequest.ChoiceCountSelection]/[DecisionRequest.SingleOptionSelection]/
+ * [DecisionRequest.MulliganRequest]), which lets the mapping dispatch by family and keeps every `when`
+ * flat. They are wire-invisible: serialization keys off each leaf's `@SerialName`, so grouping leaves
+ * under a family changes no encoded payload.
  */
 @Serializable
 sealed interface DecisionRequestDto {
@@ -31,6 +33,10 @@ sealed interface DecisionRequestDto {
     /** A "choose one, or opt out" selection (CR 701.16 / 601.3b / 701.18). */
     @Serializable
     sealed interface ChoiceCountSelectionDto : DecisionRequestDto
+
+    /** A "pick exactly one of these options, no opt-out" selection (CR 601.2c/601.2g/702.19e/614.12/616.1/701.17a). */
+    @Serializable
+    sealed interface SingleOptionSelectionDto : DecisionRequestDto
 
     /** A pre-game mulligan decision (CR 103.4/103.5). */
     @Serializable
@@ -52,7 +58,7 @@ sealed interface DecisionRequestDto {
         val cardObjectId: Long,
         val card: String,
         val options: List<TargetDto>,
-    ) : DecisionRequestDto
+    ) : SingleOptionSelectionDto
 
     /** Wire form of [DecisionRequest.ChoosePaymentPlan] — a cast's payment choice (CR 601.2g). */
     @Serializable
@@ -62,7 +68,7 @@ sealed interface DecisionRequestDto {
         val cardObjectId: Long,
         val card: String,
         val options: List<PaymentPlanDto>,
-    ) : DecisionRequestDto
+    ) : SingleOptionSelectionDto
 
     /** Wire form of [DecisionRequest.DeclareAttackers] (CR 508.1). */
     @Serializable
@@ -89,7 +95,7 @@ sealed interface DecisionRequestDto {
         val attackerCard: String,
         val defendingPlayer: Int,
         val options: List<Int>,
-    ) : DecisionRequestDto
+    ) : SingleOptionSelectionDto
 
     /** Wire form of [DecisionRequest.ChooseYesNo] (CR 601.3b, CR 702.35b). */
     @Serializable
@@ -109,7 +115,21 @@ sealed interface DecisionRequestDto {
         val cardObjectId: Long,
         val card: String,
         val options: List<ColorDto>,
-    ) : DecisionRequestDto
+    ) : SingleOptionSelectionDto
+
+    /**
+     * Wire form of [DecisionRequest.ChooseLibraryArrangement] (CR 701.14a, CR 701.17a). Reaches the
+     * deciding seat only: the pool is privately looked-at cards, and every other seat receives
+     * `DecisionView.Elsewhere` with no request at all.
+     */
+    @Serializable
+    @SerialName("choose_library_arrangement")
+    data class ChooseLibraryArrangement(
+        override val id: DecisionRequestIdDto,
+        val prompt: String,
+        val pool: List<CardObjectOptionDto>,
+        val options: List<LibraryArrangementDto>,
+    ) : SingleOptionSelectionDto
 
     /** Wire form of [DecisionRequest.ChooseReplacement] (CR 616.1). */
     @Serializable
@@ -117,7 +137,7 @@ sealed interface DecisionRequestDto {
     data class ChooseReplacement(
         override val id: DecisionRequestIdDto,
         val options: List<ReplacementOptionDto>,
-    ) : DecisionRequestDto
+    ) : SingleOptionSelectionDto
 
     /** Wire form of [DecisionRequest.ChooseDiscards] — the cleanup discard (CR 514.1). */
     @Serializable

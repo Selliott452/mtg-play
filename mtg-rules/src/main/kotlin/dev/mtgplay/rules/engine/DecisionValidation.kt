@@ -18,8 +18,9 @@ internal fun validateDecision(
     }
     when (request) {
         is DecisionRequest.ChooseAction -> validateSingleSelect(request, decision, request.options.size)
-        is DecisionRequest.ChooseTargets -> validateSingleSelect(request, decision, request.options.size)
-        is DecisionRequest.ChoosePaymentPlan -> validateSingleSelect(request, decision, request.options.size)
+        // CR 601.2c / 601.2g / 702.19e / 614.12 / 616.1 / 701.17a: every "pick exactly one of these
+        // options" request validates identically — one in-range index, and no opt-out index beyond them.
+        is DecisionRequest.SingleOptionSelection -> validateSingleSelect(request, decision, request.optionCount)
         // CR 514.1 / 601.2b/h / 602.2b: every fixed-size subset selection validates identically — a
         // distinct in-range subset of exactly the required size.
         is DecisionRequest.SizedSelection -> {
@@ -35,18 +36,12 @@ internal fun validateDecision(
             validateDistinctSubset(request, decision, request.options.size, "attacker")
         }
         is DecisionRequest.DeclareBlockers -> validateBlockerDeclaration(request, decision)
-        // CR 702.19e: the trample assignment is a single amount in 0..excess.
-        is DecisionRequest.AssignTrampleDamage -> validateSingleSelect(request, decision, request.options.size)
         // CR 509.2 / 603.3b: an ordering answer permutes all of its options (blocker order, trigger order).
         is DecisionRequest.PermutationSelection ->
             validatePermutation(request, decision, request.permutationSize, "option", "CR 509.2/603.3b")
         // CR 702.35b: a yes/no is a single-select of exactly two options — decline (0) or accept (1).
         is DecisionRequest.ChooseYesNo ->
             validateSingleSelect(request, decision, DecisionRequest.ChooseYesNo.OPTION_COUNT)
-        // CR 616.1: the affected player picks one applicable replacement to apply first.
-        is DecisionRequest.ChooseReplacement -> validateSingleSelect(request, decision, request.options.size)
-        // CR 614.12: an as-enters colour choice is a single-select of one of the offered colours.
-        is DecisionRequest.ChooseColor -> validateSingleSelect(request, decision, request.options.size)
         // A "choose one, or opt out" single-select (CR 701.16 keep-one, CR 601.3b cost-mode, CR 701.18
         // find-one) is validated over all its indices — the real options plus the one opt-out.
         is DecisionRequest.ChoiceCountSelection -> validateSingleSelect(request, decision, request.choiceCount)

@@ -48,10 +48,11 @@ class RandomLegalResponder(
                 rng = next
                 Decision.MultiSelect(request.id, indices)
             }
-            // The casting requests (CR 601.2c, CR 601.2g) are uniform picks over the
-            // engine-enumerated legal targets and payment plans (ADR-005).
-            is DecisionRequest.ChooseTargets -> randomSingleSelect(request.id, request.options.size)
-            is DecisionRequest.ChoosePaymentPlan -> randomSingleSelect(request.id, request.options.size)
+            // Every "pick exactly one of these options" request — targets (CR 601.2c), a payment plan
+            // (CR 601.2g), a trample assignment (CR 702.19e), an as-enters colour (CR 614.12), a
+            // replacement ordering (CR 616.1), a library arrangement (CR 701.17a) — is a uniform pick over
+            // the engine-enumerated options, each of which is independently legal (ADR-005).
+            is DecisionRequest.SingleOptionSelection -> randomSingleSelect(request.id, request.optionCount)
             // CR 508.1: attack with a random subset of the eligible attackers (each independently
             // in or out) — the empty subset is legal, so the responder may declare no attackers.
             is DecisionRequest.DeclareAttackers -> {
@@ -73,15 +74,8 @@ class RandomLegalResponder(
                 rng = next
                 Decision.MultiSelect(request.id, order)
             }
-            // CR 702.19e: a uniformly random legal trample assignment — any amount in 0..excess is
-            // legal (each keeps every blocker at its lethal), so the option index is a uniform pick.
-            is DecisionRequest.AssignTrampleDamage -> randomSingleSelect(request.id, request.options.size)
             // CR 702.35b: a fair coin decides whether to accept a "you may" (madness reflexive cast).
             is DecisionRequest.ChooseYesNo -> randomSingleSelect(request.id, DecisionRequest.ChooseYesNo.OPTION_COUNT)
-            // CR 616.1: a uniform pick among the applicable replacements to apply first.
-            is DecisionRequest.ChooseReplacement -> randomSingleSelect(request.id, request.options.size)
-            // CR 614.12: a uniform pick among the offered colours for an as-enters choice (Utopia Sprawl).
-            is DecisionRequest.ChooseColor -> randomSingleSelect(request.id, request.options.size)
             // A "choose one of these, or opt out" choice (CR 701.16 keep-one, CR 601.3b cost-mode, CR 701.18
             // find-one): a uniform pick over all its indices — the real options plus the one opt-out.
             is DecisionRequest.ChoiceCountSelection -> randomSingleSelect(request.id, request.choiceCount)

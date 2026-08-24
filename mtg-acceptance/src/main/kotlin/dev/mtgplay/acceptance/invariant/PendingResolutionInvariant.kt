@@ -1,5 +1,6 @@
 package dev.mtgplay.acceptance.invariant
 
+import dev.mtgplay.core.definition.LibraryLookSource
 import dev.mtgplay.core.identity.PlayerId
 import dev.mtgplay.core.state.GameState
 import dev.mtgplay.core.state.StackEntry
@@ -15,6 +16,11 @@ import dev.mtgplay.core.state.StackEntry
  * reveal pause adds a third: the keeps gathered so far never exceed the resolving clause's
  * [dev.mtgplay.core.definition.LibraryReveal.toHandCount] allowance ("put up to three … into your hand").
  * Top-level so the [InvariantChecker] file stays small.
+ *
+ * The private library look (CR 701.14a, `FW-LIBLOOK`) joins them with three properties of its own: the
+ * resolving object carries a look clause; every pool id is still resident in that clause's **source zone**,
+ * because a looked-at card does not move until the arrangement is applied (CR 400.7); and the pool is empty
+ * exactly while the pause is the clause's optional shuffle, by which point the cards have already moved.
  */
 internal fun checkPendingResolutionSanity(state: GameState): List<Violation> =
     buildList {
@@ -47,6 +53,8 @@ internal fun checkPendingResolutionSanity(state: GameState): List<Violation> =
         checkPause("resolution discard", state.pendingResolutionDiscard?.decider)
         checkPause("library search", state.pendingLibrarySearch?.decider)
         checkPause("library reveal", state.pendingRevealSelection?.decider)
+        checkPause("library look", state.pendingLibraryLook?.decider)
+        addAll(checkLibraryLookPool(state))
 
         val reveal = state.pendingRevealSelection
         val allowance =
@@ -61,3 +69,53 @@ internal fun checkPendingResolutionSanity(state: GameState): List<Violation> =
             )
         }
     }
+
+/**
+ * The pool half of the library-look pause (CR 701.14a, CR 400.7): the resolving object carries a look
+ * clause, every looked-at object is still resident in that clause's source zone — a look moves nothing
+ * until the arrangement is applied — and the pool is empty exactly while the optional-shuffle stage is
+ * pending, where the cards have already moved. Separate from [checkPendingResolutionSanity]'s body so that
+ * function stays inside detekt's complexity budget.
+ */
+private fun checkLibraryLookPool(state: GameState): List<Violation> {
+    val look = state.pendingLibraryLook ?: return emptyList()
+    val clause = (state.sharedZones.stack.lastOrNull() as? StackEntry.Spell)?.definition?.libraryLook
+    val decider = state.players[look.decider]
+    val source = clause?.mode?.source
+    val zone =
+        when (source) {
+            LibraryLookSource.TOP_OF_LIBRARY -> decider?.library
+            LibraryLookSource.HAND -> decider?.hand
+            null -> null
+        }
+    return buildList {
+        if (zone == null) {
+            add(
+                Violation(
+                    Invariant.PENDING_RESOLUTION_SANITY,
+                    "CR 701.14a: a library-look pause is open with no resolving look clause or no seated decider",
+                ),
+            )
+            return@buildList
+        }
+        val absent = look.poolIds.filterNot { id -> zone.any { it.id == id } }
+        if (absent.isNotEmpty()) {
+            add(
+                Violation(
+                    Invariant.PENDING_RESOLUTION_SANITY,
+                    "CR 400.7: looked-at card(s) $absent left ${look.decider}'s " +
+                        "$source before the arrangement was applied",
+                ),
+            )
+        }
+        if (look.awaitingShuffle != look.poolIds.isEmpty()) {
+            add(
+                Violation(
+                    Invariant.PENDING_RESOLUTION_SANITY,
+                    "CR 601.3b: a library-look pool is empty exactly at the shuffle stage; " +
+                        "awaitingShuffle=${look.awaitingShuffle} with ${look.poolIds.size} card(s)",
+                ),
+            )
+        }
+    }
+}

@@ -24,9 +24,12 @@ import dev.mtgplay.core.identity.CardRef
  * The card-selection packet adds the gauntlet's look-at-the-top-and-draw family (CardSelection.kt):
  * [thoughtScour] and [mentalNote] (the mill cantrips), [lorienRevealed] (draw three, or islandcycle),
  * [unfathomableTruths] (the devoid draw-three plus an Eldrazi Spawn), and [pursueThePast] (gain two,
- * loot, flash back). Its unencoded siblings — Brainstorm, Ponder, Preordain, Impulse, Winding Way, Lead
- * the Stampede — each need a library-ordering, scry, or choose-a-card-type decision the engine cannot
- * yet enumerate (ADR-005), so they are deliberately absent rather than approximated.
+ * loot, flash back). The `FW-LIBLOOK` packet then encodes four of that family's six dropped siblings
+ * (LibraryLookCards.kt): [brainstorm], [ponder], [preordain], and [impulse], each built on the private
+ * look-and-arrange clause the family was waiting on (docs/design/library-look.md). The remaining two stay
+ * absent rather than approximated: Winding Way needs a resolution-time choose-a-card-type mode
+ * (`FW-MODAL`), and Lead the Stampede is a public *reveal* with a variable keep-all-matching, which wants
+ * the CR 701.16 reveal path rather than the CR 701.14a look path.
  * The P8.4 pool broadens the gauntlet's mana bases with eight nonbasic lands (NonbasicLands.kt): the
  * Mirrodin artifact lands [greatFurnace], [seatOfTheSynod], and [vaultOfWhispers]; the four
  * enters-tapped indestructible Bridges [drossforgeBridge], [mistvaultBridge], [silverbluffBridge], and
@@ -59,6 +62,7 @@ object MvpCards {
             ancestralMask,
             armadilloCloak,
             ashBarrens,
+            brainstorm,
             breathWeapon,
             cartoucheOfSolidarity,
             drossforgeBridge,
@@ -80,6 +84,7 @@ object MvpCards {
             highwayRobbery,
             hillGiant,
             idyllicBeachfront,
+            impulse,
             island,
             kessigFlamebreather,
             kruphixsInsight,
@@ -96,6 +101,8 @@ object MvpCards {
             murmuringMystic,
             outlawMedic,
             plains,
+            ponder,
+            preordain,
             pursueThePast,
             rancor,
             seatOfTheSynod,

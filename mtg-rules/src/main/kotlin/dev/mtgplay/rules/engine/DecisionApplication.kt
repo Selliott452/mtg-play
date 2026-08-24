@@ -26,28 +26,16 @@ internal fun applyDecision(
     val answered = state.updatePlayer(request.seat) { it.copy(decisionsAnswered = it.decisionsAnswered + 1) }
     return when (request) {
         is DecisionRequest.ChooseAction -> applyChosenAction(answered, request, decision)
-        is DecisionRequest.ChooseTargets -> applyChosenTargets(answered, request, decision)
-        is DecisionRequest.ChoosePaymentPlan -> applyChosenPaymentPlan(answered, request, decision)
         is DecisionRequest.DeclareAttackers -> applyDeclareAttackers(answered, request, decision)
         is DecisionRequest.DeclareBlockers -> applyDeclareBlockers(answered, request, decision)
-        is DecisionRequest.AssignTrampleDamage -> {
-            check(decision is Decision.SingleSelect) { "unreachable: decision shape was validated against the request" }
-            // The option index *is* the amount assigned to the defending player (options are 0..excess).
-            applyTrampleAssignment(answered, request, request.options[decision.index])
-        }
+        // CR 601.2c / 601.2g / 702.19e / 614.12 / 616.1 / 701.17a: the "pick exactly one option"
+        // requests dispatch by kind.
+        is DecisionRequest.SingleOptionSelection -> applySingleOptionSelection(answered, request, decision)
         // CR 509.2 / 603.3b: the two ordering answers (blocker order, trigger order) dispatch by kind.
         is DecisionRequest.PermutationSelection -> applyPermutation(answered, request, decision)
         is DecisionRequest.ChooseYesNo -> applyChosenYesNo(answered, request, decision)
         // CR 514.1 / 601.2b/h / 602.2b: the fixed-size subset selections dispatch by kind.
         is DecisionRequest.SizedSelection -> applySizedSelection(answered, request, decision)
-        is DecisionRequest.ChooseReplacement -> {
-            check(decision is Decision.SingleSelect) { "unreachable: decision shape was validated against the request" }
-            applyChosenReplacement(answered)
-        }
-        is DecisionRequest.ChooseColor -> {
-            check(decision is Decision.SingleSelect) { "unreachable: decision shape was validated against the request" }
-            applyChosenColor(answered, request.options[decision.index])
-        }
         is DecisionRequest.ChoiceCountSelection -> {
             check(decision is Decision.SingleSelect) { "unreachable: decision shape was validated against the request" }
             // CR 701.16/601.3b/701.18: dispatch by kind; the trailing opt-out index means keep/decline/find none.
@@ -136,12 +124,15 @@ private fun applyChosenYesNo(
 ): AdvanceResult {
     check(decision is Decision.SingleSelect) { "unreachable: decision shape was validated against the request" }
     val accept = decision.index == DecisionRequest.ChooseYesNo.ACCEPT
-    // Two yes/no flows share this request: madness's reflexive cast (CR 702.35b) and the optional
-    // discard-then-draw clause (CR 601.3b); the pending record present says which.
+    // Three yes/no flows share this request: madness's reflexive cast (CR 702.35b), the optional
+    // discard-then-draw clause (CR 601.3b), and a library look's optional shuffle (CR 601.3b, Ponder);
+    // the pending record present says which. Tested in the order pendingDecisionRequest derives them in,
+    // so an answer can never be routed to a flow other than the one that was asked.
     return when {
         state.pendingOptionalDiscardDraw != null -> applyOptionalDiscardYesNo(state, accept)
+        state.pendingLibraryLook != null -> applyLibraryLookShuffle(state, accept)
         state.pendingMadness != null -> applyMadnessCastChoice(state, accept)
-        else -> error("a yes/no was answered with no pending madness or optional-discard flow (${request.card.name})")
+        else -> error("a yes/no was answered with no pending madness, discard, or look flow (${request.card.name})")
     }
 }
 
@@ -198,43 +189,5 @@ private fun discardSelectedCards(
             }
             AdvanceResult.NeedsDecision(outcome.state, pendingReplacementRequest(outcome.state))
         }
-    }
-}
-
-/**
- * Applies a chosen target (CR 601.2c). One request serves three flows — a cast (CR 601.2c), an
- * activation (CR 602.2b), and a triggered ability being put on the stack (CR 603.3d) — and the open
- * pending record says which, exactly as [applyChosenYesNo] and [applyChosenPaymentPlan] disambiguate
- * their flows. The branches are tested in the order [pendingDecisionRequest] derives them in, so the
- * answer can never be routed to a flow other than the one that was asked.
- */
-private fun applyChosenTargets(
-    state: GameState,
-    request: DecisionRequest.ChooseTargets,
-    decision: Decision,
-): AdvanceResult {
-    check(decision is Decision.SingleSelect) { "unreachable: decision shape was validated against the request" }
-    val target = request.options[decision.index]
-    return when {
-        state.pendingCast != null -> applyChosenTarget(state, target)
-        state.pendingActivation != null -> applyChosenActivationTarget(state, target)
-        state.pendingTriggerTargets != null -> applyChosenTriggerTarget(state, target)
-        else -> error("a target was chosen with no cast, activation, or trigger placement awaiting one: $request")
-    }
-}
-
-private fun applyChosenPaymentPlan(
-    state: GameState,
-    request: DecisionRequest.ChoosePaymentPlan,
-    decision: Decision,
-): AdvanceResult {
-    check(decision is Decision.SingleSelect) { "unreachable: decision shape was validated against the request" }
-    val plan = request.options[decision.index]
-    // A payment plan settles a cast (CR 601.2g), the plot special action (CR 702.140), or an activated
-    // ability's mana cost (CR 602.2g).
-    return when {
-        state.pendingPlot != null -> executePlot(state, plan)
-        state.pendingActivation != null -> executeActivation(state, plan)
-        else -> executeCastPipeline(state, plan)
     }
 }

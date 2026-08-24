@@ -58,7 +58,17 @@ import dev.mtgplay.core.state.Turn
  *   public to every seat — so without this a consumer could see a token and never learn what it is.
  *   Deliberately excluded: the [pendingDecision] request's own option cards (a library search
  *   enumerates library cards, CR 701.18), which would make the key set depend on the pending
- *   request rather than on the zones alone.
+ *   request rather than on the zones alone. **With one exception**, added by `FW-LIBLOOK`
+ *   (docs/design/library-look.md §3): the cards of a
+ *   [dev.mtgplay.rules.decision.DecisionRequest.ChooseLibraryArrangement] the **viewer itself** must
+ *   answer. A scry is decided *on characteristics* — is this a land, is it cheap — so a deciding seat
+ *   holding names with no entry here would not be receiving what CR 701.14a says it sees, and
+ *   [SeatView] drops the definition registry so there is nowhere else to look them up. The exception is
+ *   safe because it is gated on [DecisionView.ToDecide], which is itself the per-seat filter: every
+ *   other seat receives [DecisionView.Elsewhere], which structurally carries no request and therefore no
+ *   options. The library-search case is left excluded on purpose — its options are pre-filtered by the
+ *   engine, so characteristics add nothing to that choice, and the found card becomes public and
+ *   hand-resident in the same transition.
  * @property players every seat's public standing plus the hidden-zone filtering, in turn order
  *   (CR 101.4) — [viewer]'s own hand in full, an opponent's hand as a count only (see [PlayerView]).
  * @property battlefield the shared battlefield (CR 403); fully public — every permanent, with its
@@ -109,6 +119,13 @@ import dev.mtgplay.core.state.Turn
  *   the searching seat are public, but the matching cards are **not** — library contents stay
  *   secret mid-search, exposed only to the searching seat as its private request options and
  *   revealed to all only when the found card is chosen.
+ * @property pendingLibraryLook a private "look at these cards, then arrange them" in progress
+ *   (CR 701.14a, CR 701.17a), or `null`; **count-only on purpose**. That a look is happening, whose cards
+ *   they are, and how many, are all publicly observable at the table — but a look is seen by its
+ *   controller and by *no other player*, so neither the identities nor even the object ids cross this
+ *   boundary (see [PendingLibraryLookView] for why an id is a real channel here and not in the
+ *   hand-scoped records). The looked-at cards reach the deciding seat only as its own
+ *   [pendingDecision] options, which every other seat is already denied.
  * @property pendingTriggerTargets a triggered ability choosing its targets as it is put on the stack
  *   (CR 603.3d), or `null`; public — it names only the ability's controller and the source's
  *   last-known id and printed identity, all of which [pendingTriggers] already discloses. The choice
@@ -139,6 +156,7 @@ data class SeatView(
     val pendingOptionalCostDraw: PendingOptionalCostDraw? = null,
     val pendingResolutionDiscard: PendingResolutionDiscard? = null,
     val pendingLibrarySearch: PendingLibrarySearch? = null,
+    val pendingLibraryLook: PendingLibraryLookView? = null,
     val pendingTriggerTargets: PendingTriggerTargets? = null,
 )
 
