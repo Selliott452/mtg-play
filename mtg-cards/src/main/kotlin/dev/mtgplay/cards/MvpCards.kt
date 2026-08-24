@@ -21,6 +21,12 @@ import dev.mtgplay.core.identity.CardRef
  * create-token primitive, so — like [warriorToken] — they are not top-level registry entries. The P6.3
  * pool refreshes both decklists as they are now built: [kessigFlamebreather] for Mono-Red Madness, and
  * [kruphixsInsight], [wildGrowth], and [lifelink] — the *card* named Lifelink, an Aura — for GW Bogles.
+ * The card-selection packet adds the gauntlet's look-at-the-top-and-draw family (CardSelection.kt):
+ * [thoughtScour] and [mentalNote] (the mill cantrips), [lorienRevealed] (draw three, or islandcycle),
+ * [unfathomableTruths] (the devoid draw-three plus an Eldrazi Spawn), and [pursueThePast] (gain two,
+ * loot, flash back). Its unencoded siblings — Brainstorm, Ponder, Preordain, Impulse, Winding Way, Lead
+ * the Stampede — each need a library-ordering, scry, or choose-a-card-type decision the engine cannot
+ * yet enumerate (ADR-005), so they are deliberately absent rather than approximated.
  *
  * [definitions] is shaped for direct `MatchConfig.definitions` consumption: the engine carries
  * it into `GameState` in canonical name-sorted order regardless of this map's own order
@@ -53,10 +59,13 @@ object MvpCards {
             lavaDart,
             lifelink,
             lightningBolt,
+            lorienRevealed,
             malevolentRumble,
             meldedMoxite,
+            mentalNote,
             mountain,
             plains,
+            pursueThePast,
             rancor,
             sentinelsEyes,
             silhanaLedgewalker,
@@ -64,6 +73,8 @@ object MvpCards {
             sneakySnacker,
             standingTroops,
             swamp,
+            thoughtScour,
+            unfathomableTruths,
             utopiaSprawl,
             voldarenEpicure,
             wildGrowth,

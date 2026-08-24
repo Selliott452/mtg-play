@@ -60,7 +60,9 @@ data class PrintedCharacteristics(
 
     /**
      * The card's colors, derived from its mana cost (CR 202.2); a card with no mana cost is
-     * colorless — the empty set (CR 105.4).
+     * colorless — the empty set (CR 105.4). A card with [Keyword.DEVOID] is colorless whatever its
+     * mana cost says (CR 702.114a), which is why the derivation reads the printed keywords too.
      */
-    val colors: Set<Color> get() = manaCost?.colors ?: emptySet()
+    val colors: Set<Color>
+        get() = if (Keyword.DEVOID in keywords) emptySet() else (manaCost?.colors ?: emptySet())
 }

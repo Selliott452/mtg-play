@@ -23,6 +23,14 @@ sealed interface TargetSpec {
     data object AnyTarget : TargetSpec
 
     /**
+     * "Target player" (CR 115.1a): one target that must be a player, never an object. Additive,
+     * flagged core (the card-selection packet). Thought Scour's "Target player mills two cards" is the first
+     * client. Narrower than [AnyTarget] on purpose — a creature is not a legal choice — so it is
+     * its own member rather than a reuse of the any-target enumeration.
+     */
+    data object TargetPlayer : TargetSpec
+
+    /**
      * An Aura's enchant ability (CR 303.4a, CR 601.2c): the one object it may be attached to,
      * restricted by [restriction]. Additive, flagged core (P4.1). An Aura spell targets the object
      * it will enchant while on the stack (CR 601.2c) and enters the battlefield attached to it

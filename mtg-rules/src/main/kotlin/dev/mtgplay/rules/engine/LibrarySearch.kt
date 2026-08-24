@@ -1,6 +1,7 @@
 package dev.mtgplay.rules.engine
 
 import dev.mtgplay.core.card.CardType
+import dev.mtgplay.core.card.Subtype
 import dev.mtgplay.core.card.Supertype
 import dev.mtgplay.core.definition.LibrarySearch
 import dev.mtgplay.core.definition.LibrarySearchFilter
@@ -140,7 +141,17 @@ private fun matchesSearchFilter(
                 CardType.LAND in characteristics.cardTypes &&
                 Supertype.BASIC in characteristics.supertypes
         }
+        // CR 205.3b, CR 702.28b: typecycling names a land *subtype*; the basic supertype is not required.
+        LibrarySearchFilter.ISLAND_CARD ->
+            ISLAND in
+                state.definitions[obj.card]
+                    ?.characteristics
+                    ?.subtypes
+                    .orEmpty()
     }
+
+/** The Island land type (CR 205.3b) an [LibrarySearchFilter.ISLAND_CARD] search matches on. */
+private val ISLAND: Subtype = Subtype("Island")
 
 /** The library search of the resolving activated ability on top of the stack (CR 701.18); fails loudly. */
 private fun resolvingSearch(state: GameState): LibrarySearch =

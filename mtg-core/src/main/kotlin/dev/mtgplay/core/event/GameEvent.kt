@@ -494,6 +494,20 @@ sealed interface GameEvent {
         val graveyardObjectId: ObjectId,
     ) : GameEvent
 
+    /**
+     * [player] milled [card] (CR 701.13a): the top card of their library moved to their graveyard,
+     * becoming the new object [objectId] there (CR 400.7). One event per milled card, in the order
+     * milled (top-first). Distinct from [CardDiscarded] on purpose — a mill is not a discard, so
+     * nothing that watches discards (madness's CR 702.35a replacement, a discard trigger) may see a
+     * mill. Milling from an empty library mills nothing and emits nothing (CR 701.13b) — unlike a
+     * draw, it is not a loss condition.
+     */
+    data class CardMilled(
+        val player: PlayerId,
+        val objectId: ObjectId,
+        val card: CardRef,
+    ) : GameEvent
+
     /** [player] lost the game (CR 104.3) for [reason]. */
     data class PlayerLost(
         val player: PlayerId,

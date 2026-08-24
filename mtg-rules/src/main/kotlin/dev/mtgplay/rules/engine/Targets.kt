@@ -22,6 +22,8 @@ import dev.mtgplay.core.state.Target
  * Every legal target for [spec] in [state] for the deciding player [you], in deterministic
  * enumeration order (ADR-005).
  *
+ * [TargetSpec.TargetPlayer] (CR 115.1a) enumerates exactly the players, in turn order — a player may
+ * target themself, and no object is ever a legal choice (Thought Scour).
  * [TargetSpec.AnyTarget] (CR 115.4) enumerates the players in turn order — a player may target
  * themself — followed by every creature on the battlefield in battlefield order (CR 302.1) that
  * [you] may target. Planeswalkers and battles are not in the MVP pool, so they never enter this
@@ -40,6 +42,8 @@ internal fun legalTargets(
 ): List<Target> =
     when (spec) {
         TargetSpec.None -> emptyList()
+        // CR 115.1a: "target player" enumerates the players in turn order and nothing else.
+        TargetSpec.TargetPlayer -> state.players.keys.map { Target.Player(it) }
         TargetSpec.AnyTarget ->
             state.players.keys.map { Target.Player(it) } +
                 state.sharedZones.battlefield

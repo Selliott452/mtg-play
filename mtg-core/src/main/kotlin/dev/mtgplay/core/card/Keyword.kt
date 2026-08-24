@@ -14,9 +14,12 @@ package dev.mtgplay.core.card
  * (never by reading a definition directly), so Phase 4 can reroute the read without touching the
  * combat rules.
  *
- * All six now change engine behaviour: [FLYING], [FIRST_STRIKE], and [VIGILANCE] since P3.1;
+ * All seven change engine behaviour: [FLYING], [FIRST_STRIKE], and [VIGILANCE] since P3.1;
  * [TRAMPLE], [HEXPROOF], and [LIFELINK] since P5.3 (the trample assignment decision, the targeting
- * restriction on enumeration, and the damage-result lifegain, respectively).
+ * restriction on enumeration, and the damage-result lifegain, respectively); and [DEVOID], which
+ * alone among them changes a characteristic rather than combat — it makes
+ * [PrintedCharacteristics.colors] colorless (CR 105.2, CR 702.114a) instead of deriving colour from
+ * the mana cost.
  */
 enum class Keyword {
     /** Flying (CR 702.9): can be blocked only by creatures with flying or reach. */
@@ -48,4 +51,13 @@ enum class Keyword {
      * life, as a result of the damage — not a triggered ability, no stack (P5.3).
      */
     LIFELINK,
+
+    /**
+     * Devoid (CR 702.114a): "this object is colorless". A characteristic-defining ability, not a
+     * combat one — it is the one member here the combat engine never consults. It works in every
+     * zone (CR 604.3, CR 702.114a), so it is read off the printed characteristics directly:
+     * [PrintedCharacteristics.colors] answers the empty set (CR 105.4) for a devoid card whatever
+     * its mana cost says. Unfathomable Truths' `{4}{U}` is colorless.
+     */
+    DEVOID,
 }

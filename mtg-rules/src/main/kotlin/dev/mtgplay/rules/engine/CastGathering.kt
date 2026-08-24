@@ -46,7 +46,7 @@ internal fun beginCastGathering(
         when (definition.targetSpec) {
             TargetSpec.None -> persistentListOf()
             // An Aura (CR 601.2c) and any-target both need a target choice before payment.
-            TargetSpec.AnyTarget, is TargetSpec.Enchantable -> null
+            TargetSpec.AnyTarget, TargetSpec.TargetPlayer, is TargetSpec.Enchantable -> null
         }
     // An additional "exile N others" cost (escape) needs a selection; every other cast settles it empty.
     val additionalExileCost: PersistentList<ObjectId>? =

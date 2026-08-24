@@ -51,6 +51,29 @@ internal fun drawCard(
 }
 
 /**
+ * Mills a card (CR 701.13a): the top card of [player]'s library is put into their graveyard as a new
+ * object (CR 400.7), emitting [GameEvent.CardMilled].
+ *
+ * With an **empty** library nothing is milled (CR 701.13b: "mill as many as possible") — the state is
+ * returned unchanged, and no draw-from-empty-library attempt is recorded, because milling is not
+ * drawing (CR 121.1) and never causes the CR 704.5c loss. Milling is likewise not discarding: it emits
+ * its own event and never routes through the CR 614/616 discard replacements, so a madness card milled
+ * from the library goes to the graveyard like any other card (CR 702.35a replaces a *discard*).
+ */
+internal fun millCard(
+    state: GameState,
+    player: PlayerId,
+): GameState {
+    val top = state.player(player).library.firstOrNull() ?: return state
+    val (id, allocated) = state.allocateObjectId()
+    val milled = top.copy(id = id)
+    return allocated
+        .updatePlayer(player) {
+            it.copy(library = it.library.removingAt(0), graveyard = it.graveyard.adding(milled))
+        }.emit(GameEvent.CardMilled(player, id, milled.card))
+}
+
+/**
  * Discards a card (CR 514.1's operation in P1.2): the hand object [objectId] of [player] is put
  * on top of their graveyard — the last position (CR 404) — as a new object (CR 400.7), emitting
  * [GameEvent.CardDiscarded]. Fails loudly if [objectId] is not in [player]'s hand.
