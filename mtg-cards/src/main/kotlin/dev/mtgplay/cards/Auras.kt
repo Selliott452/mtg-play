@@ -28,11 +28,12 @@ import dev.mtgplay.rules.effect.returnToOwnersHand
 import kotlinx.collections.immutable.PersistentList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.persistentSetOf
+import kotlinx.collections.immutable.toPersistentList
 
 /*
- * The eight real Bogles continuous-effect Auras of the MVP pool (CR 303) — the seven of P4.2 plus
- * P6.3's [lifelink], the card named Lifelink — encoded on top of the
- * P4.1 layer engine (docs/design/layer-system.md §1, the binding effect inventory). Each is an
+ * The Auras of the pool (CR 303) — the seven of P4.2, P6.3's [lifelink] (the card named Lifelink),
+ * and the gauntlet's [spiritLink], the one Aura here with no static ability at all — encoded on top of
+ * the P4.1 layer engine (docs/design/layer-system.md §1, the binding effect inventory). Each is an
  * enchantment permanent spell (CR 303) cast at sorcery speed (CR 601.3a) that targets the object it
  * will enchant while on the stack (CR 601.2c) and enters the battlefield attached to it (CR 303.4f);
  * its static ability's continuous effect is one [StaticContinuousEffect] that `mtg-rules` classifies
@@ -76,16 +77,17 @@ private val ANY_COLOR: ManaAbility =
 /**
  * An Aura card definition (CR 303): an "Enchantment — Aura" permanent spell with the given
  * [manaCost], cast at sorcery speed (CR 601.3a), whose enchant ability is a [TargetSpec.Enchantable]
- * carrying [restriction] (CR 303.4a), whose single static ability generates [effect], and whose
- * triggered abilities are [triggers] (CR 603; empty for an Aura with no triggered half). Resolution
- * is a no-op (CR 303.4f, CR 608.3): the rules engine performs the enter-attached move, not the
- * effect.
+ * carrying [restriction] (CR 303.4a), whose single static ability generates [effect] (`null` for an
+ * Aura with **no** static ability — Spirit Link — so the layer engine is never handed an empty
+ * effect), and whose triggered abilities are [triggers] (CR 603; empty for an Aura with no triggered
+ * half). Resolution is a no-op (CR 303.4f, CR 608.3): the rules engine performs the enter-attached
+ * move, not the effect.
  */
 private fun aura(
     name: String,
     manaCost: String,
     restriction: EnchantRestriction,
-    effect: StaticContinuousEffect,
+    effect: StaticContinuousEffect? = null,
     triggers: PersistentList<TriggeredAbility> = persistentListOf(),
 ): SpellDefinition =
     object : SpellDefinition {
@@ -101,7 +103,7 @@ private fun aura(
         override val timing = TimingClass.SORCERY_SPEED
         override val targetSpec = TargetSpec.Enchantable(restriction)
         override val resolution = ResolutionEffect { state, _ -> state }
-        override val staticContinuousEffects = persistentListOf(effect)
+        override val staticContinuousEffects = listOfNotNull(effect).toPersistentList()
         override val triggeredAbilities = triggers
     }
 
@@ -327,6 +329,35 @@ val lifelink: SpellDefinition =
         manaCost = "{W}",
         restriction = EnchantRestriction.CREATURE,
         effect = StaticContinuousEffect(grantedKeywords = persistentSetOf(Keyword.LIFELINK)),
+    )
+
+/**
+ * Spirit Link — `{W}` Enchantment — Aura. "Enchant creature. Whenever enchanted creature deals damage,
+ * you gain that much life." The third member of the pool's lifegain trio (docs/decklists.md), and the
+ * only Aura here with **no static ability at all**: its whole printed text below the enchant line is
+ * one triggered ability, so [staticContinuousEffects] is empty and the CR 613 layer engine has nothing
+ * to classify.
+ *
+ * The trigger is the same [TriggerCondition.EnchantedCreatureDealsDamage] (CR 603.2) [armadilloCloak]
+ * carries, gaining the Aura's controller (its owner in the MVP pool) the damage the enchanted creature
+ * dealt in that one event ("that much", CR 118.9) — combat or noncombat. That makes it deliberately
+ * *unlike* [lifelink]: lifelink is a result of the damage with no stack and no trigger, gaining life
+ * for the damage **source's** controller (CR 702.15b), while Spirit Link's trigger uses the stack and
+ * pays the **Aura's** controller — so a Spirit Link on an opponent's creature gains its own controller
+ * the life.
+ */
+val spiritLink: SpellDefinition =
+    aura(
+        name = "Spirit Link",
+        manaCost = "{W}",
+        restriction = EnchantRestriction.CREATURE,
+        triggers =
+            persistentListOf(
+                TriggeredAbility(
+                    condition = TriggerCondition.EnchantedCreatureDealsDamage,
+                    effect = ResolutionEffect { state, context -> gainLife(state, context.controller, context.amount) },
+                ),
+            ),
     )
 
 /**

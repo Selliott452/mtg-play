@@ -28,6 +28,16 @@ import dev.mtgplay.core.identity.CardRef
  * the Stampede — each need a library-ordering, scry, or choose-a-card-type decision the engine cannot
  * yet enumerate (ADR-005), so they are deliberately absent rather than approximated.
  *
+ * The gauntlet Tier-0 packet adds twelve more: the damage family (GauntletBurn.kt) [gutShot] (the
+ * pool's first all-Phyrexian cost), [galvanicBlast] (metalcraft as a state-dependent amount), and the
+ * two sweepers [breathWeapon] and [endTheFestivities]; the lifegain family (GauntletLifegain.kt)
+ * [healerOfTheGlade], [outlawMedic] (lifelink plus a dies trigger), [gnawToTheBone],
+ * [unionOfTheThirdPath], [spinewoodsPaladin] (trample, an enters trigger, and plot), and [wellwisher];
+ * the Aura [spiritLink] (Auras.kt), which completes the lifegain trio with [armadilloCloak] and
+ * [lifelink]; and [murmuringMystic] (MurmuringMystic.kt), whose [birdIllusionToken] — like
+ * [bloodToken], [robotToken], [eldraziSpawnToken], and [warriorToken] — is created on demand rather
+ * than being a top-level registry entry.
+ *
  * [definitions] is shaped for direct `MatchConfig.definitions` consumption: the engine carries
  * it into `GameState` in canonical name-sorted order regardless of this map's own order
  * (ADR-009 — definitions ride in the state; a [CardRef] without an entry is inert). The pool
@@ -41,16 +51,22 @@ object MvpCards {
             ancestralMask,
             armadilloCloak,
             ashBarrens,
+            breathWeapon,
             cartoucheOfSolidarity,
+            endTheFestivities,
             etherealArmor,
             faithlessLooting,
             fieryTemper,
             fireblast,
             forest,
+            galvanicBlast,
             gladecoverScout,
+            gnawToTheBone,
             grabThePrize,
             grizzlyBears,
+            gutShot,
             guttersnipe,
+            healerOfTheGlade,
             highwayRobbery,
             hillGiant,
             island,
@@ -64,6 +80,8 @@ object MvpCards {
             meldedMoxite,
             mentalNote,
             mountain,
+            murmuringMystic,
+            outlawMedic,
             plains,
             pursueThePast,
             rancor,
@@ -71,12 +89,16 @@ object MvpCards {
             silhanaLedgewalker,
             slipperyBogle,
             sneakySnacker,
+            spinewoodsPaladin,
+            spiritLink,
             standingTroops,
             swamp,
             thoughtScour,
             unfathomableTruths,
+            unionOfTheThirdPath,
             utopiaSprawl,
             voldarenEpicure,
+            wellwisher,
             wildGrowth,
             windDrake,
             youthfulKnight,
