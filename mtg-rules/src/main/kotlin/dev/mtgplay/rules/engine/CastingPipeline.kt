@@ -190,7 +190,12 @@ private fun establishTargets(
             state
         }
         // Every targeting spec in the pool demands exactly one legal target (CR 303.4a for an Aura).
-        TargetSpec.AnyTarget, TargetSpec.TargetPlayer, TargetSpec.TargetOpponent, is TargetSpec.Enchantable -> {
+        TargetSpec.AnyTarget,
+        TargetSpec.TargetCreature,
+        TargetSpec.TargetPlayer,
+        TargetSpec.TargetOpponent,
+        is TargetSpec.Enchantable,
+        -> {
             require(entry.targets.size == 1) {
                 "CR 601.2c: ${entry.obj.card.name} demands exactly one target, got ${entry.targets}"
             }

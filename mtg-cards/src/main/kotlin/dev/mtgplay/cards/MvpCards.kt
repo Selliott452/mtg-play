@@ -44,7 +44,10 @@ import dev.mtgplay.core.identity.CardRef
  * than being a top-level registry entry.
  * [kruphixsInsight], [wildGrowth], and [lifelink] — the *card* named Lifelink, an Aura — for GW Bogles. The
  * `FW-ABILTGT` packet adds [lotlethGiant], the first card whose *ability* targets
- * (docs/design/targeted-abilities.md §7).
+ * (docs/design/targeted-abilities.md §7). The snow packet adds the four cards of Jeskai Ephemerate's
+ * snow half (Snow.kt): the Snow-Covered basics [snowCoveredIsland], [snowCoveredMountain], and
+ * [snowCoveredPlains] — CR 205.4a two-supertype basics — and [skred], the first card to target a
+ * creature and nothing else, whose damage counts snow permanents at resolution (CR 608.2).
  *
  * [definitions] is shaped for direct `MatchConfig.definitions` consumption: the engine carries
  * it into `GameState` in canonical name-sorted order regardless of this map's own order
@@ -102,9 +105,13 @@ object MvpCards {
             sentinelsEyes,
             silhanaLedgewalker,
             silverbluffBridge,
+            skred,
             slagwoodsBridge,
             slipperyBogle,
             sneakySnacker,
+            snowCoveredIsland,
+            snowCoveredMountain,
+            snowCoveredPlains,
             spinewoodsPaladin,
             spiritLink,
             standingTroops,
