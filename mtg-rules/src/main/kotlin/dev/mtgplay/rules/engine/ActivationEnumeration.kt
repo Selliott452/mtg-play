@@ -59,8 +59,13 @@ internal class ManaSupply(
 /**
  * The [ManaSupply] for a caster with [pool] pooled mana, the given source [classes] in their
  * stable battlefield-class order, and [life] life. Options run class by class and, within a
- * class, over its profile in WUBRG-then-colorless order (CR 105.1) — the canonical option order
- * the activation multisets are sorted by.
+ * class, over its profile's production alternatives in their canonical order (CR 105.1) — the
+ * option order the activation multisets are sorted by.
+ *
+ * One option is one *alternative*, not one mana: an Urza's Tower with Tron assembled contributes a
+ * single option that yields three colorless, not three options. That is why nothing in the search
+ * below had to change for multi-mana production — the option list's length tracks the choices a
+ * source offers, which is unrelated to how much each choice adds.
  */
 internal fun manaSupply(
     pool: Map<ManaType, Int>,

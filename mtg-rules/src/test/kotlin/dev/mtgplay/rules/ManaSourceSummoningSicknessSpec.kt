@@ -67,7 +67,7 @@ class ManaSourceSummoningSicknessSpec :
                 .single()
                 .activations
                 .single()
-                .produced shouldBe ManaType.GREEN
+                .produced shouldBe listOf(ManaType.GREEN)
         }
 
         "CR 302.6: sickness gates the sick source only, not the rest of the battlefield" {

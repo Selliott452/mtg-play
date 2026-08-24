@@ -33,19 +33,21 @@ data class PaymentPlan(
 /**
  * One mana ability to activate while paying (CR 601.2g): the engine activates the first usable
  * member of [sourceClass] — tapping it, or sacrificing it for a sacrifice-cost ability
- * ([SourceClassKey.viaSacrifice]) — and that ability adds one mana of type [produced].
+ * ([SourceClassKey.viaSacrifice]) — and that ability adds the mana of [produced].
  *
- * The activation's full **yield** is `[produced]` plus [SourceClassKey.bonus], the CR 605.1b
+ * The activation's full **yield** is [produced] plus [SourceClassKey.bonus], the CR 605.1b
  * triggered mana the Auras attached to the source add. All of it enters the pool, and all of it
  * is spendable by this plan's [PaymentPlan.payments].
  *
  * @property sourceClass the class of payment-equivalent sources one member of which is activated.
- * @property produced the mana type chosen for the source's own ability — the choice an "add one
- *   mana of any color" source offers; a member of [SourceClassKey.profile].
+ * @property produced the mana the source's own ability was chosen to add — one of the alternatives
+ *   in [SourceClassKey.profile], and therefore a *multiset*: `[GREEN]` for a Forest, `[RED]` or
+ *   `[GREEN]` (the choice) for a dual land, `[COLORLESS, COLORLESS, COLORLESS]` for an Urza's Tower
+ *   with Tron assembled. Never empty.
  */
 data class ManaActivation(
     val sourceClass: SourceClassKey,
-    val produced: ManaType,
+    val produced: List<ManaType>,
 )
 
 /**
@@ -81,10 +83,22 @@ sealed interface SymbolPayment {
  * production [profile], the same [bonus] and the same activation cost are interchangeable, so
  * plans reference the class, never a member.
  *
+ * **The profile is computed from live state, and that is what makes conditional production a
+ * *profile* problem rather than a *relation* problem** (docs/design/mana-payment.md §2, §8). An
+ * Urza's Tower with Tron assembled has profile `[[C, C, C]]` and one without has `[[C]]`, so the
+ * two are automatically different classes with no change to the equivalence relation — exactly as
+ * an Abundant-Growth-enchanted Forest already differed from a bare one. It also means the key is
+ * the engine's **correspondence certificate**: because the state-derived count is *inside* the key,
+ * and the executor locates the member it activates by re-deriving the key against live state, an
+ * activation whose count moved between planning and payment cannot execute at all — it fails
+ * loudly instead of quietly producing a different amount (§8.3).
+ *
  * @property card the printed card every member shares.
- * @property profile the canonical list of mana types a member's own ability may add, in
- *   WUBRG-then-colorless order (CR 105.1); the load-bearing half of equivalence, and the set a
- *   [ManaActivation.produced] is chosen from.
+ * @property profile the **alternatives** one activation of a member may add, each a multiset of
+ *   mana types in WUBRG-then-colorless order (CR 105.1), the alternatives themselves in that same
+ *   order; never empty, and no alternative is empty. The load-bearing half of equivalence, and the
+ *   set a [ManaActivation.produced] is chosen from. A Forest is `[[GREEN]]`; a Bridge offering a
+ *   choice is `[[BLUE], [RED]]`; an assembled Urza's Mine is `[[COLORLESS, COLORLESS]]`.
  * @property bonus the extra mana a member's activation adds *in addition to* [produced], from a
  *   triggered mana ability that fires when it is tapped for mana (CR 605.1b) — Utopia Sprawl's
  *   chosen colour, Wild Growth's printed `{G}`. Empty for an ordinary source. Part of the
@@ -99,7 +113,15 @@ sealed interface SymbolPayment {
  */
 data class SourceClassKey(
     val card: CardRef,
-    val profile: List<ManaType>,
+    val profile: List<List<ManaType>>,
     val bonus: List<ManaType> = emptyList(),
     val viaSacrifice: Boolean = false,
-)
+) {
+    init {
+        require(profile.isNotEmpty()) { "CR 605.1a: a mana source class has at least one production alternative" }
+        require(profile.none { it.isEmpty() }) {
+            "CR 605.1a: a production alternative adds at least one mana; an empty one is no mana source " +
+                "and must be filtered out before the class is built (card ${card.name})"
+        }
+    }
+}

@@ -131,15 +131,24 @@ private val richPaymentWindow: DecisionRequest.ChoosePaymentPlan =
                     ManaActivation(
                         SourceClassKey(
                             CardRef("Forest"),
-                            listOf(ManaType.GREEN),
+                            listOf(listOf(ManaType.GREEN)),
                             listOf(ManaType.GREEN),
                             viaSacrifice = false,
                         ),
-                        ManaType.GREEN,
+                        listOf(ManaType.GREEN),
+                    ),
+                    // CR 605.2: a multi-mana production alternative on the wire — the FW-MANA shape.
+                    ManaActivation(
+                        SourceClassKey(CardRef("Urza's Tower"), listOf(List(3) { ManaType.COLORLESS })),
+                        List(3) { ManaType.COLORLESS },
                     ),
                     ManaActivation(
-                        SourceClassKey(CardRef("Eldrazi Spawn"), listOf(ManaType.COLORLESS), viaSacrifice = true),
-                        ManaType.COLORLESS,
+                        SourceClassKey(
+                            CardRef("Eldrazi Spawn"),
+                            listOf(listOf(ManaType.COLORLESS)),
+                            viaSacrifice = true,
+                        ),
+                        listOf(ManaType.COLORLESS),
                     ),
                 ),
                 listOf(
@@ -166,8 +175,8 @@ private val richCounterPaymentWindow: DecisionRequest.ChooseCounterPayment =
                 PaymentPlan(
                     listOf(
                         ManaActivation(
-                            SourceClassKey(CardRef("Island"), listOf(ManaType.BLUE), viaSacrifice = false),
-                            ManaType.BLUE,
+                            SourceClassKey(CardRef("Island"), listOf(listOf(ManaType.BLUE)), viaSacrifice = false),
+                            listOf(ManaType.BLUE),
                         ),
                     ),
                     listOf(SymbolPayment.WithMana(ManaType.BLUE)),

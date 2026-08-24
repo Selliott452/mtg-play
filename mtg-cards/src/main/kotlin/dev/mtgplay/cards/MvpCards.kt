@@ -93,6 +93,14 @@ import dev.mtgplay.core.identity.CardRef
  * resolving spell's controller (CR 118.3a). Their siblings are deliberately absent: the Blasts and Steel
  * Sabotage need modes (CR 700.2), Prohibit needs kicker (CR 702.33), and Spellstutter Sprite needs a
  * *triggered* ability with a dynamic target restriction (docs/design/countering-spells.md §11).
+ * The `FW-MANA` packet adds the pool's first cards whose mana abilities add a **board-dependent
+ * amount** (CR 605.2): Monster Tron's three Urza lands (UrzaLands.kt) [urzasMine], [urzasPowerPlant],
+ * and [urzasTower] — one colorless alone, two or (for the Tower) three with the other two out — and
+ * [priestOfTitania] (ManaCreatures.kt), one `{G}` per Elf on the battlefield. Two of that framework's
+ * cards are deliberately absent: Overgrown Battlement counts creatures **with defender**, a keyword
+ * that does not exist yet (`FW-DEFENDERKW`), and Saruli Caretaker's ability costs "{T}, Tap an
+ * untapped creature you control" — an activation cost shape the payment model cannot express
+ * (docs/design/mana-payment.md §9).
  *
  * [definitions] is shaped for direct `MatchConfig.definitions` consumption: the engine carries
  * it into `GameState` in canonical name-sorted order regardless of this map's own order
@@ -163,6 +171,7 @@ object MvpCards {
             plains,
             ponder,
             preordain,
+            priestOfTitania,
             pursueThePast,
             rancor,
             removeSoul,
@@ -189,6 +198,9 @@ object MvpCards {
             thoughtScour,
             unfathomableTruths,
             unionOfTheThirdPath,
+            urzasMine,
+            urzasPowerPlant,
+            urzasTower,
             utopiaSprawl,
             vaultOfWhispers,
             volatileFjord,

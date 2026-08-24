@@ -95,7 +95,7 @@ class TriggeredManaAbilitySpec :
                 manaSourceClasses(state, alice).single {
                     it.key.card == forest
                 }
-            val tapped = resolveTapForMana(state, alice, forestClass.key, ManaType.GREEN)
+            val tapped = resolveTapForMana(state, alice, forestClass.key, listOf(ManaType.GREEN))
             // Pool holds the primary green and the additional red — and the stack is untouched.
             tapped.players
                 .getValue(alice)
@@ -118,7 +118,7 @@ class TriggeredManaAbilitySpec :
             val aura = state.sharedZones.battlefield.single { it.card == CardRef("Fixture Growth") }
             aura.chosenColor shouldBe null
             val mountainClass = manaSourceClasses(state, alice).single { it.key.card == mountain }
-            val tapped = resolveTapForMana(state, alice, mountainClass.key, ManaType.RED)
+            val tapped = resolveTapForMana(state, alice, mountainClass.key, listOf(ManaType.RED))
             // Primary red plus the printed green bonus; no stack, no priority (CR 605.3).
             tapped.players
                 .getValue(alice)

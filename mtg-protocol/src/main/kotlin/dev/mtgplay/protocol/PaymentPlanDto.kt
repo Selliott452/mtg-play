@@ -24,13 +24,17 @@ data class PaymentPlanDto(
 )
 
 /**
- * Wire form of one [ManaActivation]: activate a member of [sourceClass] for one mana of
- * [produced] (CR 601.2g, CR 605.1a).
+ * Wire form of one [ManaActivation]: activate a member of [sourceClass] for the mana of the chosen
+ * production alternative [produced] (CR 601.2g, CR 605.1a).
+ *
+ * @property produced the alternative the activator chose, as a multiset — `["GREEN"]` for a Forest,
+ *   `["COLORLESS", "COLORLESS", "COLORLESS"]` for an Urza's Tower with Tron assembled. One of
+ *   [SourceClassKeyDto.profile]'s entries; never empty.
  */
 @Serializable
 data class ManaActivationDto(
     val sourceClass: SourceClassKeyDto,
-    val produced: ManaTypeDto,
+    val produced: List<ManaTypeDto>,
 )
 
 /** Wire form of one [SymbolPayment] — one mana, or a Phyrexian symbol's 2-life alternative. */
@@ -53,7 +57,11 @@ sealed interface SymbolPaymentDto {
  * Wire form of a [SourceClassKey]: the identity of one class of payment-equivalent mana sources.
  *
  * @property card the printed card every member shares.
- * @property profile the canonical mana a member's own ability may add, in WUBRG-then-colorless order.
+ * @property profile the production **alternatives** one activation of a member may choose between,
+ *   each a multiset of mana types in WUBRG-then-colorless order (CR 105.1); never empty, and no
+ *   alternative is empty. Computed from the board when the plan was enumerated, so an Urza's Tower
+ *   with Tron assembled reports `[["COLORLESS","COLORLESS","COLORLESS"]]` and one without reports
+ *   `[["COLORLESS"]]` (CR 605.2).
  * @property bonus extra mana a triggered mana ability adds on activation (CR 605.1b); empty for an
  *   ordinary source. Part of an activation's yield, so it is spendable by the plan that produced it.
  * @property viaSacrifice whether a member is sacrificed rather than tapped (CR 605.1a).
@@ -61,7 +69,7 @@ sealed interface SymbolPaymentDto {
 @Serializable
 data class SourceClassKeyDto(
     val card: String,
-    val profile: List<ManaTypeDto>,
+    val profile: List<List<ManaTypeDto>>,
     val bonus: List<ManaTypeDto>,
     val viaSacrifice: Boolean,
 )
@@ -108,10 +116,11 @@ fun CounterPaymentOptionDto.toDomain(): DecisionRequest.ChooseCounterPayment.Opt
     }
 
 /** [ManaActivation] to its wire form. */
-fun ManaActivation.toDto(): ManaActivationDto = ManaActivationDto(sourceClass.toDto(), produced.toDto())
+fun ManaActivation.toDto(): ManaActivationDto = ManaActivationDto(sourceClass.toDto(), produced.map { it.toDto() })
 
 /** [ManaActivationDto] back to the engine value. */
-fun ManaActivationDto.toDomain(): ManaActivation = ManaActivation(sourceClass.toDomain(), produced.toDomain())
+fun ManaActivationDto.toDomain(): ManaActivation =
+    ManaActivation(sourceClass.toDomain(), produced.map { it.toDomain() })
 
 /** [SymbolPayment] to its wire form. */
 fun SymbolPayment.toDto(): SymbolPaymentDto =
@@ -131,7 +140,7 @@ fun SymbolPaymentDto.toDomain(): SymbolPayment =
 fun SourceClassKey.toDto(): SourceClassKeyDto =
     SourceClassKeyDto(
         card = card.name,
-        profile = profile.map { it.toDto() },
+        profile = profile.map { alternative -> alternative.map { it.toDto() } },
         bonus = bonus.map { it.toDto() },
         viaSacrifice = viaSacrifice,
     )
@@ -140,7 +149,7 @@ fun SourceClassKey.toDto(): SourceClassKeyDto =
 fun SourceClassKeyDto.toDomain(): SourceClassKey =
     SourceClassKey(
         card = CardRef(card),
-        profile = profile.map { it.toDomain() },
+        profile = profile.map { alternative -> alternative.map { it.toDomain() } },
         bonus = bonus.map { it.toDomain() },
         viaSacrifice = viaSacrifice,
     )

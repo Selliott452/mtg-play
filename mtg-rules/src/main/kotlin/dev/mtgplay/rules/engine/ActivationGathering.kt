@@ -115,7 +115,16 @@ internal fun pendingActivationRequest(state: GameState): DecisionRequest {
                 id = id,
                 cardObjectId = pending.sourceObjectId,
                 card = source.card,
-                options = enumeratePaymentPlans(state, pending.activator, mana.cost),
+                // Same reservation the legality check used (triage trap T17): the options offered
+                // must be exactly the ones execution can carry out (ADR-005), so the source cannot
+                // appear here as a payer for a cost that also taps or sacrifices it.
+                options =
+                    enumeratePaymentPlans(
+                        state,
+                        pending.activator,
+                        mana.cost,
+                        manaSourcesReservedBy(state, source, ability),
+                    ),
             )
         }
     }

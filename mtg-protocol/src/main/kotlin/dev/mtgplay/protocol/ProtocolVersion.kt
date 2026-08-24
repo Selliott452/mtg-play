@@ -41,7 +41,11 @@ package dev.mtgplay.protocol
  * time, so an old peer meets it as a decode exception mid-match. That is the sharper of the two break
  * modes and a strictly larger break than `3.0.0`'s, so the major bump is not a judgement call.
  *
- * **5.0.0 — `FW-COUNTER`** (docs/design/countering-spells.md §10). Spells on the stack can now be
+ * **5.0.0** covers two frameworks that landed in the same wave; neither shipped
+ * separately, so `4.0.0` is the last version any consumer can have seen and one major
+ * bump carries both breaks.
+ *
+ * *`FW-COUNTER`* (docs/design/countering-spells.md §10). Spells on the stack can now be
  * targeted and countered, which breaks the wire in **both** directions and in **three** ways, any one of
  * which would be a major bump on the standard the last three versions set.
  * 1. [TargetDto] gains [TargetDto.SpellOnStackTarget]. Targets travel server→client inside
@@ -57,5 +61,17 @@ package dev.mtgplay.protocol
  * There is no smaller honest call available: this is the first framework to add a [dev.mtgplay.core.state.Target]
  * member, and a target is the one payload that appears in a seat view, in a request, and in the event
  * narration at once.
+ *
+ * *`FW-MANA`* (docs/design/mana-payment.md §8). A mana ability can now add more than one
+ * mana, and how many is read off the board when it resolves (CR 605.2), so a payment plan has to say
+ * *what multiset* each activation adds rather than which single type. Two required fields inside
+ * [PaymentPlanDto] change type, in **both** directions — it is an offered option server→client and a
+ * chosen one client→server: [SourceClassKeyDto.profile] becomes a list of alternatives
+ * (`List<List<ManaTypeDto>>`) and [ManaActivationDto.produced] becomes one alternative
+ * (`List<ManaTypeDto>`). A `4.0.0` peer would misread every payment option it is offered and send
+ * back a plan the strict codec rejects — the same break shape as `2.0.0`'s, so the same major bump.
+ *
+ * No `DecisionRequest` kind is added: multi-mana production is a change to what an existing option
+ * *says*, not a new decision, which is the whole point of the P8.3 plan shape holding.
  */
 const val PROTOCOL_VERSION: String = "5.0.0"
