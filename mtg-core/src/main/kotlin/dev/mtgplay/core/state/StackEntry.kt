@@ -2,6 +2,7 @@ package dev.mtgplay.core.state
 
 import dev.mtgplay.core.definition.ActivatedAbility
 import dev.mtgplay.core.definition.CastingPermission
+import dev.mtgplay.core.definition.ResolutionClauses
 import dev.mtgplay.core.definition.SpellDefinition
 import dev.mtgplay.core.identity.CardRef
 import dev.mtgplay.core.identity.ObjectId
@@ -114,4 +115,54 @@ val StackEntry.cardObject: GameObject?
             is StackEntry.Spell -> obj
             is StackEntry.Ability -> null
             is StackEntry.ActivatedAbilityOnStack -> null
+        }
+
+/**
+ * The post-resolution clauses this stack object carries (CR 608.2c) — a spell's from the definition it
+ * was cast from, an ability's from the ability itself. The one projection that makes the clause hook
+ * uniform across the three resolution paths (`FW-CLAUSEHOOK`,
+ * docs/design/resolution-clause-hook.md): the orchestration in `mtg-rules` reads clauses through this
+ * and never asks which kind of object is resolving.
+ */
+val StackEntry.resolutionClauses: ResolutionClauses
+    get() =
+        when (this) {
+            is StackEntry.Spell -> definition
+            is StackEntry.Ability -> trigger.ability
+            is StackEntry.ActivatedAbilityOnStack -> ability
+        }
+
+/**
+ * The player who controls this stack object and therefore makes its resolution decisions
+ * (CR 108.4, CR 603.3d, CR 602.2) — the decider of every mid-resolution pause its clauses open.
+ */
+val StackEntry.resolutionController: PlayerId
+    get() =
+        when (this) {
+            is StackEntry.Spell -> controller
+            is StackEntry.Ability -> trigger.controller
+            is StackEntry.ActivatedAbilityOnStack -> controller
+        }
+
+/**
+ * The object id this stack object names as its source, for a decision request that must point at
+ * something the deciding seat can see: a spell's own card object on the stack (CR 111.1), or an
+ * ability's source as last known when it went on the stack (CR 113.7c LKI). Never null — an ability is
+ * not a card (CR 113.7a) but it always has a source, which is why this is not [cardObject].
+ */
+val StackEntry.resolutionSourceId: ObjectId
+    get() =
+        when (this) {
+            is StackEntry.Spell -> obj.id
+            is StackEntry.Ability -> trigger.sourceId
+            is StackEntry.ActivatedAbilityOnStack -> sourceId
+        }
+
+/** The printed identity of this stack object's source (CR 201) — the counterpart of [resolutionSourceId]. */
+val StackEntry.resolutionSourceCard: CardRef
+    get() =
+        when (this) {
+            is StackEntry.Spell -> obj.card
+            is StackEntry.Ability -> trigger.sourceCard
+            is StackEntry.ActivatedAbilityOnStack -> sourceCard
         }

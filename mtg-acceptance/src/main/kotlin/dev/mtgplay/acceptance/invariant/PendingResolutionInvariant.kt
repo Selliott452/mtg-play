@@ -3,7 +3,7 @@ package dev.mtgplay.acceptance.invariant
 import dev.mtgplay.core.definition.LibraryLookSource
 import dev.mtgplay.core.identity.PlayerId
 import dev.mtgplay.core.state.GameState
-import dev.mtgplay.core.state.StackEntry
+import dev.mtgplay.core.state.resolutionClauses
 
 /**
  * [Invariant.PENDING_RESOLUTION_SANITY]: each mid-resolution pause — the optional cost-then-draw
@@ -11,8 +11,11 @@ import dev.mtgplay.core.state.StackEntry
  * library search (Ash Barrens, CR 701.18), and the library reveal (Malevolent Rumble and Kruphix's
  * Insight, CR 701.16) — is well-formed. Added in P6.2c; the reveal pause and its keep allowance added in
  * P6.3. Two cheap properties of every such pending record: its decider is a seated player, and the
- * resolving object it hangs on is still on the stack — these pauses occur while a spell or an activated
- * ability is resolving, so an empty stack would mean the pause outlived the object it belongs to. The
+ * resolving object it hangs on is still on the stack — these pauses occur while a spell, a triggered
+ * ability, or an activated ability is resolving, so an empty stack would mean the pause outlived the object
+ * it belongs to. Since `FW-CLAUSEHOOK` every clause is read off the resolving object's
+ * [dev.mtgplay.core.state.resolutionClauses] rather than off a spell definition, so an ability-carried
+ * clause (Faerie Seer's scry) is checked by exactly these properties. The
  * reveal pause adds a third: the keeps gathered so far never exceed the resolving clause's
  * [dev.mtgplay.core.definition.LibraryReveal.toHandCount] allowance ("put up to three … into your hand").
  * Top-level so the [InvariantChecker] file stays small.
@@ -58,7 +61,11 @@ internal fun checkPendingResolutionSanity(state: GameState): List<Violation> =
 
         val reveal = state.pendingRevealSelection
         val allowance =
-            (state.sharedZones.stack.lastOrNull() as? StackEntry.Spell)?.definition?.libraryReveal?.toHandCount
+            state.sharedZones.stack
+                .lastOrNull()
+                ?.resolutionClauses
+                ?.libraryReveal
+                ?.toHandCount
         if (reveal != null && allowance != null && reveal.keptIds.size > allowance) {
             add(
                 Violation(
@@ -79,7 +86,11 @@ internal fun checkPendingResolutionSanity(state: GameState): List<Violation> =
  */
 private fun checkLibraryLookPool(state: GameState): List<Violation> {
     val look = state.pendingLibraryLook ?: return emptyList()
-    val clause = (state.sharedZones.stack.lastOrNull() as? StackEntry.Spell)?.definition?.libraryLook
+    val clause =
+        state.sharedZones.stack
+            .lastOrNull()
+            ?.resolutionClauses
+            ?.libraryLook
     val decider = state.players[look.decider]
     val source = clause?.mode?.source
     val zone =

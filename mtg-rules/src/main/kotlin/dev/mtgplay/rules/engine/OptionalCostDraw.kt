@@ -9,6 +9,8 @@ import dev.mtgplay.core.state.GameObject
 import dev.mtgplay.core.state.GameState
 import dev.mtgplay.core.state.PendingOptionalCostDraw
 import dev.mtgplay.core.state.StackEntry
+import dev.mtgplay.core.state.resolutionClauses
+import dev.mtgplay.core.state.resolutionController
 import dev.mtgplay.rules.AdvanceResult
 import dev.mtgplay.rules.decision.DecisionRequest
 import dev.mtgplay.rules.decision.DecisionRequestId
@@ -33,13 +35,13 @@ import dev.mtgplay.rules.effect.drawCards
  */
 internal fun orchestrateOptionalCostDraw(
     state: GameState,
-    entry: StackEntry.Spell,
+    entry: StackEntry,
     clause: OptionalCostThenDraw,
 ): AdvanceResult {
-    val decider = entry.controller
+    val decider = entry.resolutionController
     val modes = performableModes(state, decider, clause)
-    // CR 601.3b: no mode is performable, so the "may" cannot be taken — no draw; the spell leaves the stack.
-    if (modes.isEmpty()) return completeInstantSorceryResolution(state, entry)
+    // CR 601.3b: no mode is performable, so the "may" cannot be taken — no draw; the object leaves the stack.
+    if (modes.isEmpty()) return completeClauseResolution(state, entry)
     val paused = state.copy(pendingOptionalCostDraw = PendingOptionalCostDraw(decider))
     return AdvanceResult.NeedsDecision(paused, pendingCostModeRequest(paused))
 }
@@ -87,7 +89,7 @@ internal fun applyCostModeChoice(
 ): AdvanceResult {
     val pending = state.pendingOptionalCostDraw ?: error("no optional cost-then-draw is pending")
     if (mode == null) {
-        return completeInstantSorceryResolution(state.copy(pendingOptionalCostDraw = null), resolvingSpellEntry(state))
+        return completeClauseResolution(state.copy(pendingOptionalCostDraw = null), resolvingClauseEntry(state))
     }
     val chosen = state.copy(pendingOptionalCostDraw = pending.copy(chosenMode = mode))
     return AdvanceResult.NeedsDecision(chosen, pendingOptionalCostObjectRequest(chosen))
@@ -105,15 +107,15 @@ internal fun applyOptionalCostObject(
     val pending = state.pendingOptionalCostDraw ?: error("no optional cost-then-draw is pending")
     val mode = pending.chosenMode ?: error("a cost-object selection requires a chosen mode")
     val clause = resolvingCostDrawClause(state)
-    val entry = resolvingSpellEntry(state)
+    val entry = resolvingClauseEntry(state)
     val cleared = state.copy(pendingOptionalCostDraw = null)
     val paid =
         when (mode) {
             OptionalCostMode.DiscardCard -> discardApplyingReplacements(cleared, pending.decider, objectId)
             OptionalCostMode.SacrificeLand -> sacrificePermanents(cleared, pending.decider, listOf(objectId))
         }
-    // CR 601.3b: "if you do, draw" — the draw follows the paid cost, then the spell leaves the stack.
-    return completeInstantSorceryResolution(drawCards(paid, pending.decider, clause.drawCount), entry)
+    // CR 601.3b: "if you do, draw" — the draw follows the paid cost, then the object leaves the stack.
+    return completeClauseResolution(drawCards(paid, pending.decider, clause.drawCount), entry)
 }
 
 /** The offered modes of [clause] that [decider] can actually perform right now (CR 601.3b), in printed order. */
@@ -142,12 +144,7 @@ private fun controlledLands(
                 ?.contains(CardType.LAND) == true
     }
 
-/** The optional cost-then-draw clause of the resolving spell on top of the stack (CR 601.3b); fails loudly. */
+/** The optional cost-then-draw clause of the object resolving on top of the stack (CR 601.3b); fails loudly. */
 private fun resolvingCostDrawClause(state: GameState): OptionalCostThenDraw =
-    (state.sharedZones.stack.lastOrNull() as? StackEntry.Spell)?.definition?.optionalCostThenDraw
-        ?: error("CR 601.3b: an optional cost-then-draw requires a resolving spell with the clause on the stack")
-
-/** The resolving spell entry on top of the stack; fails loudly if it is not a spell (an engine defect). */
-private fun resolvingSpellEntry(state: GameState): StackEntry.Spell =
-    state.sharedZones.stack.lastOrNull() as? StackEntry.Spell
-        ?: error("CR 608.1: an optional cost-then-draw requires a resolving spell on top of the stack")
+    resolvingClauseEntry(state).resolutionClauses.optionalCostThenDraw
+        ?: error("CR 601.3b: an optional cost-then-draw requires a resolving object with the clause on the stack")

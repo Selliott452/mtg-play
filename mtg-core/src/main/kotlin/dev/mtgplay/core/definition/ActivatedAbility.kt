@@ -17,6 +17,14 @@ import kotlinx.collections.immutable.PersistentList
  * The [effect] reuses the [ResolutionEffect] shape: the engine hands it a [ResolutionContext] carrying
  * the ability's controller and, for a targeting ability, the targets chosen at CR 602.2b.
  *
+ * **Post-resolution clauses ([ResolutionClauses]).** An activated ability carries the same four clauses a
+ * spell does — [libraryReveal], [libraryLook], [optionalCostThenDraw], and [drawThenDiscard] — because
+ * `FW-CLAUSEHOOK` lifted them off [SpellDefinition] onto a carrier
+ * (docs/design/resolution-clause-hook.md), so an activated ability that scries or loots is one clause
+ * rather than a second orchestration. The clause runs **after** the ordinary [effect], and at most one may
+ * be declared. [librarySearch] predates the carrier and stays a field of its own: it is a CR 701.18 search
+ * of a *whole* library with a mandatory shuffle, not one of the four.
+ *
  * @property cost the ability's composite activation cost (CR 602.1), in printed order; never empty.
  * @property effect what the ability does when it resolves (CR 608.2); reuses [ResolutionEffect]. A no-op for
  *   an ability whose whole effect is a [librarySearch] (Ash Barrens), which the engine orchestrates instead.
@@ -39,8 +47,13 @@ data class ActivatedAbility(
     val zoneScope: AbilityZoneScope = AbilityZoneScope.Battlefield,
     val librarySearch: LibrarySearch? = null,
     val targetSpec: TargetSpec = TargetSpec.None,
-) {
+    override val libraryReveal: LibraryReveal? = null,
+    override val libraryLook: LibraryLook? = null,
+    override val optionalCostThenDraw: OptionalCostThenDraw? = null,
+    override val drawThenDiscard: DrawThenDiscard? = null,
+) : ResolutionClauses {
     init {
         require(cost.isNotEmpty()) { "CR 602.1: an activated ability has a cost" }
+        requireAtMostOneClause(this) { "the activated ability costing $cost" }
     }
 }

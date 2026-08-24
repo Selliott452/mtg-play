@@ -50,10 +50,9 @@ internal fun resolveAbility(
         "CR 113.7a: a triggered ability's effect performs its instructions but does not move the ability " +
             "off the stack — that cessation is the engine's move"
     }
-    val ceased = resolved.updateStack { it.removingAt(it.lastIndex) }
-    return grantPriorityRound(
-        ceased.emit(GameEvent.TriggeredAbilityResolved(trigger.controller, trigger.sourceCard)),
-    )
+    // CR 608.2c: a post-resolution clause the ability carries runs after its ordinary effect and may pause
+    // (Faerie Seer's enters-the-battlefield scry). With no clause this is the bare CR 113.7a cessation.
+    return orchestrateResolutionClauses(resolved, entry)
 }
 
 /**

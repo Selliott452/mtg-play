@@ -6,6 +6,7 @@ import dev.mtgplay.core.state.PendingRevealSelection
 import dev.mtgplay.core.state.PendingTrigger
 import dev.mtgplay.core.state.PlayerState
 import dev.mtgplay.core.state.StackEntry
+import dev.mtgplay.core.state.resolutionClauses
 
 /**
  * The per-seat filtered view of [state] for [seat] (ADR-007) — the pure derivation of exactly what
@@ -131,15 +132,19 @@ private fun pendingTriggerViewOf(trigger: PendingTrigger): PendingTriggerView =
  * the deliberate opposite of [revealViewOf]. A reveal resolves its ids to identities because CR 701.16a
  * shows them to everyone; a look resolves nothing, and does not even carry the ids across, because
  * CR 701.14a shows them to the looking player alone (docs/design/library-look.md §3). The source zone is
- * read from the resolving spell's clause, which is public — an opponent watches which zone was touched.
+ * read from the resolving object's clause, which is public — an opponent watches which zone was touched.
+ * "Object", not "spell": since `FW-CLAUSEHOOK` a resolving ability carries look clauses too.
  */
 private fun lookViewOf(
     state: GameState,
     look: dev.mtgplay.core.state.PendingLibraryLook,
 ): PendingLibraryLookView {
     val clause =
-        (state.sharedZones.stack.lastOrNull() as? StackEntry.Spell)?.definition?.libraryLook
-            ?: error("CR 701.14a: a pending look requires a resolving spell with a look clause on the stack")
+        state.sharedZones.stack
+            .lastOrNull()
+            ?.resolutionClauses
+            ?.libraryLook
+            ?: error("CR 701.14a: a pending look requires a resolving object with a look clause on the stack")
     return PendingLibraryLookView(
         decider = look.decider,
         source = clause.mode.source,
