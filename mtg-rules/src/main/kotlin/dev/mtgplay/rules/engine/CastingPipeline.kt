@@ -190,7 +190,7 @@ private fun establishTargets(
             state
         }
         // Any-target and an Aura's enchant target (CR 303.4a) both demand exactly one legal target.
-        TargetSpec.AnyTarget, is TargetSpec.Enchantable -> {
+        TargetSpec.AnyTarget, TargetSpec.TargetPlayer, is TargetSpec.Enchantable -> {
             require(entry.targets.size == 1) {
                 "CR 601.2c: ${entry.obj.card.name} demands exactly one target, got ${entry.targets}"
             }

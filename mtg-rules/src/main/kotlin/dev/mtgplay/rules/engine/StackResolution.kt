@@ -178,7 +178,7 @@ internal fun putResolvedSpellOntoBattlefield(
  */
 private fun auraAttachmentTargetOf(entry: StackEntry.Spell): ObjectId? =
     when (entry.definition.targetSpec) {
-        TargetSpec.None, TargetSpec.AnyTarget -> null
+        TargetSpec.None, TargetSpec.AnyTarget, TargetSpec.TargetPlayer -> null
         is TargetSpec.Enchantable ->
             (entry.targets.singleOrNull() as? Target.Permanent)?.id
                 ?: error("CR 303.4f: an Aura must enter attached to its permanent target, got ${entry.targets}")

@@ -1,5 +1,6 @@
 package dev.mtgplay.core.card
 
+import dev.mtgplay.core.mana.Color
 import dev.mtgplay.core.mana.ManaCost
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.StringSpec
@@ -75,6 +76,25 @@ class PrintedCharacteristicsSpec :
         "CR 205.4: the Basic supertype and CR 205.3 land subtypes are represented — Mountain" {
             (Supertype.BASIC in mountain().supertypes) shouldBe true
             (Subtype("Mountain") in mountain().subtypes) shouldBe true
+        }
+
+        "CR 702.114a: a devoid card is colorless despite its mana cost — Unfathomable Truths" {
+            val truths =
+                PrintedCharacteristics(
+                    name = "Unfathomable Truths",
+                    manaCost = ManaCost.parse("{4}{U}"),
+                    supertypes = persistentSetOf(),
+                    cardTypes = persistentSetOf(CardType.INSTANT),
+                    subtypes = persistentSetOf(),
+                    powerToughness = null,
+                    keywords = persistentSetOf(Keyword.DEVOID),
+                )
+            // CR 105.4: no colors at all, not "colorless" as a sixth color.
+            truths.colors shouldBe emptySet()
+            // CR 202.3: devoid changes colour only — the mana value is still read from the cost.
+            truths.manaValue shouldBe 5
+            // The same card without devoid is blue, which is what makes the ability observable here.
+            truths.copy(keywords = persistentSetOf()).colors shouldBe setOf(Color.BLUE)
         }
 
         "a blank subtype is rejected" {
