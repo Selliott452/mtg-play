@@ -1,5 +1,6 @@
 package dev.mtgplay.protocol
 
+import dev.mtgplay.core.identity.CardRef
 import dev.mtgplay.core.identity.PlayerId
 import dev.mtgplay.rules.SeatView
 import kotlinx.serialization.Serializable
@@ -8,10 +9,14 @@ import kotlinx.serialization.Serializable
  * Wire form of a [SeatView] (ADR-007): the whole per-seat filtered projection. Every field mirrors
  * [SeatView]'s, so the filtering rulings documented there are exactly what crosses the wire; the
  * mapping is a straight structural translation ([toDto]/[toDomain]) with no further filtering.
+ *
+ * [cards] is keyed by printed card **name**, the string form of a [CardRef], so the table is a plain
+ * JSON object; the scope of what it contains is [SeatView.cards]'s ruling, not this layer's.
  */
 @Serializable
 data class SeatViewDto(
     val viewer: Int,
+    val cards: Map<String, PrintedCardViewDto>,
     val players: List<PlayerViewDto>,
     val battlefield: List<GameObjectDto>,
     val stack: List<StackEntryViewDto>,
@@ -37,6 +42,7 @@ data class SeatViewDto(
 fun SeatView.toDto(): SeatViewDto =
     SeatViewDto(
         viewer = viewer.seat,
+        cards = cards.entries.associate { (ref, card) -> ref.name to card.toDto() },
         players = players.map { it.toDto() },
         battlefield = battlefield.map { it.toDto() },
         stack = stack.map { it.toDto() },
@@ -62,6 +68,7 @@ fun SeatView.toDto(): SeatViewDto =
 fun SeatViewDto.toDomain(): SeatView =
     SeatView(
         viewer = PlayerId(viewer),
+        cards = cards.entries.associate { (name, card) -> CardRef(name) to card.toDomain() },
         players = players.map { it.toDomain() },
         battlefield = battlefield.map { it.toDomain() },
         stack = stack.map { it.toDomain() },

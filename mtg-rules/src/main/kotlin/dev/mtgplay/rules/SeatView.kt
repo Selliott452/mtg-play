@@ -1,5 +1,6 @@
 package dev.mtgplay.rules
 
+import dev.mtgplay.core.identity.CardRef
 import dev.mtgplay.core.identity.PlayerId
 import dev.mtgplay.core.mana.ManaType
 import dev.mtgplay.core.state.GameObject
@@ -33,14 +34,30 @@ import dev.mtgplay.core.state.Turn
  *   and draw, the exact cheat ADR-006 + ADR-007 forbid; it is neither public nor per-seat.
  * - the event log (`events`) — derived observability for replay/debugging (ADR-006), not part of
  *   what a player sees at the table, and it records draw specifics that are not a seat's to read.
- * - the card-definition registry (`definitions`) — static match data an agent already holds; cards
- *   are referenced by name ([dev.mtgplay.core.identity.CardRef]) throughout, so the view never
- *   ships Oracle text.
+ * - the card-definition registry (`definitions`) — **as a whole**. What a card *does* (resolution
+ *   effects, abilities, casting permissions) is not something a player reads off the table, and the
+ *   registry's whole key set is every card the match was configured with, which would tell a seat
+ *   the names of cards sitting unseen in an opponent's library. What a seat *may* see — the printed
+ *   characteristics of the cards this view already names — is projected into [cards] instead
+ *   (docs/design/seat-view-definitions.md).
  * - the object-id allocation counter (`nextObjectId`) — engine bookkeeping; agents choose
  *   enumerated options by index (ADR-005) and never mint ids, so it is not player-visible state.
  *
  * @property viewer the seat this projection is filtered for; only [viewer]'s own hidden zones are
  *   ever revealed in full.
+ * @property cards the printed characteristics of the cards this view names, keyed by printed
+ *   identity ([dev.mtgplay.core.identity.CardRef]) — the public half of the match's definition
+ *   registry (see [PrintedCardView]). **Scope:** an entry for exactly those refs this same view
+ *   already names — every zone below, plus [viewer]'s own hand — intersected with the registry, and
+ *   no others; a ref with no definition is an inert card (P2.1) and simply has no entry, never a
+ *   fabricated one. Every key is therefore a card whose identity the view has already disclosed
+ *   under a rule documented here, so the table adds no disclosure of its own: naming an object and
+ *   describing it are the same disclosure. This exists for **tokens** (CR 111): a token is not a
+ *   card, its definition is registered only when an effect creates it, and its characteristics are
+ *   public to every seat — so without this a consumer could see a token and never learn what it is.
+ *   Deliberately excluded: the [pendingDecision] request's own option cards (a library search
+ *   enumerates library cards, CR 701.18), which would make the key set depend on the pending
+ *   request rather than on the zones alone.
  * @property players every seat's public standing plus the hidden-zone filtering, in turn order
  *   (CR 101.4) — [viewer]'s own hand in full, an opponent's hand as a count only (see [PlayerView]).
  * @property battlefield the shared battlefield (CR 403); fully public — every permanent, with its
@@ -93,6 +110,7 @@ import dev.mtgplay.core.state.Turn
  */
 data class SeatView(
     val viewer: PlayerId,
+    val cards: Map<CardRef, PrintedCardView>,
     val players: List<PlayerView>,
     val battlefield: List<GameObject>,
     val stack: List<StackEntryView>,
