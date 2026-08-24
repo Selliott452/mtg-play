@@ -1,5 +1,6 @@
 package dev.mtgplay.rules
 
+import dev.mtgplay.core.definition.CardDefinition
 import dev.mtgplay.core.identity.CardRef
 import dev.mtgplay.core.identity.ObjectId
 import dev.mtgplay.core.identity.PlayerId
@@ -31,12 +32,16 @@ import kotlinx.collections.immutable.toPersistentMap
 /**
  * A handcrafted two-player state with the fixture-definition registry, [holder] mid-priority
  * window (CR 117.1), and ids allocated sequentially. Battlefield objects are untapped.
+ *
+ * [definitions] defaults to [fixtureDefinitions]; a spec with its own fixtures passes the merged
+ * registry (the shape [CastFromElsewhereSpec] and the ramp-Aura specs already use).
  */
 internal fun fixtureState(
     aliceSetup: SeatSetup,
     bobSetup: SeatSetup,
     turn: Turn = Turn(alice, 3, TurnPhase.PRECOMBAT_MAIN, null),
     holder: PlayerId = alice,
+    definitions: Map<CardRef, CardDefinition> = fixtureDefinitions,
 ): GameState {
     var nextId = 0L
 
@@ -75,7 +80,7 @@ internal fun fixtureState(
         nextObjectId = nextId,
         rng = Rng(0),
         events = persistentListOf(),
-        definitions = fixtureDefinitions.toPersistentMap(),
+        definitions = definitions.toPersistentMap(),
     )
 }
 

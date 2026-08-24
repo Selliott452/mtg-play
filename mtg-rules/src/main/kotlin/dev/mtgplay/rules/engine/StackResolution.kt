@@ -140,7 +140,9 @@ private fun isPermanentSpell(entry: StackEntry.Spell): Boolean {
 /**
  * The CR 608.3 move for a permanent spell: the resolving spell leaves the stack and enters the
  * battlefield under its controller's control as a **new** object (CR 400.7) — summoning sick
- * (CR 302.6), untapped, and with no marked damage (the [GameObject] defaults). An Aura enters
+ * (CR 302.6), untapped unless the card's own CR 614.1c "enters tapped" self-replacement says
+ * otherwise ([dev.mtgplay.core.definition.CardDefinition.entersTapped]), and with no marked damage
+ * (the [GameObject] defaults). An Aura enters
  * **attached** to the object it targeted while on the stack (CR 303.4f, CR 601.2c); every other
  * permanent spell attaches to nothing. Controller is owner in the MVP pool (control-changing effects
  * are Phase 4). The vanilla-and-keyword-only creatures and the Auras of the pool have no
@@ -160,6 +162,9 @@ internal fun putResolvedSpellOntoBattlefield(
             card = entry.obj.card,
             owner = entry.obj.owner,
             attachedTo = auraAttachmentTargetOf(entry),
+            // CR 614.1c: a permanent whose card says it enters tapped does so; the replacement modifies
+            // the entering event, so this is not a subsequent tap.
+            tapped = entry.definition.entersTapped,
             // CR 614.12: the colour chosen as this object entered (Utopia Sprawl), or null.
             chosenColor = chosenColor,
         )

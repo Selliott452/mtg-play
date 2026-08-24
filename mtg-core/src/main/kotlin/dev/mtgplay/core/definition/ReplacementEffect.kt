@@ -14,8 +14,11 @@ package dev.mtgplay.core.definition
  * Sealed so the engine handles every replacement exhaustively and a new shape breaks compilation
  * rather than being silently mis-applied. The MVP pool needs exactly the two exile-instead members
  * the cast-from-elsewhere mechanics ride; CR 614's other shapes (prevention, redirection, "enters
- * with counters", "enters tapped") have no MVP card and are the sealed extension point — a new member
- * plus its interception point, loud-gated until then.
+ * with counters") have no MVP card and are the sealed extension point — a new member plus its
+ * interception point, loud-gated until then. The one further shape the pool does print, "this land
+ * enters tapped" (CR 614.1c), is deliberately **not** a member here: this list hangs off the castable
+ * [SpellDefinition], and a land is played rather than cast (CR 305.1), so it is declared as
+ * [CardDefinition.entersTapped] instead.
  */
 sealed interface ReplacementEffect {
     /**

@@ -47,6 +47,17 @@ internal fun effectiveKeywords(
 ): PersistentSet<Keyword> = layeredCharacteristics(state, id).keywords
 
 /**
+ * Whether the battlefield object [id] can't be destroyed right now (CR 702.12b) — the single seam the
+ * destruction rules consult, so a grant of indestructible (CR 613 layer 6) is honoured automatically.
+ * The engine's only destruction today is the CR 704.5g lethal-damage state-based action; every
+ * destruction effect added later must read this rather than re-deriving it.
+ */
+internal fun isIndestructible(
+    state: GameState,
+    id: ObjectId,
+): Boolean = Keyword.INDESTRUCTIBLE in effectiveKeywords(state, id)
+
+/**
  * The in-game power of the battlefield creature [id] (CR 208.1, CR 613 sublayer 7c), via
  * [layeredCharacteristics]. Fails loudly on a non-creature — a combatant is always a creature, so
  * reaching this without a P/T box is an engine defect.

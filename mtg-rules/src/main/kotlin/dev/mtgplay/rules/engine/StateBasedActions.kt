@@ -64,6 +64,34 @@ internal sealed interface StateBasedAction {
 }
 
 /**
+ * The creature-death state-based actions applicable to [state] (CR 704.5f, CR 704.5g), in battlefield
+ * order — split out of [applicableStateBasedActions] so each check reads as one rule.
+ */
+private fun creatureDeathActions(state: GameState): List<StateBasedAction> =
+    state.sharedZones.battlefield.mapNotNull { obj ->
+        if (!isCreature(state, obj)) {
+            null
+        } else {
+            val toughness = effectiveToughness(state, obj.id)
+            when {
+                // CR 704.5f: toughness 0 or less — graveyard, and it takes precedence over
+                // CR 704.5g, which only ever applies to a creature with toughness greater than 0.
+                toughness <= 0 ->
+                    StateBasedAction.CreatureDies(obj.id, CreatureDeathCause.ZERO_OR_LESS_TOUGHNESS)
+                // CR 704.5g: toughness greater than 0 and marked damage at least equal to it —
+                // lethal damage, destroyed. (Marked damage is then necessarily positive.)
+                // CR 702.12b: an indestructible permanent is not destroyed by lethal damage, so the
+                // action does not apply to it. The exemption is deliberately confined to this branch:
+                // CR 704.5f is not destruction (see [CreatureDeathCause]), and indestructible never
+                // stops it.
+                obj.damageMarked >= toughness && !isIndestructible(state, obj.id) ->
+                    StateBasedAction.CreatureDies(obj.id, CreatureDeathCause.LETHAL_DAMAGE)
+                else -> null
+            }
+        }
+    }
+
+/**
  * All state-based actions applicable to [state] right now (CR 704.5), in deterministic order:
  * player losses first, in seat order, then creature deaths in battlefield order, then Aura
  * fall-offs in battlefield order. Later phases append checks here.
@@ -81,20 +109,7 @@ internal fun applicableStateBasedActions(state: GameState): List<StateBasedActio
                 add(StateBasedAction.PlayerLoses(seat, LossReason.ATTEMPTED_DRAW_FROM_EMPTY_LIBRARY))
             }
         }
-        for (obj in state.sharedZones.battlefield) {
-            if (!isCreature(state, obj)) continue
-            val toughness = effectiveToughness(state, obj.id)
-            when {
-                // CR 704.5f: toughness 0 or less — graveyard, and it takes precedence over
-                // CR 704.5g, which only ever applies to a creature with toughness greater than 0.
-                toughness <= 0 ->
-                    add(StateBasedAction.CreatureDies(obj.id, CreatureDeathCause.ZERO_OR_LESS_TOUGHNESS))
-                // CR 704.5g: toughness greater than 0 and marked damage at least equal to it —
-                // lethal damage, destroyed. (Marked damage is then necessarily positive.)
-                obj.damageMarked >= toughness ->
-                    add(StateBasedAction.CreatureDies(obj.id, CreatureDeathCause.LETHAL_DAMAGE))
-            }
-        }
+        addAll(creatureDeathActions(state))
         for (obj in state.sharedZones.battlefield) {
             val restriction = enchantRestrictionOf(state, obj) ?: continue
             // CR 704.5m: an Aura attached to an illegal object or to nothing goes to its owner's

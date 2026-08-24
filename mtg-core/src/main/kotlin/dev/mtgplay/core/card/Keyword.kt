@@ -14,9 +14,10 @@ package dev.mtgplay.core.card
  * (never by reading a definition directly), so Phase 4 can reroute the read without touching the
  * combat rules.
  *
- * All six now change engine behaviour: [FLYING], [FIRST_STRIKE], and [VIGILANCE] since P3.1;
+ * All seven change engine behaviour: [FLYING], [FIRST_STRIKE], and [VIGILANCE] since P3.1;
  * [TRAMPLE], [HEXPROOF], and [LIFELINK] since P5.3 (the trample assignment decision, the targeting
- * restriction on enumeration, and the damage-result lifegain, respectively).
+ * restriction on enumeration, and the damage-result lifegain, respectively); [INDESTRUCTIBLE] since
+ * P8.4 (the CR 704.5g lethal-damage exemption).
  */
 enum class Keyword {
     /** Flying (CR 702.9): can be blocked only by creatures with flying or reach. */
@@ -48,4 +49,17 @@ enum class Keyword {
      * life, as a result of the damage — not a triggered ability, no stack (P5.3).
      */
     LIFELINK,
+
+    /**
+     * Indestructible (CR 702.12): the permanent can't be destroyed — "destroy" effects and lethal
+     * damage do not destroy it (CR 702.12b). It is *not* general protection from dying: a
+     * toughness-0-or-less permanent still goes to the graveyard (CR 704.5f), because that is not
+     * destruction (see the `CreatureDeathCause` distinction in `mtg-rules`).
+     *
+     * The Bridge artifact lands print it. The only destruction the engine performs is the CR 704.5g
+     * lethal-damage state-based action, which honours this (P8.4); a *land* therefore never reaches a
+     * path where it matters today, and when a "destroy target permanent" effect first lands it must
+     * consult the effective-keyword accessor rather than re-deriving destruction.
+     */
+    INDESTRUCTIBLE,
 }

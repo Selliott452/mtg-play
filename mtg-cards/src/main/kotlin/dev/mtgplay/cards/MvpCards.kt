@@ -21,6 +21,11 @@ import dev.mtgplay.core.identity.CardRef
  * create-token primitive, so — like [warriorToken] — they are not top-level registry entries. The P6.3
  * pool refreshes both decklists as they are now built: [kessigFlamebreather] for Mono-Red Madness, and
  * [kruphixsInsight], [wildGrowth], and [lifelink] — the *card* named Lifelink, an Aura — for GW Bogles.
+ * The P8.4 pool broadens the gauntlet's mana bases with eight nonbasic lands (NonbasicLands.kt): the
+ * Mirrodin artifact lands [greatFurnace], [seatOfTheSynod], and [vaultOfWhispers]; the four
+ * enters-tapped indestructible Bridges [drossforgeBridge], [mistvaultBridge], [silverbluffBridge], and
+ * [slagwoodsBridge]; and [idyllicBeachfront], whose two mana abilities come from its Plains Island type
+ * line (CR 305.6).
  *
  * [definitions] is shaped for direct `MatchConfig.definitions` consumption: the engine carries
  * it into `GameState` in canonical name-sorted order regardless of this map's own order
@@ -36,6 +41,7 @@ object MvpCards {
             armadilloCloak,
             ashBarrens,
             cartoucheOfSolidarity,
+            drossforgeBridge,
             etherealArmor,
             faithlessLooting,
             fieryTemper,
@@ -43,10 +49,12 @@ object MvpCards {
             forest,
             gladecoverScout,
             grabThePrize,
+            greatFurnace,
             grizzlyBears,
             guttersnipe,
             highwayRobbery,
             hillGiant,
+            idyllicBeachfront,
             island,
             kessigFlamebreather,
             kruphixsInsight,
@@ -55,16 +63,21 @@ object MvpCards {
             lightningBolt,
             malevolentRumble,
             meldedMoxite,
+            mistvaultBridge,
             mountain,
             plains,
             rancor,
+            seatOfTheSynod,
             sentinelsEyes,
             silhanaLedgewalker,
+            silverbluffBridge,
+            slagwoodsBridge,
             slipperyBogle,
             sneakySnacker,
             standingTroops,
             swamp,
             utopiaSprawl,
+            vaultOfWhispers,
             voldarenEpicure,
             wildGrowth,
             windDrake,

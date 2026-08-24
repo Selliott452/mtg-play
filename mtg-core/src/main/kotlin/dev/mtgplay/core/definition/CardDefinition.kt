@@ -82,4 +82,24 @@ interface CardDefinition {
      * Barrens' basic landcycling all live here.
      */
     val activatedAbilities: PersistentList<ActivatedAbility> get() = persistentListOf()
+
+    /**
+     * Whether this permanent enters the battlefield tapped (CR 614.1c) — "This land enters tapped",
+     * printed on the Bridge artifact lands and on Idyllic Beachfront. Additive, flagged core (P8.4).
+     *
+     * A self-replacement effect, not an ability: it modifies the entering event itself, so it never uses
+     * the stack, generates no trigger, and cannot be responded to. It is declared as a property here — the
+     * shape [choosesColorAsItEnters] already established for CR 614.12 as-enters modifications on a
+     * [CardDefinition] — rather than as a [ReplacementEffect] member, because [ReplacementEffect] is
+     * declared on the castable [SpellDefinition] refinement and a land is never cast (CR 305.1).
+     *
+     * `mtg-rules` applies it at every point a permanent enters the battlefield: the play-land special
+     * action (CR 305.1) and a resolving permanent spell's entry (CR 608.3). `false` for every permanent
+     * that enters untapped by the CR 110.5a default.
+     *
+     * **Unconditional only.** A conditional clause ("enters tapped unless you control three or more other
+     * Forests") is a different shape — it reads the game state as the permanent enters — and is not
+     * expressible here; such a card stays unencoded rather than being approximated by `true` or `false`.
+     */
+    val entersTapped: Boolean get() = false
 }
