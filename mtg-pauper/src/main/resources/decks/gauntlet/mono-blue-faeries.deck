@@ -1,0 +1,28 @@
+# mtg-play decklist format (P6.1): blank lines and '#' comments are ignored; a "Name:" line sets
+# the deck name; "Main"/"Sideboard" headers switch section; every other line is "<count> <name>".
+# Gauntlet deck, transcribed verbatim from the mtg-ai gauntlet source list.
+Name: Mono Blue Faeries
+
+Main
+4 Moon-Circuit Hacker
+4 Ninja of the Deep Hours
+4 Spellstutter Sprite
+4 Faerie Miscreant
+2 Harrier Strix
+4 Faerie Seer
+4 Brinebarrow Intruder
+3 Sewer-veillance Cam
+4 Counterspell
+2 Snap
+2 Dispel
+3 Of One Mind
+2 Cryoshatter
+18 Island
+
+Sideboard
+4 Annul
+2 Blue Elemental Blast
+1 Faerie Macabre
+2 Relic of Progenitus
+2 Cryoshatter
+4 Hydroblast

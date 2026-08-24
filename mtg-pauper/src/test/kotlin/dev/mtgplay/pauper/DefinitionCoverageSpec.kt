@@ -26,6 +26,18 @@ class DefinitionCoverageSpec :
             report.isPlayable.shouldBeTrue()
         }
 
+        "mainboard and sideboard coverage are reported separately, not merged" {
+            // GW Bogles' mainboard is fully encoded; its sideboard is not encoded at all. A merged
+            // report would call the deck unplayable and hide the fact that a game of it runs today.
+            val report = DefinitionCoverage.check(loader.load(MvpDecks.gwBogles))
+            report.main.isComplete shouldBe true
+            report.sideboard.isComplete shouldBe false
+            // `missing`/`isPlayable` keep their original mainboard-only meaning (P6.1 callers).
+            report.missing shouldBe report.main.missing
+            report.isPlayable shouldBe true
+            report.sideboard.distinctCount shouldBe GW_BOGLES_SIDEBOARD_DISTINCT
+        }
+
         "coverage is distinct from legality: a legal deck against an empty registry is unplayable" {
             val loaded = loader.load(MvpDecks.gwBogles)
             // The distinction still holds structurally: measured against an empty registry, every
@@ -36,3 +48,6 @@ class DefinitionCoverageSpec :
             coverage.isPlayable shouldBe false
         }
     })
+
+/** The MVP GW Bogles sideboard names seven distinct cards (docs/decklists.md). */
+private const val GW_BOGLES_SIDEBOARD_DISTINCT = 7

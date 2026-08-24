@@ -12,7 +12,7 @@ import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.persistentSetOf
 
 /*
- * The basic lands of the MVP pool (CR 305). A land is *played*, not cast (CR 305.1, CR 116.2a),
+ * All five basic lands (CR 305). A land is *played*, not cast (CR 305.1, CR 116.2a),
  * so a basic-land definition implements only [CardDefinition] — never `SpellDefinition` — and
  * enters the game through the play-land special action in `mtg-rules`.
  *
@@ -43,6 +43,20 @@ val forest: CardDefinition = basicLand(name = "Forest", produces = ManaType.GREE
  * file note on CR 305.6).
  */
 val plains: CardDefinition = basicLand(name = "Plains", produces = ManaType.WHITE)
+
+/**
+ * Island — basic land (CR 305): the Basic supertype, the Land card type, the Island land
+ * subtype, no mana cost, and the intrinsic ability `{T}: Add {U}` (authored explicitly; see the
+ * file note on CR 305.6).
+ */
+val island: CardDefinition = basicLand(name = "Island", produces = ManaType.BLUE)
+
+/**
+ * Swamp — basic land (CR 305): the Basic supertype, the Land card type, the Swamp land
+ * subtype, no mana cost, and the intrinsic ability `{T}: Add {B}` (authored explicitly; see the
+ * file note on CR 305.6).
+ */
+val swamp: CardDefinition = basicLand(name = "Swamp", produces = ManaType.BLACK)
 
 /**
  * A basic land definition: for the five basics the land subtype equals the printed name

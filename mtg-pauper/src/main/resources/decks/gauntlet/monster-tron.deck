@@ -1,0 +1,35 @@
+# mtg-play decklist format (P6.1): blank lines and '#' comments are ignored; a "Name:" line sets
+# the deck name; "Main"/"Sideboard" headers switch section; every other line is "<count> <name>".
+# Gauntlet deck, transcribed verbatim from the mtg-ai gauntlet source list.
+Name: Monster Tron
+
+Main
+4 Bramble Wurm
+4 Maelstrom Colossus
+2 Boulderbranch Golem
+2 Generous Ent
+2 Rooftop Percher
+4 Expedition Map
+4 Giant's Boulder
+4 Pinnacle Kill-Ship
+2 Barrels of Blasting Jelly
+2 Bonder's Ornament
+4 Unfathomable Truths
+3 Crop Rotation
+4 Ancient Stirrings
+1 Kaervek's Torch
+4 Urza's Mine
+4 Urza's Power Plant
+4 Urza's Tower
+2 Conduit Pylons
+2 Forest
+1 Bojuka Bog
+1 Haunted Fengraf
+
+Sideboard
+4 Hydroblast
+3 Breath Weapon
+3 Relic of Progenitus
+2 Call Damage Control
+2 Scour from Existence
+1 Ancient Grudge
