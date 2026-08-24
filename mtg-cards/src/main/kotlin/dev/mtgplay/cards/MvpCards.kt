@@ -33,6 +33,16 @@ import dev.mtgplay.core.identity.CardRef
  * [slagwoodsBridge]; and [idyllicBeachfront], whose two mana abilities come from its Plains Island type
  * line (CR 305.6).
  *
+ * The gauntlet Tier-0 packet adds twelve more: the damage family (GauntletBurn.kt) [gutShot] (the
+ * pool's first all-Phyrexian cost), [galvanicBlast] (metalcraft as a state-dependent amount), and the
+ * two sweepers [breathWeapon] and [endTheFestivities]; the lifegain family (GauntletLifegain.kt)
+ * [healerOfTheGlade], [outlawMedic] (lifelink plus a dies trigger), [gnawToTheBone],
+ * [unionOfTheThirdPath], [spinewoodsPaladin] (trample, an enters trigger, and plot), and [wellwisher];
+ * the Aura [spiritLink] (Auras.kt), which completes the lifegain trio with [armadilloCloak] and
+ * [lifelink]; and [murmuringMystic] (MurmuringMystic.kt), whose [birdIllusionToken] — like
+ * [bloodToken], [robotToken], [eldraziSpawnToken], and [warriorToken] — is created on demand rather
+ * than being a top-level registry entry.
+ *
  * [definitions] is shaped for direct `MatchConfig.definitions` consumption: the engine carries
  * it into `GameState` in canonical name-sorted order regardless of this map's own order
  * (ADR-009 — definitions ride in the state; a [CardRef] without an entry is inert). The pool
@@ -46,18 +56,24 @@ object MvpCards {
             ancestralMask,
             armadilloCloak,
             ashBarrens,
+            breathWeapon,
             cartoucheOfSolidarity,
             drossforgeBridge,
+            endTheFestivities,
             etherealArmor,
             faithlessLooting,
             fieryTemper,
             fireblast,
             forest,
+            galvanicBlast,
             gladecoverScout,
+            gnawToTheBone,
             grabThePrize,
             greatFurnace,
             grizzlyBears,
+            gutShot,
             guttersnipe,
+            healerOfTheGlade,
             highwayRobbery,
             hillGiant,
             idyllicBeachfront,
@@ -73,6 +89,8 @@ object MvpCards {
             mentalNote,
             mistvaultBridge,
             mountain,
+            murmuringMystic,
+            outlawMedic,
             plains,
             pursueThePast,
             rancor,
@@ -83,13 +101,17 @@ object MvpCards {
             slagwoodsBridge,
             slipperyBogle,
             sneakySnacker,
+            spinewoodsPaladin,
+            spiritLink,
             standingTroops,
             swamp,
             thoughtScour,
             unfathomableTruths,
+            unionOfTheThirdPath,
             utopiaSprawl,
             vaultOfWhispers,
             voldarenEpicure,
+            wellwisher,
             wildGrowth,
             windDrake,
             youthfulKnight,
