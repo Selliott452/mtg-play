@@ -8,6 +8,7 @@ import dev.mtgplay.acceptance.twoPlayerState
 import dev.mtgplay.cards.MvpCards
 import dev.mtgplay.core.identity.CardRef
 import dev.mtgplay.core.identity.ObjectId
+import dev.mtgplay.core.mana.Color
 import dev.mtgplay.core.mana.ManaType
 import dev.mtgplay.core.random.Rng
 import dev.mtgplay.core.state.AttackerAssignment
@@ -198,6 +199,83 @@ class InvariantCheckerSpec :
                     nextObjectId = 100,
                 )
             InvariantChecker.check(state).map { it.invariant } shouldContainExactly
+                listOf(Invariant.MANA_POOL_EMPTY_AT_PAUSE)
+        }
+
+        // The triggered-mana exemption follows the enchanted permanent, not the Aura. Utopia Sprawl
+        // enchants *any* Forest, an opponent's included, and CR 605.1b gives the extra mana to whoever
+        // taps the enchanted land. Keying the exemption on the Aura's controller excused the wrong seat
+        // and reported the right one — invisible against Mono-Red Madness, which plays no Forests, but
+        // 7,920 spurious violations over 2,000 GW Bogles mirror games.
+        fun sprawlAcrossTheTable(
+            aliceMana: List<ManaType>,
+            bobMana: List<ManaType>,
+        ): GameState {
+            val bobsForest = GameObject(ObjectId(50), CardRef("Forest"), bob)
+            val alicesSprawl =
+                GameObject(
+                    ObjectId(51),
+                    CardRef("Utopia Sprawl"),
+                    alice,
+                    attachedTo = bobsForest.id,
+                    chosenColor = Color.GREEN,
+                )
+            return twoPlayerState(
+                turn = precombatMain,
+                aliceState =
+                    playerWithZones(library = mountains(0L..2L, alice))
+                        .copy(manaPool = aliceMana.toPersistentList()),
+                bobState =
+                    playerWithZones(library = mountains(10L..12L, bob))
+                        .copy(manaPool = bobMana.toPersistentList()),
+                nextObjectId = 100,
+            ).copy(
+                sharedZones =
+                    SharedZones(
+                        battlefield = persistentListOf(bobsForest, alicesSprawl),
+                        stack = persistentListOf(),
+                        exile = persistentListOf(),
+                    ),
+                definitions = MvpCards.definitions.toPersistentMap(),
+            )
+        }
+
+        "CR 605.1b: the seat controlling a Forest enchanted by an opponent's Utopia Sprawl may float mana" {
+            val state = sprawlAcrossTheTable(aliceMana = emptyList(), bobMana = listOf(ManaType.GREEN))
+
+            InvariantChecker.checkManaPoolEmptiness(state).shouldBeEmpty()
+        }
+
+        "CR 605.1b: the Aura's controller gains no exemption from a Sprawl on an opponent's Forest" {
+            // Alice controls the Aura but not the enchanted land, so the mana never reaches her pool;
+            // floating mana in it is still engine wrongness and must still be reported.
+            val state = sprawlAcrossTheTable(aliceMana = listOf(ManaType.GREEN), bobMana = emptyList())
+
+            InvariantChecker.checkManaPoolEmptiness(state).map { it.invariant } shouldContainExactly
+                listOf(Invariant.MANA_POOL_EMPTY_AT_PAUSE)
+        }
+
+        "CR 704.5m: an Aura attached to nothing adds no mana and so grants no exemption" {
+            val unattachedSprawl = GameObject(ObjectId(51), CardRef("Utopia Sprawl"), alice)
+            val state =
+                twoPlayerState(
+                    turn = precombatMain,
+                    aliceState =
+                        playerWithZones(library = mountains(0L..2L, alice))
+                            .copy(manaPool = persistentListOf(ManaType.GREEN)),
+                    bobState = playerWithZones(library = mountains(10L..12L, bob)),
+                    nextObjectId = 100,
+                ).copy(
+                    sharedZones =
+                        SharedZones(
+                            battlefield = persistentListOf(unattachedSprawl),
+                            stack = persistentListOf(),
+                            exile = persistentListOf(),
+                        ),
+                    definitions = MvpCards.definitions.toPersistentMap(),
+                )
+
+            InvariantChecker.checkManaPoolEmptiness(state).map { it.invariant } shouldContainExactly
                 listOf(Invariant.MANA_POOL_EMPTY_AT_PAUSE)
         }
 
