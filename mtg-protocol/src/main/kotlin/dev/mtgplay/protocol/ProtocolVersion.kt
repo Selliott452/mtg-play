@@ -477,5 +477,31 @@ package dev.mtgplay.protocol
  * anywhere. An agent that could not see [SeatViewDto.preventionEffects] would still be offered every
  * legal play — it would simply misvalue all of them, which is why the field is carried unfiltered to
  * both seats rather than left off.
+ *
+ * ### Held at `8.0.0` — `FW-BARGAIN`: the optional additional cost with a chosen object
+ *
+ * **Call: no bump**, for the reason the entry above gives — `8.0.0` is unreleased, so `1.0.0` remains
+ * the last version any consumer can have seen. The breaks, in descending order of sharpness:
+ *
+ * 1. **A new `DecisionRequest` kind**, the harsher of the two modes. [DecisionRequestDto] gains
+ *    [DecisionRequestDto.ChooseOptionalCostSacrifice] and [DecisionRequestKindDto] gains
+ *    `CHOOSE_OPTIONAL_COST_SACRIFICE`, whose `valueOf` mapping fails at **runtime** mid-match. It is
+ *    answerable client→server too, since paying a bargain is a decision an agent sends indices for.
+ *
+ *    The *announcement* deliberately adds **no** kind: like kicker's, it is a `ChooseYesNo`, because
+ *    "you may pay an additional cost" is exactly the two-answer shape that request exists for. And the
+ *    selection is deliberately **not** folded into `choose_sacrifices_for_cost`: a card may print both
+ *    a mandatory sacrifice cost and a bargain, so one shared request would leave the wire ambiguous
+ *    about which cost an answer paid — the objection `FW-ADDSAC` recorded when it declined the same
+ *    reuse.
+ * 2. **A required field on a payload every seat view carries.** [GameObjectDto] gains
+ *    `optionalCostPaidWhenCast` (CR 702.166b's linked information, public exactly as `kickedWhenCast`
+ *    is), and [PendingCastDto] gains `optionalCostTaken` and `optionalCostObjects`. Every game object
+ *    on the wire is a [GameObjectDto], so a strict codec rejects **every** seat view, not only boards
+ *    containing a bargained permanent — the break shape `FW-COUNTERS` and `FW-OPTCOST` both recorded.
+ * 3. **A widened value inside an unchanged shape.** [CastingPermissionDto.Flashback] gains a `tap`
+ *    field ([TapRequirementDto]) alongside its `sacrifice`, because CR 702.34c admits more than mana
+ *    in a flashback cost. Recorded here rather than under `FW-PREVENT2` because it is the same
+ *    permission payload, changed once.
  */
 const val PROTOCOL_VERSION: String = "8.0.0"
