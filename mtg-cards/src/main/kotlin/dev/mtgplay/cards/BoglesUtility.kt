@@ -7,6 +7,7 @@ import dev.mtgplay.core.card.Subtype
 import dev.mtgplay.core.definition.AbilityCost
 import dev.mtgplay.core.definition.AbilityZoneScope
 import dev.mtgplay.core.definition.ActivatedAbility
+import dev.mtgplay.core.definition.AsEntersColorChoice
 import dev.mtgplay.core.definition.CardDefinition
 import dev.mtgplay.core.definition.EnchantRestriction
 import dev.mtgplay.core.definition.LibraryReveal
@@ -80,7 +81,8 @@ val eldraziSpawnToken: TokenDefinition =
  * The pool's ramp Aura, encoded on the P6.2a triggered-mana-ability machinery (CR 605.1b) rather than the
  * P4.2 static-effect Auras (Auras.kt). It enchants a Forest ([TargetSpec.Enchantable]`(FOREST)`,
  * CR 303.4a); resolution is entering attached (CR 303.4f, CR 608.3); it chooses a colour as it enters
- * ([choosesColorAsItEnters], CR 614.12), stored on the entering object; and its
+ * ([asEntersColorChoice], CR 614.12 — unrestricted, so all five colours are offered), stored on the
+ * entering object; and its
  * [TriggeredManaAbility.AddChosenColor]`(1)` fires inside the enchanted Forest's tap-for-mana resolution,
  * adding one mana of that chosen colour to the pool with no stack (CR 605.3).
  */
@@ -98,7 +100,7 @@ val utopiaSprawl: SpellDefinition =
         override val timing = TimingClass.SORCERY_SPEED
         override val targetSpec = TargetSpec.Enchantable(EnchantRestriction.FOREST)
         override val resolution = ResolutionEffect { state, _ -> state }
-        override val choosesColorAsItEnters = true
+        override val asEntersColorChoice = AsEntersColorChoice()
         override val triggeredManaAbilities =
             persistentListOf<TriggeredManaAbility>(TriggeredManaAbility.AddChosenColor(1))
     }

@@ -1,18 +1,27 @@
 package dev.mtgplay.rules.engine
 
+import dev.mtgplay.core.definition.AsEntersColorChoice
 import dev.mtgplay.core.event.GameEvent
+import dev.mtgplay.core.identity.CardRef
 import dev.mtgplay.core.mana.Color
+import dev.mtgplay.core.state.GameObject
 import dev.mtgplay.core.state.GameState
+import dev.mtgplay.core.state.PendingColorChoice
 import dev.mtgplay.core.state.StackEntry
 import dev.mtgplay.rules.AdvanceResult
 import dev.mtgplay.rules.decision.DecisionRequest
 import dev.mtgplay.rules.decision.DecisionRequestId
 
 /*
- * The "as this permanent enters, choose a colour" mid-resolution flow (CR 614.12) — Utopia Sprawl. A
- * permanent that chooses a colour pauses its resolution before entering; the controller chooses, and the
- * colour is stored on the entering object where the card's triggered mana ability reads it. Split from
+ * The "as this permanent enters, choose a colour" as-enters flow (CR 614.12) — Utopia Sprawl and the Gate
+ * cycle. A permanent that chooses a colour pauses **before** entering; the controller chooses, and the
+ * colour is stored on the entering object where the card's mana abilities read it. Split from
  * StackResolution.kt so each file stays within its function budget.
+ *
+ * Two routes reach the battlefield and both pause here: a resolving permanent spell (CR 608.3) and the
+ * play-land special action (CR 305.1, PlayLand.kt). The choice is the same one either way — CR 614.12
+ * knows nothing about how the permanent got there — so only the resume differs, and which route to resume
+ * is recorded on the pending record rather than inferred from the stack.
  */
 
 /**
@@ -51,33 +60,79 @@ internal fun enterResolvedPermanent(
 
 /**
  * The as-enters colour-choice request the open [dev.mtgplay.core.state.PendingColorChoice] is waiting on
- * (CR 614.12): the resolving permanent's controller chooses one of the five colours. A pure function of
- * the state (ADR-004) — the resolving spell is the top of the stack.
+ * (CR 614.12): the entering permanent's controller chooses one of the colours its printed line admits. A
+ * pure function of the state (ADR-004) — the entering object is either the resolving spell on top of the
+ * stack or, for a land, the card still in the decider's hand
+ * ([dev.mtgplay.core.state.PendingColorChoice.playedLand]).
+ *
+ * **The option list is the printed one, never all five by default.** "As this land enters, choose a color
+ * other than white" removes white from the enumeration rather than making it a choice the player is
+ * expected not to take: an option the rules forbid is the ADR-005 defect in its most expensive direction.
  */
 internal fun pendingColorChoiceRequest(state: GameState): DecisionRequest.ChooseColor {
     val pending = state.pendingColorChoice ?: error("no colour choice is pending")
-    val entry =
-        state.sharedZones.stack.lastOrNull() as? StackEntry.Spell
-            ?: error("CR 614.12: an as-enters colour choice requires a resolving spell on top of the stack")
+    val entering = enteringColorChooser(state, pending)
     return DecisionRequest.ChooseColor(
         id = DecisionRequestId(pending.decider, state.player(pending.decider).decisionsAnswered),
-        cardObjectId = entry.obj.id,
-        card = entry.obj.card,
-        options = Color.entries.toList(),
+        cardObjectId = entering.id,
+        card = entering.card,
+        options = asEntersColorOptions(colorChoiceOf(state, entering.card)),
     )
 }
 
 /**
  * Applies the chosen colour of an as-enters choice (CR 614.12): clears the pending choice and completes
- * the resolving permanent's entry with [color] stored on it ([enterResolvedPermanent]).
+ * the entry with [color] stored on the entering object — a resolving permanent spell's
+ * ([enterResolvedPermanent]) or a played land's ([completePlayLand]).
  */
 internal fun applyChosenColor(
     state: GameState,
     color: Color,
 ): AdvanceResult {
-    state.pendingColorChoice ?: error("no colour choice is pending")
+    val pending = state.pendingColorChoice ?: error("no colour choice is pending")
+    val cleared = state.copy(pendingColorChoice = null)
+    val playedLand = pending.playedLand
+    if (playedLand != null) return completePlayLand(cleared, pending.decider, playedLand, color)
     val entry =
         state.sharedZones.stack.lastOrNull() as? StackEntry.Spell
             ?: error("CR 614.12: an as-enters colour choice requires a resolving spell on top of the stack")
-    return enterResolvedPermanent(state.copy(pendingColorChoice = null), entry, color)
+    return enterResolvedPermanent(cleared, entry, color)
 }
+
+/**
+ * The colours a [AsEntersColorChoice] admits (CR 614.12), in the [Color] declaration order the engine
+ * enumerates everything in (ADR-005, ADR-006): all five, less the one the printed line forbids.
+ */
+internal fun asEntersColorOptions(choice: AsEntersColorChoice): List<Color> =
+    Color.entries.filterNot { it == choice.excluding }
+
+/**
+ * The object whose entry an open colour choice interrupted: the card in the decider's hand for a played
+ * land, otherwise the permanent spell resolving on top of the stack. Fails loudly rather than guessing —
+ * a pause whose object has gone is an engine defect.
+ */
+private fun enteringColorChooser(
+    state: GameState,
+    pending: PendingColorChoice,
+): GameObject {
+    val playedLand = pending.playedLand
+    if (playedLand == null) {
+        val entry =
+            state.sharedZones.stack.lastOrNull() as? StackEntry.Spell
+                ?: error("CR 614.12: an as-enters colour choice requires a resolving spell on top of the stack")
+        return entry.obj
+    }
+    return state.player(pending.decider).hand.firstOrNull { it.id == playedLand }
+        ?: error(
+            "CR 305.1: the land $playedLand whose colour choice is pending is no longer in " +
+                "${pending.decider}'s hand",
+        )
+}
+
+/** The [AsEntersColorChoice] the registered definition of [card] declares; fails loudly if it declares none. */
+private fun colorChoiceOf(
+    state: GameState,
+    card: CardRef,
+): AsEntersColorChoice =
+    state.definitions[card]?.asEntersColorChoice
+        ?: error("CR 614.12: ${card.name} has no as-enters colour choice, so none can be pending")

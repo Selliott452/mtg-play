@@ -15,6 +15,7 @@ import dev.mtgplay.core.state.PendingNinjutsu
 import dev.mtgplay.core.state.PendingOptionalCostDraw
 import dev.mtgplay.core.state.PendingOptionalDiscardDraw
 import dev.mtgplay.core.state.PendingOptionalDraw
+import dev.mtgplay.core.state.PendingOptionalTrigger
 import dev.mtgplay.core.state.PendingPermanentSelection
 import dev.mtgplay.core.state.PendingPlot
 import dev.mtgplay.core.state.PendingRebound
@@ -116,7 +117,12 @@ import dev.mtgplay.core.state.Turn
  *   and the plotting seat are public, but the card stays in hand until the action executes, so its
  *   identity is not resolved here — it becomes public (face-up in exile) only on execution.
  * @property pendingColorChoice the "choose a colour as this enters" pause (CR 614.12), or `null`;
- *   public — it concerns a resolving permanent on the stack.
+ *   public — it concerns a resolving permanent on the stack, or (since `W8-A`) a land mid-way through
+ *   the play-land special action, which is itself a public action. Its `playedLand` is an **opaque
+ *   hand-object id** and resolves to no card identity here: [visibleCardRefs] contributes nothing from
+ *   this record, so an opponent learns that a colour-choosing land is being played and not which one —
+ *   and learns even that only for the single decision the pause lasts, since the land is on the
+ *   battlefield and fully public the moment the colour arrives. The same treatment [pendingPlot] gets.
  * @property pendingActivation an activated ability gathering its choices (CR 602.2), or `null`; public
  *   — it concerns a public ability; its chosen-discard field carries only opaque hand-object ids, no
  *   card identities, and its chosen targets are public by CR 601.2c.
@@ -183,6 +189,10 @@ import dev.mtgplay.core.state.Turn
  *   paid, exactly as a pending plot's does.
  * @property pendingOptionalDraw a bare optional "you may draw N" clause awaiting its controller's yes/no
  *   (CR 601.3b), or `null`. Names a battlefield source, so nothing here is hidden from either seat.
+ * @property pendingOptionalTrigger a resolving triggered ability whose whole effect is inside a printed
+ *   "you may", awaiting its controller's yes/no (CR 603.2), or `null`. Public for
+ *   [pendingOptionalDraw]'s reason: it names a battlefield source and the ability it belongs to is
+ *   already visible on the stack.
  * @property pendingRebound a resolved rebound delayed ability awaiting its controller's free-cast yes/no
  *   (CR 702.88b), or `null`; public — exile is a public zone (CR 406.3), so the card in question and the
  *   fact that its controller is being offered a free cast are both already visible in [exile].
@@ -232,6 +242,7 @@ data class SeatView(
     val pendingRebound: PendingRebound? = null,
     val pendingNinjutsu: PendingNinjutsu? = null,
     val pendingOptionalDraw: PendingOptionalDraw? = null,
+    val pendingOptionalTrigger: PendingOptionalTrigger? = null,
     val pendingPermanentSelection: PendingPermanentSelection? = null,
     val timedEffects: List<TimedContinuousEffect> = emptyList(),
 )

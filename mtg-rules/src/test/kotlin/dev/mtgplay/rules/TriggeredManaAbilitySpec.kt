@@ -3,6 +3,7 @@ package dev.mtgplay.rules
 import dev.mtgplay.core.card.CardType
 import dev.mtgplay.core.card.PrintedCharacteristics
 import dev.mtgplay.core.card.Subtype
+import dev.mtgplay.core.definition.AsEntersColorChoice
 import dev.mtgplay.core.definition.CardDefinition
 import dev.mtgplay.core.definition.EnchantRestriction
 import dev.mtgplay.core.definition.ManaAbility
@@ -187,7 +188,7 @@ private val sprawlFixture: SpellDefinition =
         override val timing = TimingClass.SORCERY_SPEED
         override val targetSpec = TargetSpec.Enchantable(EnchantRestriction.FOREST)
         override val resolution = ResolutionEffect { state, _ -> state }
-        override val choosesColorAsItEnters = true
+        override val asEntersColorChoice = AsEntersColorChoice()
         override val triggeredManaAbilities =
             persistentListOf<TriggeredManaAbility>(TriggeredManaAbility.AddChosenColor(1))
     }

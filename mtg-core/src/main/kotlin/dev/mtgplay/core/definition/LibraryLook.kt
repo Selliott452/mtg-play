@@ -54,12 +54,11 @@ enum class LibraryLookSource {
  * legal. One member per pattern, sealed so `mtg-rules` interprets it exhaustively; the enumeration of legal
  * arrangements per member — and the closed-form option count of each — is docs/design/library-look.md §4.2.
  *
- * A wider mode is the extension point, and one of the three docs/design/library-look.md §12 named has since
- * been taken: [RevealMatchingToHandRestToBottom] is that note's "a filter on the keep", added by the packet
- * that encoded the cards it named. **Surveil** (CR 701.44 — a look whose rest goes to the *graveyard*)
- * remains absent, and remains a mode question rather than a carrier question: it is this hierarchy plus a
- * fourth destination in the arrangement, and no encoded card needs it. Each absence is documented rather
- * than silently approximated.
+ * A wider mode is the extension point, and **both** of the modes docs/design/library-look.md §12 named have
+ * now been taken. [RevealMatchingToHandRestToBottom] is that note's "a filter on the keep", added by the
+ * packet that encoded the cards it named; [Surveil] is its "surveil (CR 701.44 — the same shape with a
+ * graveyard destination)", and it landed exactly as that note predicted — this hierarchy plus a fourth
+ * destination in the arrangement, and nothing else.
  */
 sealed interface LibraryLookMode {
     /** How many cards the pool holds at most — fewer if the source zone is short (CR 701: do as much as possible). */
@@ -81,6 +80,31 @@ sealed interface LibraryLookMode {
 
         init {
             require(count >= 1) { "CR 701.17a: scry N looks at at least one card, was $count" }
+        }
+    }
+
+    /**
+     * Surveil [count] (CR 701.44a): "look at the top [count] cards of your library, then put any number of
+     * them into your graveyard and the rest on top of your library in any order." Conduit Pylons' one.
+     *
+     * **[Scry]'s shape with the bottom of the library replaced by the graveyard**, and the replacement is
+     * the whole card rather than a cosmetic difference: a scryed card is still in the library and can be
+     * drawn later, while a surveilled one is in a *public* zone where the graveyard decks of the gauntlet
+     * can use it. It is a separate member rather than a destination parameter on [Scry] for the reason
+     * every member here is separate — the rules-side `when` must be forced to handle it — and because the
+     * two differ in what the opponent learns: a card put into a graveyard becomes public information
+     * (CR 400.2) the moment it lands, and nothing about a scry ever does.
+     *
+     * The partition is free — all-graveyard and all-top are both legal, which is what "any number" says —
+     * so the outcome space is `(count + 1)!` arrangements, exactly [Scry]'s.
+     */
+    data class Surveil(
+        override val count: Int,
+    ) : LibraryLookMode {
+        override val source: LibraryLookSource get() = LibraryLookSource.TOP_OF_LIBRARY
+
+        init {
+            require(count >= 1) { "CR 701.44a: surveil N looks at at least one card, was $count" }
         }
     }
 

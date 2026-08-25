@@ -27,14 +27,33 @@ internal const val MAXIMUM_HAND_SIZE: Int = 7
  * - A skipped permanent emits **no** [GameEvent.ObjectUntapped], because it did not untap. The event
  *   list is derived observability (ADR-006) and must not narrate a status change that never happened.
  *
+ * **A permanent may also untap in an untap step that is not its controller's** (CR 502.2, CR 613.11) —
+ * Bender's Waterskin's "Untap this artifact during each other player's untap step", declared as
+ * [dev.mtgplay.core.definition.CardDefinition.untapsInEachOtherPlayersUntapStep]. Additive (`W8-A`). It
+ * is a *rules-modifying* static ability rather than a continuous effect on any characteristic, so this
+ * turn-based action is the one place it can be read — there is no CR 613 layer for "which permanents
+ * this step untaps".
+ *
+ * Its interaction with the "doesn't untap" marker is the CR's and is not symmetric: Sleep of the Dead
+ * says "during its **controller's** next untap step", which names a step this permanent is not untapping
+ * in, so a held-down Waterskin still untaps during the opponent's untap step and its marker — which
+ * belongs to its controller's step — is neither consulted nor spent there.
+ *
  * Phasing (CR 502.1) remains a documented gap: nothing in the MVP pool phases, and an unrepresentable
  * status cannot be silently mishandled.
  */
 internal fun untapStepTurnBasedActions(state: GameState): GameState {
     val active = state.turn.activePlayer
 
-    // CR 502.2: the active player's permanents untap, except those a "doesn't untap" effect holds down.
-    fun untaps(obj: GameObject): Boolean = obj.owner == active && obj.tapped && !obj.skipsNextUntapStep
+    // CR 502.2: the active player's permanents untap, except those a "doesn't untap" effect holds down;
+    // and, in every *other* player's untap step, the permanents whose own static ability says they do.
+    fun untaps(obj: GameObject): Boolean =
+        obj.tapped &&
+            if (obj.owner == active) {
+                !obj.skipsNextUntapStep
+            } else {
+                state.definitions[obj.card]?.untapsInEachOtherPlayersUntapStep == true
+            }
     val untapping = state.sharedZones.battlefield.filter(::untaps)
     val stepped =
         state.sharedZones.battlefield

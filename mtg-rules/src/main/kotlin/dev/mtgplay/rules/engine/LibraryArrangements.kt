@@ -68,6 +68,14 @@ internal fun arrangementsFor(
                     arrangement(toBottom = order.take(split), toTop = order.drop(split))
                 }
             }
+        // CR 701.44a: any number into the graveyard, the rest on top in any order — scry's shape with a
+        // public destination, so the same (poolSize + 1)! outcomes.
+        is LibraryLookMode.Surveil ->
+            (0..poolSize).flatMap { split ->
+                permutations(indices).map { order ->
+                    arrangement(toGraveyard = order.take(split), toTop = order.drop(split))
+                }
+            }
         // "Put them back in any order" (Ponder): every card returns to the top; poolSize! outcomes.
         is LibraryLookMode.ReorderTop -> permutations(indices).map { arrangement(toTop = it) }
         // "Put one of them into your hand and the rest on the bottom in any order" (Impulse). The keep is
@@ -109,6 +117,8 @@ private fun arrangementCount(
     when (mode) {
         // (n + 1)!: a permutation of the pool plus one divider marking the bottom/top split.
         is LibraryLookMode.Scry -> factorial(poolSize + 1)
+        // (n + 1)!: scry's count, with the graveyard where the bottom of the library was.
+        is LibraryLookMode.Surveil -> factorial(poolSize + 1)
         is LibraryLookMode.ReorderTop -> factorial(poolSize)
         // n choices of kept card times (n - 1)! orders of the rest, which is n!; an empty pool keeps nothing.
         is LibraryLookMode.OneToHandRestToBottom -> factorial(poolSize)
@@ -135,6 +145,8 @@ internal fun arrangementPrompt(look: LibraryLook): String =
     when (val mode = look.mode) {
         is LibraryLookMode.Scry ->
             "Scry ${mode.count}: put any number on the bottom in any order, the rest on top in any order"
+        is LibraryLookMode.Surveil ->
+            "Surveil ${mode.count}: put any number into your graveyard, the rest on top in any order"
         is LibraryLookMode.ReorderTop ->
             "Put the ${mode.count} looked-at card(s) back on top of your library in any order"
         is LibraryLookMode.OneToHandRestToBottom ->
@@ -144,12 +156,18 @@ internal fun arrangementPrompt(look: LibraryLook): String =
         is LibraryLookMode.RevealMatchingToHandRestToBottom -> filteredArrangementPrompt(mode)
     }
 
-/** One arrangement; the three lists together must cover the pool exactly once (CR 701.17a). */
+/** One arrangement; the four lists together must cover the pool exactly once (CR 701.17a, CR 701.44a). */
 internal fun arrangement(
     toHand: List<Int> = emptyList(),
     toTop: List<Int> = emptyList(),
     toBottom: List<Int> = emptyList(),
-) = DecisionRequest.ChooseLibraryArrangement.Option(toHand = toHand, toTop = toTop, toBottom = toBottom)
+    toGraveyard: List<Int> = emptyList(),
+) = DecisionRequest.ChooseLibraryArrangement.Option(
+    toHand = toHand,
+    toTop = toTop,
+    toBottom = toBottom,
+    toGraveyard = toGraveyard,
+)
 
 /**
  * The permutations of [items] in lexicographic order of their positions in [items] — the deterministic,

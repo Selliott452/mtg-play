@@ -5,6 +5,7 @@ import dev.mtgplay.core.identity.ObjectId
 import dev.mtgplay.core.identity.PlayerId
 import dev.mtgplay.core.state.PendingNinjutsu
 import dev.mtgplay.core.state.PendingOptionalDraw
+import dev.mtgplay.core.state.PendingOptionalTrigger
 import kotlinx.serialization.Serializable
 
 /**
@@ -51,3 +52,23 @@ fun PendingOptionalDraw.toDto(): PendingOptionalDrawDto =
 /** [PendingOptionalDrawDto] back to the engine value. */
 fun PendingOptionalDrawDto.toDomain(): PendingOptionalDraw =
     PendingOptionalDraw(PlayerId(decider), drawCount, ObjectId(sourceId), CardRef(sourceCard))
+
+/**
+ * Wire form of [PendingOptionalTrigger] (CR 603.2) — a resolving triggered ability whose whole effect is
+ * inside a printed "you may", awaiting its controller's yes/no. Like [PendingOptionalDrawDto] it names a
+ * battlefield source as last known (CR 113.7c) and redacts nothing.
+ */
+@Serializable
+data class PendingOptionalTriggerDto(
+    val decider: Int,
+    val sourceId: Long,
+    val sourceCard: String,
+)
+
+/** [PendingOptionalTrigger] to its wire form. */
+fun PendingOptionalTrigger.toDto(): PendingOptionalTriggerDto =
+    PendingOptionalTriggerDto(decider.seat, sourceId.value, sourceCard.name)
+
+/** [PendingOptionalTriggerDto] back to the engine value. */
+fun PendingOptionalTriggerDto.toDomain(): PendingOptionalTrigger =
+    PendingOptionalTrigger(PlayerId(decider), ObjectId(sourceId), CardRef(sourceCard))

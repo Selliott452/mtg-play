@@ -44,6 +44,7 @@ internal fun matchingPoolIndices(
         is LibraryLookMode.RevealMatchingToHandRestToBottom ->
             pool.indices.filter { matchesFilter(state, pool[it], mode.toHand) }
         is LibraryLookMode.Scry,
+        is LibraryLookMode.Surveil,
         is LibraryLookMode.ReorderTop,
         is LibraryLookMode.OneToHandRestToBottom,
         is LibraryLookMode.HandToTop,

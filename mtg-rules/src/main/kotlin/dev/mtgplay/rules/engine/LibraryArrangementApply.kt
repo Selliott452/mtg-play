@@ -43,14 +43,40 @@ internal fun distributeArrangement(
         }
     val handed =
         option.toHand.map { pool[it] }.fold(lifted) { s, obj -> putArrangedIntoHand(s, player, obj, source) }
+    // CR 701.44a: surveil's graveyard destination, filled before the library so that the library's own
+    // re-seating is not disturbed by a second pass over it. Empty for every other mode.
+    val binned =
+        option.toGraveyard.map { pool[it] }.fold(handed) { s, obj -> putArrangedIntoGraveyard(s, player, obj) }
     // Right-to-left, because each is inserted at index 0: the first entry ends up topmost (CR 401.1).
     val topped =
-        option.toTop.map { pool[it] }.foldRight(handed) { obj, s ->
+        option.toTop.map { pool[it] }.foldRight(binned) { obj, s ->
             putArrangedOnLibrary(s, player, obj, source, onTop = true)
         }
     return option.toBottom.map { pool[it] }.fold(topped) { s, obj ->
         putArrangedOnLibrary(s, player, obj, source, onTop = false)
     }
+}
+
+/**
+ * Puts one surveilled card into [player]'s graveyard (CR 701.44a, CR 400.7). Always a zone change from a
+ * library pool, so the card is reborn with a fresh object id and narrated with
+ * [GameEvent.CardSurveilled] — its own event and not the CR 701.13a mill's, because the two are different
+ * game actions however alike they look from the outside.
+ *
+ * **The one destination of this framework that is public.** A graveyard is a public zone (CR 400.2), so
+ * the moment a looked-at card lands there its identity is known to everybody; the cards kept on top stay
+ * private (CR 701.14a), which is exactly the asymmetry surveil trades on.
+ */
+private fun putArrangedIntoGraveyard(
+    state: GameState,
+    player: PlayerId,
+    obj: GameObject,
+): GameState {
+    val (newId, allocated) = state.allocateObjectId()
+    val reborn = GameObject(id = newId, card = obj.card, owner = obj.owner)
+    return allocated
+        .updatePlayer(player) { it.copy(graveyard = it.graveyard.adding(reborn)) }
+        .emit(GameEvent.CardSurveilled(player, newId, obj.card))
 }
 
 /**

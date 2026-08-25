@@ -100,6 +100,7 @@ object CreatureType {
             Aura
             Blood
             Clue
+            Desert
             Food
             Forest
             Gate

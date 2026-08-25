@@ -620,9 +620,19 @@ card-type options, a `midTransitionPauseRequest` branch, and a mandatory keep-al
 (its rest already goes to the graveyard, which is that clause's existing and only destination — so the
 "rest-to-bottom destination axis" the triage asked for is **not** what this card wants).
 
-Out of scope, with where each slots: **surveil** (CR 701.44 — the same shape with a graveyard destination;
-Conduit Pylons, Torch the Tower — *not* Lembas or Giant's Boulder, whose printed triggers are scry 1 and
-scry 2 respectively; verified against Scryfall oracle text by `FW-CLAUSEHOOK`); **a filter on the keep** (`RevealedCardFilter` on the look path —
+**Amendment (`W8-A`): surveil has been taken, and it cost exactly what this section predicted.**
+`LibraryLookMode.Surveil` is scry's shape with the bottom of the library replaced by the graveyard, and the
+change is one destination: `ChooseLibraryArrangement.Option` gains a `toGraveyard` list, `arrangementsFor`
+gains a branch identical to scry's, and `distributeArrangement` gains one mover. The enumeration is
+`(N + 1)!` as scry's is, so surveil 1 is two options and nothing here needed a new budget. Two things are
+*not* like a scry and are worth stating: a surveilled card **changes zones**, so it is reborn under a fresh
+object id (CR 400.7), and the graveyard is **public** (CR 400.2), so the move is narrated — with its own
+`GameEvent.CardSurveilled` rather than `CardMilled`, because CR 701.44a and CR 701.13a are different game
+actions however alike they look. The cards kept on top stay silent, so a surveil is *partly* public and
+that boundary is exact. Conduit Pylons is encoded on it (NonbasicLands.kt); Torch the Tower still needs its
+own packet.
+
+Out of scope, with where each slots: **a filter on the keep** (`RevealedCardFilter` on the look path —
 Ancient Stirrings' colourless card, Augur of Bolas' instant or sorcery); **"reveal any number of matching
 cards"** (Lead the Stampede); **a resolution-time card-type choice** (Winding Way, `FW-MODAL`); **scry or
 surveil from a triggered or activated ability** rather than a spell resolution (Faerie Seer, Giant's

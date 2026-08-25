@@ -6,6 +6,7 @@ import dev.mtgplay.core.mana.Color
 import dev.mtgplay.core.mana.ManaCost
 import dev.mtgplay.core.mana.ManaSymbol
 import dev.mtgplay.core.mana.ManaType
+import dev.mtgplay.core.mana.manaType
 import dev.mtgplay.core.state.GameObject
 import dev.mtgplay.core.state.GameState
 import dev.mtgplay.rules.decision.PaymentPlan
@@ -150,15 +151,12 @@ internal fun expandToUnits(cost: ManaCost): List<ManaSymbol> =
         }
     }
 
-/** The [ManaType] one mana of [color] is (CR 106.1b). */
-internal fun manaTypeOf(color: Color): ManaType =
-    when (color) {
-        Color.WHITE -> ManaType.WHITE
-        Color.BLUE -> ManaType.BLUE
-        Color.BLACK -> ManaType.BLACK
-        Color.RED -> ManaType.RED
-        Color.GREEN -> ManaType.GREEN
-    }
+/**
+ * The [ManaType] one mana of [color] is (CR 106.1b) — the rules-side spelling of the core mapping
+ * [dev.mtgplay.core.mana.manaType], kept as a named function because every call site here reads better
+ * prefix than postfix.
+ */
+internal fun manaTypeOf(color: Color): ManaType = color.manaType()
 
 /**
  * The mana types one [symbol] accepts (CR 107.4), before the life alternative. Shared with the

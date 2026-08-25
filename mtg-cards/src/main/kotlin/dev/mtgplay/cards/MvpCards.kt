@@ -261,6 +261,27 @@ import dev.mtgplay.core.identity.CardRef
  * fired no CR 603.6c leaves-the-battlefield trigger, so bouncing a [journeyToNowhere] left the creature
  * it held exiled forever. Sewer-veillance Cam and Stonehorn Dignitary stay absent — modal resolution for
  * a *triggered ability* and CR 500.6 phase-skipping are frameworks this packet does not own.
+ *
+ * The `W8-A` packet adds the Gates deck's colour-fixing cycle and three utility permanents, and between
+ * them they close four absences this file had been recording. Gates.kt brings [citadelGate],
+ * [cliffgate] and [manorGate] — "This land enters tapped. As this land enters, choose a color other
+ * than &lt;its own&gt;. `{T}`: Add &lt;its own&gt; or one mana of the chosen color" — which widened
+ * `CardDefinition.choosesColorAsItEnters` from a flag into
+ * [dev.mtgplay.core.definition.AsEntersColorChoice] (a printed line that *excludes* a colour), taught
+ * the play-land special action to pause for that CR 614.12 choice at all (a land is never cast, so the
+ * flow had only ever run inside a resolving permanent spell), and gave a mana ability an option read off
+ * the **object** rather than the card
+ * ([dev.mtgplay.core.definition.ManaAbility.includesChosenColor]). NonbasicLands.kt gains
+ * [mortuaryMire], whose optional enters-the-battlefield trigger is the first client of
+ * [dev.mtgplay.core.definition.TriggeredAbility.optional] — the "you may" that wraps a whole ability
+ * and is answered a priority round after its target was chosen — and [conduitPylons], the first client
+ * of **surveil** ([dev.mtgplay.core.definition.LibraryLookMode.Surveil], CR 701.44a), the fourth
+ * arrangement destination docs/design/library-look.md §12 had listed as a non-goal. BendersWaterskin.kt
+ * gains [bendersWaterskin], whose "Untap this artifact during each other player's untap step" is the
+ * pool's first CR 613.11 *rules-modifying* static — it changes which permanents the CR 502.2 turn-based
+ * action untaps, which no CR 613 layer can express. Bonder's Ornament stays absent, and its recorded
+ * reason expired long ago: "add one mana of any color" has been expressible since `FW-MANA`, and
+ * [bendersWaterskin] prints exactly that ability.
  */
 object MvpCards {
     /** Every defined card, keyed by its printed-name [CardRef] (CR 201). */
@@ -287,8 +308,12 @@ object MvpCards {
             brinebarrowIntruder,
             cartoucheOfSolidarity,
             castIntoTheFire,
+            bendersWaterskin,
             castDown,
+            citadelGate,
+            cliffgate,
             contaminatedLandscape,
+            conduitPylons,
             counterspell,
             cropRotation,
             crypticSerpent,
@@ -353,12 +378,14 @@ object MvpCards {
             lorienRevealed,
             lotlethGiant,
             makeshiftMunitions,
+            manorGate,
             maskOfLawAndGrace,
             malevolentRumble,
             meldedMoxite,
             mentalNote,
             mesmericFiend,
             mistvaultBridge,
+            mortuaryMire,
             mountain,
             murmuringMystic,
             myrEnforcer,

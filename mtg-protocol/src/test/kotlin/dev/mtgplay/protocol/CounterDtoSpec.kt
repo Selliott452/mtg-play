@@ -77,7 +77,13 @@ class CounterDtoSpec :
             // (CR 704.5h), so a strict 7.0.0 codec rejects every seat view; and Keyword gains
             // DEATHTOUCH and CHANGELING while Evasion gains BLOCKABLE_ONLY_BY_HASTE, all of which
             // ride in PrintedCardDto's strict `parseVocabulary` and so fail at *runtime*, mid-match.
+            // `W8-A` breaks it three more ways, all of them required-field additions the server sends:
+            // LibraryArrangementDto gains `toGraveyard` (surveil's fourth destination, CR 701.44a), so a
+            // strict 8.0.0 codec rejects *every* look decision and not only a surveil's; SeatViewDto gains
+            // `pendingOptionalTrigger` (CR 603.2); and PendingColorChoiceDto gains `playedLand`, because a
+            // CR 614.12 choice can now interrupt the play-land special action as well as a resolving
+            // spell. No DecisionRequest kind is added — all three decisions reuse existing requests.
             // Pinned here so no bump in the chain can be quietly reverted.
-            PROTOCOL_VERSION shouldBe "8.0.0"
+            PROTOCOL_VERSION shouldBe "9.0.0"
         }
     })

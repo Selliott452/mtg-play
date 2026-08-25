@@ -134,14 +134,24 @@ fun PendingPlot.toDto(): PendingPlotDto = PendingPlotDto(caster.seat, cardObject
 /** [PendingPlotDto] back to the engine value. */
 fun PendingPlotDto.toDomain(): PendingPlot = PendingPlot(PlayerId(caster), ObjectId(cardObjectId))
 
-/** Wire form of [PendingColorChoice] (CR 614.12). */
+/**
+ * Wire form of [PendingColorChoice] (CR 614.12).
+ *
+ * @property decider the seat choosing the colour.
+ * @property playedLand the hand card object of a land whose play-land special action the choice
+ *   interrupted (CR 305.1) — a Gate — or `null` when a resolving permanent spell is entering. Public:
+ *   the play-land action itself is public, so which card is being played is not information the choice
+ *   hides.
+ */
 @Serializable
 data class PendingColorChoiceDto(
     val decider: Int,
+    val playedLand: Long?,
 )
 
 /** [PendingColorChoice] to its wire form. */
-fun PendingColorChoice.toDto(): PendingColorChoiceDto = PendingColorChoiceDto(decider.seat)
+fun PendingColorChoice.toDto(): PendingColorChoiceDto = PendingColorChoiceDto(decider.seat, playedLand?.value)
 
 /** [PendingColorChoiceDto] back to the engine value. */
-fun PendingColorChoiceDto.toDomain(): PendingColorChoice = PendingColorChoice(PlayerId(decider))
+fun PendingColorChoiceDto.toDomain(): PendingColorChoice =
+    PendingColorChoice(PlayerId(decider), playedLand?.let(::ObjectId))

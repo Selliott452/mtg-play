@@ -31,3 +31,22 @@ enum class ManaType {
      */
     COLORLESS,
 }
+
+/**
+ * The [ManaType] one mana of this colour is (CR 106.1b) — the total mapping from the five colours onto
+ * their five coloured mana types, with [ManaType.COLORLESS] deliberately unreachable because colorless is
+ * the absence of colour rather than a sixth one (CR 105.4).
+ *
+ * In `mtg-core` because both sides need it and neither owns it: a card definition names a *colour* (the
+ * Gate cycle's "Add {W} or one mana of the chosen color", whose choice is a [Color]) while a mana pool
+ * holds a [ManaType], and the payment machinery crosses the same boundary at every coloured symbol. It is
+ * a total function over a closed enum and decides nothing, so it is a noun by the PLAN.md §3 rule.
+ */
+fun Color.manaType(): ManaType =
+    when (this) {
+        Color.WHITE -> ManaType.WHITE
+        Color.BLUE -> ManaType.BLUE
+        Color.BLACK -> ManaType.BLACK
+        Color.RED -> ManaType.RED
+        Color.GREEN -> ManaType.GREEN
+    }

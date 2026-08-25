@@ -60,6 +60,8 @@ internal fun checkPendingResolutionSanity(state: GameState): List<Violation> =
         checkPause("library look", state.pendingLibraryLook?.decider)
         // CR 601.3b: the bare optional-draw clause (`FW-OPTDRAW`) pauses while its object is still resolving.
         checkPause("optional draw", state.pendingOptionalDraw?.decider)
+        // CR 603.2: the "you may" that wraps a whole triggered ability (`W8-A`, Mortuary Mire).
+        checkPause("optional trigger", state.pendingOptionalTrigger?.decider)
         // CR 118.3a: the one pause whose decider is the *targeted* spell's controller, not the resolving
         // counter's — so "is seated" is a real check here and not a restatement.
         checkPause("counter payment", state.pendingCounterPayment?.decider)

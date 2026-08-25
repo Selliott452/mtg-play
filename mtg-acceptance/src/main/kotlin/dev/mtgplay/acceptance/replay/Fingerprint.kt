@@ -102,6 +102,9 @@ private fun StringBuilder.appendPendingPositions(state: GameState) {
     // CR 601.3b: the bare optional-draw clause's yes/no pause (`FW-OPTDRAW`) — whose choice, how many.
     append("|pendingOptDraw=")
     append(state.pendingOptionalDraw?.let { "${it.decider.seat}:${it.drawCount}" } ?: "-")
+    // CR 603.2: the "you may" that wraps a whole triggered ability (`W8-A`) — whose choice, and whose ability.
+    append("|pendingOptTrigger=")
+    append(state.pendingOptionalTrigger?.let { "${it.decider.seat}:${it.sourceId.value}" } ?: "-")
     appendP62aPendingPositions(state)
     appendP62cPendingPositions(state)
     // The pre-game mulligan phase (CR 103.4/103.5): whose decision, count, and stage.

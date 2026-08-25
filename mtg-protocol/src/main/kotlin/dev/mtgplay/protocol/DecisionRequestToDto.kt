@@ -146,7 +146,7 @@ private fun laterSingleOptionSelectionToDto(request: DecisionRequest.SingleOptio
                 request.id.toDto(),
                 request.prompt,
                 request.pool.map { cardOption(it.objectId, it.card) },
-                request.options.map { LibraryArrangementDto(it.toHand, it.toTop, it.toBottom) },
+                request.options.map { LibraryArrangementDto(it.toHand, it.toTop, it.toBottom, it.toGraveyard) },
             )
         else -> error("not a later single-option request: $request")
     }

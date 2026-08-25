@@ -16,7 +16,6 @@ import dev.mtgplay.core.identity.CardRef
 import dev.mtgplay.core.mana.ManaCost
 import dev.mtgplay.core.mana.ManaType
 import io.kotest.core.spec.style.StringSpec
-import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.nulls.shouldBeNull
@@ -109,7 +108,7 @@ class NonbasicLandsSpec :
                 definition.triggeredAbilities.shouldBeEmpty()
                 definition.triggeredManaAbilities.shouldBeEmpty()
                 definition.staticContinuousEffects.shouldBeEmpty()
-                definition.choosesColorAsItEnters.shouldBeFalse()
+                definition.asEntersColorChoice.shouldBeNull()
             }
         }
 
