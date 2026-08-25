@@ -30,7 +30,7 @@ import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 
 /**
- * The schema round-trip (ADR-008): every one of the 28 [DecisionRequest] kinds, and every
+ * The schema round-trip (ADR-008): every one of the 29 [DecisionRequest] kinds, and every
  * [Decision] shape, survives engine value -> DTO -> JSON -> DTO -> engine value unchanged, through
  * the strict [ProtocolJson] codec. The `allRequests` fixture is asserted to cover every kind, so the
  * exhaustive mapping is exercised end to end.
@@ -196,6 +196,16 @@ private val allRequests: List<DecisionRequest> =
     listOf(
         richPriorityWindow,
         DecisionRequest.ChooseDiscards(ID, listOf(cardOption(1, "Mountain"), cardOption(2, "Bog")), count = 1),
+        // CR 601.2b: a modal cast's mode choice. The printed indices are deliberately *not* 0 and 1 —
+        // Red Elemental Blast prints two modes and this fixture offers the second only, which is what a
+        // board with a blue permanent but no blue spell produces. A wire form that renumbered the
+        // surviving mode to 0 would round-trip to a different mode than it started as.
+        DecisionRequest.ChooseModes(
+            ID,
+            ObjectId(1),
+            CardRef("Red Elemental Blast"),
+            listOf(DecisionRequest.ChooseModes.Option(1, "Destroy target blue permanent.")),
+        ),
         DecisionRequest.ChooseTargets(
             ID,
             ObjectId(1),

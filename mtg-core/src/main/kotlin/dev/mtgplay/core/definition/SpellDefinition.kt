@@ -20,11 +20,40 @@ interface SpellDefinition :
     /** When this spell may be cast (CR 117.1a). */
     val timing: TimingClass
 
-    /** What this spell demands as targets (CR 115); [TargetSpec.None] for an untargeted spell. */
+    /**
+     * What this spell demands as targets (CR 115); [TargetSpec.None] for an untargeted spell.
+     *
+     * **Meaningless for a modal card**, whose targeting line belongs to the chosen mode (CR 601.2b);
+     * [ModalSpell] overrides this to throw, and the engine reads a modal card's spec through the chosen
+     * mode instead. Anything asking a spell what it targets must consult [modes] first.
+     */
     val targetSpec: TargetSpec
 
-    /** The spell's resolution instructions (CR 608.2c). */
+    /**
+     * The spell's resolution instructions (CR 608.2c).
+     *
+     * **Meaningless for a modal card**, whose instructions belong to the chosen mode (CR 700.2); see
+     * [targetSpec] and [ModalSpell].
+     */
     val resolution: ResolutionEffect
+
+    /**
+     * The printed modes of a **modal** card (CR 700.2), in printed order, or empty for the ordinary
+     * card that has none. Additive, flagged core (`FW-MODAL`, docs/design/countering-spells.md §8) —
+     * Blue and Red Elemental Blast, Hydroblast, Pyroblast, Steel Sabotage.
+     *
+     * Emptiness *is* the non-modal case, so `modes.isNotEmpty()` is the engine's one test for modality
+     * and there is no second nullable flag that could disagree with it. A card that declares modes
+     * implements [ModalSpell], which makes [targetSpec] and [resolution] throw — so declaring modes and
+     * then forgetting to route a call site through them fails loudly rather than silently answering as
+     * if the card were untargeted.
+     *
+     * The pool prints only "Choose one —". "Choose up to two" (Call Damage Control) and "Choose two"
+     * additionally need a *count* on the declaration and a multi-select mode decision, and — since each
+     * chosen mode brings its own targets — the multi-target framework this packet does not own; the
+     * engine therefore requires exactly one chosen mode and fails loudly on any other arity.
+     */
+    val modes: PersistentList<SpellMode> get() = persistentListOf()
 
     /**
      * The printed mana cost (CR 202). Non-null by contract in P2.1: every castable fixture has

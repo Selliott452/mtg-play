@@ -56,6 +56,15 @@ sealed interface StackEntry {
      *   (Reckoner's Bargain's "the sacrificed permanent's mana value"), on the cast record for the same
      *   reason [discardedForCost] is. The permanents are gone by the time the spell resolves, so this
      *   *is* the last-known information the CR makes the value readable from (CR 608.2h).
+     * @property chosenModes the **printed** indices of the modes chosen for a modal spell as it was put
+     *   onto the stack (CR 601.2b, CR 700.2), in the order chosen; empty for a card with no modes.
+     *   Additive, flagged core (`FW-MODAL`, docs/design/countering-spells.md §8).
+     *
+     *   Part of the cast record for the same reason [castVia] is: it is fixed when the spell is put on
+     *   the stack and cannot change afterwards (CR 700.2c — "the modes can't be changed later"), and
+     *   everything downstream depends on it. The CR 608.2b re-check reads the *chosen mode's* target
+     *   spec through it, and resolution runs the *chosen mode's* effect — so a copy of this entry with
+     *   the modes dropped would fizzle-check and resolve as a different card.
      */
     data class Spell(
         val obj: GameObject,
@@ -65,6 +74,7 @@ sealed interface StackEntry {
         val castVia: CastingPermission? = null,
         val discardedForCost: PersistentList<CardRef> = persistentListOf(),
         val sacrificedForCost: PersistentList<CardRef> = persistentListOf(),
+        val chosenModes: PersistentList<Int> = persistentListOf(),
     ) : StackEntry
 
     /**

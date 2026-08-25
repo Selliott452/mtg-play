@@ -3,6 +3,7 @@ package dev.mtgplay.rules.engine
 import dev.mtgplay.core.card.CardType
 import dev.mtgplay.core.card.Supertype
 import dev.mtgplay.core.definition.PermanentRestriction
+import dev.mtgplay.core.mana.Color
 import dev.mtgplay.core.state.GameObject
 import dev.mtgplay.core.state.GameState
 
@@ -52,5 +53,10 @@ internal fun satisfiesPermanentRestriction(
         PermanentRestriction.CREATURE_POWER_2_OR_LESS ->
             isCreature && effectivePower(state, candidate.id) <= POWER_TWO_OR_LESS_LIMIT
         PermanentRestriction.ARTIFACT -> CardType.ARTIFACT in characteristics.cardTypes
+        // CR 202.2: colour is derived from the printed mana cost, the same derivation
+        // [satisfiesSpellRestriction] makes for a spell on the stack and with the same CR 204 limit.
+        // A land has no mana cost and is therefore colourless (CR 105.2), so no land qualifies.
+        PermanentRestriction.RED_PERMANENT -> Color.RED in characteristics.colors
+        PermanentRestriction.BLUE_PERMANENT -> Color.BLUE in characteristics.colors
     }
 }

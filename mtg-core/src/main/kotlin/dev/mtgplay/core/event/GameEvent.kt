@@ -124,6 +124,20 @@ sealed interface GameEvent {
     ) : GameEvent
 
     /**
+     * [caster] chose the modes of the modal spell [objectId] on the stack (CR 601.2b, CR 700.2), named
+     * by their **printed** indices [modes] and echoed as [modeTexts] for a readable log. Additive,
+     * flagged core (`FW-MODAL`). Only a modal card announces this, and it always precedes that spell's
+     * [TargetsChosen] — the CR 601.2b-before-CR 601.2c ordering, made observable in the event log rather
+     * than only asserted in a test.
+     */
+    data class ModesChosen(
+        val caster: PlayerId,
+        val objectId: ObjectId,
+        val modes: List<Int>,
+        val modeTexts: List<String>,
+    ) : GameEvent
+
+    /**
      * [caster] chose the [targets] of the spell [objectId] on the stack (CR 601.2c); empty
      * target lists are not announced, so this only appears for a spell that targets.
      */

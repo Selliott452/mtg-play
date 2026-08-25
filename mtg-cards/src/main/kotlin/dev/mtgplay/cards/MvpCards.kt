@@ -126,6 +126,26 @@ import dev.mtgplay.core.identity.CardRef
  * **Sunscape Familiar** — whose other-object reducer the framework does implement and test — prints
  * **Defender**, the same missing keyword (`FW-DEFENDERKW`) that keeps Overgrown Battlement out.
  *
+ * The `FW-MODAL` packet adds the gauntlet's modal instants (Blasts.kt): [blueElementalBlast] and
+ * [redElementalBlast], [hydroblast] and [pyroblast], and [steelSabotage]. They are the first cards with
+ * modes at all (CR 700.2), so they are the first to exercise the CR 601.2b mode stage that had been a
+ * documented no-op since P2.1 — and the ordering matters rather than merely existing, because every one
+ * of them has two modes that target *different kinds of object*, so target enumeration is undefined
+ * until the mode is settled. The four Blasts are deliberately **two** templates and not one
+ * (docs/design/countering-spells.md §1.2): the Elemental Blasts restrict their *target* and vanish from
+ * enumeration with no object of the hosed colour in play, while Hydroblast and Pyroblast restrict their
+ * *effect* and stay castable against anything — encoding the second as the first would be a silent
+ * ADR-005 enumeration gap. The packet added [dev.mtgplay.core.definition.ModalSpell] and
+ * [dev.mtgplay.core.definition.SpellMode] in core, two colour members on
+ * [dev.mtgplay.core.definition.PermanentRestriction], and two primitives in `mtg-rules`: the published
+ * colour predicate `targetIsColor` (the effect-side twin of the targeting restrictions) and
+ * `returnPermanentToOwnersHand` (the battlefield bounce Steel Sabotage needs — the design note wrongly
+ * expected the existing graveyard `returnToOwnersHand` to serve). Two of the packet's cards stay absent,
+ * both on the same missing framework: **Cast into the Fire**'s first mode deals damage to "each of up to
+ * two target creatures" and **Thraben Charm**'s third exiles "any number of target players'
+ * graveyards" — both variable-count multi-target lines (`FW-MULTITGT`), and a modal card whose modes
+ * cannot all be offered is an enumeration gap rather than a partial card.
+ *
  * [definitions] is shaped for direct `MatchConfig.definitions` consumption: the engine carries
  * it into `GameState` in canonical name-sorted order regardless of this map's own order
  * (ADR-009 — definitions ride in the state; a [CardRef] without an entry is inert). The pool
@@ -142,6 +162,7 @@ object MvpCards {
             archaeomancer,
             armadilloCloak,
             ashBarrens,
+            blueElementalBlast,
             brainstorm,
             breathWeapon,
             cartoucheOfSolidarity,
@@ -178,6 +199,7 @@ object MvpCards {
             hillGiant,
             ichorWellspring,
             idyllicBeachfront,
+            hydroblast,
             impulse,
             island,
             kessigFlamebreather,
@@ -203,12 +225,14 @@ object MvpCards {
             overgrownBattlement,
             plains,
             ponder,
+            pyroblast,
             preordain,
             priestOfTitania,
             pulseOfMurasa,
             pursueThePast,
             rancor,
             reckonersBargain,
+            redElementalBlast,
             removeSoul,
             scourFromExistence,
             seaGateOracle,
@@ -226,6 +250,7 @@ object MvpCards {
             snowCoveredPlains,
             spellPierce,
             spinewoodsPaladin,
+            steelSabotage,
             spiritLink,
             standingTroops,
             swamp,

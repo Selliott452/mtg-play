@@ -23,6 +23,23 @@ data class CardObjectOptionDto(
 )
 
 /**
+ * One choosable mode of a modal spell (CR 700.2), for [DecisionRequestDto.ChooseModes].
+ *
+ * [modeIndex] is the mode's **printed** index on the card, which is not in general its index in the
+ * option list — an unavailable mode is omitted from the list but does not renumber the ones that
+ * remain. A client answers by option index, as always; [modeIndex] is what that answer *means*, and it
+ * is what the server records on the cast record and the replay log.
+ *
+ * @property modeIndex the mode's printed index on the card.
+ * @property text the printed bullet, for display.
+ */
+@Serializable
+data class ModeOptionDto(
+    val modeIndex: Int,
+    val text: String,
+)
+
+/**
  * One eligible attacker option (CR 508.1).
  *
  * @property attacker the eligible creature.

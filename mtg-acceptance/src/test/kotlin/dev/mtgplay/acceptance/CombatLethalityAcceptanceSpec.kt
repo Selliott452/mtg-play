@@ -100,6 +100,8 @@ private val ALL_OUT_ATTACK: Responder =
             is DecisionRequest.DeclareBlockers -> Decision.MultiSelect(request.id, emptyList())
             is DecisionRequest.ChooseDiscards ->
                 Decision.MultiSelect(request.id, (0 until request.count).toList())
+            is DecisionRequest.ChooseModes ->
+                error("the all-out-attack policy never casts, but a mode request surfaced: $request")
             is DecisionRequest.ChooseTargets ->
                 error("the all-out-attack policy never casts, but a targets request surfaced: $request")
             is DecisionRequest.ChoosePaymentPlan ->

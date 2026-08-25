@@ -1,7 +1,6 @@
 package dev.mtgplay.rules.engine
 
 import dev.mtgplay.core.definition.CastingPermission
-import dev.mtgplay.core.definition.SpellDefinition
 import dev.mtgplay.core.definition.TargetSpec
 import dev.mtgplay.core.event.GameEvent
 import dev.mtgplay.core.identity.ObjectId
@@ -51,11 +50,12 @@ internal fun executeCastPipeline(
     plan: PaymentPlan,
 ): AdvanceResult {
     val cast = state.pendingCast ?: error("no cast is gathering decisions")
+    val modes = cast.chosenModes ?: error("CR 601.2b: modes must be settled before targets are chosen")
     val targets = cast.chosenTargets ?: error("CR 601.2c: targets must be settled before payment is chosen")
     // Close the gathering record first: from here the cast either completes or throws whole.
     val casting = state.copy(pendingCast = null)
-    val (proposed, entry) = proposeSpell(casting, cast, targets)
-    val moded = chooseModes(proposed)
+    val (proposed, entry) = proposeSpell(casting, cast, modes, targets)
+    val moded = chooseModes(proposed, entry)
     val targeted = establishTargets(moded, entry)
     // CR 601.2f runs *here*, ahead of every cost-payment stage: see [determineTotalCost] for why the
     // three stages below must not be able to re-price the spell.
@@ -103,6 +103,7 @@ private fun priorityAfterCast(
 private fun proposeSpell(
     state: GameState,
     cast: PendingCast,
+    modes: PersistentList<Int>,
     targets: PersistentList<Target>,
 ): Pair<GameState, StackEntry.Spell> {
     val zoneObject =
@@ -144,6 +145,10 @@ private fun proposeSpell(
             castVia = cast.castingPermission,
             discardedForCost = discardedForCost,
             sacrificedForCost = sacrificedForCost,
+            // CR 700.2c: the modes chosen while gathering are fixed on the cast record now and can never
+            // change; the target stage below and every later CR 608.2b re-check read the spell's
+            // targeting line through them.
+            chosenModes = modes,
         )
     val proposed =
         removeFromZone(allocated, cast.caster, cast.source, cast.cardObjectId)
@@ -182,25 +187,50 @@ private fun payAdditionalCosts(
 }
 
 /**
- * Stage CR 601.2b — modes. A documented no-op hook: no modal spell exists in the MVP
- * mainboards (Cast into the Fire and Pyroblast are sideboard, post-MVP — docs/decklists.md)
- * and the [SpellDefinition] SPI cannot express modes, so there is never a mode to choose and
- * nothing to silently mishandle. When modal spells arrive, this stage gains the mode decision
- * and the cast record on [StackEntry.Spell] gains the chosen modes.
+ * Stage CR 601.2b — modes: announces the modes chosen for a modal spell (CR 700.2), emitting
+ * [GameEvent.ModesChosen]. A no-op for a card with no modes, which announces nothing.
+ *
+ * The *choice* happened while gathering (CR 601.2b is a choice, and ADR-004 forbids a callback out of a
+ * pipeline stage), and it was already fixed onto the cast record by [proposeSpell]; what happens here is
+ * the announcement and the validation that the settled value names a real mode. So the stage is thin,
+ * but its **position** is the whole of what this packet added: it sits between [proposeSpell] (CR 601.2a)
+ * and [establishTargets] (CR 601.2c), which is the order CR 601.2 prints, and the target stage
+ * immediately below reads its spec *through* the modes settled here. Reversing the two would ask the
+ * engine to enumerate targets for a card whose targeting line is not yet determined.
+ *
+ * Modes are not re-chosen and cannot be: CR 700.2c fixes them when the spell is put on the stack.
  */
-private fun chooseModes(state: GameState): GameState = state
+private fun chooseModes(
+    state: GameState,
+    entry: StackEntry.Spell,
+): GameState {
+    if (entry.definition.modes.isEmpty()) {
+        require(entry.chosenModes.isEmpty()) {
+            "CR 700.2: ${entry.obj.card.name} has no modes but ${entry.chosenModes} were chosen"
+        }
+        return state
+    }
+    // Fails loudly on a wrong arity or an out-of-range printed index (ADR-005: the mode was enumerated).
+    val mode = chosenMode(entry.definition, entry.chosenModes)
+    return state.emit(
+        GameEvent.ModesChosen(entry.controller, entry.obj.id, entry.chosenModes, listOf(mode.text)),
+    )
+}
 
 /**
  * Stage CR 601.2c — targets: re-validates that the gathered choices satisfy the spec and are
  * legal right now, failing loudly on any mismatch (they were enumerated legally and nothing
  * can have changed while gathering — a violation is an engine defect, ADR-005). Emits
  * [GameEvent.TargetsChosen] for a spell that targets.
+ *
+ * The spec comes from [effectiveTargetSpec], so for a modal spell it is the **chosen mode's** — the
+ * CR 601.2b answer settled one stage above determines the question asked here.
  */
 private fun establishTargets(
     state: GameState,
     entry: StackEntry.Spell,
 ): GameState =
-    when (val spec = entry.definition.targetSpec) {
+    when (val spec = effectiveTargetSpec(entry.definition, entry.chosenModes)) {
         TargetSpec.None -> {
             require(entry.targets.isEmpty()) {
                 "CR 601.2c: ${entry.obj.card.name} targets nothing but ${entry.targets} were chosen"

@@ -51,6 +51,9 @@ internal val BURN_OPPONENT: Responder =
                 check(index >= 0) { "no opponent target among ${request.options}" }
                 Decision.SingleSelect(request.id, index)
             }
+            // CR 601.2b: the burn decks hold no modal card, so no mode is ever chosen.
+            is DecisionRequest.ChooseModes ->
+                error("the burn policy casts no modal card, but a mode request surfaced: $request")
             is DecisionRequest.ChoosePaymentPlan -> Decision.SingleSelect(request.id, 0)
             is DecisionRequest.ChooseDiscards ->
                 Decision.MultiSelect(request.id, (0 until request.count).toList())
@@ -212,6 +215,9 @@ internal val GRIND_TO_BOLT_RANGE: Responder =
                 check(index >= 0) { "no opponent target among ${request.options}" }
                 Decision.SingleSelect(request.id, index)
             }
+            // CR 601.2b: the burn decks hold no modal card, so no mode is ever chosen.
+            is DecisionRequest.ChooseModes ->
+                error("the burn policy casts no modal card, but a mode request surfaced: $request")
             is DecisionRequest.ChoosePaymentPlan -> Decision.SingleSelect(request.id, 0)
             is DecisionRequest.ChooseDiscards ->
                 Decision.MultiSelect(request.id, (0 until request.count).toList())

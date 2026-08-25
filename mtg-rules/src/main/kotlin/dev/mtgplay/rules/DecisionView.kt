@@ -58,6 +58,9 @@ enum class DecisionRequestKind {
     /** [DecisionRequest.ChooseDiscards] — the cleanup discard (CR 514.1). */
     CHOOSE_DISCARDS,
 
+    /** [DecisionRequest.ChooseModes] — a modal cast's mode choice (CR 601.2b, CR 700.2). */
+    CHOOSE_MODES,
+
     /** [DecisionRequest.ChooseTargets] — a cast's target choice (CR 601.2c). */
     CHOOSE_TARGETS,
 
@@ -163,6 +166,7 @@ fun kindOf(request: DecisionRequest): DecisionRequestKind =
 /** The kind of one "pick exactly one option" request (CR 601.2c / 601.2g / 702.19e / 614.12 / 616.1 / 701.17a). */
 private fun singleOptionSelectionKind(request: DecisionRequest.SingleOptionSelection): DecisionRequestKind =
     when (request) {
+        is DecisionRequest.ChooseModes -> DecisionRequestKind.CHOOSE_MODES
         is DecisionRequest.ChooseTargets -> DecisionRequestKind.CHOOSE_TARGETS
         is DecisionRequest.ChoosePaymentPlan -> DecisionRequestKind.CHOOSE_PAYMENT_PLAN
         is DecisionRequest.AssignTrampleDamage -> DecisionRequestKind.ASSIGN_TRAMPLE_DAMAGE

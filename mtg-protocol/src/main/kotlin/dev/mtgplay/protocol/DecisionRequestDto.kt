@@ -50,6 +50,23 @@ sealed interface DecisionRequestDto {
         val options: List<PriorityOptionDto>,
     ) : DecisionRequestDto
 
+    /**
+     * Wire form of [DecisionRequest.ChooseModes] — a modal cast's mode choice (CR 601.2b, CR 700.2).
+     *
+     * Sent server→client as an offered decision and answered client→server by index, like every other
+     * [SingleOptionSelectionDto]. It arrives **before** that cast's [ChooseTargets], which is the
+     * CR 601.2b-before-CR 601.2c ordering a client can observe directly: the target options it receives
+     * next depend on the mode index it just sent back.
+     */
+    @Serializable
+    @SerialName("choose_modes")
+    data class ChooseModes(
+        override val id: DecisionRequestIdDto,
+        val cardObjectId: Long,
+        val card: String,
+        val options: List<ModeOptionDto>,
+    ) : SingleOptionSelectionDto
+
     /** Wire form of [DecisionRequest.ChooseTargets] — a cast's target choice (CR 601.2c). */
     @Serializable
     @SerialName("choose_targets")
