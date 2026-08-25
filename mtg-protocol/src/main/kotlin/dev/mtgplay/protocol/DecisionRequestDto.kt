@@ -420,6 +420,22 @@ sealed interface DecisionRequestDto {
     ) : SingleOptionSelectionDto
 
     /**
+     * Wire form of [DecisionRequest.ChooseTapOrUntap] (CR 608.2c) — decline, tap, or untap the clause's
+     * target. [cardObjectId] is the clause's source as last known (CR 113.7c) and may name nothing on
+     * the battlefield: Sewer-veillance Cam's second trigger fires *because* the artifact left it. Added
+     * by `W8-G`.
+     */
+    @Serializable
+    @SerialName("choose_tap_or_untap")
+    data class ChooseTapOrUntap(
+        override val id: DecisionRequestIdDto,
+        val cardObjectId: Long,
+        val card: String,
+        val targetId: Long,
+        val options: List<TapOrUntapChoiceDto>,
+    ) : SingleOptionSelectionDto
+
+    /**
      * Wire form of [DecisionRequest.ChooseOpponentDiscards] (CR 701.7a) — an "each opponent discards a
      * card" selection made by an opponent of the resolving object's controller over their **own** hand.
      * [controller] is carried for display only; a request reaches the deciding seat alone (ADR-007), so

@@ -230,14 +230,17 @@ internal fun finishCleanup(state: GameState): AdvanceResult {
  */
 internal fun advancePastCurrentPosition(state: GameState): AdvanceResult {
     val eased = emptyManaPoolsAtPositionEnd(state)
-    val next = positionAfter(eased.turn)
+    val next = positionAfter(eased)
+    // CR 500.10: a scheduled combat-phase skip is spent by the transition that steps over it, here and
+    // nowhere else, so "their next combat phase" is one phase rather than a standing exemption.
+    val spent = spendScheduledCombatSkip(eased, next)
     return if (next == null) {
-        beginTurn(eased, eased.seatAfter(eased.turn.activePlayer), eased.turn.number + 1)
+        beginTurn(spent, spent.seatAfter(spent.turn.activePlayer), spent.turn.number + 1)
     } else {
         // CR 511.3: as the combat phase ends, combat state is discarded; the Turn shape also
         // requires it absent outside the combat phase.
-        val combat = if (next.phase == TurnPhase.COMBAT) eased.turn.combat else null
-        beginPosition(eased.copy(turn = eased.turn.copy(phase = next.phase, step = next.step, combat = combat)))
+        val combat = if (next.phase == TurnPhase.COMBAT) spent.turn.combat else null
+        beginPosition(spent.copy(turn = spent.turn.copy(phase = next.phase, step = next.step, combat = combat)))
     }
 }
 

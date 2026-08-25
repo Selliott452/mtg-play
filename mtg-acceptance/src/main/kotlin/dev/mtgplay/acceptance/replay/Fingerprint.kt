@@ -232,6 +232,9 @@ private fun StringBuilder.appendSeats(state: GameState) {
             append(",answered=").append(player.decisionsAnswered)
             // CR 603.2: the per-turn draw count gates a per-turn draw trigger (Sneaky Snacker).
             append(",drawsThisTurn=").append(player.drawsThisTurn)
+            // CR 500.10: scheduled combat-phase skips (Stonehorn Dignitary) change the turn structure
+            // itself, so two states differing only here diverge on the very next precombat main.
+            if (player.combatPhasesToSkip > 0) append(",combatSkips=").append(player.combatPhasesToSkip)
         }
 }
 

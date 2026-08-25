@@ -118,6 +118,7 @@ data class TriggeredAbility(
     override val optionalDraw: OptionalDraw? = null,
     override val permanentSelection: PermanentSelection? = null,
     val addsMana: PersistentList<ManaType> = persistentListOf(),
+    override val optionalTapOrUntap: OptionalTapOrUntap? = null,
 ) : ResolutionClauses {
     init {
         requireAtMostOneClause(this) { "the $condition triggered ability" }

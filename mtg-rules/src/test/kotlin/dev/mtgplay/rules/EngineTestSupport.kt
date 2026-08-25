@@ -77,6 +77,7 @@ internal fun respondTo(request: DecisionRequest): Decision =
         is DecisionRequest.SizedSelection,
         is DecisionRequest.ChooseReplacement,
         is DecisionRequest.ChooseColor,
+        is DecisionRequest.ChooseTapOrUntap,
         is DecisionRequest.ChooseCostMode,
         is DecisionRequest.ChooseFromLibrary,
         is DecisionRequest.ChooseLibraryArrangement,

@@ -10,6 +10,7 @@ import dev.mtgplay.core.definition.LibrarySearch
 import dev.mtgplay.core.definition.LibrarySearchFilter
 import dev.mtgplay.core.definition.ManaAbility
 import dev.mtgplay.core.definition.ManaAbilityCost
+import dev.mtgplay.core.definition.PermanentFilter
 import dev.mtgplay.core.definition.PermanentRestriction
 import dev.mtgplay.core.definition.ResolutionEffect
 import dev.mtgplay.core.definition.SpellDefinition
@@ -22,6 +23,7 @@ import dev.mtgplay.core.mana.ManaType
 import dev.mtgplay.core.state.Target
 import dev.mtgplay.rules.effect.destroy
 import dev.mtgplay.rules.effect.drawCards
+import dev.mtgplay.rules.effect.drawCardsForEachPlayerControlling
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.persistentSetOf
 
@@ -52,8 +54,15 @@ import kotlinx.collections.immutable.persistentSetOf
  * **Both named cards have since been reached, and neither needed anything from this file.** Haunted
  * Fengraf landed under `W7-C` (GraveyardHate.kt) with exactly the shape described above, driven
  * end-to-end in the acceptance module — its remaining difficulty was never T17 but the seeded random
- * return of a creature card from a graveyard. Bonder's Ornament is still absent, now for a different and
- * smaller reason: "add one mana of any color" is a production shape [ManaAbility] does not have.
+ * return of a creature card from a graveyard. [bondersOrnament] is below, and the sentence that used to
+ * stand here — *"Bonder's Ornament is still absent, now for a different and smaller reason: 'add one mana
+ * of any color' is a production shape `ManaAbility` does not have"* — **was false when it was written.**
+ * [ManaAbility.options] is a list of the mana types the ability may add, and "one mana of any color" is
+ * that list with all five colours in it; [giantsBoulder], six lines further down this same file, had
+ * already been declaring exactly that shape since `FW-MANACOST`, and Abundant Growth grants it. The
+ * absence outlived its reason by two packets. It is recorded rather than quietly deleted because the
+ * failure mode is the interesting part: a card's blocker was re-diagnosed each time it was picked up, and
+ * nobody re-checked the *previous* diagnosis against the file it was written in.
  *
  * Lotus Petal is absent for a different reason: its cost is `{T}` **and** sacrifice, which
  * [dev.mtgplay.core.definition.ManaAbility.viaSacrifice] cannot express — that flag means sacrifice
@@ -175,7 +184,7 @@ val expeditionMap: SpellDefinition =
 const val GIANTS_BOULDER_SCRY: Int = 2
 
 /** The five colours an "add one mana of any color" ability offers, in WUBRG order (CR 105.1). */
-private val GIANTS_BOULDER_COLORS =
+private val ANY_COLOUR =
     persistentListOf(ManaType.WHITE, ManaType.BLUE, ManaType.BLACK, ManaType.RED, ManaType.GREEN)
 
 /**
@@ -243,7 +252,7 @@ val giantsBoulder: SpellDefinition =
         override val manaAbilities =
             persistentListOf(
                 ManaAbility(
-                    options = GIANTS_BOULDER_COLORS,
+                    options = ANY_COLOUR,
                     cost =
                         persistentListOf(
                             ManaAbilityCost.Mana(ManaCost.parse("{1}")),
@@ -270,6 +279,89 @@ val giantsBoulder: SpellDefinition =
                                 "CR 115.1b: Giant's Boulder targets a permanent, got $target"
                             }
                             destroy(state, target.id)
+                        },
+                ),
+            )
+    }
+
+/** Bonder's Ornament, for the permanents its second ability counts by name (CR 201.1). */
+private const val BONDERS_ORNAMENT_NAME: String = "Bonder's Ornament"
+
+/** How many cards each qualifying player draws off Bonder's Ornament's second ability (CR 120.1). */
+const val BONDERS_ORNAMENT_DRAW: Int = 1
+
+/**
+ * The permanents Bonder's Ornament's second ability asks each player about: "a permanent **named**
+ * Bonder's Ornament" (CR 201.1), controlled by the player being asked (CR 109.4).
+ *
+ * The pool's first [PermanentFilter] that constrains a **name**, and the first that is applied once per
+ * seat rather than once from the controller's point of view — [drawCardsForEachPlayerControlling] varies
+ * the "you" while the filter stays fixed, which is why [PermanentFilter.controlledByYou] is `true` here
+ * even though the printed ability reads the whole battlefield.
+ */
+private val A_BONDERS_ORNAMENT: PermanentFilter =
+    PermanentFilter(controlledByYou = true, name = BONDERS_ORNAMENT_NAME)
+
+/**
+ * Bonder's Ornament — `{3}` Artifact. "`{T}`: Add one mana of any color. `{4}`, `{T}`: Each player who
+ * controls a permanent named Bonder's Ornament draws a card."
+ *
+ * Monster Tron's fixing rock, and the file header's subject: it was recorded absent here for a reason that
+ * had already stopped being true, and what it actually needed was **one** new filter axis rather than the
+ * mana framework the note claimed. Its two abilities are [giantsBoulder]'s two, minus a cost component:
+ * - the mana half is [ManaAbility]`(options = ANY_COLOUR)` at the default `{T}` cost, which is the
+ *   published spelling of "add one mana of any color" and has been since `FW-MANACOST`;
+ * - the draw half is an ordinary CR 602 activated ability whose cost is `{4}` plus [AbilityCost.TapSelf].
+ *
+ * **Being both a mana source and the source of a `{T}`-costed activated ability is the whole of its
+ * difficulty, and it is already solved** — trap T17, the defect this file's header records and
+ * `FW-MANACOST` fixed: `manaSourcesReservedBy` keeps an Ornament out of the payment plans offered for its
+ * own `{4}`, so the engine never offers a plan that taps it for mana and then cannot pay the `{T}`.
+ * Nothing in this definition says so; it is a property of the costs the engine already reads.
+ *
+ * **The draw is symmetric, and that is the printed line rather than an approximation.** Both players draw
+ * if both control an Ornament — this is a card designed for multiplayer group hug, which a one-sided board
+ * turns into a Howling Mine for one — so the effect is [drawCardsForEachPlayerControlling] and *not* a
+ * controller-scoped [drawCards]. Encoding it as "you draw" would delete the drawback, and with it the
+ * reason a Tron pilot thinks twice before activating it into a mirror. The seats draw separately and in
+ * turn order, which decides nothing today and decides which empty library is recorded first the day it
+ * matters (CR 704.5b).
+ *
+ * **Two Ornaments do not draw two cards each.** The filter asks whether a player controls *at least one*,
+ * not how many, so a player with four Ornaments still draws one card per activation — which is why the
+ * card is a rock that happens to draw rather than a build-around.
+ */
+val bondersOrnament: SpellDefinition =
+    object : SpellDefinition {
+        override val characteristics =
+            PrintedCharacteristics(
+                name = BONDERS_ORNAMENT_NAME,
+                manaCost = ManaCost.parse("{3}"),
+                supertypes = persistentSetOf(),
+                cardTypes = persistentSetOf(CardType.ARTIFACT),
+                subtypes = persistentSetOf(),
+                powerToughness = null,
+            )
+
+        override val timing = TimingClass.SORCERY_SPEED
+        override val targetSpec = TargetSpec.None
+        override val resolution = entersTheBattlefield
+
+        // CR 605.1a: a mana ability at the bare `{T}` cost, offering each of the five colours.
+        override val manaAbilities = persistentListOf(ManaAbility(options = ANY_COLOUR))
+
+        override val activatedAbilities =
+            persistentListOf(
+                ActivatedAbility(
+                    // CR 602.1: printed order — the mana, then the tap.
+                    cost =
+                        persistentListOf(
+                            AbilityCost.Mana(ManaCost.parse("{4}")),
+                            AbilityCost.TapSelf,
+                        ),
+                    effect =
+                        ResolutionEffect { state, _ ->
+                            drawCardsForEachPlayerControlling(state, A_BONDERS_ORNAMENT, BONDERS_ORNAMENT_DRAW)
                         },
                 ),
             )

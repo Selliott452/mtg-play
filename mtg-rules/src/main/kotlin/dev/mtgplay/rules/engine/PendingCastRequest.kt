@@ -147,7 +147,11 @@ private fun targetsRequestFor(
     id: DecisionRequestId,
 ): DecisionRequest {
     val spec = effectiveTargetSpec(definition, cast.chosenModes.orEmpty())
-    val legal = legalTargets(state, spec, cast.caster, Chooser.Spell(cast.cardObjectId))
+    // Two independent narrowings, and neither subsumes the other: `announceableTargets`
+    // applies board-derived targeting *requirements* (CR 601.2c — a Flagbearer must be chosen
+    // if able), and `affordableTargetOptions` drops choices the caster could not then pay for
+    // (`FW-TGTCOND`). Offering a target that fails either is an enumerated-but-illegal action.
+    val legal = announceableTargets(state, spec, cast.caster, Chooser.Spell(cast.cardObjectId))
     return targetRequest(
         id = id,
         cardObjectId = cast.cardObjectId,

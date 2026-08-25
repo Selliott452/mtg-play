@@ -69,6 +69,7 @@ fun viewFor(
             pendingNinjutsu = state.pendingNinjutsu,
             pendingOptionalDraw = state.pendingOptionalDraw,
             pendingOptionalTrigger = state.pendingOptionalTrigger,
+            pendingTapOrUntap = state.pendingTapOrUntap,
             // CR 400.2: the battlefield is public, so an untargeted selection over it hides nothing.
             pendingPermanentSelection = state.pendingPermanentSelection,
             // CR 611.2: a resolved spell's continuous effect is public information; no filtering applies.
@@ -99,6 +100,7 @@ private fun playerViewOf(
         attemptedDrawFromEmptyLibrary = player.attemptedDrawFromEmptyLibrary,
         decisionsAnswered = player.decisionsAnswered,
         drawsThisTurn = player.drawsThisTurn,
+        combatPhasesToSkip = player.combatPhasesToSkip,
     )
 
 /** The public [StackEntryView] of one stack entry (CR 405), dropping the captured definition. */

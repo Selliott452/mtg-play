@@ -38,6 +38,11 @@ import dev.mtgplay.core.state.GameState
  *   Layer-4 type *changing* remains absent (`FW-TYPECHANGE`, its own framework); when it lands it
  *   extends [LayeredCharacteristics] and the seam follows it, and this line does not move again.
  *
+ * - **Names are read printed too**, and for a stronger reason than card types: CR 201.2 settles identity
+ *   of name by the printed word alone, and the only effect that could change one is a CR 613 layer-3
+ *   text-changing effect, a layer `Layers.kt` reserves and refuses. Bonder's Ornament's "a permanent
+ *   named Bonder's Ornament" is the pool's first client (`W8-G`).
+ *
  * An object with no definition is inert and matches nothing — the engine cannot know what it is.
  *
  * **Public rules surface** (ADR-003 vocabulary discipline): a card whose text counts permanents —
@@ -80,6 +85,8 @@ fun matchingPermanents(
         val characteristics = state.definitions[candidate.card]?.characteristics
         characteristics != null &&
             (!filter.controlledByYou || candidate.owner == you) &&
+            // CR 201.2: names are compared as printed; no CR 613 layer-3 text-changing effect exists.
+            (filter.name == null || filter.name == characteristics.name) &&
             (subtype == null || hasSubtype(state, candidate.id, subtype)) &&
             (filter.cardType == null || filter.cardType in characteristics.cardTypes) &&
             (filter.keyword == null || filter.keyword in effectiveKeywords(state, candidate.id))

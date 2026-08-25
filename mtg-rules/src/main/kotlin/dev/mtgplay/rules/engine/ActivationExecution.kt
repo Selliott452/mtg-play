@@ -111,7 +111,9 @@ private fun establishActivationTargets(
     // enumeration; CR 113.7b/c: its *source* is what protection reads (CR 702.16b), by the last known
     // information the entry captured — the same [Chooser.Ability] the choice was enumerated with, which
     // is what makes this re-validation ask the identical question.
-    val options = legalTargets(state, spec, entry.controller, Chooser.Ability(entry.sourceCard))
+    // CR 601.2c: announceable, not merely legal — the same set the gathering offered, requirements and
+    // all (`W8-G`). The CR 608.2b re-check below stays on `legalTargets`, where legality is the question.
+    val options = announceableTargets(state, spec, entry.controller, Chooser.Ability(entry.sourceCard))
     requireWellFormedTargetChoice(spec, entry.targets, options.size, "${entry.sourceCard.name}'s ability")
     entry.targets.forEach { target ->
         require(target in options) {

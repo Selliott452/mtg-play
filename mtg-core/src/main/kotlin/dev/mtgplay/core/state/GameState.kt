@@ -71,6 +71,9 @@ import kotlinx.collections.immutable.persistentMapOf
  * @property pendingOptionalTrigger a resolving triggered ability whose whole effect is inside a printed
  *   "you may" (CR 603.2), or `null`. Additive, flagged core (`W8-A`). Non-null only at that yes/no
  *   pause, where the ability is still on top of the stack — see [PendingOptionalTrigger].
+ * @property pendingTapOrUntap a "you may tap or untap [target]" clause the engine is resolving
+ *   (CR 701.20a, CR 701.21a), or `null`. Additive, flagged core (`W8-G`). Non-null only at that
+ *   three-way pause, where the resolving object is still on top of the stack — see [PendingTapOrUntap].
  * @property pendingColorChoice an "as this permanent enters, choose a colour" choice gathered
  *   mid-resolution (CR 614.12), or `null`. Additive, flagged core (P6.2a). Non-null only at that pause,
  *   where the resolving permanent spell is still on top of the stack — see [PendingColorChoice].
@@ -166,6 +169,7 @@ data class GameState(
     val pendingOptionalDraw: PendingOptionalDraw? = null,
     val pendingOptionalTrigger: PendingOptionalTrigger? = null,
     val pendingPermanentSelection: PendingPermanentSelection? = null,
+    val pendingTapOrUntap: PendingTapOrUntap? = null,
     val timedEffects: PersistentList<TimedContinuousEffect> = persistentListOf(),
 ) {
     init {

@@ -74,7 +74,21 @@ internal fun singleOptionSelectionToDomain(dto: DecisionRequestDto.SingleOptionS
                 CardRef(dto.sourceCard),
                 dto.options.mapOptions { o, c -> DecisionRequest.ChooseRevealedHandCard.Option(o, c) },
             )
+        is DecisionRequestDto.ChooseTapOrUntap -> tapOrUntapToDomain(dto)
     }
+
+/**
+ * A resolving clause's tap-or-untap answer (CR 608.2c) back to the engine value. Its own function for
+ * [libraryArrangementToDomain]'s reason: the family is at detekt's length budget.
+ */
+private fun tapOrUntapToDomain(dto: DecisionRequestDto.ChooseTapOrUntap): DecisionRequest.ChooseTapOrUntap =
+    DecisionRequest.ChooseTapOrUntap(
+        dto.id.toDomain(),
+        ObjectId(dto.cardObjectId),
+        CardRef(dto.card),
+        ObjectId(dto.targetId),
+        dto.options.map { it.toDomain() },
+    )
 
 /**
  * A cast's payment choice (CR 601.2g) back to the engine value. Its own function for the reason

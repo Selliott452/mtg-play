@@ -137,6 +137,8 @@ private val ALL_OUT_ATTACK: Responder =
                 error("the all-out-attack policy casts no counters, but one surfaced: $request")
             is DecisionRequest.ChooseRevealedHandCard ->
                 error("the all-out-attack policy casts no hand-reveal spells, but one surfaced: $request")
+            is DecisionRequest.ChooseTapOrUntap ->
+                error("the all-out-attack policy resolves no tap-or-untap clause, but one surfaced: $request")
             is DecisionRequest.MulliganRequest ->
                 error("the all-out-attack policy runs mulligan-free games, but a mulligan request surfaced: $request")
         }

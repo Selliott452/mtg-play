@@ -162,10 +162,27 @@ private fun midTransitionPauseRequest(state: GameState): DecisionRequest? =
         state.pendingOptionalDraw != null -> pendingOptionalDrawRequest(state)
         // CR 603.2: the "you may" that wraps a whole triggered ability (`W8-A`, Mortuary Mire).
         state.pendingOptionalTrigger != null -> pendingOptionalTriggerRequest(state)
+        else -> resolutionClausePauseRequest(state)
+    }
+
+/**
+ * The middle of [midTransitionPauseRequest]: a mandatory resolution discard (CR 601.2c, Faithless
+ * Looting), an untargeted permanent selection (CR 609.4, Snap and Azorius Chancery), a tap-or-untap
+ * choice (CR 608.2c, Sewer-veillance Cam), or a library search's find-one (CR 701.18, Ash Barrens).
+ *
+ * Split out for the same reason [libraryLookOrLatePauseRequest] was, and with the same warning: the
+ * order here is a **continuation** of the dispatch above and must not be reasoned about separately.
+ * The split point is arbitrary — it is where detekt's complexity budget fell, not a seam in the rules.
+ *
+ * The three clause-shaped pauses in the middle share a property worth stating: each is decided by the
+ * *resolving object's controller*, who need not hold priority, and that costs this dispatch nothing
+ * because a request names its own seat ([DecisionRequestId.seat]).
+ */
+private fun resolutionClausePauseRequest(state: GameState): DecisionRequest? =
+    when {
         state.pendingResolutionDiscard != null -> pendingResolutionDiscardRequest(state)
-        // CR 609.4: an untargeted mid-resolution choice of battlefield permanents (Snap, Azorius
-        // Chancery) — decided by the resolving object's controller, who need not hold priority.
         state.pendingPermanentSelection != null -> pendingPermanentSelectionRequest(state)
+        state.pendingTapOrUntap != null -> pendingTapOrUntapRequest(state)
         state.pendingLibrarySearch != null -> pendingLibrarySearchRequest(state)
         else -> libraryLookOrLatePauseRequest(state)
     }

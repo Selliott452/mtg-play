@@ -119,6 +119,7 @@ private fun singleOptionSelectionToDto(request: DecisionRequest.SingleOptionSele
         is DecisionRequest.ChooseCounterPayment,
         is DecisionRequest.ChooseRevealedHandCard,
         is DecisionRequest.ChooseLibraryArrangement,
+        is DecisionRequest.ChooseTapOrUntap,
         -> laterSingleOptionSelectionToDto(request)
     }
 
@@ -141,6 +142,14 @@ private fun laterSingleOptionSelectionToDto(request: DecisionRequest.SingleOptio
                 request.revealer.seat,
                 request.sourceCard.name,
                 request.options.map { cardOption(it.objectId, it.card) },
+            )
+        is DecisionRequest.ChooseTapOrUntap ->
+            DecisionRequestDto.ChooseTapOrUntap(
+                request.id.toDto(),
+                request.cardObjectId.value,
+                request.card.name,
+                request.targetId.value,
+                request.options.map { it.toDto() },
             )
         is DecisionRequest.ChooseLibraryArrangement ->
             DecisionRequestDto.ChooseLibraryArrangement(

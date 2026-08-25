@@ -162,4 +162,24 @@ interface CardDefinition {
      * declare only the cost.
      */
     val ninjutsu: Ninjutsu? get() = null
+
+    /**
+     * The CR 601.2c targeting **requirements** this card's static abilities impose on its controller's
+     * **opponents** while it is a battlefield permanent (CR 604.3); empty for a card with no such
+     * ability. Additive, flagged core (`W8-G`, docs/design/protection.md §8) — Standard Bearer's
+     * flagbearer clause is the one shape the gauntlet prints.
+     *
+     * On [CardDefinition] rather than [SpellDefinition] for [spellCostReductions]' reason, and it is the
+     * same reason twice over: the reader is a permanent rather than a spell, and the *affected* party is
+     * a different player from the one who controls it. What it constrains is not this card at all — it
+     * is what somebody else is allowed to point at.
+     *
+     * `mtg-rules` applies each while the card is on the battlefield, to every seat that does not control
+     * it, at the CR 601.2c and CR 602.2b **announcement** of a spell or an activated ability — and
+     * nowhere else. Two exclusions carry rules meaning and are tested rather than assumed: a triggered
+     * ability's targets are untouched (the printed clause names only casting and activating), and the
+     * CR 608.2b resolution re-check is untouched (a requirement is not a legality, so a Flagbearer that
+     * enters after targets were chosen fizzles nothing).
+     */
+    val targetingRequirements: PersistentList<TargetingRequirement> get() = persistentListOf()
 }

@@ -25,6 +25,15 @@ import dev.mtgplay.core.card.Subtype
  * Every axis is independently optional and they conjoin; **at least one must be present**, because a
  * filter that constrains nothing would silently count the whole battlefield.
  *
+ * @property name the exact printed name every matching permanent must have (CR 201.1) — the "a permanent
+ *   **named Bonder's Ornament**" of that card's second ability — or `null` to constrain no name. Additive
+ *   (`W8-G`). Compared against the permanent's *printed* name and nothing else: CR 201.2 makes two objects
+ *   with the same name the same name whatever else differs, and no name-changing effect exists in the pool
+ *   (that would be CR 613 layer 3, `FW-TEXTCHANGE`, which `Layers.kt` reserves and does not implement).
+ *   Note it is a plain [String] rather than a [dev.mtgplay.core.identity.CardRef]: a `CardRef` is the
+ *   *registry key* the engine looks definitions up by, and what the card's text picks out is the name on
+ *   the type line. The two coincide by [CardDefinition]'s own contract, and keeping the declaration on the
+ *   printed side is what makes it stay true if they ever stop coinciding.
  * @property subtype the subtype every matching permanent must have (CR 205.3) — `Subtype("Elf")`,
  *   `Subtype("Urza's Tower")` — or `null` to constrain no subtype. Note the Urza land types are
  *   printed **hyphenated**: the type line reads `Land — Urza's Power-Plant`, not `Urza's Power
@@ -48,11 +57,15 @@ data class PermanentFilter(
     val controlledByYou: Boolean,
     val cardType: CardType? = null,
     val keyword: Keyword? = null,
+    val name: String? = null,
 ) {
     init {
-        require(subtype != null || cardType != null || keyword != null) {
-            "CR 109.4: a permanent filter must constrain something; a filter with no subtype, no " +
-                "card type and no keyword would match every permanent on the battlefield"
+        require(subtype != null || cardType != null || keyword != null || name != null) {
+            "CR 109.4: a permanent filter must constrain something; a filter with no name, no subtype, " +
+                "no card type and no keyword would match every permanent on the battlefield"
+        }
+        require(name == null || name.isNotBlank()) {
+            "CR 201.1: a permanent filter's name is the printed name it matches, never blank"
         }
     }
 }

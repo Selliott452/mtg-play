@@ -52,23 +52,23 @@ class GauntletCoverageSpec :
                 listOf(
                     Pinned("Elves", 11, 16, 3, 5),
                     Pinned("Gates", 14, 17, 5, 5),
-                    Pinned("Grixis Affinity", 18, 22, 5, 7),
-                    Pinned("GW Bogles", 18, 18, 6, 8),
+                    Pinned("Grixis Affinity", 19, 22, 5, 7),
+                    Pinned("GW Bogles", 18, 18, 7, 8),
                     Pinned("Jeskai Ephemerate", 20, 22, 6, 7),
                     Pinned("Jund Wildfire", 17, 22, 5, 7),
                     // `FW-NINJUTSU` added Ninja of the Deep Hours and Harrier Strix: 6 -> 8.
                     // `W8-E` added Faerie Miscreant: 10 -> 11.
-                    Pinned("Mono Blue Faeries", 12, 14, 5, 6),
+                    Pinned("Mono Blue Faeries", 13, 14, 5, 6),
                     Pinned("Mono-Blue Terror", 12, 14, 6, 6),
                     Pinned("Mono-Red Madness", 12, 12, 3, 5),
                     // `W8-E` added Rally at the Hornburg: 8 -> 9.
                     Pinned("Mono Red Rally", 10, 13, 4, 5),
                     // `W8-E` added Troll of Khazad-dûm: 14 -> 15.
-                    Pinned("Monster Tron", 16, 21, 4, 6),
+                    Pinned("Monster Tron", 17, 21, 4, 6),
                     // `W8-E` added Gatecreeper Vine and Bramble Wurm: 12 -> 14.
                     Pinned("Spy Combo", 16, 21, 4, 8),
                     // `W8-E` added God-Pharaoh's Faithful: 16 -> 17.
-                    Pinned("UWX Familiar", 19, 20, 5, 6),
+                    Pinned("UWX Familiar", 19, 20, 6, 6),
                 )
         }
 
@@ -111,16 +111,16 @@ private const val SIDEBOARD_SIZE = 15
 private const val TOTAL_DISTINCT_MAIN = 178
 
 /** Of those, how many `mtg-cards` defines — the number this burn-down drives to [TOTAL_DISTINCT_MAIN]. */
-private const val TOTAL_ENCODED_MAIN = 150
-private const val TOTAL_MISSING_MAIN = 28
+private const val TOTAL_ENCODED_MAIN = 152
+private const val TOTAL_MISSING_MAIN = 26
 
 /** Distinct cards named by at least one gauntlet sideboard. */
 private const val TOTAL_DISTINCT_SIDEBOARD = 48
-private const val TOTAL_ENCODED_SIDEBOARD = 32
-private const val TOTAL_MISSING_SIDEBOARD = 16
+private const val TOTAL_ENCODED_SIDEBOARD = 34
+private const val TOTAL_MISSING_SIDEBOARD = 14
 
 /** The whole backlog: distinct undefined cards across both boards of all thirteen decks. */
-private const val TOTAL_MISSING_BOTH_BOARDS = 42
+private const val TOTAL_MISSING_BOTH_BOARDS = 38
 
 /** Of the backlog, the cards that appear only in sideboards. */
-private const val TOTAL_MISSING_SIDEBOARD_ONLY = 14
+private const val TOTAL_MISSING_SIDEBOARD_ONLY = 12

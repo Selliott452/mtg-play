@@ -45,6 +45,7 @@ data class SeatViewDto(
     val pendingNinjutsu: PendingNinjutsuDto?,
     val pendingOptionalDraw: PendingOptionalDrawDto?,
     val pendingOptionalTrigger: PendingOptionalTriggerDto?,
+    val pendingTapOrUntap: PendingTapOrUntapDto? = null,
     val pendingPermanentSelection: PendingPermanentSelectionDto? = null,
     val timedEffects: List<TimedContinuousEffectDto>,
 )
@@ -82,6 +83,7 @@ fun SeatView.toDto(): SeatViewDto =
         pendingNinjutsu = pendingNinjutsu?.toDto(),
         pendingOptionalDraw = pendingOptionalDraw?.toDto(),
         pendingOptionalTrigger = pendingOptionalTrigger?.toDto(),
+        pendingTapOrUntap = pendingTapOrUntap?.toDto(),
         pendingPermanentSelection = pendingPermanentSelection?.toDto(),
         timedEffects = timedEffects.map { it.toDto() },
     )
@@ -119,6 +121,7 @@ fun SeatViewDto.toDomain(): SeatView =
         pendingNinjutsu = pendingNinjutsu?.toDomain(),
         pendingOptionalDraw = pendingOptionalDraw?.toDomain(),
         pendingOptionalTrigger = pendingOptionalTrigger?.toDomain(),
+        pendingTapOrUntap = pendingTapOrUntap?.toDomain(),
         pendingPermanentSelection = pendingPermanentSelection?.toDomain(),
         timedEffects = timedEffects.map { it.toDomain() },
     )

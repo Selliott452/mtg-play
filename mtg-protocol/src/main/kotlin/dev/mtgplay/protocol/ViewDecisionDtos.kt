@@ -137,6 +137,9 @@ enum class DecisionRequestKindDto {
     /** Pick a card from an opponent's revealed hand (CR 701.16a). */
     CHOOSE_REVEALED_HAND_CARD,
 
+    /** Decline, tap, or untap a clause's target (CR 608.2c). */
+    CHOOSE_TAP_OR_UNTAP,
+
     /**
      * An "each opponent discards a card" selection (CR 701.7a), made by an opponent of the resolving
      * object's controller. The kind an opposing seat may see; its **options** never reach anyone but

@@ -96,6 +96,8 @@ internal val BURN_OPPONENT: Responder =
                 error("the burn policy casts no counters, but an unless-pay request surfaced: $request")
             is DecisionRequest.ChooseRevealedHandCard ->
                 error("the burn policy casts no hand-reveal spells, but a revealed-hand request surfaced: $request")
+            is DecisionRequest.ChooseTapOrUntap ->
+                error("the burn policy resolves no tap-or-untap clause, but one surfaced: $request")
             is DecisionRequest.MulliganRequest ->
                 error("the burn policy runs mulligan-free games, but a mulligan request surfaced: $request")
         }
@@ -269,6 +271,8 @@ internal val GRIND_TO_BOLT_RANGE: Responder =
                 error("the grind policy casts no counters, but an unless-pay request surfaced: $request")
             is DecisionRequest.ChooseRevealedHandCard ->
                 error("the grind policy casts no hand-reveal spells, but a revealed-hand request surfaced: $request")
+            is DecisionRequest.ChooseTapOrUntap ->
+                error("the grind policy resolves no tap-or-untap clause, but one surfaced: $request")
             is DecisionRequest.MulliganRequest ->
                 error("the grind policy runs mulligan-free games, but a mulligan request surfaced: $request")
         }

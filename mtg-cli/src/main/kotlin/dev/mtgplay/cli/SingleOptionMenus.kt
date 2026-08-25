@@ -28,6 +28,7 @@ internal fun singleOptionMenu(
         is DecisionRequest.ChooseLibraryArrangement -> libraryArrangementMenu(request)
         is DecisionRequest.ChooseCounterPayment -> counterPaymentMenu(request)
         is DecisionRequest.ChooseRevealedHandCard -> revealedHandMenu(request)
+        is DecisionRequest.ChooseTapOrUntap -> tapOrUntapMenu(view, request)
     }
 
 /**
