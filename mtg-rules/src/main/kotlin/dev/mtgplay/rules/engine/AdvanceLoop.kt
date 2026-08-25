@@ -19,6 +19,7 @@ import dev.mtgplay.rules.MatchConfig
 import kotlinx.collections.immutable.PersistentMap
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.persistentMapOf
+import kotlinx.collections.immutable.persistentSetOf
 import kotlinx.collections.immutable.toPersistentList
 
 /** Each player's starting life total in the MVP's two-player format (CR 119.1). */
@@ -110,7 +111,16 @@ internal fun beginTurn(
     val awakened =
         state.sharedZones.battlefield
             .map { obj -> if (obj.owner == activePlayer && obj.summoningSick) obj.copy(summoningSick = false) else obj }
-            .toPersistentList()
+            // CR 602.5b with CR 500.1: "Activate only once each turn" resets as *each* turn begins, for
+            // every object and not only the active player's — a Wall of Roots spent on your turn taps
+            // for mana again on your opponent's.
+            .map { obj ->
+                if (obj.manaAbilitiesActivatedThisTurn.isEmpty()) {
+                    obj
+                } else {
+                    obj.copy(manaAbilitiesActivatedThisTurn = persistentSetOf())
+                }
+            }.toPersistentList()
     // CR 603.2: "in a turn" resets for every player as the new turn begins, so a per-turn draw trigger
     // (Sneaky Snacker) counts only draws made during the turn now starting.
     val counted =

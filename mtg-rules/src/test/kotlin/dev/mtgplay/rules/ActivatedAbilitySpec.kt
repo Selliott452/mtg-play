@@ -8,7 +8,9 @@ import dev.mtgplay.core.definition.AbilityZoneScope
 import dev.mtgplay.core.definition.ActivatedAbility
 import dev.mtgplay.core.definition.CardDefinition
 import dev.mtgplay.core.definition.ManaAbility
+import dev.mtgplay.core.definition.ManaAbilityCost
 import dev.mtgplay.core.definition.ResolutionEffect
+import dev.mtgplay.core.definition.TimingClass
 import dev.mtgplay.core.definition.TokenDefinition
 import dev.mtgplay.core.identity.CardRef
 import dev.mtgplay.core.identity.ObjectId
@@ -27,6 +29,7 @@ import dev.mtgplay.core.state.TurnPhase
 import dev.mtgplay.rules.decision.Decision
 import dev.mtgplay.rules.decision.DecisionRequest
 import dev.mtgplay.rules.decision.PriorityOption
+import dev.mtgplay.rules.decision.ProductionAlternative
 import dev.mtgplay.rules.effect.createToken
 import dev.mtgplay.rules.effect.drawCards
 import dev.mtgplay.rules.engine.manaSourceClasses
@@ -91,6 +94,77 @@ class ActivatedAbilitySpec :
                 .getValue(alice)
                 .graveyard
                 .count { it.card == CardRef("Ability Filler") } shouldBe 1
+        }
+
+        // ---- FW-MANACOST: "Activate only as a sorcery" (CR 602.5d) ---------------------------------
+
+        "CR 602.5d: a sorcery-timed ability is offered in a main phase with an empty stack" {
+            val state = abilityState(battlefield = listOf("Fixture Sorcery Gate"), hand = emptyList(), library = 2)
+            val window = pausedRequestOf<DecisionRequest.ChooseAction>(state)
+            window.options.count {
+                it is PriorityOption.ActivateAbility && it.card == CardRef("Fixture Sorcery Gate")
+            } shouldBe 1
+        }
+
+        "CR 602.5d: a sorcery-timed ability is not enumerated while a spell is on the stack" {
+            // CR 602.5d defers to the sorcery timing rules wholesale, and a non-empty stack fails them.
+            // Offering it here would be an enumerated-but-illegal action (ADR-005), which is the whole
+            // reason ActivatedAbility carries a timing class rather than defaulting everything to
+            // instant speed.
+            val base = abilityState(battlefield = listOf("Fixture Sorcery Gate"), hand = emptyList(), library = 2)
+            val busy =
+                base.copy(
+                    sharedZones =
+                        base.sharedZones.copy(
+                            stack =
+                                persistentListOf(
+                                    StackEntry.ActivatedAbilityOnStack(
+                                        sourceId = ObjectId(99),
+                                        sourceCard = CardRef("Fixture Sorcery Gate"),
+                                        controller = bob,
+                                        ability =
+                                            ActivatedAbility(
+                                                cost = persistentListOf(AbilityCost.TapSelf),
+                                                effect = ResolutionEffect { s, _ -> s },
+                                            ),
+                                        targets = persistentListOf(),
+                                    ),
+                                ),
+                        ),
+                )
+            val window = pausedRequestOf<DecisionRequest.ChooseAction>(busy)
+            window.options.none {
+                it is PriorityOption.ActivateAbility && it.card == CardRef("Fixture Sorcery Gate")
+            } shouldBe true
+        }
+
+        "CR 602.5a: an ability with no printed timing restriction is offered at instant speed" {
+            // The control for the two above: the same board, the same window, an unrestricted ability.
+            val base = abilityState(battlefield = listOf("Fixture Instant Gate"), hand = emptyList(), library = 2)
+            val busy =
+                base.copy(
+                    sharedZones =
+                        base.sharedZones.copy(
+                            stack =
+                                persistentListOf(
+                                    StackEntry.ActivatedAbilityOnStack(
+                                        sourceId = ObjectId(99),
+                                        sourceCard = CardRef("Fixture Instant Gate"),
+                                        controller = bob,
+                                        ability =
+                                            ActivatedAbility(
+                                                cost = persistentListOf(AbilityCost.TapSelf),
+                                                effect = ResolutionEffect { s, _ -> s },
+                                            ),
+                                        targets = persistentListOf(),
+                                    ),
+                                ),
+                        ),
+                )
+            val window = pausedRequestOf<DecisionRequest.ChooseAction>(busy)
+            window.options.any {
+                it is PriorityOption.ActivateAbility && it.card == CardRef("Fixture Instant Gate")
+            } shouldBe true
         }
 
         // ---- triage trap T17: a source may not fund a cost that also taps it -----------------------
@@ -236,10 +310,19 @@ class ActivatedAbilitySpec :
             // The Spawn forms its own sacrifice source class producing colorless.
             val classes = manaSourceClasses(state, alice)
             val spawnClass = classes.single { it.key.card == spawn }
-            spawnClass.key.viaSacrifice shouldBe true
-            spawnClass.key.profile shouldContainExactly listOf(listOf(ManaType.COLORLESS))
+            spawnClass.key.profile
+                .single()
+                .viaSacrifice shouldBe true
+            spawnClass.key.profile shouldContainExactly
+                listOf(ProductionAlternative.sacrificing(ManaType.COLORLESS))
             // Activating it sacrifices the token and adds {C} to the pool.
-            val paid = resolveTapForMana(state, alice, spawnClass.key, listOf(ManaType.COLORLESS))
+            val paid =
+                resolveTapForMana(
+                    state,
+                    alice,
+                    spawnClass.key,
+                    ProductionAlternative.sacrificing(ManaType.COLORLESS),
+                )
             paid.players
                 .getValue(alice)
                 .manaPool
@@ -359,6 +442,26 @@ private val abilityRegistry: Map<CardRef, CardDefinition> =
                     effect = ResolutionEffect { s, ctx -> drawCards(s, ctx.controller, 1) },
                 ),
             ),
+        // `FW-MANACOST`: "Activate only as a sorcery" (CR 602.5d) — Basilisk Gate's and Timberwatch
+        // Elf's restriction, on a fixture because no gauntlet card that prints it is encodable yet.
+        CardRef("Fixture Sorcery Gate") to
+            artifactWithAbility(
+                "Fixture Sorcery Gate",
+                ActivatedAbility(
+                    cost = persistentListOf(AbilityCost.TapSelf),
+                    effect = ResolutionEffect { s, ctx -> drawCards(s, ctx.controller, 1) },
+                    timing = TimingClass.SORCERY_SPEED,
+                ),
+            ),
+        // The control for the timing tests: the identical ability with no printed restriction.
+        CardRef("Fixture Instant Gate") to
+            artifactWithAbility(
+                "Fixture Instant Gate",
+                ActivatedAbility(
+                    cost = persistentListOf(AbilityCost.TapSelf),
+                    effect = ResolutionEffect { s, ctx -> drawCards(s, ctx.controller, 1) },
+                ),
+            ),
         CardRef("Fixture Moxite") to
             artifactWithAbility(
                 "Fixture Moxite",
@@ -425,7 +528,10 @@ private val abilityRegistry: Map<CardRef, CardDefinition> =
                     ),
                 manaAbilities =
                     persistentListOf(
-                        ManaAbility(persistentListOf(ManaType.COLORLESS), viaSacrifice = true),
+                        ManaAbility(
+                            persistentListOf(ManaType.COLORLESS),
+                            cost = persistentListOf(ManaAbilityCost.SacrificeSelf),
+                        ),
                     ),
             ),
     )

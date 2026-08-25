@@ -3,6 +3,8 @@ package dev.mtgplay.rules.engine
 import dev.mtgplay.core.definition.AbilityCost
 import dev.mtgplay.core.definition.AbilityZoneScope
 import dev.mtgplay.core.definition.ActivatedAbility
+import dev.mtgplay.core.definition.ManaAbility
+import dev.mtgplay.core.definition.ManaAbilityCost
 import dev.mtgplay.core.definition.ManaAmount
 import dev.mtgplay.core.definition.PermanentFilter
 import dev.mtgplay.core.identity.ObjectId
@@ -10,6 +12,7 @@ import dev.mtgplay.core.identity.PlayerId
 import dev.mtgplay.core.mana.ManaType
 import dev.mtgplay.core.state.GameObject
 import dev.mtgplay.core.state.GameState
+import dev.mtgplay.rules.decision.ProductionAlternative
 import dev.mtgplay.rules.decision.SourceClassKey
 
 /*
@@ -110,7 +113,7 @@ internal fun sourceClassKeyOf(
     obj: GameObject,
 ): SourceClassKey? {
     val profile = productionProfile(state, obj) ?: return null
-    return SourceClassKey(obj.card, profile, triggeredManaBonus(state, obj.id), isSacrificeSource(state, obj.id))
+    return SourceClassKey(obj.card, profile, triggeredManaBonus(state, obj.id))
 }
 
 /**
@@ -143,77 +146,171 @@ internal fun triggeredManaBonus(
         }
 
 /**
- * Everything one activation of [key] choosing the alternative [produced] puts in the pool
- * (CR 605.1a–b): the source's own mana, plus the CR 605.1b triggered bonus of the Auras attached to
- * it. All of it is spendable by the plan that declared the activation; whatever the plan does not
- * spend floats until the step ends (CR 500.4).
+ * Everything one activation of [key] choosing [alternative] puts in the pool (CR 605.1a–b): the
+ * source's own mana, plus the CR 605.1b triggered bonus of the Auras attached to it. All of it is
+ * spendable by the plan that declared the activation — by its symbol payments *and*, since
+ * `FW-MANACOST`, by another activation's own mana cost; whatever the plan does not spend floats until
+ * the step ends (CR 500.4).
  *
  * **This was the `FW-MANA` seam** (docs/design/mana-payment.md §8.1), and it turned out to be a
  * genuinely local one: making the primary half a multiset rather than a single [ManaType] is the
  * whole of the change here, and the plan shape, the payment search, the dedup rule and the executor
- * are all indifferent to how long this list is, exactly as P8.3 predicted.
+ * are all indifferent to how long this list is, exactly as P8.3 predicted. It stayed the seam under
+ * `FW-MANACOST`: the yield is unchanged, and what the packet added is a *consumption* beside it
+ * ([ProductionAlternative.manaCost]) rather than a second production route.
  */
 internal fun activationYield(
     key: SourceClassKey,
-    produced: List<ManaType>,
-): List<ManaType> = produced + key.bonus
+    alternative: ProductionAlternative,
+): List<ManaType> = alternative.produced + key.bonus
 
 /**
- * The production profile of the battlefield object [obj]: the canonical list of **alternatives**
- * one activation of its own mana abilities may add, or `null` if it is no mana source in this state.
+ * The production profile of the battlefield object [obj]: the canonical list of **alternatives** one
+ * activation of its mana abilities may take right now — each naming its cost and the multiset it adds
+ * — or `null` if it is no mana source in this state.
  *
- * Each alternative is a multiset of mana types sorted WUBRG-then-colorless (CR 105.1), and the
- * alternatives are ordered lexicographically by that same ordinal sequence — which for the
- * one-mana sources that make up almost the whole pool reproduces the plain WUBRG-then-colorless
- * type order the profile used before `FW-MANA`, so nothing about the enumeration order of an
- * ordinary board moved.
+ * The alternatives are ordered by cost first ([PRODUCTION_ALTERNATIVE_ORDER], a total,
+ * state-independent order) and then lexicographically by [ManaType] ordinal, shorter first. Every
+ * source that existed before `FW-MANACOST` has the same cost on every alternative, so on those boards
+ * the order collapses to exactly the produced-multiset order `FW-MANA` established, which in turn
+ * collapses on singleton alternatives to plain WUBRG-then-colorless (CR 105.1). No ordinary board's
+ * enumeration order has moved across either packet (ADR-006).
  *
  * Reads the object's **layered** mana abilities ([layeredCharacteristics]), so a land granted
  * "{T}: add one mana of any color" by an Abundant Growth (CR 613 layer 6) taps for the granted
- * colors here (docs/design/layer-system.md §6). It also reads the **live board** for each ability's
+ * colors here (docs/design/layer-system.md §6). It reads the **live board** for each ability's
  * [ManaAmount] (CR 605.2), which is what makes an assembled Urza's Tower a different source class
- * from an unassembled one without touching the equivalence relation. The CR 605.1b *triggered*
- * bonus is [triggeredManaBonus], kept separate because it is added rather than chosen between.
+ * from an unassembled one without touching the equivalence relation, and — since `FW-MANACOST` — for
+ * each ability's **availability** ([manaAbilityAvailable]), which is what makes a Wall of Roots that
+ * has spent its CR 602.5b once-each-turn activation no source at all. The CR 605.1b *triggered* bonus
+ * is [triggeredManaBonus], kept separate because it is added rather than chosen between.
  *
- * `null` covers three cases that are the same thing to a payment plan: no definition, no mana
- * ability, and **every alternative evaluating to zero mana** — a Priest of Titania with no Elf
- * anywhere. The third is dropped rather than represented as an empty alternative because an
- * activation that adds nothing can never appear in a legal plan anyway (the no-idle rule,
+ * `null` covers four cases that are the same thing to a payment plan: no definition, no mana ability,
+ * **no available** mana ability, and every alternative evaluating to zero mana — a Priest of Titania
+ * with no Elf anywhere. The last is dropped rather than represented as an empty alternative because
+ * an activation that adds nothing can never appear in a legal plan anyway (the no-idle rule,
  * docs/design/mana-payment.md §4 — it would have nothing to spend), so pruning it here removes no
- * plan and keeps [SourceClassKey]'s "no empty alternative" invariant exact rather than aspirational.
+ * plan and keeps [ProductionAlternative]'s "never empty" invariant exact rather than aspirational.
  */
 internal fun productionProfile(
     state: GameState,
     obj: GameObject,
-): List<List<ManaType>>? {
+): List<ProductionAlternative>? {
+    val abilities = layeredCharacteristics(state, obj.id).manaAbilities
+    requireSingleOncePerTurnAbility(obj, abilities)
     val alternatives =
-        layeredCharacteristics(state, obj.id)
-            .manaAbilities
+        abilities
+            .filterIndexed { index, ability -> manaAbilityAvailable(state, obj, index, ability) }
             .flatMap { ability ->
+                // CR 605.2: an amount that evaluates to zero is dropped *before* the alternative is
+                // built, because "adds at least one mana" is an invariant of the type rather than a
+                // filter applied afterwards (a Priest of Titania with no Elf on the battlefield).
                 val count = manaAmountOf(state, obj, ability.amount)
-                ability.options.map { option -> List(count) { option } }
-            }.filter { it.isNotEmpty() }
-            .distinct()
+                if (count <= 0) {
+                    emptyList()
+                } else {
+                    ability.options.map { option ->
+                        ProductionAlternative(ability.cost, List(count) { option }, ability.oncePerTurn)
+                    }
+                }
+            }.distinct()
             .sortedWith(PRODUCTION_ALTERNATIVE_ORDER)
     return alternatives.ifEmpty { null }
 }
 
 /**
- * The canonical order of production alternatives: lexicographic by [ManaType] ordinal, shorter
- * first on a tie. Total and state-independent, so equal states enumerate equal plan lists
- * (ADR-006), and on singleton alternatives it is exactly WUBRG-then-colorless (CR 105.1).
+ * Fails loudly unless [obj]'s CR 602.5b "Activate only once each turn" mana abilities number at most
+ * one, and that one is **printed** on the card rather than granted.
+ *
+ * Both halves are what makes [GameObject.manaAbilitiesActivatedThisTurn] an unambiguous record. It
+ * stores indices into the layered ability list, whose printed abilities are its prefix
+ * ([LayeredCharacteristics.manaAbilities]), so a printed ability's index is stable; a *granted* one's
+ * is not, and two identically-costed restricted abilities on one source could not be told apart when
+ * the executor comes to mark the activation. Neither shape exists in the gauntlet pool. Making the
+ * assumption an assertion rather than a comment is the difference between a card that cannot be
+ * encoded and a card that is silently activated twice a turn (CONVENTIONS: fail loudly).
  */
-private val PRODUCTION_ALTERNATIVE_ORDER: Comparator<List<ManaType>> =
+private fun requireSingleOncePerTurnAbility(
+    obj: GameObject,
+    abilities: List<ManaAbility>,
+) {
+    val restricted = abilities.withIndex().filter { it.value.oncePerTurn }
+    require(restricted.size <= 1) {
+        "CR 602.5b: ${obj.card.name} has ${restricted.size} 'activate only once each turn' mana abilities; " +
+            "the per-object activation record cannot tell them apart"
+    }
+}
+
+/**
+ * The canonical order of production alternatives: by cost first ([activationCostRank] component by
+ * component, shorter cost first), then lexicographic by [ManaType] ordinal with the shorter multiset
+ * first. Total and state-independent, so equal states enumerate equal plan lists (ADR-006).
+ *
+ * Cost precedes production so that a source's *free* alternatives sort ahead of its costed ones —
+ * Conduit Pylons' "{T}: Add {C}" ahead of its "{1}, {T}: Add one mana of any color" — which keeps the
+ * cheapest lines at the low plan indices an agent sees first, and keeps every pre-`FW-MANACOST` board
+ * (one cost, uniformly) ordered exactly as it was.
+ */
+private val PRODUCTION_ALTERNATIVE_ORDER: Comparator<ProductionAlternative> =
+    Comparator { left, right ->
+        var verdict =
+            INT_LIST_ORDER.compare(left.cost.map(::activationCostRank), right.cost.map(::activationCostRank))
+        if (verdict == 0) {
+            verdict =
+                INT_LIST_ORDER.compare(
+                    left.produced.map(ManaType::ordinal),
+                    right.produced.map(ManaType::ordinal),
+                )
+        }
+        // Two alternatives whose costs rank equally but differ in a component's payload (two counter
+        // kinds) are still distinct; the rendered cost breaks the tie totally and state-independently.
+        if (verdict == 0) verdict = left.cost.toString().compareTo(right.cost.toString())
+        verdict
+    }
+
+/** Lexicographic order over int sequences, the shorter first on a shared prefix. */
+private val INT_LIST_ORDER: Comparator<List<Int>> =
     Comparator { left, right ->
         val shared = minOf(left.size, right.size)
         var index = 0
         var verdict = 0
         while (index < shared && verdict == 0) {
-            verdict = left[index].ordinal.compareTo(right[index].ordinal)
+            verdict = left[index].compareTo(right[index])
             index += 1
         }
         if (verdict != 0) verdict else left.size.compareTo(right.size)
     }
+
+/**
+ * A total, state-independent rank for one [ManaAbilityCost] component, used only to order production
+ * alternatives deterministically (ADR-006). Free-to-pay components rank ahead of the mana component
+ * so that a costed alternative always sorts after a free one; within [ManaAbilityCost.Mana] the mana
+ * value orders the cheaper activation first. Exhaustive, so a new component must choose its rank
+ * rather than silently colliding with an existing one.
+ */
+private fun activationCostRank(component: ManaAbilityCost): Int =
+    when (component) {
+        ManaAbilityCost.TapSelf -> TAP_SELF_RANK
+        ManaAbilityCost.SacrificeSelf -> SACRIFICE_SELF_RANK
+        ManaAbilityCost.TapAnotherCreature -> TAP_ANOTHER_CREATURE_RANK
+        is ManaAbilityCost.PutCounterOnSelf -> PUT_COUNTER_RANK
+        is ManaAbilityCost.Mana -> MANA_COST_RANK_BASE + component.cost.manaValue
+    }
+
+/** The rank of [ManaAbilityCost.TapSelf], first because it is the cost of almost every source. */
+private const val TAP_SELF_RANK: Int = 0
+
+/** The rank of [ManaAbilityCost.SacrificeSelf]. */
+private const val SACRIFICE_SELF_RANK: Int = 1
+
+/** The rank of [ManaAbilityCost.TapAnotherCreature]. */
+private const val TAP_ANOTHER_CREATURE_RANK: Int = 2
+
+/** The rank of [ManaAbilityCost.PutCounterOnSelf]. */
+private const val PUT_COUNTER_RANK: Int = 3
+
+/** The first rank of the [ManaAbilityCost.Mana] block, above every free component's rank. */
+private const val MANA_COST_RANK_BASE: Int = 100
 
 /**
  * How many mana one activation of a [ManaAmount] on the battlefield source [obj] adds, evaluated

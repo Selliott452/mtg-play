@@ -61,7 +61,7 @@ internal fun permissionCastIsLegal(
     permission: CastingPermission,
     sourceObject: GameObject,
 ): Boolean =
-    timingPermitsCast(state, seat, definition.timing) &&
+    timingPermitsWindow(state, seat, definition.timing) &&
         additionalExileSatisfiable(state, seat, permission, sourceObject) &&
         sacrificeSatisfiable(state, seat, permission.sacrifice) &&
         additionalDiscardSatisfiable(state, seat, definition, sourceObject.id, permission.source) &&

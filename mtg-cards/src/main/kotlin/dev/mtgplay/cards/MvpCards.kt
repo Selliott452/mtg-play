@@ -83,8 +83,16 @@ import dev.mtgplay.core.identity.CardRef
  * lifted the four clauses off `SpellDefinition` onto a carrier a triggered or activated ability implements
  * too (docs/design/resolution-clause-hook.md), so the cards needed no new engine mechanism at all. Three
  * siblings from the same triage row stay absent, each on a *different* missing framework: Lembas needs
- * `FW-SHUFFLEIN`, Conduit Pylons needs surveil (CR 701.44) plus `FW-MANA`, and Giant's Boulder — a scry 2
- * card, not the surveil card it is sometimes filed as — needs `FW-MANA` and a targeted destroy ability.
+ * `FW-SHUFFLEIN`, Conduit Pylons needs surveil (CR 701.44), and Giant's Boulder — a scry 2 card, not the
+ * surveil card it is sometimes filed as — needs a "target permanent" restriction. `FW-MANACOST` supplied
+ * the mana half both were also waiting on, so each is now blocked on exactly one thing.
+ * The `FW-MANACOST` packet adds the pool's first mana sources whose ability costs something other than
+ * `{T}` or "sacrifice this" (CostedManaSources.kt): [saruliCaretaker] ("{T}, Tap an untapped creature you
+ * control"), [wallOfRoots] ("Put a -0/-1 counter on this creature", once each turn) and
+ * [barrelsOfBlastingJelly] ("{1}:", once each turn). Each exercises a different half of the payment
+ * *capacity* problem — a budget outside the source classes, a cost that bounds nothing, and a cost that
+ * makes an activation a consumer as well as a producer (docs/design/mana-payment.md §11).
+ *
  * The `FW-COUNTER` packet adds the gauntlet's eight pure counters (Counters.kt): [counterspell],
  * [dispel], [negate], [annul], [envelop], and [removeSoul], plus the two unless-pay counters
  * [forceSpike] and [spellPierce]. They are the first cards to target a **spell on the stack**
@@ -190,6 +198,7 @@ object MvpCards {
             ashBarrens,
             bloodFountain,
             blueElementalBlast,
+            barrelsOfBlastingJelly,
             brainstorm,
             breathWeapon,
             brinebarrowIntruder,
@@ -273,6 +282,7 @@ object MvpCards {
             redElementalBlast,
             refurbishedFamiliar,
             removeSoul,
+            saruliCaretaker,
             scourFromExistence,
             seaGateOracle,
             seatOfTheSynod,
@@ -310,6 +320,7 @@ object MvpCards {
             vaultOfWhispers,
             volatileFjord,
             voldarenEpicure,
+            wallOfRoots,
             wellwisher,
             wildGrowth,
             windDrake,

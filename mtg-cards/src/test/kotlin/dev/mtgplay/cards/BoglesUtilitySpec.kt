@@ -10,6 +10,7 @@ import dev.mtgplay.core.definition.LibraryReveal
 import dev.mtgplay.core.definition.LibrarySearch
 import dev.mtgplay.core.definition.LibrarySearchFilter
 import dev.mtgplay.core.definition.ManaAbility
+import dev.mtgplay.core.definition.ManaAbilityCost
 import dev.mtgplay.core.definition.ResolutionContext
 import dev.mtgplay.core.definition.RevealedCardFilter
 import dev.mtgplay.core.definition.SpellDefinition
@@ -124,7 +125,12 @@ class BoglesUtilitySpec :
                 powerToughness shouldBe PrintedPowerToughness(0, 1)
             }
             eldraziSpawnToken.manaAbilities shouldContainExactly
-                listOf(ManaAbility(persistentListOf(ManaType.COLORLESS), viaSacrifice = true))
+                listOf(
+                    ManaAbility(
+                        persistentListOf(ManaType.COLORLESS),
+                        cost = persistentListOf(ManaAbilityCost.SacrificeSelf),
+                    ),
+                )
         }
 
         "CR 305 / CR 605.1a: Ash Barrens is a played land that taps for {C} — not a spell" {

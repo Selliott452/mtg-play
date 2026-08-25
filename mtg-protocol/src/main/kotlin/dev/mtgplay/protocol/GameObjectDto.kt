@@ -5,6 +5,7 @@ import dev.mtgplay.core.identity.ObjectId
 import dev.mtgplay.core.identity.PlayerId
 import dev.mtgplay.core.state.GameObject
 import kotlinx.collections.immutable.toPersistentList
+import kotlinx.collections.immutable.toPersistentSet
 import kotlinx.serialization.Serializable
 
 /**
@@ -33,6 +34,11 @@ import kotlinx.serialization.Serializable
  * @property reboundTurn the turn rebound exiled this card on (CR 702.88a), or `null` when it was not
  *   exiled by rebound; an exile-only marker in the shape [plottedTurn] already set. Public, for the
  *   same CR 406.3 reason. Added by `FW-BLINK`.
+ * @property manaAbilitiesActivatedThisTurn the indices of this object's printed mana abilities already
+ *   activated this turn (CR 602.5b), ascending; empty for every object with no "Activate only once
+ *   each turn" mana ability, which is almost all of them. Public information (ADR-007) — that a Wall
+ *   of Roots has already been used this turn is as visible across the table as its tapped status.
+ *   Added by `FW-MANACOST`.
  */
 @Serializable
 data class GameObjectDto(
@@ -49,6 +55,7 @@ data class GameObjectDto(
     val counters: List<CounterDto>,
     val linkedExiled: List<Long>,
     val reboundTurn: Int?,
+    val manaAbilitiesActivatedThisTurn: List<Int>,
 )
 
 /** [GameObject] to its wire form. */
@@ -67,6 +74,9 @@ fun GameObject.toDto(): GameObjectDto =
         counters = counters.toDto(),
         linkedExiled = linkedExiled.map { it.value },
         reboundTurn = reboundTurn,
+        // CR 602.5b: publicly observable — every player sees that a Wall of Roots has already been
+        // activated this turn, exactly as they see that it is tapped (ADR-007).
+        manaAbilitiesActivatedThisTurn = manaAbilitiesActivatedThisTurn.sorted(),
     )
 
 /** [GameObjectDto] back to the engine value. */
@@ -85,4 +95,5 @@ fun GameObjectDto.toDomain(): GameObject =
         counters = counters.toDomain(),
         linkedExiled = linkedExiled.map(::ObjectId).toPersistentList(),
         reboundTurn = reboundTurn,
+        manaAbilitiesActivatedThisTurn = manaAbilitiesActivatedThisTurn.toPersistentSet(),
     )

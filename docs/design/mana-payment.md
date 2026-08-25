@@ -1,4 +1,4 @@
-# Design note — mana payment enumeration (P2.1, amended P8.3, P-MANASICK and FW-MANA)
+# Design note — mana payment enumeration (P2.1, amended P8.3, P-MANASICK, FW-MANA and FW-MANACOST)
 
 The reference for the payment model built in P2.1, extended by P2.2 (real basics) and Phase 5
 (triggered mana abilities, additional/alternative costs), **reshaped in P8.3** so that one
@@ -6,7 +6,8 @@ activation of a mana ability can pay more than one cost symbol, corrected by `P-
 (§2.1) when the pool gained its first creature mana source, **extended on the production side
 by `FW-MANA`** (§8) when it gained its first sources whose amount is read off the board, and
 sharpened on the reservation side by `FW-ADDSAC` (§2.3) when a cost first sacrificed a *chosen*
-permanent. PLAN.md §7
+permanent, and **extended on the consumption side by `FW-MANACOST`** (§11) when a mana ability first
+cost something other than tapping or sacrificing its own source. PLAN.md §7
 names payment combinatorics a top risk; the mitigation is this model: **declarative plans over
 collapsed source classes**, enumerated exhaustively, chosen by index (ADR-005).
 
@@ -33,7 +34,11 @@ data class PaymentPlan(
     val payments: List<SymbolPayment>,      // CR 601.2h — what each cost symbol is paid with
 )
 
-data class ManaActivation(val sourceClass: SourceClassKey, val produced: List<ManaType>)
+data class ManaActivation(                       // amended by FW-MANACOST (§11.1)
+    val sourceClass: SourceClassKey,
+    val alternative: ProductionAlternative,      // what it costs and what it adds
+    val costPayment: List<ManaType> = emptyList() // CR 601.2g — which mana pays that cost
+)
 
 sealed interface SymbolPayment {
     data class WithMana(val mana: ManaType) : SymbolPayment
@@ -599,19 +604,25 @@ singleton alternative and the reshape is a pure widening.
   P8.3 regression; it needs a standalone "activate a mana ability" priority action to fix, not
   a payment-model change, and it should be weighed against the action-space blow-up that
   action would cause.
-- **Alternative activation costs are the class key, not a choice.** A source with both a tap
-  and a sacrifice mana ability would need `viaSacrifice` to become a per-activation choice.
-  The MVP and gauntlet pools never mix the two on one source, and `isSacrificeSource` asserts
-  the all-or-nothing shape rather than assuming it.
+- ~~**Alternative activation costs are the class key, not a choice.**~~ **Closed by
+  `FW-MANACOST`** (§11). The cost moved off `SourceClassKey` and into the production alternative, so a
+  source printing a free `{T}` ability beside a costed one offers both and the activator chooses. What
+  survives is a narrower fact: `isSacrificeSource` still asserts that no source *mixes* a sacrifice
+  mana ability with another kind, because the T17 reservation reads the source as a whole.
 
-- **A mana ability's cost is still only `{T}` or "sacrifice this".** Nothing else is expressible,
-  and four gauntlet cards want more: Saruli Caretaker's "{T}, Tap an untapped creature you
-  control", Conduit Pylons' and Giant's Boulder's "{1}, {T}", and Wall of Roots' "put a -0/-1
-  counter on this". This is a payment-**capacity** problem, not a production one, and it is the
-  larger of the two: an activation that taps a *second* permanent has to name that permanent's
-  class too, and the capacity check has to account for one class's activation consuming another
-  class's membership. `FW-MANA` deliberately did not build it, and Saruli Caretaker is absent
-  rather than approximated.
+- ~~**A mana ability's cost is still only `{T}` or "sacrifice this".**~~ **Closed by
+  `FW-MANACOST`** (§11), and the prediction it was recorded with held: it *was* a payment-capacity
+  problem rather than a production one, and it *was* the larger of the two. What the entry did not
+  predict is the third clause the capacity problem needed — acyclicity (§11.2) — which is neither
+  production nor capacity but ordering.
+
+- **A mana ability's cost cannot need a mid-payment decision.** [ManaAbilityCost] admits mana, tap,
+  sacrifice, tap-another-creature and put-a-counter, and every one of those is either forced or
+  recorded in the plan before execution starts. CR 601.2g resolves mana abilities *inside* another
+  cost's payment, where the decision-point engine has nowhere to suspend (ADR-004), so a component
+  like "discard a card" or "sacrifice a permanent of your choice" cannot be added without either
+  recording the choice in the plan (multiplying every plan by the board) or reshaping payment into a
+  resumable sub-pipeline. No gauntlet card prints one on a *mana* ability.
 
 - **An activation can, in principle, change another activation's CR 605.2 count.** The engine
   throws rather than mispaying (§8.3). Unreachable in the gauntlet pool; the fix when it becomes
@@ -636,6 +647,15 @@ source classes, so it shares the enumerator's view of what each source produces.
 re-implementing the engine — but it means the oracle proves *the search* correct and can never prove
 *the production* correct. What carries production instead is listed in §8.3.
 
+**`FW-MANACOST` widened the oracle rather than working around it.** Its naive halves now enumerate
+cost assignments as a raw cartesian product (so the enumerator's non-decreasing canonicalisation is
+*proved* lossless rather than assumed), net activation costs out of coverage, decide orderability by
+walking **every permutation** where the enumerator walks a memoized subset DP, run the no-idle
+matching as an exhaustive assignment with the same per-pair exclusion, and count the creature budget
+by naming objects where the enumerator uses per-class prefix arithmetic. Four different algorithms
+reaching the same set is what makes agreement evidence rather than a shared assumption; the blind
+spot is unchanged, and §8.3's three non-oracle legs are what cover it.
+
 P8.3 adds a third property, the one a reshape most needs: **planner/executor correspondence.**
 For every enumerated plan, executing it must succeed, and the resulting pool must equal
 `pool_before ⊎ yields(activations) ⊖ demand` with every count non-negative. A plan that
@@ -646,3 +666,215 @@ On top of those sit the two end-to-end completeness properties (ADR-005): every 
 cast option must execute through the full CR 601 pipeline without error (no phantoms), and
 constructed scenarios where a cast is legal/illegal must/must-not enumerate it (no gaps). The
 fuzz harness then defends all of it across seeds.
+
+## 11. Mana abilities that cost something (`FW-MANACOST`)
+
+`FW-MANA` closed the production half of a mana ability and left the cost half open, recording it in
+§9 as "a payment-**capacity** problem, not a production one, and the larger of the two". It was, and
+the packet that built it found a third thing underneath: **ordering**.
+
+Four cost shapes arrive, and they are deliberately different problems rather than four instances of
+one:
+
+| Shape | Card | What it consumes | Where it lands |
+|---|---|---|---|
+| `{1}, {T}` | Conduit Pylons, Giant's Boulder | the pool | §11.1, §11.2 |
+| `{1}` alone, once each turn | Barrels of Blasting Jelly | the pool, and nothing else | §11.2, §11.4 |
+| `{T}`, Tap an untapped creature you control | Saruli Caretaker | a creature that belongs to no class | §11.3 |
+| Put a `-0/-1` counter on this, once each turn | Wall of Roots | nothing at all | §11.4 |
+
+### 11.1 The cost moved into the production alternative
+
+`SourceClassKey.profile` was a list of produced multisets and the key carried one cost flag,
+`viaSacrifice`. That shape is wrong the moment one permanent prints two mana abilities with
+*different* costs — Conduit Pylons' free "{T}: Add {C}" beside its "{1}, {T}: Add one mana of any
+color" — because which cost applies is then a per-activation choice, not a property of the source.
+So the profile's element became a whole alternative:
+
+```kotlin
+data class SourceClassKey(val card: CardRef, val profile: List<ProductionAlternative>, val bonus: List<ManaType>)
+
+data class ProductionAlternative(
+    val cost: List<ManaAbilityCost>,   // printed order; [TapSelf] for an ordinary source
+    val produced: List<ManaType>,
+    val oncePerTurn: Boolean = false,
+)
+
+data class ManaActivation(
+    val sourceClass: SourceClassKey,
+    val alternative: ProductionAlternative,
+    val costPayment: List<ManaType> = emptyList(),   // CR 601.2g, one per expanded cost symbol
+)
+```
+
+`viaSacrifice` is **deleted** from the key; it is now `SacrificeSelf in alternative.cost`. This is
+the same "refine the profile, never the relation" line §2.2 has now held across three packets: two
+Walls of Roots are payment-equivalent, one that has spent its once-each-turn activation is not a
+mana source at all, and the equivalence relation itself is unchanged.
+
+**`costPayment` is the one genuinely new piece of plan data**, and it is there because paying a `{1}`
+activation cost with green and paying it with red leave different pools. The executor may not ask —
+CR 601.2g runs inside another cost's payment, where ADR-004 offers no suspension point — so the
+choice has to be settled in the plan. Legality clause 4 (coverage) grows the corresponding term:
+
+> `demand(t) + Σ_a cost(a).count(t) ≤ pool(t) + Σ_a yield(a).count(t)` for every `ManaType t`.
+
+### 11.2 Acyclicity: the clause with no pre-`FW-MANACOST` counterpart
+
+Coverage is necessary and **not sufficient**. Two Giant's Boulders on an empty pool produce two mana
+and cost two mana; the arithmetic balances exactly and neither can go first. Worse shapes exist in
+principle — a source costing `{R}` to add `{G}{G}` beside one costing `{G}` to add `{R}{R}` passes
+coverage type by type and still deadlocks — so this is not a special case to test for but a
+constraint the model has to carry.
+
+The fix is *not* to record an execution order in the plan. That would multiply every plan by its
+permutations and falsify the §3.3 dedup argument, whose whole content is that two plans differing as
+data differ in outcome — and the same multiset run in two feasible orders leaves the identical state.
+The order is **derived** instead, by `manaActivationOrder`, from the multiset, the pool and the
+recorded `costPayment`s. Two facts make that cheap:
+
+1. **Free activations run first, in plan order.** A free activation only ever adds to the pool, so
+   moving one earlier can never make another unpayable. Every plan on every board before this packet
+   is entirely free, which is why no existing board's execution order moved (ADR-006).
+2. **The pool after a *set* of costed activations depends only on the set** — `base ⊎ Σ yields ⊖ Σ
+   costs` — not on the order within it. So feasibility is a subset property, and the search is a DP
+   over subsets rather than over permutations.
+
+`canFinish[remaining]` is filled bottom-up over subsets, and the canonical order is read off it
+greedily: take the lowest-indexed remaining activation whose cost the current pool covers **and**
+whose removal leaves a finishable remainder. The second condition is load-bearing — plain "run
+whatever is payable" strands a later activation that needed exactly the mana just spent.
+
+**One derivation, two callers**, the discipline `P-MANASICK` established for `manaSourceUsable` and
+`FW-MANA` for `sourceClassKeyOf`. `manaActivationOrder` is what the enumerator calls to decide a
+candidate multiset is feasible at all, and what `payManaPlan` calls to decide what to run first. A
+plan accepted on one ordering rule and executed on another is exactly the enumerated-but-unexecutable
+defect ADR-005 forbids.
+
+### 11.3 A budget that belongs to no source class
+
+Saruli Caretaker's "{T}, Tap an untapped creature you control" consumes a resource the class model
+has no name for: an untapped creature, which need not be a mana source at all and may belong to a
+different class or to none. Two Caretakers and no other creature make **one** mana between them, and
+no amount of per-class capacity counting sees that.
+
+The model adds one shared budget — the seat's untapped creatures — and one drain per activation:
+
+- the member itself, when the alternative taps or sacrifices it *and* that member is an untapped
+  creature (for a tap alternative every member is untapped by availability; for a sacrifice
+  alternative it varies, which is why the drain is read per **member index** rather than per class —
+  members are spent in battlefield order by planner and executor alike);
+- plus one for a `TapAnotherCreature` component.
+
+**Why the plain count is exact.** All the consumptions are distinct objects — a source tapped for its
+own `{T}`, a source sacrificed, and a creature tapped as somebody's second cost are three different
+permanents, the source never being its own helper because its `{T}` has already tapped it. With no
+type or restriction on which creature may be tapped, Hall's condition on that budget degenerates to
+"drain ≤ untapped creatures", which is therefore both necessary and sufficient.
+
+**The helper is an engine choice, not a player one.** CR 601.2g admits no decision point, so the
+executor takes the first untapped creature in battlefield order that is neither the source nor a
+member the *rest* of the plan still needs. One always exists: the drain still to come is exactly the
+reserved members plus this helper, and the budget check already bounded the total. It fails loudly if
+one ever does not, because that would mean the enumerator offered a plan execution cannot carry out.
+
+### 11.4 "Activate only once each turn" (CR 602.5b)
+
+`ManaAbility` gains `oncePerTurn`, and `GameObject` gains `manaAbilitiesActivatedThisTurn` — the
+indices of its **printed** mana abilities activated during the turn in progress, cleared for every
+object as a turn begins (CR 500.1: "each turn" is each *player's* turn, so a Wall of Roots spent on
+your turn taps again on your opponent's).
+
+The restriction needs no new machinery in the payment model, because **the source class key already
+carries it**. An ability spent this turn is unavailable, an unavailable ability contributes no
+alternative, and a source with no alternative is no mana source — so a spent Wall of Roots simply
+leaves `manaSourceClasses`, and the executor's re-derivation of the key agrees by construction. This
+is the third thing the §8.3 correspondence certificate has been asked to carry (production count,
+activation cost, and now availability) without changing shape.
+
+Two guards make it exact rather than aspirational, both `require`s that fail loudly:
+
+- **A mana ability that neither taps nor sacrifices its source must be `oncePerTurn`.** The capacity
+  model counts one activation per class member, and that is only a bound if activating a member stops
+  it being available. Wall of Roots' counter cost and Barrels' bare `{1}` leave the source untouched,
+  so CR 602.5b is the *only* thing bounding them; without either, no finite plan enumeration exists.
+- **At most one `oncePerTurn` mana ability per card, and it must be printed rather than granted.**
+  The record indexes printed abilities (the layered list's prefix), so a granted ability's index is
+  unstable and two identically-costed restricted abilities could not be told apart when the executor
+  marks the activation.
+
+### 11.5 The no-idle rule, when an activation can be a customer
+
+§4's bound is a bipartite matching of activations to units of demand, decided by Hall's theorem over
+the 64 subsets of the six mana types. A costed activation may legitimately spend its mana on
+*another activation's cost*, so the sinks are no longer the demand alone — and the exclusion that
+comes with them is per-**pair**, not per-type: an activation may fund any cost except its own.
+
+Hall's condition over type subsets cannot express a per-pair exclusion, so the costed path is a real
+matching: activations on the left, one node per unit of demand and per unit of each activation's
+cost on the right, an edge when the activation yields that type and does not own that unit, decided
+by Kuhn's algorithm. Both sides are bounded by the plan's activation count.
+
+**The old check is kept and still runs** on every set in which no activation costs mana. The two
+agree there — with no cost units the sinks *are* the demand — and keeping it means no pre-packet
+board pays for the generality, which is what lets §4's and §8.4's measurements stand unmodified.
+
+The exclusion earns its place on a real card. Barrels of Blasting Jelly reads "{1}: Add one mana of
+any color"; an activation that eats a green and adds a green has changed nothing, and its yield's
+only possible consumer is the cost it just paid. Without the exclusion Hall's condition counts it as
+gainfully employed and every cast on a Barrels board grows a family of per-colour no-ops.
+
+**The activation bound moved with it.** "`|activations| ≤ |WithMana payments|`" was a *consequence* of
+no-idle: each activation claims a distinct unit of demand. With cost units among the sinks the bound
+becomes `demand + Σ (class capacity × widest cost)`, capped by total class capacity — and it
+evaluates to exactly the old `demand` on a board with no costed mana ability.
+
+### 11.6 What it costs, measured
+
+`CostedManaSourceAcceptanceSpec` pins a Spy-Combo-shaped board: two Forests, a Wall of Roots, a
+Saruli Caretaker and a Barrels of Blasting Jelly, all settled, pool empty.
+
+| Card | Cost | Options |
+|---|---|---:|
+| Rancor | `{G}` | 10 |
+| Malevolent Rumble | `{1}{G}` | 80 |
+| Ancestral Mask | `{2}{G}` | 106 |
+
+**This is the widest action space any board has produced**, against the Bogles board's 32 and
+assembled Tron's 7 for comparable costs, and the cause is worth naming precisely: it is not the
+costed ability as such but the **filter**. Rancor's ten options are three direct lines plus seven
+that route a mana through the Barrels — one per (funder × colour) — and every one of them is a
+genuinely distinct position, because it spends the Barrels' once-each-turn activation. The weak
+no-idle rule cannot prune them, because a filter's output always has a sink.
+
+Stated as a rule for whoever adds the next filter: **a mana filter multiplies the plan space by
+roughly (colours it can add × mana that can fund it)**, and two of them multiply. If a gauntlet deck
+ever runs four Conduit Pylons alongside another any-colour source, this is the number to re-measure
+before assuming the enumeration stays tractable.
+
+**The two pinned budget boards did not move.** `BoglesRampBudgetAcceptanceSpec`'s counts (3 / 16 / 32
+/ 32 / 16) and `MonsterTronBudgetAcceptanceSpec`'s (1 / 3 / 7 / 7) pass unmodified, and structurally
+must: no card on either board has a costed mana ability, so every alternative there still carries the
+same `[TapSelf]` cost, the creature budget is never consulted, the ordering search returns the free
+prefix immediately, and the no-idle check takes the Hall path.
+
+### 11.7 The four cards it did not build, and exactly what each needs
+
+`FW-MANACOST` was offered seven cards and encoded three. The other four are **not** blocked on
+anything in this note — every one of them has a mana ability the framework now expresses — and each
+is blocked on exactly one thing outside it. Recorded here because "the mana half is done" is the
+piece a later packet will otherwise re-derive.
+
+| Card | Mana ability | What still blocks it |
+|---|---|---|
+| Conduit Pylons | `{T}: Add {C}` **and** `{1}, {T}: Add one mana of any color` — the two-costs-one-source shape §11.1 was built around | **Surveil 1** on its enters trigger. `LibraryLookMode` distributes to {hand, top, bottom}; a graveyard destination is a documented non-goal of `FW-LIBLOOK` (library-look.md §12). |
+| Giant's Boulder | `{1}, {T}: Add one mana of any color` | **"Destroy target permanent."** `PermanentRestriction` has `CREATURE`, `NONLEGENDARY_CREATURE`, `CREATURE_POWER_2_OR_LESS` and `ARTIFACT`, and no plain-permanent member; adding one is a `Targets.kt` change. Its scry 2 enters trigger is already expressible. |
+| Basilisk Gate | `{T}: Add {C}` — expressible since P2.1 | A **snapshotted** `+X/+X` where X counts Gates (triage T16: `Magnitude.Dynamic` is the opposite semantics), plus the same missing plain-permanent target. Its "Activate only as a sorcery" **is** now expressible — `ActivatedAbility.timing`, CR 602.5d — which is the half this packet supplied. |
+| Bender's Waterskin | `{T}: Add one mana of any color` — expressible since P2.1 | "Untap this artifact during each other player's untap step", a CR 613.11 rules-modifying static over the CR 502.2 turn-based action. It needs **nothing** from this framework. |
+
+The `ActivatedAbility.timing` field is worth calling out separately, because it is the one addition
+here that is not about mana at all. Without it "Activate only as a sorcery" is unexpressible, and
+Basilisk Gate and Timberwatch Elf would encode as instant-speed tricks — an enumerated-but-illegal
+action (ADR-005), not a cosmetic inaccuracy. It reuses the *same* window predicate a sorcery's cast
+is checked against, because CR 602.5d says the two windows are identical and one function is how they
+stay identical.

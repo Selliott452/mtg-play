@@ -78,6 +78,7 @@ object InvariantChecker {
             addAll(checkAbilityTargetSanity(state))
             addAll(checkTimedEffectSanity(state))
             addAll(checkCounterScope(residences))
+            addAll(checkManaAbilityActivationScope(residences, state.definitions))
             addAll(checkEntryTriggerDetection(state))
             addAll(checkExileAndReturnState(state, residences))
             if (expectedCards != null) addAll(checkCardConservation(state, expectedCards))

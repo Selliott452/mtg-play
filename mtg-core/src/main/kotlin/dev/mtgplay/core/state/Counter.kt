@@ -76,10 +76,11 @@ sealed interface Counter {
 
         /**
          * The `-0/-1` counter (CR 122.1a) Wall of Roots and Vine Trellis pay as a mana-ability cost.
-         * Modelled because CR 122.1a covers it with no extra machinery; **no gauntlet card places one
-         * yet**, because the cards that do need a mana-ability cost shape that is neither `{T}` nor
-         * sacrifice, plus a once-per-turn activation limit (see the `FW-COUNTERS` packet report).
-         * Deliberately *not* interchangeable with [MINUS_ONE_MINUS_ONE]: CR 704.5q does not touch it.
+         * Modelled by `FW-COUNTERS` because CR 122.1a covers it with no extra machinery, and placed by
+         * a card since `FW-MANACOST`, which built the two things it was waiting on: a mana-ability cost
+         * shape that is neither `{T}` nor sacrifice ([ManaAbilityCost.PutCounterOnSelf]) and the
+         * CR 602.5b once-each-turn activation limit. Deliberately *not* interchangeable with
+         * [MINUS_ONE_MINUS_ONE]: CR 704.5q does not touch it.
          */
         val MINUS_ZERO_MINUS_ONE: PowerToughness = PowerToughness(0, -1)
 

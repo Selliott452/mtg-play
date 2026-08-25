@@ -6,6 +6,7 @@ import dev.mtgplay.core.mana.Color
 import dev.mtgplay.core.mana.ManaCost
 import dev.mtgplay.core.mana.ManaSymbol
 import dev.mtgplay.core.mana.ManaType
+import dev.mtgplay.core.state.GameObject
 import dev.mtgplay.core.state.GameState
 import dev.mtgplay.rules.decision.PaymentPlan
 import dev.mtgplay.rules.decision.SourceClassKey
@@ -28,11 +29,18 @@ internal const val PHYREXIAN_LIFE_COST: Int = 2
 /**
  * One class of payment-equivalent mana sources: the [key] every member shares and the members
  * themselves, in battlefield order (docs/design/mana-payment.md — same printed card, same
- * production profile, same CR 605.1b bonus, same activation cost, usable, same controller).
+ * production profile, same CR 605.1b bonus, usable, same controller).
+ *
+ * @property untappedCreatureMembers parallel to [members]: whether each is an untapped creature right
+ *   now. It is **not** part of the equivalence key — two Llanowar Elves are payment-equivalent whether
+ *   or not one of them is the one a Saruli Caretaker will tap — but the seat's untapped creatures are a
+ *   budget the whole plan shares, and members are spent in battlefield order, so the drain of the
+ *   `k`th use of this class is read off entry `k` (docs/design/mana-payment.md §11.3).
  */
 internal data class SourceClass(
     val key: SourceClassKey,
     val members: List<ObjectId>,
+    val untappedCreatureMembers: List<Boolean> = List(members.size) { false },
 )
 
 /**
@@ -52,15 +60,21 @@ internal fun manaSourceClasses(
     seat: PlayerId,
     reserved: Set<ObjectId> = emptySet(),
 ): List<SourceClass> {
-    val classes = LinkedHashMap<SourceClassKey, MutableList<ObjectId>>()
+    val classes = LinkedHashMap<SourceClassKey, MutableList<GameObject>>()
     state.sharedZones.battlefield
         .filter { it.owner == seat && it.id !in reserved && manaSourceUsable(state, it) }
         .forEach { obj ->
             sourceClassKeyOf(state, obj)?.let { key ->
-                classes.getOrPut(key) { mutableListOf() }.add(obj.id)
+                classes.getOrPut(key) { mutableListOf() }.add(obj)
             }
         }
-    return classes.map { (key, members) -> SourceClass(key, members.toList()) }
+    return classes.map { (key, members) ->
+        SourceClass(
+            key = key,
+            members = members.map { it.id },
+            untappedCreatureMembers = members.map { !it.tapped && isCreature(state, it) },
+        )
+    }
 }
 
 /**
@@ -95,6 +109,11 @@ internal fun enumeratePaymentPlans(
             pool = player.manaPool.groupingBy { it }.eachCount(),
             classes = manaSourceClasses(state, seat, reserved),
             life = player.life,
+            // CR 602.1: the budget Saruli Caretaker's "Tap an untapped creature you control" and every
+            // creature source's own {T} draw on. Counted over the whole battlefield rather than over the
+            // source classes, because a creature that is no mana source at all is still a legal thing to
+            // tap (docs/design/mana-payment.md §11.3).
+            untappedCreatures = untappedCreatures(state, seat).size,
         )
     val units = expandToUnits(cost)
     val search = PaymentSearch(units, units.map { candidatesFor(it, supply.obtainable) }, supply)
@@ -126,8 +145,11 @@ internal fun manaTypeOf(color: Color): ManaType =
         Color.GREEN -> ManaType.GREEN
     }
 
-/** The mana types one [symbol] accepts (CR 107.4), before the life alternative. */
-private fun payableTypes(symbol: ManaSymbol): List<ManaType> =
+/**
+ * The mana types one [symbol] accepts (CR 107.4), before the life alternative. Shared with the
+ * activation search, which asks the same question of a mana ability's *own* cost (`FW-MANACOST`).
+ */
+internal fun payableTypes(symbol: ManaSymbol): List<ManaType> =
     when (symbol) {
         is ManaSymbol.Colored -> listOf(manaTypeOf(symbol.color))
         ManaSymbol.Colorless -> listOf(ManaType.COLORLESS)

@@ -20,6 +20,7 @@ import dev.mtgplay.rules.decision.DecisionRequestId
 import dev.mtgplay.rules.decision.ManaActivation
 import dev.mtgplay.rules.decision.PaymentPlan
 import dev.mtgplay.rules.decision.PriorityOption
+import dev.mtgplay.rules.decision.ProductionAlternative
 import dev.mtgplay.rules.decision.SourceClassKey
 import dev.mtgplay.rules.decision.SymbolPayment
 import dev.mtgplay.rules.kindOf
@@ -144,24 +145,25 @@ private val richPaymentWindow: DecisionRequest.ChoosePaymentPlan =
                     ManaActivation(
                         SourceClassKey(
                             CardRef("Forest"),
-                            listOf(listOf(ManaType.GREEN)),
+                            listOf(ProductionAlternative.tapping(ManaType.GREEN)),
                             listOf(ManaType.GREEN),
-                            viaSacrifice = false,
                         ),
-                        listOf(ManaType.GREEN),
+                        ProductionAlternative.tapping(ManaType.GREEN),
                     ),
                     // CR 605.2: a multi-mana production alternative on the wire — the FW-MANA shape.
                     ManaActivation(
-                        SourceClassKey(CardRef("Urza's Tower"), listOf(List(3) { ManaType.COLORLESS })),
-                        List(3) { ManaType.COLORLESS },
+                        SourceClassKey(
+                            CardRef("Urza's Tower"),
+                            listOf(ProductionAlternative.tapping(*Array(3) { ManaType.COLORLESS })),
+                        ),
+                        ProductionAlternative.tapping(*Array(3) { ManaType.COLORLESS }),
                     ),
                     ManaActivation(
                         SourceClassKey(
                             CardRef("Eldrazi Spawn"),
-                            listOf(listOf(ManaType.COLORLESS)),
-                            viaSacrifice = true,
+                            listOf(ProductionAlternative.sacrificing(ManaType.COLORLESS)),
                         ),
-                        listOf(ManaType.COLORLESS),
+                        ProductionAlternative.sacrificing(ManaType.COLORLESS),
                     ),
                 ),
                 listOf(
@@ -188,8 +190,11 @@ private val richCounterPaymentWindow: DecisionRequest.ChooseCounterPayment =
                 PaymentPlan(
                     listOf(
                         ManaActivation(
-                            SourceClassKey(CardRef("Island"), listOf(listOf(ManaType.BLUE)), viaSacrifice = false),
-                            listOf(ManaType.BLUE),
+                            SourceClassKey(
+                                CardRef("Island"),
+                                listOf(ProductionAlternative.tapping(ManaType.BLUE)),
+                            ),
+                            ProductionAlternative.tapping(ManaType.BLUE),
                         ),
                     ),
                     listOf(SymbolPayment.WithMana(ManaType.BLUE)),

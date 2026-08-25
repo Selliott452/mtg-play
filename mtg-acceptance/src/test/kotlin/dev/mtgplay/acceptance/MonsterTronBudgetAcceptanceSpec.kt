@@ -17,6 +17,7 @@ import dev.mtgplay.rules.decision.Decision
 import dev.mtgplay.rules.decision.DecisionRequest
 import dev.mtgplay.rules.decision.PaymentPlan
 import dev.mtgplay.rules.decision.PriorityOption
+import dev.mtgplay.rules.decision.ProductionAlternative
 import io.kotest.assertions.withClue
 import io.kotest.core.spec.style.StringSpec
 import io.kotest.matchers.collections.shouldBeEmpty
@@ -91,11 +92,12 @@ class MonsterTronBudgetAcceptanceSpec :
             // Assembled: the Tower's own profile says it adds three, and the agent is told so in the
             // option it is offered — the count is data on the plan, not a hidden runtime effect.
             urzaClasses(assembled = true).getValue(CardRef("Urza's Tower")) shouldBe
-                listOf(List(THREE) { ManaType.COLORLESS })
+                listOf(ProductionAlternative.tapping(*Array(THREE) { ManaType.COLORLESS }))
             urzaClasses(assembled = true).getValue(CardRef("Urza's Mine")) shouldBe
-                listOf(List(2) { ManaType.COLORLESS })
+                listOf(ProductionAlternative.tapping(*Array(2) { ManaType.COLORLESS }))
             // Broken: same printed cards, same battlefield size, every Urza land back to one mana.
-            urzaClasses(assembled = false).values.toSet() shouldBe setOf(listOf(listOf(ManaType.COLORLESS)))
+            urzaClasses(assembled = false).values.toSet() shouldBe
+                setOf(listOf(ProductionAlternative.tapping(ManaType.COLORLESS)))
         }
 
         "docs/design/mana-payment.md §4: the no-idle bound still holds with three-mana activations" {
@@ -136,7 +138,7 @@ private infix fun List<PaymentPlan>.shouldHaveExactly(expected: Int) {
  * Each Urza land's production profile as the enumerator hands it to an agent, gathered from the
  * options for Ancestral Mask's `{2}{G}` — a cost both boards can pay, so the two are comparable.
  */
-private fun urzaClasses(assembled: Boolean): Map<CardRef, List<List<ManaType>>> =
+private fun urzaClasses(assembled: Boolean): Map<CardRef, List<ProductionAlternative>> =
     plansFor("Ancestral Mask", assembled = assembled)
         .flatMap { plan -> plan.activations.map { it.sourceClass } }
         .filter { it.card.name.startsWith("Urza's") }

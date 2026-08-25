@@ -269,5 +269,41 @@ package dev.mtgplay.protocol
  * record from the request would be publishing a hand the resolving object's controller may not see
  * (CR 402.1). `FW-HIDDENCHOICE` is the deliberate opposite: `pendingHandReveal` carries the revealed
  * cards in full to *both* seats, because CR 701.16a reveals them to every player.
+ *
+ * ## `7.0.0` — `FW-MANACOST`: a mana ability may cost something
+ *
+ * A **required-field reshape of the payment plan**, which is the `4.0.0` break shape in its sharpest
+ * form: [PaymentPlanDto] is the option payload of `choose_payment_plan`, so a `6.0.0` peer's strict
+ * codec rejects **every payment decision** — the single most frequent request in a match — rather than
+ * only the ones involving a costed mana ability. It breaks in **both** directions, because a payment
+ * plan travels server→client as an option and the chosen index travels back.
+ *
+ * Three shape changes, all forced by the same fact: a mana ability's activation cost is no longer
+ * always "tap this", so *which* ability of a source is being activated, and what it costs, have to be
+ * on the wire.
+ *
+ * 1. [SourceClassKeyDto.profile] changes element type from `List<ManaTypeDto>` — a bare produced
+ *    multiset — to [ProductionAlternativeDto], which names the alternative's cost, its production and
+ *    its CR 602.5b once-each-turn flag. This is a *type* change on an existing field, so it is not
+ *    even decodable as a partial read.
+ * 2. [SourceClassKeyDto] **loses** `viaSacrifice`. Sacrificing was one of exactly two costs a mana
+ *    ability could have, so it fitted on the class; with Conduit Pylons printing a free `{T}` ability
+ *    beside a `{1}, {T}` one, the cost is a per-activation choice and it moved into the alternative.
+ * 3. [ManaActivationDto] replaces `produced` with `alternative` and gains a required `costPayment`.
+ *    The last is the genuinely new information: with a `{1}` activation cost, *which* mana funded the
+ *    activation is a choice the plan has to record, because paying it with green and paying it with
+ *    red leave different pools.
+ *
+ * [ManaAbilityCostDto] is a new sealed hierarchy (`mana`, `tap_self`, `sacrifice_self`,
+ * `tap_another_creature`, `put_counter_on_self`). No [DecisionRequestDto] member, no
+ * [DecisionRequestKindDto] member and no [TargetDto] member are added: nothing `FW-MANACOST` adds is a
+ * new *kind* of decision, only a wider payload for one that exists. The order the activations run in
+ * is deliberately **not** on the wire — it is derived from the plan, the pool and the recorded cost
+ * payments by both peers (docs/design/mana-payment.md §11.2), so putting it in the message would be a
+ * second source of truth for something already determined.
+ *
+ * The seat view is untouched in shape but not in content: [GameObjectDto] already carries every
+ * battlefield object, and objects that have spent a CR 602.5b "Activate only once each turn" mana
+ * ability now report it through the existing per-object fields the view already serialises.
  */
-const val PROTOCOL_VERSION: String = "6.0.0"
+const val PROTOCOL_VERSION: String = "7.0.0"

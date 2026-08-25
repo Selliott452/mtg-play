@@ -28,6 +28,7 @@ import dev.mtgplay.core.state.Turn
 import dev.mtgplay.core.state.TurnPhase
 import dev.mtgplay.rules.decision.Decision
 import dev.mtgplay.rules.decision.DecisionRequest
+import dev.mtgplay.rules.decision.ProductionAlternative
 import dev.mtgplay.rules.engine.manaSourceClasses
 import dev.mtgplay.rules.engine.resolveTapForMana
 import io.kotest.core.spec.style.StringSpec
@@ -95,7 +96,7 @@ class TriggeredManaAbilitySpec :
                 manaSourceClasses(state, alice).single {
                     it.key.card == forest
                 }
-            val tapped = resolveTapForMana(state, alice, forestClass.key, listOf(ManaType.GREEN))
+            val tapped = resolveTapForMana(state, alice, forestClass.key, ProductionAlternative.tapping(ManaType.GREEN))
             // Pool holds the primary green and the additional red — and the stack is untouched.
             tapped.players
                 .getValue(alice)
@@ -118,7 +119,7 @@ class TriggeredManaAbilitySpec :
             val aura = state.sharedZones.battlefield.single { it.card == CardRef("Fixture Growth") }
             aura.chosenColor shouldBe null
             val mountainClass = manaSourceClasses(state, alice).single { it.key.card == mountain }
-            val tapped = resolveTapForMana(state, alice, mountainClass.key, listOf(ManaType.RED))
+            val tapped = resolveTapForMana(state, alice, mountainClass.key, ProductionAlternative.tapping(ManaType.RED))
             // Primary red plus the printed green bonus; no stack, no priority (CR 605.3).
             tapped.players
                 .getValue(alice)

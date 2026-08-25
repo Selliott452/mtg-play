@@ -38,11 +38,21 @@ private fun symbolPaymentLabel(payment: SymbolPayment): String =
  * sacrificing — a member of the named source class for the mana it was chosen to add. The mana is a
  * multiset, so an Urza's Tower with Tron assembled reads "tap Urza's Tower for {C}{C}{C}" and the
  * player can tell an assembled Tron apart from an unassembled one without leaving the payment menu.
+ *
+ * Since `FW-MANACOST` the activation may cost mana of its own, and the label says so — "pay {G}, tap
+ * Giant's Boulder for {R}" — because two plans that differ only in which mana funded the activation
+ * are genuinely different lines and a player choosing by index has to be able to tell them apart.
  */
 private fun activationLabel(activation: ManaActivation): String {
-    val verb = if (activation.sourceClass.viaSacrifice) "sacrifice" else "tap"
+    val verb = if (activation.alternative.viaSacrifice) "sacrifice" else "tap"
     val mana = activation.produced.joinToString("") { manaGlyph(it) }
-    return "$verb ${activation.sourceClass.card.name} for $mana"
+    val paid =
+        if (activation.costPayment.isEmpty()) {
+            ""
+        } else {
+            "pay ${activation.costPayment.joinToString("") { manaGlyph(it) }}, "
+        }
+    return "$paid$verb ${activation.sourceClass.card.name} for $mana"
 }
 
 /** The brace glyph of a produced mana type (CR 106.1b), e.g. {R} for red or {C} for colorless. */

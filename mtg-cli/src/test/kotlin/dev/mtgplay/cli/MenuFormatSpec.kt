@@ -10,6 +10,7 @@ import dev.mtgplay.rules.decision.DecisionRequestId
 import dev.mtgplay.rules.decision.ManaActivation
 import dev.mtgplay.rules.decision.PaymentPlan
 import dev.mtgplay.rules.decision.PriorityOption
+import dev.mtgplay.rules.decision.ProductionAlternative
 import dev.mtgplay.rules.decision.SourceClassKey
 import dev.mtgplay.rules.decision.SymbolPayment
 import io.kotest.core.spec.style.StringSpec
@@ -50,8 +51,11 @@ class MenuFormatSpec :
                 PaymentPlan(
                     listOf(
                         ManaActivation(
-                            SourceClassKey(CardRef("Mountain"), listOf(listOf(ManaType.RED))),
-                            listOf(ManaType.RED),
+                            SourceClassKey(
+                                CardRef("Mountain"),
+                                listOf(ProductionAlternative.tapping(ManaType.RED)),
+                            ),
+                            ProductionAlternative.tapping(ManaType.RED),
                         ),
                     ),
                     listOf(SymbolPayment.WithMana(ManaType.RED)),
@@ -76,8 +80,11 @@ class MenuFormatSpec :
                 PaymentPlan(
                     listOf(
                         ManaActivation(
-                            SourceClassKey(CardRef("Mountain"), listOf(listOf(ManaType.RED))),
-                            listOf(ManaType.RED),
+                            SourceClassKey(
+                                CardRef("Mountain"),
+                                listOf(ProductionAlternative.tapping(ManaType.RED)),
+                            ),
+                            ProductionAlternative.tapping(ManaType.RED),
                         ),
                     ),
                     listOf(SymbolPayment.WithMana(ManaType.RED)),

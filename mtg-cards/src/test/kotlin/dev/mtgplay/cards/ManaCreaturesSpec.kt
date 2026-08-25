@@ -4,6 +4,7 @@ import dev.mtgplay.core.card.CardType
 import dev.mtgplay.core.card.PrintedPowerToughness
 import dev.mtgplay.core.card.Subtype
 import dev.mtgplay.core.definition.ManaAbility
+import dev.mtgplay.core.definition.ManaAbilityCost
 import dev.mtgplay.core.definition.ManaAmount
 import dev.mtgplay.core.definition.PermanentFilter
 import dev.mtgplay.core.definition.SpellDefinition
@@ -46,7 +47,7 @@ class ManaCreaturesSpec :
         "CR 605.1a: each mana Elf has exactly one intrinsic {T} mana ability adding {G}" {
             elves.keys.forEach { definition ->
                 definition.manaAbilities shouldBe
-                    persistentListOf(ManaAbility(persistentListOf(ManaType.GREEN), viaSacrifice = false))
+                    persistentListOf(ManaAbility(persistentListOf(ManaType.GREEN)))
             }
         }
 
@@ -64,7 +65,7 @@ class ManaCreaturesSpec :
         "CR 605.2: Priest of Titania adds one {G} per Elf on the battlefield, not per Elf you control" {
             val ability = priestOfTitania.manaAbilities.single()
             ability.options shouldBe listOf(ManaType.GREEN)
-            ability.viaSacrifice shouldBe false
+            ability.cost shouldBe persistentListOf(ManaAbilityCost.TapSelf)
             // "for each Elf **on the battlefield**": the opponent's Elves count too, which is the one
             // detail an "each Elf you control" reading would get wrong, and it would get it wrong
             // silently and downward.

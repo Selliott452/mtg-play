@@ -6,8 +6,10 @@ import dev.mtgplay.core.identity.PlayerId
 import dev.mtgplay.core.mana.Color
 import kotlinx.collections.immutable.PersistentList
 import kotlinx.collections.immutable.PersistentMap
+import kotlinx.collections.immutable.PersistentSet
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.persistentMapOf
+import kotlinx.collections.immutable.persistentSetOf
 
 /**
  * One game object (CR 109): a card existing in a zone.
@@ -102,6 +104,18 @@ import kotlinx.collections.immutable.persistentMapOf
  *   upkeep must not rebound in that same upkeep, so `mtg-rules` fires only on a strictly later turn.
  *   `null` everywhere but a rebounding exile card, and on the fresh object born of any zone move
  *   (CR 400.7); the acceptance invariant checker enforces the scope.
+ * @property manaAbilitiesActivatedThisTurn the indices of this object's **printed** mana abilities that
+ *   have been activated during the turn now in progress (CR 602.5b). Additive, flagged core
+ *   (`FW-MANACOST`). Empty for every object that has no "Activate only once each turn" mana ability —
+ *   the engine records an activation only when the ability carries the restriction, so the field stays
+ *   empty on every ordinary land and the replay fingerprint of an ordinary board does not move.
+ *
+ *   **CR 602.5b makes this a property of the object, not of its controller**: "the restriction continues
+ *   to apply to that object even if its controller changes". It is a turn-scoped battlefield quantity
+ *   like [tapped] and [damageMarked], cleared for every object as a turn begins (CR 500.1 — "each turn"
+ *   means each player's turn, so a source spent on your turn is available again on your opponent's), and
+ *   the fresh object born of any zone move carries none (CR 400.7). The acceptance invariant checker
+ *   enforces both the scope and that every recorded index names a printed mana ability.
  */
 data class GameObject(
     val id: ObjectId,
@@ -117,9 +131,14 @@ data class GameObject(
     val counters: PersistentMap<Counter, Int> = persistentMapOf(),
     val linkedExiled: PersistentList<ObjectId> = persistentListOf(),
     val reboundTurn: Int? = null,
+    val manaAbilitiesActivatedThisTurn: PersistentSet<Int> = persistentSetOf(),
 ) {
     init {
         require(damageMarked >= 0) { "CR 120.3: marked damage is non-negative, was $damageMarked" }
+        require(manaAbilitiesActivatedThisTurn.all { it >= 0 }) {
+            "CR 602.5b: a per-turn activation record indexes a printed mana ability, got " +
+                "$manaAbilitiesActivatedThisTurn"
+        }
         require(attachedTo != id) { "CR 303.4: an Aura cannot be attached to itself ($id)" }
         require(plottedTurn == null || plottedTurn >= 1) { "CR 702.140: a plotted turn is a real turn number" }
         require(reboundTurn == null || reboundTurn >= 1) { "CR 702.88a: a rebound turn is a real turn number" }

@@ -2,15 +2,16 @@ package dev.mtgplay.core.definition
 
 import dev.mtgplay.core.mana.ManaType
 import kotlinx.collections.immutable.PersistentList
+import kotlinx.collections.immutable.persistentListOf
 
 /**
- * An intrinsic activated mana ability with cost `{T}` (CR 605.1a, CR 106.11a): "tap this
- * permanent: add [amount] mana of one of [options]".
+ * An intrinsic activated mana ability (CR 605.1a, CR 106.11a): "[cost]: add [amount] mana of one of
+ * [options]".
  *
- * Activating it taps the source and adds mana of the activator's chosen option to their pool,
- * resolving immediately — no stack, no priority round (CR 605.3). A basic Mountain is
- * `ManaAbility([RED])`; an "add one mana of any color" source lists all five colors; a `{C}`
- * producer lists [ManaType.COLORLESS].
+ * Activating it pays [cost] and adds mana of the activator's chosen option to their pool, resolving
+ * immediately — no stack, no priority round (CR 605.3). A basic Mountain is
+ * `ManaAbility(persistentListOf(ManaType.RED))`; an "add one mana of any color" source lists all five
+ * colors; a `{C}` producer lists [ManaType.COLORLESS].
  *
  * **How much** one activation adds is [amount], defaulting to exactly one mana — the shape of
  * every source in the MVP pool (docs/decklists.md), which is why almost no definition names it.
@@ -37,29 +38,67 @@ import kotlinx.collections.immutable.PersistentList
  * docs/design/mana-payment.md), so definitions should list options in WUBRG-then-colorless
  * order.
  *
- * The activation cost is `{T}` by default; [viaSacrifice] flips it to "Sacrifice this permanent"
- * instead (CR 605.1a) — Malevolent Rumble's Eldrazi Spawn token, "Sacrifice this token: Add {C}". A
- * sacrifice-cost mana ability is still a mana ability (no stack, CR 605.3) and is payable during
- * payment enumeration like tap-for-mana; the engine sacrifices the source rather than tapping it, and
- * such a source is usable whether or not it is tapped. Costs beyond those two — Saruli Caretaker's
- * "{T}, Tap an untapped creature you control", Conduit Pylons' "{1}, {T}" — are still absent, and
- * are a payment-*capacity* problem rather than a production one (docs/design/mana-payment.md §9).
+ * **The cost (`FW-MANACOST`).** [cost] was a single `viaSacrifice` flag until the gauntlet printed
+ * mana abilities whose cost is neither `{T}` nor "sacrifice this": Barrels of Blasting Jelly's plain
+ * `{1}`, Giant's Boulder's `{1}, {T}`, Saruli Caretaker's "{T}, Tap an untapped creature you
+ * control", Wall of Roots' "Put a -0/-1 counter on this creature". It is now a composite list of
+ * [ManaAbilityCost] components in printed order, defaulting to the bare `{T}` every ordinary source
+ * prints, so the Eldrazi Spawn's old `viaSacrifice = true` is now
+ * `cost = persistentListOf(ManaAbilityCost.SacrificeSelf)` and nothing else moved.
+ *
+ * A mana component in that list is what makes a mana ability a *consumer* as well as a producer, and
+ * that is a payment-**capacity** problem rather than a production one: two Conduit Pylons must not
+ * fund each other's `{1}` out of nothing. What the enumerator does about it is
+ * docs/design/mana-payment.md §11.
+ *
+ * **`{T}` and sacrifice together are now expressible**, which the old `viaSacrifice` flag made
+ * impossible and the gauntlet triage records as trap **T2**: Lotus Petal's cost is "{T}, Sacrifice
+ * this artifact", not "sacrifice instead of tapping". The flag forced a choice between the two, and
+ * choosing sacrifice gave a *tapped* Lotus Petal a live mana ability. A composite list has no such
+ * either/or — `[TapSelf, SacrificeSelf]` demands an untapped source (CR 602.2a) and then removes it.
  *
  * @property options the mana types the activator may choose between, exactly one per activation;
  *   never empty, no duplicates.
- * @property viaSacrifice whether activating this ability sacrifices the source instead of tapping it
- *   (CR 605.1a) — Eldrazi Spawn's `{C}`. Additive, flagged core (P6.2a). `false` for an ordinary `{T}`
- *   mana ability.
+ * @property cost this ability's activation cost (CR 602.1, CR 605.1a), in printed order; never empty.
+ *   Additive, flagged core (`FW-MANACOST`); `[ManaAbilityCost.TapSelf]` for an ordinary source.
  * @property amount how many mana of the chosen option one activation adds (CR 605.1a, CR 605.2);
  *   [ManaAmount.Fixed] `1` for an ordinary source. Additive, flagged core (`FW-MANA`).
+ * @property oncePerTurn whether the printed text restricts this ability to one activation each turn
+ *   (CR 602.5b) — Barrels of Blasting Jelly's and Wall of Roots' "Activate only once each turn".
+ *   Additive, flagged core (`FW-MANACOST`). A restriction, not a cost: `mtg-rules` tracks the
+ *   activations per **object** (CR 602.5b: the restriction follows the object, not its controller)
+ *   and drops the ability from that object's production profile once it is spent, so a spent source
+ *   is simply not a source until the turn ends.
  */
 data class ManaAbility(
     val options: PersistentList<ManaType>,
-    val viaSacrifice: Boolean = false,
+    val cost: PersistentList<ManaAbilityCost> = persistentListOf(ManaAbilityCost.TapSelf),
     val amount: ManaAmount = ManaAmount.Fixed(1),
+    val oncePerTurn: Boolean = false,
 ) {
     init {
         require(options.isNotEmpty()) { "CR 605.1a: a mana ability adds mana; options cannot be empty" }
         require(options.distinct().size == options.size) { "mana options must be distinct, got $options" }
+        require(cost.isNotEmpty()) { "CR 602.1: an activated ability has a cost, and a mana ability is one" }
+        require(cost.distinct().size == cost.size) {
+            "CR 602.1: a composite cost names each component once, got $cost"
+        }
+        require(cost.count { it is ManaAbilityCost.Mana } <= 1) {
+            "CR 601.2g: a mana ability has at most one mana component; the payment plan records one " +
+                "assignment per activation, got $cost"
+        }
+        // The capacity model counts a source class's membership once per activation, which is only a
+        // bound if activating a member *stops* it being available. A `{T}` or sacrifice cost does that
+        // by itself; a cost that leaves the source untouched — Wall of Roots' counter, Barrels of
+        // Blasting Jelly's bare `{1}` — is bounded only by CR 602.5b, and without either the ability
+        // would be activatable without limit and no finite plan enumeration could exist.
+        require(
+            oncePerTurn ||
+                ManaAbilityCost.TapSelf in cost ||
+                ManaAbilityCost.SacrificeSelf in cost,
+        ) {
+            "CR 602.5b: a mana ability that neither taps nor sacrifices its source must be restricted " +
+                "to one activation each turn, or it could be activated without limit, got $cost"
+        }
     }
 }

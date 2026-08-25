@@ -66,9 +66,12 @@ class CounterDtoSpec :
                 .toDomain() shouldBe obj
         }
 
-        "the protocol version records the FW-COUNTERS break" {
-            // The GameObjectDto field is required, so a 5.0.0 peer's strict codec rejects every seat
-            // view. Pinned here so the bump cannot be quietly reverted.
-            PROTOCOL_VERSION shouldBe "6.0.0"
+        "the protocol version records the FW-MANACOST break" {
+            // `FW-COUNTERS` made GameObjectDto.counters required, which took the wire to 6.0.0.
+            // `FW-MANACOST` breaks it again and harder: PaymentPlanDto's SourceClassKeyDto.profile
+            // changes element type, loses `viaSacrifice`, and ManaActivationDto gains a required
+            // `costPayment` — a both-directions break in the most frequent request in a match.
+            // Pinned here so neither bump can be quietly reverted.
+            PROTOCOL_VERSION shouldBe "7.0.0"
         }
     })
