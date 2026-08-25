@@ -114,4 +114,37 @@ enum class PermanentRestriction {
      * leaving the equivalence to be rediscovered.
      */
     CREATURE_YOU_CONTROL,
+
+    /**
+     * "Target land" (CR 305). Raze, Cleansing Wildfire. Additive, flagged core (`P-ABILSOURCE`'s
+     * target-noun half).
+     *
+     * A pure question about the object, like [ARTIFACT] beside it: any land on the battlefield,
+     * whoever controls it and whatever else it also is. An **artifact land** qualifies here and under
+     * [ARTIFACT] both, because a permanent has every card type printed on it (CR 205.1a) — which is
+     * exactly the overlap Grixis Affinity's mana base exploits, and the reason this is a card-type
+     * test rather than a "nonartifact land" one.
+     *
+     * Note it is *not* narrowed by colour: a land has no mana cost and so is colourless (CR 105.2),
+     * which [RED_PERMANENT] already records from the other direction.
+     */
+    LAND,
+
+    /**
+     * "Target artifact, creature, or land **you control**" (CR 115.1b, CR 109.5) — the union noun
+     * Ghostly Flicker prints across its two targets. Additive, flagged core.
+     *
+     * Decider-relative for the same reason [CREATURE_YOU_CONTROL] is, and a **union** for a reason
+     * worth stating: "artifacts, creatures, and/or lands" is one instance of the word "target" over a
+     * disjunctive noun, not three separate restrictions. Modelling it as a union member keeps
+     * CR 601.2c's same-object rule (the two chosen targets must differ) a property of the single
+     * enumeration this produces, which is what [dev.mtgplay.core.definition.TargetCount] and
+     * `requireWellFormedTargetChoice` already enforce. Three parallel specs would need a rule about
+     * distinctness *across* them, and there is no such rule.
+     *
+     * A permanent that is two of the three at once — an artifact land, a creature land — is offered
+     * exactly once, because the enumeration maps over the battlefield rather than over the noun
+     * (CR 205.1a, and the duplicate-free guarantee `legalTargets` rests on).
+     */
+    ARTIFACT_CREATURE_OR_LAND_YOU_CONTROL,
 }

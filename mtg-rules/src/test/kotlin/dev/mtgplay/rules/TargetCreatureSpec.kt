@@ -3,6 +3,7 @@ package dev.mtgplay.rules
 import dev.mtgplay.core.definition.PermanentRestriction
 import dev.mtgplay.core.definition.TargetSpec
 import dev.mtgplay.core.state.Target
+import dev.mtgplay.rules.engine.Chooser
 import dev.mtgplay.rules.engine.legalTargets
 import io.kotest.core.spec.style.StringSpec
 import io.kotest.matchers.collections.shouldBeEmpty
@@ -35,7 +36,7 @@ class TargetCreatureSpec :
 
         "CR 115.1a: target creature enumerates exactly the creatures, in battlefield order" {
             val state = board()
-            legalTargets(state, creatureSpec, alice, self = null) shouldContainExactly
+            legalTargets(state, creatureSpec, alice, Chooser.Nobody) shouldContainExactly
                 listOf(
                     Target.Permanent(state.creatureOf("Ogre", alice).id),
                     Target.Permanent(state.creatureOf("Bear", bob).id),
@@ -44,11 +45,11 @@ class TargetCreatureSpec :
 
         "CR 115.1a: no player is a legal choice for target creature, though any-target offers both" {
             val state = board()
-            val creatureTargets = legalTargets(state, creatureSpec, alice, self = null)
+            val creatureTargets = legalTargets(state, creatureSpec, alice, Chooser.Nobody)
             creatureTargets shouldNotContain Target.Player(alice)
             creatureTargets shouldNotContain Target.Player(bob)
             // The same board under CR 115.4 does offer them — the two specs are genuinely different.
-            legalTargets(state, TargetSpec.AnyTarget, alice, self = null) shouldContain Target.Player(bob)
+            legalTargets(state, TargetSpec.AnyTarget, alice, Chooser.Nobody) shouldContain Target.Player(bob)
         }
 
         "CR 302.1: a non-creature permanent is not a legal choice for target creature" {
@@ -60,7 +61,7 @@ class TargetCreatureSpec :
                         combatObject(1, "Hex Aura", alice, attachedTo = 0),
                     ),
                 )
-            legalTargets(state, creatureSpec, alice, self = null) shouldContainExactly
+            legalTargets(state, creatureSpec, alice, Chooser.Nobody) shouldContainExactly
                 listOf(Target.Permanent(state.creatureOf("Ogre", alice).id))
         }
 
@@ -75,12 +76,12 @@ class TargetCreatureSpec :
             val aliceWarden = Target.Permanent(state.creatureOf("Warden", alice).id)
             val bobWarden = Target.Permanent(state.creatureOf("Warden", bob).id)
 
-            legalTargets(state, creatureSpec, alice, self = null) shouldContainExactly listOf(aliceWarden)
-            legalTargets(state, creatureSpec, bob, self = null) shouldContainExactly listOf(bobWarden)
+            legalTargets(state, creatureSpec, alice, Chooser.Nobody) shouldContainExactly listOf(aliceWarden)
+            legalTargets(state, creatureSpec, bob, Chooser.Nobody) shouldContainExactly listOf(bobWarden)
         }
 
         "CR 115.1a: with no creature on the battlefield target creature enumerates nothing at all" {
             // The reachable uncastable case a players-only spec never has (CR 601.2c).
-            legalTargets(keywordState(emptyList()), creatureSpec, alice, self = null).shouldBeEmpty()
+            legalTargets(keywordState(emptyList()), creatureSpec, alice, Chooser.Nobody).shouldBeEmpty()
         }
     })

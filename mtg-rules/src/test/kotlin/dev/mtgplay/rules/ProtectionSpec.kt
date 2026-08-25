@@ -3,12 +3,14 @@ package dev.mtgplay.rules
 import dev.mtgplay.core.card.Quality
 import dev.mtgplay.core.definition.EnchantRestriction
 import dev.mtgplay.core.definition.TargetSpec
+import dev.mtgplay.core.identity.CardRef
 import dev.mtgplay.core.identity.ObjectId
 import dev.mtgplay.core.mana.Color
 import dev.mtgplay.core.state.DamageSource
 import dev.mtgplay.core.state.Target
 import dev.mtgplay.rules.decision.DecisionRequest
 import dev.mtgplay.rules.effect.dealDamage
+import dev.mtgplay.rules.engine.Chooser
 import dev.mtgplay.rules.engine.StateBasedAction
 import dev.mtgplay.rules.engine.applicableStateBasedActions
 import dev.mtgplay.rules.engine.layeredCharacteristics
@@ -63,8 +65,8 @@ class ProtectionSpec :
             val red = state.creatureOf("Redcap", bob).id
             val white = state.creatureOf("Whitecap", bob).id
 
-            legalTargets(state, TargetSpec.AnyTarget, bob, self = red) shouldNotContain warder
-            legalTargets(state, TargetSpec.AnyTarget, bob, self = white) shouldContain warder
+            legalTargets(state, TargetSpec.AnyTarget, bob, Chooser.Spell(red)) shouldNotContain warder
+            legalTargets(state, TargetSpec.AnyTarget, bob, Chooser.Spell(white)) shouldContain warder
         }
 
         "CR 702.16b: protection is quality-relative, not controller-relative — your own red spell is barred too" {
@@ -75,7 +77,7 @@ class ProtectionSpec :
             val ownRed = combatObject(6, "Redcap", alice)
             val withOwnRed = keywordState(state.sharedZones.battlefield + ownRed)
 
-            legalTargets(withOwnRed, TargetSpec.AnyTarget, alice, self = ownRed.id) shouldNotContain warder
+            legalTargets(withOwnRed, TargetSpec.AnyTarget, alice, Chooser.Spell(ownRed.id)) shouldNotContain warder
         }
 
         "CR 702.16a: 'monocolored' is a characteristic, not a colour — mono sources are barred, multicolored are not" {
@@ -87,12 +89,12 @@ class ProtectionSpec :
             val colorless = state.creatureOf("Bear", alice).id
 
             // Exactly one colour: barred, whichever colour it is.
-            legalTargets(state, TargetSpec.AnyTarget, bob, self = red) shouldNotContain paladin
-            legalTargets(state, TargetSpec.AnyTarget, bob, self = white) shouldNotContain paladin
+            legalTargets(state, TargetSpec.AnyTarget, bob, Chooser.Spell(red)) shouldNotContain paladin
+            legalTargets(state, TargetSpec.AnyTarget, bob, Chooser.Spell(white)) shouldNotContain paladin
             // Two colours, and CR 105.4's no-colour-at-all: neither is monocolored. This is the
             // printed card's famous blind spot, reproduced faithfully rather than tidied up.
-            legalTargets(state, TargetSpec.AnyTarget, bob, self = hybrid) shouldContain paladin
-            legalTargets(state, TargetSpec.AnyTarget, bob, self = colorless) shouldContain paladin
+            legalTargets(state, TargetSpec.AnyTarget, bob, Chooser.Spell(hybrid)) shouldContain paladin
+            legalTargets(state, TargetSpec.AnyTarget, bob, Chooser.Spell(colorless)) shouldContain paladin
         }
 
         "CR 702.16c + CR 601.2c: an Aura with the stated quality is not offered a protected creature to enchant" {
@@ -103,17 +105,56 @@ class ProtectionSpec :
             val white = state.creatureOf("Whitecap", bob).id
 
             // The E letter at cast time is the same filter as T, which is why it costs nothing extra.
-            legalTargets(state, enchantable, bob, self = red) shouldNotContain warder
-            legalTargets(state, enchantable, bob, self = white) shouldContain warder
+            legalTargets(state, enchantable, bob, Chooser.Spell(red)) shouldNotContain warder
+            legalTargets(state, enchantable, bob, Chooser.Spell(white)) shouldContain warder
         }
 
-        "ADR-005: a protected object reached with no prospective source fails loudly rather than being offered" {
-            // The documented gap: every ability call site passes self = null (CR 702.16b's "abilities
-            // from a source with the stated quality" half has no source to read). Offering the object
-            // anyway would be a silently illegal option, so it throws instead.
+        "CR 702.16b: an *ability* is barred by its source's quality, not by the ability's own colour" {
+            // The half `P-ABILSOURCE` closed. CR 702.16b's second clause — "can't be targeted by
+            // abilities from a source with the stated quality" — reads the *source*, so a red
+            // permanent's activated or triggered ability cannot target a creature with protection
+            // from red even though the ability itself has no colour at all (CR 113.7b).
+            val state = board()
+            val warder = Target.Permanent(state.creatureOf("Warder", alice).id)
+
+            legalTargets(state, TargetSpec.AnyTarget, bob, Chooser.Ability(CardRef("Redcap"))) shouldNotContain warder
+            legalTargets(state, TargetSpec.AnyTarget, bob, Chooser.Ability(CardRef("Whitecap"))) shouldContain warder
+        }
+
+        "CR 702.16a + CR 113.7b: 'protection from monocolored' reads the ability's source, not the ability" {
+            val state = board()
+            val paladin = Target.Permanent(state.creatureOf("Paladin", alice).id)
+
+            legalTargets(state, TargetSpec.AnyTarget, bob, Chooser.Ability(CardRef("Redcap"))) shouldNotContain paladin
+            // Two colours is not monocolored (CR 105.4), whether the source is a spell or an ability.
+            legalTargets(state, TargetSpec.AnyTarget, bob, Chooser.Ability(CardRef("Hybrid"))) shouldContain paladin
+        }
+
+        "CR 113.7c: an ability's source is last known information, so a sacrificed source still bars its target" {
+            // Tinder Wall's shape: the ability's cost sacrificed its own source, so the source is no
+            // longer on the battlefield and carries a *new* object id in the graveyard (CR 400.7).
+            // [Chooser.Ability] captures the card rather than an id precisely so the CR 608.2b re-check
+            // can still answer CR 702.16b here instead of failing to find the source.
+            val state = board()
+            val warder = Target.Permanent(state.creatureOf("Warder", alice).id)
+            // A board on which no object named "Redcap" exists at all — the source is gone.
+            val sourceless =
+                keywordState(state.sharedZones.battlefield.filterNot { it.card == CardRef("Redcap") })
+
+            sourceless.sharedZones.battlefield.none { it.card == CardRef("Redcap") } shouldBe true
+            legalTargets(sourceless, TargetSpec.AnyTarget, bob, Chooser.Ability(CardRef("Redcap"))) shouldNotContain
+                warder
+        }
+
+        "ADR-005: a protected object reached with no prospective source at all fails loudly rather than being offered" {
+            // [Chooser.Nobody] is now the *only* caller that cannot answer CR 702.16b — a unit test
+            // asking what the board offers, with no spell and no ability behind the question. Before
+            // `P-ABILSOURCE` every ability site landed here by passing `self = null`, which is exactly
+            // the defect this packet removed. Offering the object anyway would be a silently illegal
+            // option, so it throws instead.
             val state = board()
             shouldThrow<IllegalStateException> {
-                legalTargets(state, TargetSpec.AnyTarget, bob, self = null)
+                legalTargets(state, TargetSpec.AnyTarget, bob, Chooser.Nobody)
             }
         }
 
@@ -124,7 +165,7 @@ class ProtectionSpec :
                 keywordState(
                     listOf(combatObject(0, "Bear", alice), combatObject(1, "Ogre", bob)),
                 )
-            legalTargets(plain, TargetSpec.AnyTarget, bob, self = null) shouldContain
+            legalTargets(plain, TargetSpec.AnyTarget, bob, Chooser.Nobody) shouldContain
                 Target.Permanent(plain.creatureOf("Bear", alice).id)
         }
 

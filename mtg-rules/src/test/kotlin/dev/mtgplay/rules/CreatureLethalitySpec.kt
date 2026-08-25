@@ -21,6 +21,7 @@ import dev.mtgplay.core.state.StackEntry
 import dev.mtgplay.core.state.Target
 import dev.mtgplay.core.state.Turn
 import dev.mtgplay.core.state.TurnPhase
+import dev.mtgplay.rules.engine.Chooser
 import dev.mtgplay.rules.engine.CreatureDeathCause
 import dev.mtgplay.rules.engine.StateBasedAction
 import dev.mtgplay.rules.engine.applicableStateBasedActions
@@ -161,9 +162,10 @@ class CreatureLethalitySpec :
                     nextObjectId = 1,
                     definitions = persistentMapOf(ref to creatureBody("Bear", 2, 2)),
                 )
-            legalTargets(state, TargetSpec.AnyTarget, alice, self = null) shouldContainExactly
+            legalTargets(state, TargetSpec.AnyTarget, alice, Chooser.Nobody) shouldContainExactly
                 listOf(Target.Player(alice), Target.Player(bob), Target.Permanent(creatureId))
-            isTargetLegal(state, TargetSpec.AnyTarget, Target.Permanent(creatureId), alice, self = null).shouldBeTrue()
+            isTargetLegal(state, TargetSpec.AnyTarget, Target.Permanent(creatureId), alice, Chooser.Nobody)
+                .shouldBeTrue()
         }
 
         "CR 608.2b: a targeted creature stops being a legal target the moment it leaves the battlefield" {
@@ -175,7 +177,7 @@ class CreatureLethalitySpec :
                     nextObjectId = 1,
                     definitions = persistentMapOf(ref to creatureBody("Bear", 2, 2)),
                 )
-            isTargetLegal(onBattlefield, TargetSpec.AnyTarget, Target.Permanent(creatureId), alice, self = null)
+            isTargetLegal(onBattlefield, TargetSpec.AnyTarget, Target.Permanent(creatureId), alice, Chooser.Nobody)
                 .shouldBeTrue()
 
             // The same creature, gone from the battlefield: no longer in the legal enumeration.
@@ -183,7 +185,8 @@ class CreatureLethalitySpec :
                 onBattlefield.copy(
                     sharedZones = onBattlefield.sharedZones.copy(battlefield = persistentListOf()),
                 )
-            isTargetLegal(gone, TargetSpec.AnyTarget, Target.Permanent(creatureId), alice, self = null).shouldBeFalse()
+            isTargetLegal(gone, TargetSpec.AnyTarget, Target.Permanent(creatureId), alice, Chooser.Nobody)
+                .shouldBeFalse()
         }
     })
 

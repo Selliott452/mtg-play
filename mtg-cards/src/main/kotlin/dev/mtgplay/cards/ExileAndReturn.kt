@@ -12,14 +12,17 @@ import dev.mtgplay.core.definition.ResolutionEffect
 import dev.mtgplay.core.definition.RevealedCardOutcome
 import dev.mtgplay.core.definition.RevealedCardRestriction
 import dev.mtgplay.core.definition.SpellDefinition
+import dev.mtgplay.core.definition.TargetCount
 import dev.mtgplay.core.definition.TargetSpec
 import dev.mtgplay.core.definition.TimingClass
 import dev.mtgplay.core.definition.TriggerCondition
 import dev.mtgplay.core.definition.TriggeredAbility
+import dev.mtgplay.core.identity.ObjectId
 import dev.mtgplay.core.mana.ManaCost
 import dev.mtgplay.core.state.Target
 import dev.mtgplay.rules.effect.exileLinkedToSource
 import dev.mtgplay.rules.effect.flickerPermanent
+import dev.mtgplay.rules.effect.flickerPermanents
 import dev.mtgplay.rules.effect.returnExiledToBattlefield
 import dev.mtgplay.rules.effect.returnExiledToOwnersHand
 import kotlinx.collections.immutable.persistentListOf
@@ -42,12 +45,14 @@ import kotlinx.collections.immutable.persistentSetOf
  *   which look alike and are opposites: the first two are the *controller* choosing from information a
  *   reveal has made public, the third is an *opponent* choosing from a hand that stays hidden.
  *
- * **Ghostly Flicker is deliberately absent.** Its oracle text is "Exile two target artifacts,
- * creatures, and/or lands you control, then return those cards to the battlefield under your control" —
- * *two* targets, which is `FW-MULTITGT`: [TargetSpec] is single-target by construction and
- * [dev.mtgplay.rules.decision.DecisionRequest.ChooseTargets] is a single-select. The blink half of it
- * is entirely expressible with [flickerPermanent]; only the cardinality is missing. Encoding it with one
- * target would be a different card (PLAN.md §7).
+ * **Ghostly Flicker arrived with `P-ABILSOURCE`**, and the note that used to stand here was wrong in
+ * one respect worth recording. It said the card was blocked *only* on cardinality and that "the blink
+ * half of it is entirely expressible with [flickerPermanent]". The cardinality half was indeed all
+ * `FW-MULTITGT` owed it — [TargetSpec.TargetPermanent] now takes a [TargetCount] and
+ * [dev.mtgplay.rules.decision.DecisionRequest.ChooseMultipleTargets] surfaces the choice — but the
+ * blink half was *not* complete: folding [flickerPermanent] over two targets exiles and returns them
+ * one at a time, and Ghostly Flicker's "then" makes both moves simultaneous. [flickerPermanents] is
+ * that missing primitive; see [ghostlyFlicker].
  */
 
 /** The resolution of a permanent spell: entering the battlefield is the whole of it (CR 608.3). */
@@ -326,4 +331,75 @@ val refurbishedFamiliar: SpellDefinition =
                         EachOpponentDiscards(count = 1, drawPerOpponentWhoCannot = 1),
                 ),
             )
+    }
+
+/** Ghostly Flicker's printed target count (CR 601.2c): exactly two, never fewer. */
+private const val GHOSTLY_FLICKER_TARGETS = 2
+
+/**
+ * Ghostly Flicker — `{2}{U}` Instant. "Exile two target artifacts, creatures, and/or lands you
+ * control, then return those cards to the battlefield under your control."
+ *
+ * The UWX Familiar deck's engine card, and the reason two separate frameworks had to land before it
+ * could be encoded honestly.
+ *
+ * **Two targets, one instance of the word "target", one union noun.** "Artifacts, creatures, and/or
+ * lands you control" is [PermanentRestriction.ARTIFACT_CREATURE_OR_LAND_YOU_CONTROL] — a single
+ * disjunctive restriction rather than three specs — with [TargetCount.Exactly] two. That shape is what
+ * makes CR 601.2c's same-object rule apply: the two chosen permanents must be *different*, which
+ * `requireWellFormedTargetChoice` enforces against one duplicate-free enumeration. Three parallel
+ * specs would need a distinctness rule spanning them, and no such rule exists.
+ *
+ * **"Exactly two", not "up to two"** — so the spell is **uncastable with fewer than two** qualifying
+ * permanents (CR 601.2c via `targetsAvailable`, which tests the spec's minimum). That is not a
+ * simplification: a lone Archaeomancer cannot be blinked by this card, and the deck's own mana base is
+ * what usually supplies the second target.
+ *
+ * **The blink is simultaneous** ([flickerPermanents]): both permanents are exiled, and only then are
+ * both returned. Folding [flickerPermanent] twice would interleave the moves, so each permanent's
+ * enters-the-battlefield triggers (CR 603.6a) would be detected while the other was in the wrong zone.
+ * The famous loop — Ghostly Flicker on Archaeomancer plus a land, the Archaeomancer returning Ghostly
+ * Flicker itself to hand — depends on that ETB re-firing, which is CR 400.7's doing rather than this
+ * card's.
+ *
+ * It is an **instant**, which is most of why the card is good: blinking in response to targeted removal
+ * makes the removal fizzle at CR 608.2b, and untapping two lands mid-combat is the rest of it.
+ */
+val ghostlyFlicker: SpellDefinition =
+    object : SpellDefinition {
+        override val characteristics =
+            PrintedCharacteristics(
+                name = "Ghostly Flicker",
+                manaCost = ManaCost.parse("{2}{U}"),
+                supertypes = persistentSetOf(),
+                cardTypes = persistentSetOf(CardType.INSTANT),
+                subtypes = persistentSetOf(),
+                powerToughness = null,
+            )
+        override val timing = TimingClass.INSTANT_SPEED
+
+        // CR 115.1b with CR 109.5: one instance of "target" over a union noun, taken exactly twice.
+        override val targetSpec =
+            TargetSpec.TargetPermanent(
+                restriction = PermanentRestriction.ARTIFACT_CREATURE_OR_LAND_YOU_CONTROL,
+                count = TargetCount.Exactly(GHOSTLY_FLICKER_TARGETS),
+            )
+        override val resolution =
+            ResolutionEffect { state, context ->
+                flickerPermanents(state, targetedPermanents(context.targets, "Ghostly Flicker"))
+            }
+    }
+
+/**
+ * The battlefield permanents a multi-target spell chose (CR 115.1b), in the order they were chosen.
+ * Fails loudly on any other target shape: CR 601.2c and the CR 608.2b re-check have both already run
+ * by resolution time, so a non-permanent target here is an engine defect (ADR-005).
+ */
+private fun targetedPermanents(
+    targets: List<Target>,
+    cardName: String,
+): List<ObjectId> =
+    targets.map { target ->
+        (target as? Target.Permanent)?.id
+            ?: error("CR 115.1b: $cardName targets permanents on the battlefield, got $target")
     }

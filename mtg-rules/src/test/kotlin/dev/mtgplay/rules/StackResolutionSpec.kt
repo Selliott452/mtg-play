@@ -8,6 +8,7 @@ import dev.mtgplay.core.state.GameObject
 import dev.mtgplay.core.state.StackEntry
 import dev.mtgplay.core.state.Target
 import dev.mtgplay.rules.decision.DecisionRequest
+import dev.mtgplay.rules.engine.Chooser
 import dev.mtgplay.rules.engine.isTargetLegal
 import dev.mtgplay.rules.engine.resolveTopOfStack
 import io.kotest.core.spec.style.StringSpec
@@ -64,10 +65,11 @@ class StackResolutionSpec :
 
         "CR 608.2b: a target that is no longer legal is detected by the re-check" {
             val state = fixtureState(aliceSetup = SeatSetup(), bobSetup = SeatSetup())
-            isTargetLegal(state, TargetSpec.AnyTarget, Target.Player(bob), alice, self = null).shouldBeTrue()
+            isTargetLegal(state, TargetSpec.AnyTarget, Target.Player(bob), alice, Chooser.Nobody).shouldBeTrue()
             // No reachable two-player state unseats a player, so the illegal case is exercised
             // directly: a target naming an unseated player is not in the legal enumeration.
-            isTargetLegal(state, TargetSpec.AnyTarget, Target.Player(PlayerId(7)), alice, self = null).shouldBeFalse()
+            isTargetLegal(state, TargetSpec.AnyTarget, Target.Player(PlayerId(7)), alice, Chooser.Nobody)
+                .shouldBeFalse()
         }
 
         "CR 608.2b: a spell whose only target is illegal on resolution fizzles to the graveyard" {

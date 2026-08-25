@@ -112,7 +112,7 @@ private fun fizzleSpell(
     // chosen mode's — Blue Elemental Blast's counter mode fizzles when its target stops being a red
     // spell, its destroy mode when its target stops being a red permanent (`FW-MODAL`).
     val spec = effectiveTargetSpec(entry.definition, entry.chosenModes)
-    if (!allTargetsIllegal(state, spec, entry.targets, entry.controller, entry.obj.id)) return null
+    if (!allTargetsIllegal(state, spec, entry.targets, entry.controller, Chooser.Spell(entry.obj.id))) return null
     val left = putResolvedSpellOffStack(state, entry)
     val fizzled =
         left.state.emit(

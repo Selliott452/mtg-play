@@ -42,7 +42,7 @@ internal fun pendingCastRequest(
                 cardObjectId = cast.cardObjectId,
                 card = card.card,
                 options =
-                    castableModes(state, definition, cast.caster, self = cast.cardObjectId)
+                    castableModes(state, definition, cast.caster, Chooser.Spell(cast.cardObjectId))
                         .map { DecisionRequest.ChooseModes.Option(it, definition.modes[it].text) },
             )
         // CR 601.2c: then targets, enumerated against the spec the settled mode put in force. The modes
@@ -62,7 +62,7 @@ internal fun pendingCastRequest(
                         state,
                         effectiveTargetSpec(definition, cast.chosenModes.orEmpty()),
                         cast.caster,
-                        self = cast.cardObjectId,
+                        Chooser.Spell(cast.cardObjectId),
                     ),
             )
         // CR 601.2b: then any additional "exile N other cards" cost selection (escape).

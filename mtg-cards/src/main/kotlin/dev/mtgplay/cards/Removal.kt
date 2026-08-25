@@ -32,12 +32,13 @@ import kotlinx.collections.immutable.persistentSetOf
  * [TargetSpec.TargetPermanent], the "target <permanent>" spec whose
  * [PermanentRestriction] carries the noun each card prints.
  *
- * Two cards of the same family are deliberately **not** here, because each needs a framework rather
- * than a primitive, and an approximation of either would be a plausible-looking wrong card
- * (PLAN.md §7):
- * - **Raze** ("As an additional cost to cast this spell, sacrifice a land. Destroy target land.")
- *   needs an [dev.mtgplay.core.definition.AdditionalCost] member for a sacrifice, which is a new
- *   enumerated choose-a-permanent decision in the casting pipeline, not a card-side composition.
+ * **Raze has since landed** — in LandDestruction.kt rather than here, because its target noun is a
+ * land (CR 305) and its family is the gauntlet's land destruction rather than its creature removal.
+ * The framework this note said it needed, an [dev.mtgplay.core.definition.AdditionalCost] member for
+ * a sacrifice, arrived with the sacrifice-cost packet and Crop Rotation.
+ *
+ * One card of the same family is deliberately **not** here, because it needs a framework rather
+ * than a primitive, and an approximation of it would be a plausible-looking wrong card (PLAN.md §7):
  * - **Cryoshatter** ("Enchant creature. Enchanted creature gets -5/-0. When enchanted creature
  *   becomes tapped or is dealt damage, destroy it.") needs two new
  *   [dev.mtgplay.core.definition.TriggerCondition] members and the detection sites to match them:

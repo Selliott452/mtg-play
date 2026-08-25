@@ -39,6 +39,7 @@ import dev.mtgplay.rules.effect.exilePermanent
 import dev.mtgplay.rules.effect.flickerPermanent
 import dev.mtgplay.rules.effect.returnExiledToBattlefield
 import dev.mtgplay.rules.effect.returnExiledToOwnersHand
+import dev.mtgplay.rules.engine.Chooser
 import dev.mtgplay.rules.engine.announceBattlefieldDeparture
 import dev.mtgplay.rules.engine.legalTargets
 import dev.mtgplay.rules.engine.resolveTopOfStack
@@ -237,9 +238,9 @@ class ExileAndReturnSpec :
             val spec = TargetSpec.TargetPermanent(PermanentRestriction.CREATURE_YOU_CONTROL)
 
             // One board, two option lists: "you" is the choosing player, not a property of the battlefield.
-            legalTargets(state, spec, alice, self = null) shouldContainExactly
+            legalTargets(state, spec, alice, Chooser.Nobody) shouldContainExactly
                 listOf(Target.Permanent(state.onePermanent(GREETER).id))
-            legalTargets(state, spec, bob, self = null) shouldContainExactly
+            legalTargets(state, spec, bob, Chooser.Nobody) shouldContainExactly
                 listOf(Target.Permanent(state.onePermanent(OX).id))
         }
 

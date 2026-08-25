@@ -4,7 +4,6 @@ import dev.mtgplay.core.definition.ResolutionEffect
 import dev.mtgplay.core.definition.SpellDefinition
 import dev.mtgplay.core.definition.SpellMode
 import dev.mtgplay.core.definition.TargetSpec
-import dev.mtgplay.core.identity.ObjectId
 import dev.mtgplay.core.identity.PlayerId
 import dev.mtgplay.core.state.GameState
 
@@ -46,16 +45,18 @@ import dev.mtgplay.core.state.GameState
  *   docs/design/countering-spells.md §1.2 warns about, and it is precisely the mistake that copying Blue
  *   Elemental Blast's shape onto Pyroblast would make.
  *
- * [self] is the object that would be cast, excluded from its own target enumeration (CR 601.2a).
+ * [chooser] is the spell that would be cast ([Chooser.Spell]), excluded from its own target enumeration
+ * (CR 601.2a) and — since a spell is its own source (CR 113.7c) — the object CR 702.16b tests a
+ * protected permanent against.
  */
 internal fun castableModes(
     state: GameState,
     definition: SpellDefinition,
     seat: PlayerId,
-    self: ObjectId?,
+    chooser: Chooser,
 ): List<Int> =
     definition.modes.indices.filter { index ->
-        targetsAvailable(state, definition.modes[index].targetSpec, seat, self)
+        targetsAvailable(state, definition.modes[index].targetSpec, seat, chooser)
     }
 
 /**
@@ -72,12 +73,12 @@ internal fun someModeIsCastable(
     state: GameState,
     definition: SpellDefinition,
     seat: PlayerId,
-    self: ObjectId?,
+    chooser: Chooser,
 ): Boolean =
     if (definition.modes.isEmpty()) {
-        targetsAvailable(state, definition.targetSpec, seat, self)
+        targetsAvailable(state, definition.targetSpec, seat, chooser)
     } else {
-        castableModes(state, definition, seat, self).isNotEmpty()
+        castableModes(state, definition, seat, chooser).isNotEmpty()
     }
 
 /**

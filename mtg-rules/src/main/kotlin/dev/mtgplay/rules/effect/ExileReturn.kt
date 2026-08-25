@@ -129,7 +129,49 @@ fun returnExiledToOwnersHand(
 fun flickerPermanent(
     state: GameState,
     objectId: ObjectId,
+): GameState = flickerPermanents(state, listOf(objectId))
+
+/**
+ * Effect primitive: flickers [objectIds] **simultaneously** — every one of them is exiled, and only
+ * then is every one returned (CR 701.3a then CR 400.7). Ghostly Flicker's "exile two target artifacts,
+ * creatures, and/or lands you control, **then** return those cards to the battlefield" composes this;
+ * [flickerPermanent] is the one-object case of it.
+ *
+ * **Two phases, not a fold of [flickerPermanent], and the difference is observable three ways.**
+ * Folding the single-object flicker would run `exile A → return A → exile B → return B`, which is a
+ * different game action:
+ * - **The board differs at each announcement.** A's enters-the-battlefield triggers (CR 603.6a) would
+ *   be detected while B is still on the battlefield, and B's departure (CR 603.6c) after A had already
+ *   come back. Ghostly Flicker's word "then" makes both departures one event and both entries another;
+ *   anything that counts permanents at either instant sees the wrong board under a fold.
+ * - **Trigger ordering.** Both entry triggers belong on the stack together, ordered by their
+ *   controller under CR 603.3b. Detecting them in two separate steps fixes their order by fold order
+ *   and never offers the choice.
+ * - **Self-reference.** An effect keyed on "another permanent you control" would see A back before B
+ *   left, which is the classic reason the rules make simultaneous zone changes simultaneous.
+ *
+ * The exile ids are collected as the first phase runs, which is why [exilePermanentReturningId] hands
+ * one back at all: an exile object carries no mark tying it to this effect, so the *caller* is what
+ * remembers the set — and it can, because no player acts between the phases.
+ *
+ * Order is preserved: the returns happen in the order the ids were given, which for a targeted spell
+ * is the order the targets were chosen, so the whole operation is deterministic (ADR-005). Duplicate
+ * ids are rejected — CR 601.2c already forbids choosing the same target twice, so a repeat here is an
+ * engine defect rather than a rules case, and the second exile of one object would fail loudly anyway.
+ */
+fun flickerPermanents(
+    state: GameState,
+    objectIds: List<ObjectId>,
 ): GameState {
-    val exiled = exilePermanentReturningId(state, objectId)
-    return returnExiledToBattlefield(exiled.state, exiled.exileId)
+    require(objectIds.distinct().size == objectIds.size) {
+        "CR 601.2c: the same permanent can't be flickered twice by one effect, got $objectIds"
+    }
+    // Phase 1 — every permanent leaves the battlefield before any of them comes back (CR 701.3a).
+    val exiled =
+        objectIds.fold(state to emptyList<ObjectId>()) { (current, ids), objectId ->
+            val moved = exilePermanentReturningId(current, objectId)
+            moved.state to ids + moved.exileId
+        }
+    // Phase 2 — and only then do they all return (CR 400.7), each as a further new object.
+    return exiled.second.fold(exiled.first, ::returnExiledToBattlefield)
 }

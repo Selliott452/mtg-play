@@ -72,9 +72,9 @@ import dev.mtgplay.core.identity.CardRef
  * an artifact, the second with flashback), [scourFromExistence] (exile any permanent), and
  * [lastBreath] (exile a small creature and give its controller life). They are the first clients of
  * the CR 701.7a destroy and CR 701.3a exile effect primitives and of "target &lt;permanent&gt;"
- * (`TargetSpec.TargetPermanent`). Two siblings are deliberately absent: Raze needs a sacrifice
- * *additional cost* — a new enumerated decision — and Cryoshatter needs trigger conditions for a
- * permanent becoming tapped or being dealt damage, which nothing in the engine watches for.
+ * (`TargetSpec.TargetPermanent`). One sibling is still absent: Cryoshatter needs trigger conditions
+ * for a permanent becoming tapped or being dealt damage, which nothing in the engine watches for.
+ * (Raze was listed here too until `P-ABILSOURCE`; it is now in LandDestruction.kt.)
  *
  * The `FW-CLAUSEHOOK` packet adds the first two cards whose *ability* carries a post-resolution clause
  * (LibraryLookCreatures.kt): [faerieSeer], whose enters-the-battlefield trigger scries 2, and
@@ -196,6 +196,7 @@ object MvpCards {
             archaeomancer,
             armadilloCloak,
             ashBarrens,
+            balustradeSpy,
             bloodFountain,
             blueElementalBlast,
             barrelsOfBlastingJelly,
@@ -235,8 +236,10 @@ object MvpCards {
             grabThePrize,
             greatFurnace,
             grizzlyBears,
+            ghostlyFlicker,
             gutShot,
             guttersnipe,
+            guardianOfTheGuildpact,
             healerOfTheGlade,
             highwayRobbery,
             hillGiant,
@@ -257,6 +260,7 @@ object MvpCards {
             lorienRevealed,
             lotlethGiant,
             makeshiftMunitions,
+            maskOfLawAndGrace,
             malevolentRumble,
             meldedMoxite,
             mentalNote,
@@ -278,6 +282,7 @@ object MvpCards {
             pulseOfMurasa,
             pursueThePast,
             rancor,
+            raze,
             reckonersBargain,
             redElementalBlast,
             refurbishedFamiliar,
@@ -298,6 +303,7 @@ object MvpCards {
             snowCoveredMountain,
             snowCoveredPlains,
             spellPierce,
+            spellstutterSprite,
             spinewoodsPaladin,
             steelSabotage,
             spiritLink,

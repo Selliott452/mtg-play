@@ -24,6 +24,7 @@ import dev.mtgplay.core.state.SharedZones
 import dev.mtgplay.core.state.Target
 import dev.mtgplay.core.state.Turn
 import dev.mtgplay.core.state.TurnPhase
+import dev.mtgplay.rules.engine.Chooser
 import dev.mtgplay.rules.engine.isTargetLegal
 import dev.mtgplay.rules.engine.legalTargets
 import io.kotest.core.spec.style.StringSpec
@@ -58,20 +59,20 @@ class GraveyardTargetingSpec :
 
         "CR 115.1/404: a 'your graveyard' spec enumerates only the deciding player's own graveyard" {
             val state = graveyardState()
-            legalTargets(state, yourInstantOrSorcery, alice, self = null) shouldContainExactly
+            legalTargets(state, yourInstantOrSorcery, alice, Chooser.Nobody) shouldContainExactly
                 listOf(
                     Target.CardInGraveyard(state.graveyardCard("Bolt Fixture", alice).id),
                     Target.CardInGraveyard(state.graveyardCard("Ritual Fixture", alice).id),
                 )
             // The very same board, decided by the other seat, names that seat's cards instead: the spec
             // is decider-relative, and the enumeration is the only thing that says so.
-            legalTargets(state, yourInstantOrSorcery, bob, self = null) shouldContainExactly
+            legalTargets(state, yourInstantOrSorcery, bob, Chooser.Nobody) shouldContainExactly
                 listOf(Target.CardInGraveyard(state.graveyardCard("Bolt Fixture", bob).id))
         }
 
         "CR 115.1/404: an 'a graveyard' spec enumerates both graveyards, in turn order" {
             val state = graveyardState()
-            legalTargets(state, anyCreatureOrLand, alice, self = null) shouldContainExactly
+            legalTargets(state, anyCreatureOrLand, alice, Chooser.Nobody) shouldContainExactly
                 listOf(
                     Target.CardInGraveyard(state.graveyardCard("Bear Fixture", alice).id),
                     Target.CardInGraveyard(state.graveyardCard("Land Fixture", alice).id),
@@ -87,16 +88,16 @@ class GraveyardTargetingSpec :
                 .getValue(artifactCreature.card)
                 .characteristics.cardTypes shouldBe persistentSetOf(CardType.ARTIFACT, CardType.CREATURE)
             // CREATURE_OR_LAND offers it on the strength of the CREATURE membership alone…
-            legalTargets(state, anyCreatureOrLand, alice, self = null) shouldContain
+            legalTargets(state, anyCreatureOrLand, alice, Chooser.Nobody) shouldContain
                 Target.CardInGraveyard(artifactCreature.id)
             // …and is not offered by INSTANT_OR_SORCERY, so the two nouns really are different predicates.
-            legalTargets(state, yourInstantOrSorcery, alice, self = null) shouldNotContain
+            legalTargets(state, yourInstantOrSorcery, alice, Chooser.Nobody) shouldNotContain
                 Target.CardInGraveyard(artifactCreature.id)
         }
 
         "CR 115.1: no player, permanent, or spell on the stack is ever a legal graveyard-card choice" {
             val state = graveyardState()
-            val targets = legalTargets(state, anyCreatureOrLand, alice, self = null)
+            val targets = legalTargets(state, anyCreatureOrLand, alice, Chooser.Nobody)
             targets shouldNotContain Target.Player(alice)
             targets shouldNotContain Target.Player(bob)
             // The board really does hold a creature the removal spec would offer — so the absence above
@@ -105,20 +106,20 @@ class GraveyardTargetingSpec :
                 state,
                 TargetSpec.TargetPermanent(PermanentRestriction.CREATURE),
                 alice,
-                self = null,
+                Chooser.Nobody,
             ) shouldContainExactly listOf(Target.Permanent(BATTLEFIELD_CREATURE_ID))
             targets shouldNotContain Target.Permanent(BATTLEFIELD_CREATURE_ID)
         }
 
         "CR 115.1: an empty graveyard enumerates nothing, so no target request is ever surfaced" {
             val state = withEmptyGraveyard(graveyardState(), alice)
-            legalTargets(state, yourInstantOrSorcery, alice, self = null).shouldBeEmpty()
+            legalTargets(state, yourInstantOrSorcery, alice, Chooser.Nobody).shouldBeEmpty()
         }
 
         "CR 400.7/608.2b: a card that has left the graveyard is no longer a legal target" {
             val state = graveyardState()
             val chosen = Target.CardInGraveyard(state.graveyardCard("Bolt Fixture", alice).id)
-            isTargetLegal(state, yourInstantOrSorcery, chosen, alice, self = null) shouldBe true
+            isTargetLegal(state, yourInstantOrSorcery, chosen, alice, Chooser.Nobody) shouldBe true
 
             // Remove it from the graveyard, as any return-to-hand or exile effect would (CR 400.7 mints a
             // fresh id in the new zone), and the stale target names nothing anywhere.
@@ -132,16 +133,16 @@ class GraveyardTargetingSpec :
                             },
                         ),
                 )
-            isTargetLegal(moved, yourInstantOrSorcery, chosen, alice, self = null) shouldBe false
+            isTargetLegal(moved, yourInstantOrSorcery, chosen, alice, Chooser.Nobody) shouldBe false
         }
 
         "CR 109.3: an undefined card ref in a graveyard is inert and is never offered" {
             val state = graveyardState()
             val inert = state.graveyardCard("Undefined Fixture", alice)
             state.definitions.containsKey(inert.card) shouldBe false
-            legalTargets(state, anyCreatureOrLand, alice, self = null) shouldNotContain
+            legalTargets(state, anyCreatureOrLand, alice, Chooser.Nobody) shouldNotContain
                 Target.CardInGraveyard(inert.id)
-            legalTargets(state, yourInstantOrSorcery, alice, self = null) shouldNotContain
+            legalTargets(state, yourInstantOrSorcery, alice, Chooser.Nobody) shouldNotContain
                 Target.CardInGraveyard(inert.id)
         }
     })

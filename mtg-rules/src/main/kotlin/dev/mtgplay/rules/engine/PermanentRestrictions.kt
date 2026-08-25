@@ -65,13 +65,17 @@ internal fun satisfiesPermanentRestriction(
         PermanentRestriction.CREATURE_POWER_2_OR_LESS ->
             isCreature && effectivePower(state, candidate.id) <= POWER_TWO_OR_LESS_LIMIT
         PermanentRestriction.ARTIFACT -> CardType.ARTIFACT in characteristics.cardTypes
+        // CR 305: any land. An artifact land satisfies this *and* [ARTIFACT] — a permanent has every
+        // card type printed on it (CR 205.1a) — which is why this is a card-type test, not an exclusion.
+        PermanentRestriction.LAND -> CardType.LAND in characteristics.cardTypes
         PermanentRestriction.RED_PERMANENT,
         PermanentRestriction.BLUE_PERMANENT,
         -> satisfiesColourRestriction(restriction, characteristics)
         PermanentRestriction.PERMANENT_YOU_CONTROL,
         PermanentRestriction.CREATURE_AN_OPPONENT_CONTROLS,
         PermanentRestriction.CREATURE_YOU_CONTROL,
-        -> satisfiesControlRestriction(restriction, candidate, you, isCreature)
+        PermanentRestriction.ARTIFACT_CREATURE_OR_LAND_YOU_CONTROL,
+        -> satisfiesControlRestriction(restriction, candidate, you, characteristics)
     }
 }
 
@@ -97,16 +101,30 @@ private fun satisfiesColourRestriction(
  * ownership in the current pool — nothing in the gauntlet changes control of a permanent
  * (docs/design/layer-system.md §4) — and these are the arms that must start reading a real controller
  * the day one does.
+ *
+ * Takes the whole [characteristics] rather than a pre-computed creature flag because
+ * [PermanentRestriction.ARTIFACT_CREATURE_OR_LAND_YOU_CONTROL] is a **union** over three card types
+ * (CR 205.1a) rather than a question about one.
  */
 private fun satisfiesControlRestriction(
     restriction: PermanentRestriction,
     candidate: GameObject,
     you: PlayerId,
-    isCreature: Boolean,
-): Boolean =
-    when (restriction) {
-        PermanentRestriction.PERMANENT_YOU_CONTROL -> candidate.owner == you
-        PermanentRestriction.CREATURE_YOU_CONTROL -> isCreature && candidate.owner == you
+    characteristics: PrintedCharacteristics,
+): Boolean {
+    val yours = candidate.owner == you
+    val isCreature = CardType.CREATURE in characteristics.cardTypes
+    return when (restriction) {
+        PermanentRestriction.PERMANENT_YOU_CONTROL -> yours
+        PermanentRestriction.CREATURE_YOU_CONTROL -> isCreature && yours
         PermanentRestriction.CREATURE_AN_OPPONENT_CONTROLS -> isCreature && candidate.owner != you
+        // CR 205.1a: a permanent has every card type printed on it, so this is a disjunction over
+        // three of them and a permanent that is two at once still satisfies it exactly once.
+        PermanentRestriction.ARTIFACT_CREATURE_OR_LAND_YOU_CONTROL ->
+            yours &&
+                characteristics.cardTypes.any {
+                    it == CardType.ARTIFACT || it == CardType.CREATURE || it == CardType.LAND
+                }
         else -> error("CR 109.5: $restriction is not a control restriction")
     }
+}

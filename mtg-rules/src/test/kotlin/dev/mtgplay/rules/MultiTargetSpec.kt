@@ -28,6 +28,7 @@ import dev.mtgplay.core.state.TurnPhase
 import dev.mtgplay.rules.decision.Decision
 import dev.mtgplay.rules.decision.DecisionRequest
 import dev.mtgplay.rules.decision.DecisionRequestId
+import dev.mtgplay.rules.engine.Chooser
 import dev.mtgplay.rules.engine.allTargetsIllegal
 import dev.mtgplay.rules.engine.legalTargets
 import dev.mtgplay.rules.engine.targetChoiceBounds
@@ -97,8 +98,8 @@ class MultiTargetSpec :
         "CR 115.1: the enumeration is the pool of choices and does not shrink or grow with the count" {
             val state = multiTargetState()
             val one = TargetSpec.CardInGraveyard(GraveyardCardRestriction.ANY_CARD, GraveyardScope.ANY)
-            legalTargets(state, one, alice, self = null) shouldContainExactly
-                legalTargets(state, upToTwoAnyCard, alice, self = null)
+            legalTargets(state, one, alice, Chooser.Nobody) shouldContainExactly
+                legalTargets(state, upToTwoAnyCard, alice, Chooser.Nobody)
         }
 
         /*
@@ -109,16 +110,16 @@ class MultiTargetSpec :
         "CR 601.2c: no target is enumerated twice, which is what makes distinct indices distinct objects" {
             val state = multiTargetState()
             listOf(
-                legalTargets(state, upToTwoAnyCard, alice, self = null),
-                legalTargets(state, upToTwoYourCreatures, alice, self = null),
-                legalTargets(state, exactlyTwoCreatures, alice, self = null),
-                legalTargets(state, TargetSpec.AnyTarget, alice, self = null),
+                legalTargets(state, upToTwoAnyCard, alice, Chooser.Nobody),
+                legalTargets(state, upToTwoYourCreatures, alice, Chooser.Nobody),
+                legalTargets(state, exactlyTwoCreatures, alice, Chooser.Nobody),
+                legalTargets(state, TargetSpec.AnyTarget, alice, Chooser.Nobody),
             ).forEach { options -> options.distinct() shouldContainExactly options }
         }
 
         "CR 404: 'from graveyards' spans both seats, so two chosen targets may sit in different ones" {
             val state = multiTargetState()
-            val options = legalTargets(state, upToTwoAnyCard, alice, self = null)
+            val options = legalTargets(state, upToTwoAnyCard, alice, Chooser.Nobody)
             // alice's three defined graveyard cards, then bob's two — the undefined ref is inert.
             options shouldHaveSize 5
             options.map { (it as Target.CardInGraveyard).id } shouldContainExactly
@@ -129,14 +130,15 @@ class MultiTargetSpec :
 
         "CR 115.1: 'target card' admits every defined graveyard card and still excludes an inert ref" {
             val state = multiTargetState()
-            val ids = legalTargets(state, upToTwoAnyCard, alice, self = null).map { (it as Target.CardInGraveyard).id }
+            val ids =
+                legalTargets(state, upToTwoAnyCard, alice, Chooser.Nobody).map { (it as Target.CardInGraveyard).id }
             // ObjectId(3) is alice's undefined ref: the engine cannot know it is a card (the P2.1 ruling).
             ids.contains(ObjectId(3)) shouldBe false
         }
 
         "CR 302: 'target creature card' excludes the land card that CREATURE_OR_LAND would admit" {
             val state = multiTargetState()
-            legalTargets(state, upToTwoYourCreatures, alice, self = null) shouldContainExactly
+            legalTargets(state, upToTwoYourCreatures, alice, Chooser.Nobody) shouldContainExactly
                 listOf(Target.CardInGraveyard(ObjectId(2)))
         }
 
@@ -145,35 +147,35 @@ class MultiTargetSpec :
         "CR 108.4: 'target permanent you control' offers each seat a different set from one battlefield" {
             val state = multiTargetState()
             val spec = TargetSpec.TargetPermanent(PermanentRestriction.PERMANENT_YOU_CONTROL)
-            legalTargets(state, spec, alice, self = null) shouldContainExactly
+            legalTargets(state, spec, alice, Chooser.Nobody) shouldContainExactly
                 listOf(Target.Permanent(ALICE_BEAR), Target.Permanent(ALICE_HEXPROOF_BEAR))
-            legalTargets(state, spec, bob, self = null) shouldContainExactly listOf(Target.Permanent(BOB_BEAR))
+            legalTargets(state, spec, bob, Chooser.Nobody) shouldContainExactly listOf(Target.Permanent(BOB_BEAR))
         }
 
         "CR 702.11: 'target permanent you control' still offers your own hexproof permanent" {
             val state = multiTargetState()
             val spec = TargetSpec.TargetPermanent(PermanentRestriction.PERMANENT_YOU_CONTROL)
-            legalTargets(state, spec, alice, self = null) shouldContainExactly
+            legalTargets(state, spec, alice, Chooser.Nobody) shouldContainExactly
                 listOf(Target.Permanent(ALICE_BEAR), Target.Permanent(ALICE_HEXPROOF_BEAR))
         }
 
         "CR 102.1: 'target creature an opponent controls' offers only the other seat's creatures" {
             val state = multiTargetState()
             val spec = TargetSpec.TargetPermanent(PermanentRestriction.CREATURE_AN_OPPONENT_CONTROLS)
-            legalTargets(state, spec, alice, self = null) shouldContainExactly listOf(Target.Permanent(BOB_BEAR))
+            legalTargets(state, spec, alice, Chooser.Nobody) shouldContainExactly listOf(Target.Permanent(BOB_BEAR))
         }
 
         "CR 702.11: an opponent's hexproof creature is not offered by 'creature an opponent controls'" {
             val state = multiTargetState()
             val spec = TargetSpec.TargetPermanent(PermanentRestriction.CREATURE_AN_OPPONENT_CONTROLS)
             // alice's hexproof Bear is bob's opponent's creature, and the targetableBy gate removes it.
-            legalTargets(state, spec, bob, self = null) shouldContainExactly listOf(Target.Permanent(ALICE_BEAR))
+            legalTargets(state, spec, bob, Chooser.Nobody) shouldContainExactly listOf(Target.Permanent(ALICE_BEAR))
         }
 
         "CR 115.1b: 'permanent you control' is not narrowed to creatures — a land you control qualifies" {
             val state = withLand(multiTargetState())
             val spec = TargetSpec.TargetPermanent(PermanentRestriction.PERMANENT_YOU_CONTROL)
-            legalTargets(state, spec, alice, self = null) shouldContainExactly
+            legalTargets(state, spec, alice, Chooser.Nobody) shouldContainExactly
                 listOf(
                     Target.Permanent(ALICE_BEAR),
                     Target.Permanent(ALICE_HEXPROOF_BEAR),
@@ -185,24 +187,24 @@ class MultiTargetSpec :
 
         "CR 601.2c: an 'up to N' object is castable with no legal target at all" {
             val state = emptyGraveyardState()
-            legalTargets(state, upToTwoAnyCard, alice, self = null).shouldBeEmpty()
-            targetsAvailable(state, upToTwoAnyCard, alice, self = null) shouldBe true
+            legalTargets(state, upToTwoAnyCard, alice, Chooser.Nobody).shouldBeEmpty()
+            targetsAvailable(state, upToTwoAnyCard, alice, Chooser.Nobody) shouldBe true
         }
 
         "CR 601.2c: an 'exactly N' object is not castable while fewer than N legal targets exist" {
             val state = multiTargetState()
             // Three creatures are on the battlefield, but alice may not target bob's hexproof-free Bear
             // *and* her own two: `exactlyTwoCreatures` needs two, which she has.
-            targetsAvailable(state, exactlyTwoCreatures, alice, self = null) shouldBe true
+            targetsAvailable(state, exactlyTwoCreatures, alice, Chooser.Nobody) shouldBe true
             val lonely = singleCreatureState()
-            legalTargets(lonely, exactlyTwoCreatures, alice, self = null) shouldHaveSize 1
-            targetsAvailable(lonely, exactlyTwoCreatures, alice, self = null) shouldBe false
+            legalTargets(lonely, exactlyTwoCreatures, alice, Chooser.Nobody) shouldHaveSize 1
+            targetsAvailable(lonely, exactlyTwoCreatures, alice, Chooser.Nobody) shouldBe false
         }
 
         "CR 601.2c: a one-target object is still gated on a single legal choice, unchanged" {
             val state = emptyGraveyardState()
             val one = TargetSpec.CardInGraveyard(GraveyardCardRestriction.ANY_CARD, GraveyardScope.ANY)
-            targetsAvailable(state, one, alice, self = null) shouldBe false
+            targetsAvailable(state, one, alice, Chooser.Nobody) shouldBe false
         }
 
         // ---- the bounds the surfaced request carries -------------------------------------------------
@@ -220,9 +222,9 @@ class MultiTargetSpec :
 
         "ADR-004: a choice with nothing to choose from is settled without surfacing a request" {
             val empty = emptyGraveyardState()
-            targetChoiceIsVacuous(empty, upToTwoAnyCard, alice, self = null) shouldBe true
-            targetChoiceIsVacuous(empty, TargetSpec.None, alice, self = null) shouldBe true
-            targetChoiceIsVacuous(multiTargetState(), upToTwoAnyCard, alice, self = null) shouldBe false
+            targetChoiceIsVacuous(empty, upToTwoAnyCard, alice, Chooser.Nobody) shouldBe true
+            targetChoiceIsVacuous(empty, TargetSpec.None, alice, Chooser.Nobody) shouldBe true
+            targetChoiceIsVacuous(multiTargetState(), upToTwoAnyCard, alice, Chooser.Nobody) shouldBe false
         }
 
         // ---- the CR 601.2c same-object rule, on the answer -------------------------------------------
@@ -278,26 +280,26 @@ class MultiTargetSpec :
          */
         "CR 608.2b: an 'up to N' object that chose no targets still resolves and does what it can" {
             val state = multiTargetState()
-            allTargetsIllegal(state, upToTwoAnyCard, emptyList(), alice, self = null) shouldBe false
+            allTargetsIllegal(state, upToTwoAnyCard, emptyList(), alice, Chooser.Nobody) shouldBe false
         }
 
         "CR 603.3d/608.2b: a required-target object with no targets does not resolve" {
             val state = multiTargetState()
             val one = TargetSpec.CardInGraveyard(GraveyardCardRestriction.ANY_CARD, GraveyardScope.ANY)
-            allTargetsIllegal(state, one, emptyList(), alice, self = null) shouldBe true
-            allTargetsIllegal(state, exactlyTwoCreatures, emptyList(), alice, self = null) shouldBe true
+            allTargetsIllegal(state, one, emptyList(), alice, Chooser.Nobody) shouldBe true
+            allTargetsIllegal(state, exactlyTwoCreatures, emptyList(), alice, Chooser.Nobody) shouldBe true
         }
 
         "CR 608.2b: an object with some legal targets resolves; only all-illegal stops it" {
             val state = multiTargetState()
             val gone = Target.CardInGraveyard(ObjectId(9_999))
             val live = Target.CardInGraveyard(ObjectId(0))
-            allTargetsIllegal(state, upToTwoAnyCard, listOf(gone, live), alice, self = null) shouldBe false
-            allTargetsIllegal(state, upToTwoAnyCard, listOf(gone), alice, self = null) shouldBe true
+            allTargetsIllegal(state, upToTwoAnyCard, listOf(gone, live), alice, Chooser.Nobody) shouldBe false
+            allTargetsIllegal(state, upToTwoAnyCard, listOf(gone), alice, Chooser.Nobody) shouldBe true
         }
 
         "CR 608.2b: an object that targets nothing never fizzles" {
-            allTargetsIllegal(multiTargetState(), TargetSpec.None, emptyList(), alice, self = null) shouldBe false
+            allTargetsIllegal(multiTargetState(), TargetSpec.None, emptyList(), alice, Chooser.Nobody) shouldBe false
         }
     })
 

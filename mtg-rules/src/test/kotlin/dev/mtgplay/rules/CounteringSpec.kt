@@ -28,6 +28,7 @@ import dev.mtgplay.core.state.TurnPhase
 import dev.mtgplay.rules.decision.Decision
 import dev.mtgplay.rules.decision.DecisionRequest
 import dev.mtgplay.rules.effect.counterSpell
+import dev.mtgplay.rules.engine.Chooser
 import dev.mtgplay.rules.engine.legalTargets
 import dev.mtgplay.rules.engine.player
 import dev.mtgplay.rules.engine.resolveTopOfStack
@@ -66,12 +67,12 @@ class CounteringSpec :
             val state =
                 stackedState(spellEntry(10, fixtureBolt, alice), abilityEntry(), spellEntry(11, fixtureComet, bob))
 
-            legalTargets(state, anySpell, alice, self = null) shouldContainExactly
+            legalTargets(state, anySpell, alice, Chooser.Nobody) shouldContainExactly
                 listOf(Target.SpellOnStack(ObjectId(10)), Target.SpellOnStack(ObjectId(11)))
         }
 
         "CR 113.7a: an ability on the stack carries no card, so no target can name it" {
-            legalTargets(stackedState(abilityEntry()), anySpell, alice, self = null).shouldBeEmpty()
+            legalTargets(stackedState(abilityEntry()), anySpell, alice, Chooser.Nobody).shouldBeEmpty()
         }
 
         "CR 601.2c: a spell is never a legal target for itself, so cast time and re-validation agree" {
@@ -79,10 +80,10 @@ class CounteringSpec :
 
             // The re-validation enumeration, with the counter already on the stack under id 11, names
             // exactly what the gathering enumeration named while the card was still in hand.
-            legalTargets(state, anySpell, bob, self = ObjectId(11)) shouldContainExactly
+            legalTargets(state, anySpell, bob, Chooser.Spell(ObjectId(11))) shouldContainExactly
                 listOf(Target.SpellOnStack(ObjectId(10)))
             // Without the exclusion the two would disagree — the counter would offer itself.
-            legalTargets(state, anySpell, bob, self = null) shouldContainExactly
+            legalTargets(state, anySpell, bob, Chooser.Nobody) shouldContainExactly
                 listOf(Target.SpellOnStack(ObjectId(10)), Target.SpellOnStack(ObjectId(11)))
         }
 
@@ -91,9 +92,9 @@ class CounteringSpec :
         "CR 205.2: OfCardType offers only spells of that type, NotOfCardType only spells without it" {
             val state = restrictionBoard()
 
-            legalTargets(state, spec(SpellRestriction.OfCardType(CardType.INSTANT)), alice, self = null)
+            legalTargets(state, spec(SpellRestriction.OfCardType(CardType.INSTANT)), alice, Chooser.Nobody)
                 .shouldContainExactly(listOf(Target.SpellOnStack(ObjectId(10)), Target.SpellOnStack(ObjectId(13))))
-            legalTargets(state, spec(SpellRestriction.NotOfCardType(CardType.CREATURE)), alice, self = null)
+            legalTargets(state, spec(SpellRestriction.NotOfCardType(CardType.CREATURE)), alice, Chooser.Nobody)
                 .shouldContainExactly(
                     listOf(
                         Target.SpellOnStack(ObjectId(10)),
@@ -107,7 +108,7 @@ class CounteringSpec :
             val artifactOrEnchantment =
                 spec(SpellRestriction.OfAnyCardType(persistentSetOf(CardType.CREATURE, CardType.SORCERY)))
 
-            legalTargets(restrictionBoard(), artifactOrEnchantment, alice, self = null) shouldContainExactly
+            legalTargets(restrictionBoard(), artifactOrEnchantment, alice, Chooser.Nobody) shouldContainExactly
                 listOf(Target.SpellOnStack(ObjectId(11)), Target.SpellOnStack(ObjectId(12)))
         }
 
@@ -115,13 +116,13 @@ class CounteringSpec :
             val state = restrictionBoard()
 
             // Bolt, Comet, and Bear are all {R}; Meditation's {1} makes it colourless (CR 105.4).
-            legalTargets(state, spec(SpellRestriction.OfColor(Color.RED)), alice, self = null) shouldContainExactly
+            legalTargets(state, spec(SpellRestriction.OfColor(Color.RED)), alice, Chooser.Nobody) shouldContainExactly
                 listOf(
                     Target.SpellOnStack(ObjectId(10)),
                     Target.SpellOnStack(ObjectId(11)),
                     Target.SpellOnStack(ObjectId(12)),
                 )
-            legalTargets(state, spec(SpellRestriction.OfColor(Color.BLUE)), alice, self = null).shouldBeEmpty()
+            legalTargets(state, spec(SpellRestriction.OfColor(Color.BLUE)), alice, Chooser.Nobody).shouldBeEmpty()
         }
 
         "ADR-005: a counter with no legal spell on the stack is not enumerated at all" {
@@ -322,11 +323,11 @@ class CounteringSpec :
 
         "CR 115.1: a noncreature-restricted counter cannot target a creature spell at all" {
             val state = stackedState(spellEntry(10, fixtureBear, alice))
-            legalTargets(state, fixturePierce.targetSpec, bob, self = null).shouldBeEmpty()
-            legalTargets(state, fixtureNegate.targetSpec, bob, self = null).shouldBeEmpty()
+            legalTargets(state, fixturePierce.targetSpec, bob, Chooser.Nobody).shouldBeEmpty()
+            legalTargets(state, fixtureNegate.targetSpec, bob, Chooser.Nobody).shouldBeEmpty()
             // …while the unrestricted counter and an artifact-or-enchantment one differ on the same board.
-            legalTargets(state, fixtureCounter.targetSpec, bob, self = null) shouldHaveSize 1
-            legalTargets(state, fixtureAnnul.targetSpec, bob, self = null).shouldBeEmpty()
+            legalTargets(state, fixtureCounter.targetSpec, bob, Chooser.Nobody) shouldHaveSize 1
+            legalTargets(state, fixtureAnnul.targetSpec, bob, Chooser.Nobody).shouldBeEmpty()
         }
     })
 

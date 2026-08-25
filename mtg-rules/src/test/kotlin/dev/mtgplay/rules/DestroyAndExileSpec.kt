@@ -24,6 +24,7 @@ import dev.mtgplay.core.state.Turn
 import dev.mtgplay.core.state.TurnPhase
 import dev.mtgplay.rules.effect.destroy
 import dev.mtgplay.rules.effect.exilePermanent
+import dev.mtgplay.rules.engine.Chooser
 import dev.mtgplay.rules.engine.legalTargets
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.StringSpec
@@ -187,7 +188,7 @@ class DestroyAndExileSpec :
                 )
 
             val creatures = TargetSpec.TargetPermanent(PermanentRestriction.CREATURE)
-            legalTargets(state, creatures, alice, self = null) shouldContainExactly
+            legalTargets(state, creatures, alice, Chooser.Nobody) shouldContainExactly
                 listOf(Target.Permanent(ObjectId(0)), Target.Permanent(ObjectId(1)))
         }
 
@@ -202,7 +203,7 @@ class DestroyAndExileSpec :
                 )
 
             val spec = TargetSpec.TargetPermanent(PermanentRestriction.NONLEGENDARY_CREATURE)
-            legalTargets(state, spec, alice, self = null) shouldContainExactly listOf(Target.Permanent(ObjectId(0)))
+            legalTargets(state, spec, alice, Chooser.Nobody) shouldContainExactly listOf(Target.Permanent(ObjectId(0)))
         }
 
         "CR 301: 'target artifact' enumerates artifacts — an indestructible one included" {
@@ -219,7 +220,7 @@ class DestroyAndExileSpec :
             // CR 702.12b restricts destruction, never targeting: an indestructible artifact is a
             // perfectly legal target that the destroy then does nothing to.
             val artifacts = TargetSpec.TargetPermanent(PermanentRestriction.ARTIFACT)
-            legalTargets(state, artifacts, alice, self = null) shouldContainExactly
+            legalTargets(state, artifacts, alice, Chooser.Nobody) shouldContainExactly
                 listOf(Target.Permanent(ObjectId(1)), Target.Permanent(ObjectId(2)))
         }
 
@@ -235,7 +236,7 @@ class DestroyAndExileSpec :
                 )
 
             val spec = TargetSpec.TargetPermanent(PermanentRestriction.ANY_PERMANENT)
-            legalTargets(state, spec, alice, self = null) shouldContainExactly
+            legalTargets(state, spec, alice, Chooser.Nobody) shouldContainExactly
                 listOf(Target.Permanent(ObjectId(0)), Target.Permanent(ObjectId(1)), Target.Permanent(ObjectId(2)))
         }
 
@@ -248,7 +249,7 @@ class DestroyAndExileSpec :
                 )
 
             // The Ent's printed power is 2 (legal); the Ogre's is 3 (illegal).
-            legalTargets(bare, spec, alice, self = null) shouldContainExactly listOf(Target.Permanent(ObjectId(0)))
+            legalTargets(bare, spec, alice, Chooser.Nobody) shouldContainExactly listOf(Target.Permanent(ObjectId(0)))
 
             // CR 613 sublayer 7c: a +2/+2 Aura takes the Ent to power 4 and it stops being a legal
             // target — the CR 608.2b re-check a pump-in-response wins with (trap T14). Reading
@@ -262,7 +263,7 @@ class DestroyAndExileSpec :
                             GameObject(ObjectId(2), CLOAK, alice, attachedTo = ObjectId(0)),
                         ),
                 )
-            legalTargets(enchanted, spec, alice, self = null).shouldBeEmpty()
+            legalTargets(enchanted, spec, alice, Chooser.Nobody).shouldBeEmpty()
         }
 
         "CR 702.11: hexproof keeps a creature out of an opponent's permanent-target enumeration" {
@@ -274,8 +275,8 @@ class DestroyAndExileSpec :
             val spec = TargetSpec.TargetPermanent(PermanentRestriction.CREATURE)
 
             // Alice may not target bob's hexproof Sprite; bob targets his own freely (CR 702.11).
-            legalTargets(state, spec, alice, self = null) shouldContainExactly listOf(Target.Permanent(ObjectId(0)))
-            legalTargets(state, spec, bob, self = null) shouldContainExactly
+            legalTargets(state, spec, alice, Chooser.Nobody) shouldContainExactly listOf(Target.Permanent(ObjectId(0)))
+            legalTargets(state, spec, bob, Chooser.Nobody) shouldContainExactly
                 listOf(Target.Permanent(ObjectId(0)), Target.Permanent(ObjectId(1)))
         }
     })

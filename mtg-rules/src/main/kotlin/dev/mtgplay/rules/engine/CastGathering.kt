@@ -100,7 +100,8 @@ private fun initialTargetsFor(
     spec: TargetSpec,
     caster: PlayerId,
     self: ObjectId,
-): PersistentList<Target>? = if (targetChoiceIsVacuous(state, spec, caster, self)) persistentListOf() else null
+): PersistentList<Target>? =
+    if (targetChoiceIsVacuous(state, spec, caster, Chooser.Spell(self))) persistentListOf() else null
 
 /**
  * Records the chosen mode on the open [PendingCast] (CR 601.2b, CR 700.2) and suspends for whatever the

@@ -88,4 +88,65 @@ sealed interface SpellRestriction {
     data class OfColor(
         val color: Color,
     ) : SpellRestriction
+
+    /**
+     * "Counter target spell with mana value X or less" (CR 115.1, CR 202.3). Spellstutter Sprite.
+     * Additive, flagged core (`P-ABILSOURCE`'s target-noun half).
+     *
+     * **The first restriction whose bound is computed from the board rather than printed**, which is
+     * why it takes a [ManaValueBound] instead of an `Int`. Spellstutter Sprite's X is "the number of
+     * Faeries you control", so the same ability offers a different option list on every board and to
+     * every seat — and the bound must be re-read at the CR 608.2b re-check, not cached from the
+     * CR 603.3d choice, because a Faerie dying in response genuinely makes an already-chosen target
+     * illegal. Routing the answer through the enumeration is what gets that for free (ADR-005).
+     *
+     * **Mana value is the *spell's*, not the card's, wherever the two differ** — but they do not
+     * differ for cost: CR 202.3b is explicit that an alternative or additional cost does not change
+     * mana value, so a Fiery Temper cast for its madness cost is still mana value 3. X in a *cost* on
+     * the stack would be a real divergence, and no card in the gauntlet prints one.
+     *
+     * @property bound the inclusive upper bound on the target spell's mana value.
+     */
+    data class OfManaValueAtMost(
+        val bound: ManaValueBound,
+    ) : SpellRestriction
+}
+
+/**
+ * The upper bound of a [SpellRestriction.OfManaValueAtMost] (CR 202.3) — a printed number, or one
+ * counted off the board as the restriction is evaluated.
+ *
+ * Separate from [CostReduction] despite reusing its [CountScope]/[ObjectPredicate] counting vocabulary,
+ * because the two answer different questions at different times: a cost reduction is read once at
+ * CR 601.2f and fixes a cost, while this is read at every target enumeration and can change between the
+ * choice and the resolution. Sharing the *nouns* and not the *type* is what keeps that distinction
+ * visible.
+ */
+sealed interface ManaValueBound {
+    /** A printed number: "with mana value 2 or less" (Prohibit's first mode). */
+    data class Fixed(
+        val value: Int,
+    ) : ManaValueBound {
+        init {
+            require(value >= 0) { "CR 202.3: a mana value bound is non-negative, was $value" }
+        }
+    }
+
+    /**
+     * "…where X is the number of \[objects] you control" — Spellstutter Sprite's "the number of Faeries
+     * you control", counted at the moment the restriction is evaluated.
+     *
+     * **The source counts itself** where it matches, and no exclusion parameter exists to prevent it:
+     * Spellstutter Sprite is a Faerie and is on the battlefield when its own enters-the-battlefield
+     * trigger chooses targets (CR 603.6a fires *after* it enters), so a lone Sprite counters a
+     * one-drop. That is the printed card, and it is the opposite of the cast-time cost reduction, which
+     * *must* exclude the card being cast because that card is not yet on the battlefield.
+     *
+     * @property scope which zone the objects are counted in.
+     * @property predicate which objects in that zone count.
+     */
+    data class PerMatching(
+        val scope: CountScope,
+        val predicate: ObjectPredicate,
+    ) : ManaValueBound
 }
