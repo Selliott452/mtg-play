@@ -111,6 +111,39 @@ interface ResolutionClauses {
      * for why the permanents are chosen here, mid-resolution, rather than as targets.
      */
     val permanentSelection: PermanentSelection? get() = null
+
+    /**
+     * An optional "you may pay [OptionalManaThenDraw.cost]; if you do, draw N" clause (CR 601.3b), or
+     * `null` for a definition with none. Nihil Spellbomb's dies trigger. Additive, flagged core
+     * (`W8-D`).
+     *
+     * The first clause whose payment is **mana** rather than an object the player already holds — see
+     * [OptionalManaThenDraw] for why that makes it a clause of its own rather than an
+     * [OptionalCostMode] of [optionalCostThenDraw].
+     */
+    val optionalManaThenDraw: OptionalManaThenDraw? get() = null
+
+    /**
+     * A "target player exiles a card from their graveyard" clause (CR 701.3a), or `null` for a
+     * definition with none. Relic of Progenitus'. Additive, flagged core (`W8-D`).
+     *
+     * The **second** clause whose decider is not the resolving object's controller, after
+     * [eachOpponentDiscards], and the first whose decider is named by one of the object's own targets —
+     * so unlike that one it may perfectly well be the controller, when the ability is pointed at its own
+     * side. See [TargetPlayerExilesFromGraveyard].
+     */
+    val targetPlayerExilesFromGraveyard: TargetPlayerExilesFromGraveyard? get() = null
+
+    /**
+     * A "choose a card type, reveal the top N, put all of that type into your hand and the rest into
+     * your graveyard" clause (CR 701.16, CR 609.4), or `null` for a definition with none. Winding Way's.
+     * Additive, flagged core (`W8-D`).
+     *
+     * The sibling of [libraryReveal] and deliberately not a mode of it: the type is chosen **as the
+     * spell resolves** rather than as it is cast, and the keep is *mandatory* rather than "up to". See
+     * [ChosenTypeReveal] for both arguments in full.
+     */
+    val chosenTypeReveal: ChosenTypeReveal? get() = null
 }
 
 /**
@@ -130,6 +163,9 @@ val ResolutionClauses.declaredClauses: List<Any>
             eachOpponentDiscards,
             optionalDraw,
             permanentSelection,
+            optionalManaThenDraw,
+            targetPlayerExilesFromGraveyard,
+            chosenTypeReveal,
         )
 
 /**

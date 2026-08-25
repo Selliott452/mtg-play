@@ -28,6 +28,9 @@ internal fun singleOptionMenu(
         is DecisionRequest.ChooseLibraryArrangement -> libraryArrangementMenu(request)
         is DecisionRequest.ChooseCounterPayment -> counterPaymentMenu(request)
         is DecisionRequest.ChooseRevealedHandCard -> revealedHandMenu(request)
+        is DecisionRequest.ChooseOptionalManaPayment -> optionalManaPaymentMenu(request)
+        is DecisionRequest.ChooseGraveyardCardToExile -> graveyardExileMenu(request)
+        is DecisionRequest.ChooseRevealedCardType -> revealedCardTypeMenu(request)
     }
 
 /**

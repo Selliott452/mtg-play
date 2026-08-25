@@ -71,4 +71,15 @@ enum class RevealedCardFilter {
 
     /** A creature card (CR 302.1) — Lead the Stampede's "any number of creature cards". */
     CREATURE_CARD,
+
+    /**
+     * A land card (CR 305.1) — the second half of Winding Way's "Choose creature or land". Additive
+     * (`W8-D`).
+     *
+     * Narrower than [PERMANENT_CARD] and not a reuse of it: an artifact card is a permanent card and is
+     * not a land card, so a Winding Way naming "land" must leave it in the graveyard. A *land creature*
+     * would satisfy both members, which is correct — a card has a set of types, and Winding Way's
+     * "cards of the chosen type" reads that set.
+     */
+    LAND_CARD,
 }

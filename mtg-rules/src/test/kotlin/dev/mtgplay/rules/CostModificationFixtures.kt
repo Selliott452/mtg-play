@@ -13,6 +13,7 @@ import dev.mtgplay.core.definition.CountScope
 import dev.mtgplay.core.definition.ManaAbility
 import dev.mtgplay.core.definition.ObjectPredicate
 import dev.mtgplay.core.definition.ResolutionEffect
+import dev.mtgplay.core.definition.SacrificeFilter
 import dev.mtgplay.core.definition.SacrificeRequirement
 import dev.mtgplay.core.definition.SpellCostReduction
 import dev.mtgplay.core.definition.SpellDefinition
@@ -192,7 +193,7 @@ internal val fixtureTithe: SpellDefinition =
             listOf(
                 CastingPermission.AlternativeCost(
                     cost = ManaCost.parse("{4}{U}"),
-                    sacrifice = SacrificeRequirement(1, FIXTURE_RELIC_TYPE),
+                    sacrifice = SacrificeRequirement(1, SacrificeFilter(subtype = FIXTURE_RELIC_TYPE)),
                 ),
             )
     }

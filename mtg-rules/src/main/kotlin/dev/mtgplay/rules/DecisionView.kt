@@ -171,6 +171,25 @@ enum class DecisionRequestKind {
      * seat may see; its **options** are never projected to anyone but the deciding seat (ADR-007).
      */
     CHOOSE_OPPONENT_DISCARDS,
+
+    /**
+     * [DecisionRequest.ChooseOptionalManaPayment] — an optional "you may pay {cost}; if you do, draw"
+     * clause (CR 601.3b), answered by the resolving object's controller.
+     */
+    CHOOSE_OPTIONAL_MANA_PAYMENT,
+
+    /**
+     * [DecisionRequest.ChooseGraveyardCardToExile] — a "target player exiles a card from their
+     * graveyard" choice (CR 701.3a), made by the **targeted** player. The kind an opposing seat may see,
+     * options included: a graveyard is a public zone (CR 400.2), so nothing here needs ADR-007 hiding.
+     */
+    CHOOSE_GRAVEYARD_CARD_TO_EXILE,
+
+    /**
+     * [DecisionRequest.ChooseRevealedCardType] — a resolution-time "choose creature or land" (CR 609.4),
+     * answered by the resolving spell's controller before anything is revealed.
+     */
+    CHOOSE_REVEALED_CARD_TYPE,
 }
 
 /**
@@ -211,6 +230,9 @@ private fun singleOptionSelectionKind(request: DecisionRequest.SingleOptionSelec
         is DecisionRequest.ChooseLibraryArrangement -> DecisionRequestKind.CHOOSE_LIBRARY_ARRANGEMENT
         is DecisionRequest.ChooseCounterPayment -> DecisionRequestKind.CHOOSE_COUNTER_PAYMENT
         is DecisionRequest.ChooseRevealedHandCard -> DecisionRequestKind.CHOOSE_REVEALED_HAND_CARD
+        is DecisionRequest.ChooseOptionalManaPayment -> DecisionRequestKind.CHOOSE_OPTIONAL_MANA_PAYMENT
+        is DecisionRequest.ChooseGraveyardCardToExile -> DecisionRequestKind.CHOOSE_GRAVEYARD_CARD_TO_EXILE
+        is DecisionRequest.ChooseRevealedCardType -> DecisionRequestKind.CHOOSE_REVEALED_CARD_TYPE
     }
 
 /** The kind of one fixed-size subset selection (CR 514.1 / 601.2b/h / 602.2b). */

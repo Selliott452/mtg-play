@@ -386,6 +386,13 @@ class MvpCardsSpec :
                     CardRef("Wild Growth"),
                     CardRef("Wind Drake"),
                     CardRef("Youthful Knight"),
+                    // W8-D: card advantage and graveyard artifacts.
+                    CardRef("Mulldrifter"),
+                    CardRef("Winding Way"),
+                    CardRef("Dread Return"),
+                    CardRef("Nihil Spellbomb"),
+                    CardRef("Relic of Progenitus"),
+                    CardRef("Reckless Impulse"),
                 )
             MvpCards.definitions.forEach { (ref, definition) ->
                 definition.characteristics.name shouldBe ref.name

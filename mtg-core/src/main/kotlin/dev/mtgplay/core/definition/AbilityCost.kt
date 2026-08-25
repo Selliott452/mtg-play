@@ -25,6 +25,26 @@ sealed interface AbilityCost {
     data object SacrificeSelf : AbilityCost
 
     /**
+     * Exile the source permanent (CR 701.3a) — Relic of Progenitus' "{1}, Exile this artifact:".
+     * Additive, flagged core (`W8-D`).
+     *
+     * **[SacrificeSelf]'s sibling, and where the permanent *goes* is the whole difference** — the same
+     * argument [ReturnPermanentYouControl] makes against being folded into [Sacrifice]. A sacrificed
+     * permanent lands in its owner's graveyard, where it is recurrable, counts for a graveyard-reading
+     * cost, and can fire a dies trigger; an exiled one is gone. On this very card the distinction is
+     * load-bearing in a way an approximation would hide: Relic of Progenitus' own ability exiles *all*
+     * graveyards, so a Relic that sacrificed itself would put itself into a graveyard it is about to
+     * empty — an ordering question that simply does not arise, because the printed cost exiles.
+     *
+     * The cost is paid at CR 602.2b, so the source is already in exile when the ability resolves. That is
+     * observable: an ability of the source that reads the battlefield finds nothing there, and no
+     * leaves-the-battlefield *dies* trigger fires, because the permanent did not go to a graveyard
+     * (CR 603.6b). A CR 603.6c leaves-the-battlefield trigger would still fire; no card in the pool
+     * prints one on an exiling source.
+     */
+    data object ExileSelf : AbilityCost
+
+    /**
      * Discard the source card itself (CR 701.8) — the cost of a hand-functioning ability like Ash
      * Barrens' basic landcycling "{1}, Discard this card". The source leaves the hand for the graveyard
      * as the cost is paid, and the ability's effect then functions from having been so discarded.

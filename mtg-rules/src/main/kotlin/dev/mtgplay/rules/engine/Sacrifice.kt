@@ -33,6 +33,26 @@ internal fun sacrificePermanents(
     return clearCombatReferences(sacrificed, objectIds.toSet())
 }
 
+/**
+ * Sacrifices the battlefield permanent [objectId] under its own controller's control (CR 701.17a,
+ * CR 701.17b) — the *effect*-side entry point [dev.mtgplay.rules.effect.sacrificePermanent] publishes,
+ * as distinct from [sacrificePermanents]' cost-side one.
+ *
+ * A permanent that is no longer on the battlefield is a **no-op**: an effect that says "sacrifice it"
+ * legitimately resolves after its subject has gone (CR 603.10), unlike a cost, which was checked before
+ * it was ever offered. Everything else — the CR 400.7 move, the CR 603.6b trigger, the CR 506.4 combat
+ * release — is [sacrificeOnePermanent]'s, unchanged, so the two paths cannot drift.
+ */
+internal fun sacrificeControlledPermanent(
+    state: GameState,
+    objectId: ObjectId,
+): GameState {
+    val permanent = state.sharedZones.battlefield.firstOrNull { it.id == objectId } ?: return state
+    // CR 701.17b: only the permanent's own controller may sacrifice it; control is ownership here.
+    val sacrificed = sacrificeOnePermanent(state, permanent.owner, objectId)
+    return clearCombatReferences(sacrificed, setOf(objectId))
+}
+
 private fun sacrificeOnePermanent(
     state: GameState,
     player: PlayerId,

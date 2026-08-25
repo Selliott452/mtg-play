@@ -118,6 +118,9 @@ private fun singleOptionSelectionToDto(request: DecisionRequest.SingleOptionSele
         is DecisionRequest.ChooseCounterPayment,
         is DecisionRequest.ChooseRevealedHandCard,
         is DecisionRequest.ChooseLibraryArrangement,
+        is DecisionRequest.ChooseOptionalManaPayment,
+        is DecisionRequest.ChooseGraveyardCardToExile,
+        is DecisionRequest.ChooseRevealedCardType,
         -> laterSingleOptionSelectionToDto(request)
     }
 
@@ -147,6 +150,28 @@ private fun laterSingleOptionSelectionToDto(request: DecisionRequest.SingleOptio
                 request.prompt,
                 request.pool.map { cardOption(it.objectId, it.card) },
                 request.options.map { LibraryArrangementDto(it.toHand, it.toTop, it.toBottom) },
+            )
+        is DecisionRequest.ChooseOptionalManaPayment ->
+            DecisionRequestDto.ChooseOptionalManaPayment(
+                request.id.toDto(),
+                request.sourceCard.name,
+                request.cost.render(),
+                request.drawCount,
+                request.options.map { it.toDto() },
+            )
+        is DecisionRequest.ChooseGraveyardCardToExile ->
+            DecisionRequestDto.ChooseGraveyardCardToExile(
+                request.id.toDto(),
+                request.controller.seat,
+                request.sourceCard.name,
+                request.options.map { cardOption(it.objectId, it.card) },
+            )
+        is DecisionRequest.ChooseRevealedCardType ->
+            DecisionRequestDto.ChooseRevealedCardType(
+                request.id.toDto(),
+                request.sourceCard.name,
+                request.revealCount,
+                request.options.map { it.name },
             )
         else -> error("not a later single-option request: $request")
     }

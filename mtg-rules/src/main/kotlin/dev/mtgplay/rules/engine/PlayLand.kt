@@ -1,5 +1,6 @@
 package dev.mtgplay.rules.engine
 
+import dev.mtgplay.core.definition.CastSource
 import dev.mtgplay.core.event.GameEvent
 import dev.mtgplay.core.identity.ObjectId
 import dev.mtgplay.core.identity.PlayerId
@@ -39,11 +40,12 @@ internal fun executePlayLand(
     state: GameState,
     player: PlayerId,
     cardObjectId: ObjectId,
+    source: CastSource = CastSource.HAND,
 ): AdvanceResult {
-    val hand = state.player(player).hand
-    val index = hand.indexOfFirst { it.id == cardObjectId }
-    require(index >= 0) { "CR 115.2a: object $cardObjectId is not in $player's hand" }
-    val card = hand[index]
+    val zone = objectsInZone(state, player, source)
+    val index = zone.indexOfFirst { it.id == cardObjectId }
+    require(index >= 0) { "CR 115.2a: object $cardObjectId is not in $player's $source zone" }
+    val card = zone[index]
     val definition = state.definitions[card.card]
     require(definition.isLand()) {
         "CR 305.1: ${card.card.name} is not a defined land card; enumeration must not have offered it (ADR-005)"
@@ -56,10 +58,13 @@ internal fun executePlayLand(
     // the card's own CR 614.1c "this land enters tapped" replacement says otherwise — read here,
     // against the battlefield the land has not yet joined, so a conditional clause's count is over
     // the *other* permanents (Gingerbread Cabin).
-    val land = card.copy(id = id, tapped = entersTappedNow(allocated, player, definition))
+    // CR 400.7 again: the play permission that let this land be played from exile does not survive
+    // the move — the battlefield object is a new object, and a land that later returns to exile is
+    // not still playable.
+    val land = card.copy(id = id, tapped = entersTappedNow(allocated, player, definition), playGrantedTurn = null)
     val played =
         allocated
-            .updatePlayer(player) { it.copy(hand = it.hand.removingAt(index)) }
+            .let { removePlayedLandFromSource(it, player, source, cardObjectId) }
             .copy(turn = allocated.turn.copy(landsPlayedThisTurn = allocated.turn.landsPlayedThisTurn + 1))
             .let { it.copy(sharedZones = it.sharedZones.copy(battlefield = it.sharedZones.battlefield.adding(land))) }
             // CR 603.6a: narrating the entry and firing the land's own enters-the-battlefield
@@ -67,3 +72,29 @@ internal fun executePlayLand(
             .let { announceBattlefieldEntry(it, id, GameEvent.LandPlayed(player, id, card.card)) }
     return priorityTo(clearPriorityRound(played), player)
 }
+
+/**
+ * Removes the played land [cardObjectId] from the [source] zone it was played from (CR 400.7) — the
+ * hand for an ordinary land drop, exile for a land an effect granted permission to play (Reckless
+ * Impulse). Additive (`W8-D`).
+ *
+ * A graveyard source is unreachable and fails loudly rather than being silently supported: no card in
+ * the pool grants permission to play a land from a graveyard, and a branch that quietly handled one
+ * would be an untested path pretending to be a tested one.
+ */
+private fun removePlayedLandFromSource(
+    state: GameState,
+    player: PlayerId,
+    source: CastSource,
+    cardObjectId: ObjectId,
+): GameState =
+    when (source) {
+        CastSource.HAND ->
+            state.updatePlayer(player) { p ->
+                p.copy(hand = p.hand.removingAt(p.hand.indexOfFirst { it.id == cardObjectId }))
+            }
+        CastSource.EXILE ->
+            state.updateExile { exile -> exile.removingAt(exile.indexOfFirst { it.id == cardObjectId }) }
+        CastSource.GRAVEYARD ->
+            error("CR 305.1: no pool card plays a land from a graveyard, but $cardObjectId was")
+    }

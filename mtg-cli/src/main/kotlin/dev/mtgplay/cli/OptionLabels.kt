@@ -39,6 +39,7 @@ private fun permissionName(permission: CastingPermission): String =
     when (permission) {
         is CastingPermission.Madness -> "madness ${permission.cost.render()}"
         is CastingPermission.Flashback -> "flashback ${permission.cost.render()}"
+        is CastingPermission.Evoke -> "evoke ${permission.cost.render()}"
         is CastingPermission.Escape -> "escape ${permission.cost.render()}, exile ${permission.exileOthers} other"
         is CastingPermission.AlternativeCost -> "alternative cost ${permission.cost.render()}"
         is CastingPermission.Plot -> "plot (no mana cost)"

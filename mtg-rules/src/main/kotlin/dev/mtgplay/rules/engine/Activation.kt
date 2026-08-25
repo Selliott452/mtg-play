@@ -141,7 +141,12 @@ private fun componentPayable(
             ability.zoneScope == AbilityZoneScope.Battlefield &&
                 !source.tapped &&
                 !(isCreature(state, source) && source.summoningSick && !hasHaste(state, source.id))
-        AbilityCost.SacrificeSelf -> ability.zoneScope == AbilityZoneScope.Battlefield
+        // CR 701.17 / CR 701.3a: sacrificing and exiling the source ask the identical question — is it
+        // on the battlefield? Unlike `{T}`, neither tapped status nor summoning sickness bears on
+        // either, and where the permanent *goes* is a payment concern, not a payability one.
+        AbilityCost.SacrificeSelf,
+        AbilityCost.ExileSelf,
+        -> ability.zoneScope == AbilityZoneScope.Battlefield
         AbilityCost.DiscardSelf -> ability.zoneScope == AbilityZoneScope.Hand
         AbilityCost.DiscardACard -> discardableForAbility(state, seat, source, ability.zoneScope).isNotEmpty()
         // CR 602.1 with CR 701.17: at least one permanent both matches the filter and leaves the

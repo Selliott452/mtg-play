@@ -1,5 +1,6 @@
 package dev.mtgplay.protocol
 
+import dev.mtgplay.core.definition.RevealedCardFilter
 import dev.mtgplay.core.identity.CardRef
 import dev.mtgplay.core.identity.ObjectId
 import dev.mtgplay.core.identity.PlayerId
@@ -74,7 +75,51 @@ internal fun singleOptionSelectionToDomain(dto: DecisionRequestDto.SingleOptionS
                 CardRef(dto.sourceCard),
                 dto.options.mapOptions { o, c -> DecisionRequest.ChooseRevealedHandCard.Option(o, c) },
             )
+        is DecisionRequestDto.ChooseOptionalManaPayment -> optionalManaPaymentToDomain(dto)
+        is DecisionRequestDto.ChooseGraveyardCardToExile -> graveyardExileToDomain(dto)
+        is DecisionRequestDto.ChooseRevealedCardType -> revealedCardTypeToDomain(dto)
     }
+
+/**
+ * An optional pay-then-draw clause's payment choice (CR 601.3b) back to the engine value. Its own
+ * function for [paymentPlanToDomain]'s reason: the family sits at detekt's length budget.
+ */
+private fun optionalManaPaymentToDomain(
+    dto: DecisionRequestDto.ChooseOptionalManaPayment,
+): DecisionRequest.ChooseOptionalManaPayment =
+    DecisionRequest.ChooseOptionalManaPayment(
+        dto.id.toDomain(),
+        CardRef(dto.sourceCard),
+        ManaCost.parse(dto.cost),
+        dto.drawCount,
+        dto.options.map { it.toOptionalManaPaymentOption() },
+    )
+
+/** A targeted player's graveyard-exile choice (CR 701.3a) back to the engine value. */
+private fun graveyardExileToDomain(
+    dto: DecisionRequestDto.ChooseGraveyardCardToExile,
+): DecisionRequest.ChooseGraveyardCardToExile =
+    DecisionRequest.ChooseGraveyardCardToExile(
+        dto.id.toDomain(),
+        PlayerId(dto.controller),
+        CardRef(dto.sourceCard),
+        dto.options.mapOptions { o, c -> DecisionRequest.ChooseGraveyardCardToExile.Option(o, c) },
+    )
+
+/**
+ * A resolution-time card-type choice (CR 609.4) back to the engine value. The types travel as
+ * [RevealedCardFilter] names and are parsed through the shared vocabulary reader, so an unknown name is
+ * a loud wire error rather than a silently dropped option.
+ */
+private fun revealedCardTypeToDomain(
+    dto: DecisionRequestDto.ChooseRevealedCardType,
+): DecisionRequest.ChooseRevealedCardType =
+    DecisionRequest.ChooseRevealedCardType(
+        dto.id.toDomain(),
+        CardRef(dto.sourceCard),
+        dto.revealCount,
+        dto.options.map { parseVocabulary<RevealedCardFilter>(it, "revealed card filter") },
+    )
 
 /**
  * A cast's payment choice (CR 601.2g) back to the engine value. Its own function for the reason

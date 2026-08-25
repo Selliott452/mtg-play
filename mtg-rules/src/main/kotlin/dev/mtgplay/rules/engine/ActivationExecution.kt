@@ -13,6 +13,7 @@ import dev.mtgplay.core.state.PendingActivation
 import dev.mtgplay.core.state.StackEntry
 import dev.mtgplay.rules.AdvanceResult
 import dev.mtgplay.rules.decision.PaymentPlan
+import dev.mtgplay.rules.effect.exilePermanent
 import dev.mtgplay.rules.effect.returnPermanentToOwnersHand
 
 /*
@@ -169,6 +170,9 @@ private fun payAbilityCost(
             is AbilityCost.Mana -> payManaPlan(current, payer, component.cost, plan)
             AbilityCost.TapSelf -> tapObjectForCost(current, source.id)
             AbilityCost.SacrificeSelf -> sacrificePermanents(current, payer, listOf(source.id))
+            // CR 701.3a: the source leaves the battlefield for exile, not for a graveyard — so no dies
+            // trigger fires (CR 603.6b) and the card is not there to be recurred (Relic of Progenitus).
+            AbilityCost.ExileSelf -> exilePermanent(current, source.id)
             AbilityCost.DiscardSelf -> discardApplyingReplacements(current, payer, source.id)
             AbilityCost.DiscardACard ->
                 chosenDiscard.fold(current) { s, id -> discardApplyingReplacements(s, payer, id) }

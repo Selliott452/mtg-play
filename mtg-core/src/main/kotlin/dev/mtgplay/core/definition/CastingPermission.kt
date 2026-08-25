@@ -156,6 +156,40 @@ sealed interface CastingPermission {
     }
 
     /**
+     * Evoke (CR 702.74): the card may be cast from the hand for its evoke [cost] instead of its mana
+     * cost, and the permanent it becomes is sacrificed when it enters. Mulldrifter's `Evoke {2}{U}`.
+     * Additive, flagged core (`W8-D`).
+     *
+     * **Not [AlternativeCost] with a different label, and the difference is a whole trigger.** CR 702.74a
+     * spells the keyword out as two abilities: a static one that permits the cheap cast (which
+     * [AlternativeCost] does model) *and* a triggered one — "When this permanent enters, if its evoke
+     * cost was paid, sacrifice it." Casting a card via an [AlternativeCost] leaves no mark on the
+     * permanent it becomes, because a spell and the permanent it becomes are different objects
+     * (CR 400.7); an evoked creature must know it was evoked a moment after it stops being a spell. So
+     * the permission is its own member, the engine carries the fact onto the entering object as
+     * [dev.mtgplay.core.state.GameObject.evokedWhenCast], and the card declares the trigger with an
+     * [InterveningIf.SourceWasEvoked] clause. Reusing [AlternativeCost] would have produced a Mulldrifter
+     * that draws two cards for `{2}{U}` and *stays on the battlefield* — a plausible-looking wrong card
+     * (PLAN.md §7).
+     *
+     * **The sacrifice does not replace the card's other enters-the-battlefield triggers.** Both of
+     * Mulldrifter's fire from the same event and go on the stack together, and their order is its
+     * controller's choice (CR 603.3b) — an enumerated decision, and a real one: the draw resolves either
+     * way, but the ordering decides whether anything can respond to a Mulldrifter that is still on the
+     * battlefield.
+     *
+     * **The sacrifice is a trigger, so it uses the stack and can be responded to** (CR 603.3), which is
+     * why it is not modelled as a leave-stack replacement the way flashback's exile is. It is also the
+     * reason [exilesOnLeaveStack] stays `false`: an evoked spell resolves normally into a permanent, and
+     * the card reaches its owner's graveyard by the sacrifice, not off the stack.
+     */
+    data class Evoke(
+        override val cost: ManaCost,
+    ) : CastingPermission {
+        override val source: CastSource = CastSource.HAND
+    }
+
+    /**
      * Escape (CR 702.139): the card may be cast from the graveyard for its escape [cost] plus an
      * additional cost of exiling [additionalExileCount] *other* cards from the graveyard. A permanent
      * cast this way resolves onto the battlefield normally (no leave-stack replacement) and behaves as

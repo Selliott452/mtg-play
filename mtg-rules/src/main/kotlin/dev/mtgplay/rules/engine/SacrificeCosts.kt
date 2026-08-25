@@ -24,22 +24,32 @@ import dev.mtgplay.core.state.GameState
  */
 
 /**
- * Whether the battlefield object [obj] matches [filter] (CR 601.2h, CR 300.1): it has at least one of
- * the filter's card types. An object with no definition in the registry is inert and matches nothing.
+ * Whether the battlefield object [obj] matches [filter] (CR 601.2h, CR 300.1, CR 205.3): it has at
+ * least one of the filter's card types (or the filter names none) **and** the filter's subtype (or it
+ * names none). An object with no definition in the registry is inert and matches nothing.
  *
- * **Printed card types, not layered ones.** [LayeredCharacteristics] models power, toughness, keywords,
- * and mana abilities, but not types: no CR 613 layer-4 type-changing effect exists in the pool, so
- * there is nothing for a layered read to differ on. This is the same read
- * [sacrificeableFor] already makes for the permission-side cost's subtype, and it is where a
- * type-changing effect must be wired in when one arrives.
+ * **The single matcher for every sacrifice cost**, since `W8-D` folded the permission-side
+ * [dev.mtgplay.core.definition.SacrificeRequirement]'s subtype into [SacrificeFilter]: a cast's
+ * additional cost, an activated ability's cost, and a casting permission's cost all ask this one
+ * question, so Fireblast's Mountains and Dread Return's creatures cannot be answered by two predicates
+ * that drift.
+ *
+ * **Printed characteristics, not layered ones.** [LayeredCharacteristics] models power, toughness,
+ * keywords, and mana abilities, but not types: no CR 613 layer-4 type-changing effect exists in the
+ * pool, so there is nothing for a layered read to differ on. The subtype read goes through
+ * [dev.mtgplay.core.card.PrintedCharacteristics.hasSubtype], so a changeling is correctly **not**
+ * offered for a *land* subtype — CR 702.73a grants creature types, and Mountain is a land type. This is
+ * where a type-changing effect must be wired in when one arrives.
  */
 internal fun matchesSacrificeFilter(
     state: GameState,
     obj: GameObject,
     filter: SacrificeFilter,
 ): Boolean {
-    val types = state.definitions[obj.card]?.characteristics?.cardTypes ?: return false
-    return filter.anyOfCardTypes.any { it in types }
+    val printed = state.definitions[obj.card]?.characteristics ?: return false
+    val typeMatches = filter.anyOfCardTypes.isEmpty() || filter.anyOfCardTypes.any { it in printed.cardTypes }
+    val subtypeMatches = filter.subtype?.let { printed.hasSubtype(it) } ?: true
+    return typeMatches && subtypeMatches
 }
 
 /**

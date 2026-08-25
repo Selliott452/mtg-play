@@ -101,13 +101,14 @@ internal fun filteredArrangementPrompt(mode: LibraryLookMode.RevealMatchingToHan
 }
 
 /** The printed noun a [RevealedCardFilter] stands for, for the display prompt (ADR-005). */
-private fun describeFilter(filter: RevealedCardFilter): String =
+internal fun describeFilter(filter: RevealedCardFilter): String =
     when (filter) {
         RevealedCardFilter.PERMANENT_CARD -> "permanent card(s)"
         RevealedCardFilter.ENCHANTMENT_CARD -> "enchantment card(s)"
         RevealedCardFilter.COLORLESS_CARD -> "colorless card(s)"
         RevealedCardFilter.INSTANT_OR_SORCERY_CARD -> "instant or sorcery card(s)"
         RevealedCardFilter.CREATURE_CARD -> "creature card(s)"
+        RevealedCardFilter.LAND_CARD -> "land card(s)"
     }
 
 /**

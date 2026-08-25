@@ -16,6 +16,7 @@ import dev.mtgplay.core.definition.OptionalDiscardDraw
 import dev.mtgplay.core.definition.ReplacementEffect
 import dev.mtgplay.core.definition.ResolutionContext
 import dev.mtgplay.core.definition.ResolutionEffect
+import dev.mtgplay.core.definition.SacrificeFilter
 import dev.mtgplay.core.definition.SacrificeRequirement
 import dev.mtgplay.core.definition.SpellDefinition
 import dev.mtgplay.core.definition.TargetSpec
@@ -79,6 +80,13 @@ const val MELDED_MOXITE_DRAW: Int = 2
 
 /** The draw of the turn (the third) that fires Sneaky Snacker's graveyard return trigger (CR 603.2). */
 const val SNEAKY_SNACKER_DRAW_ORDINAL: Int = 3
+
+/**
+ * What Fireblast's alternative cost and Lava Dart's flashback cost may be paid with (CR 601.2h,
+ * CR 205.3): a permanent with the printed land subtype Mountain. A [SacrificeFilter] since `W8-D` gave
+ * the permission-side [SacrificeRequirement] the same filter every other sacrifice cost uses.
+ */
+private val MOUNTAIN_SACRIFICE: SacrificeFilter = SacrificeFilter(subtype = Subtype("Mountain"))
 
 /**
  * The resolution of a permanent spell with no CR 608.2c instructions of its own (CR 608.3): the rules
@@ -417,7 +425,7 @@ val fireblast: SpellDefinition =
             listOf(
                 CastingPermission.AlternativeCost(
                     cost = ManaCost.parse("{0}"),
-                    sacrifice = SacrificeRequirement(count = 2, subtype = Subtype("Mountain")),
+                    sacrifice = SacrificeRequirement(count = 2, filter = MOUNTAIN_SACRIFICE),
                 ),
             )
     }
@@ -451,7 +459,7 @@ val lavaDart: SpellDefinition =
             listOf(
                 CastingPermission.Flashback(
                     cost = ManaCost.parse("{0}"),
-                    sacrifice = SacrificeRequirement(count = 1, subtype = Subtype("Mountain")),
+                    sacrifice = SacrificeRequirement(count = 1, filter = MOUNTAIN_SACRIFICE),
                 ),
             )
     }

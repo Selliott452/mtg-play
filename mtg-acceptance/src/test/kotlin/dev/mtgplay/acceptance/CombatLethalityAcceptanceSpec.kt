@@ -137,6 +137,12 @@ private val ALL_OUT_ATTACK: Responder =
                 error("the all-out-attack policy casts no counters, but one surfaced: $request")
             is DecisionRequest.ChooseRevealedHandCard ->
                 error("the all-out-attack policy casts no hand-reveal spells, but one surfaced: $request")
+            is DecisionRequest.ChooseOptionalManaPayment ->
+                error("the all-out-attack policy plays no pay-then-draw permanents, but one surfaced: $request")
+            is DecisionRequest.ChooseGraveyardCardToExile ->
+                error("the all-out-attack policy activates no graveyard-exile abilities, but one surfaced: $request")
+            is DecisionRequest.ChooseRevealedCardType ->
+                error("the all-out-attack policy casts no type-choosing reveal spells, but one surfaced: $request")
             is DecisionRequest.MulliganRequest ->
                 error("the all-out-attack policy runs mulligan-free games, but a mulligan request surfaced: $request")
         }

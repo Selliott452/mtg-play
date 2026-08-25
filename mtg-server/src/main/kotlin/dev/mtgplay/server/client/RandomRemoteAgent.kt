@@ -95,6 +95,12 @@ class RandomRemoteAgent(
             is DecisionRequestDto.ChooseCounterPayment -> request.options.size
             // CR 701.16a: the controller's pick from an opponent's revealed hand.
             is DecisionRequestDto.ChooseRevealedHandCard -> request.options.size
+            // CR 601.3b: decline at index 0, then one option per affordable payment plan.
+            is DecisionRequestDto.ChooseOptionalManaPayment -> request.options.size
+            // CR 701.3a: the targeted player's own graveyard, one index per card.
+            is DecisionRequestDto.ChooseGraveyardCardToExile -> request.options.size
+            // CR 609.4: one index per offered card type, chosen before anything is revealed.
+            is DecisionRequestDto.ChooseRevealedCardType -> request.options.size
         }
 
     // The number of selectable indices of a "choose one, or opt out" request (real options + one opt-out).

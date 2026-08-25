@@ -96,6 +96,12 @@ internal val BURN_OPPONENT: Responder =
                 error("the burn policy casts no counters, but an unless-pay request surfaced: $request")
             is DecisionRequest.ChooseRevealedHandCard ->
                 error("the burn policy casts no hand-reveal spells, but a revealed-hand request surfaced: $request")
+            is DecisionRequest.ChooseOptionalManaPayment ->
+                error("the burn policy plays no pay-then-draw permanents, but one surfaced: $request")
+            is DecisionRequest.ChooseGraveyardCardToExile ->
+                error("the burn policy activates no graveyard-exile abilities, but one surfaced: $request")
+            is DecisionRequest.ChooseRevealedCardType ->
+                error("the burn policy casts no type-choosing reveal spells, but one surfaced: $request")
             is DecisionRequest.MulliganRequest ->
                 error("the burn policy runs mulligan-free games, but a mulligan request surfaced: $request")
         }
@@ -269,6 +275,12 @@ internal val GRIND_TO_BOLT_RANGE: Responder =
                 error("the grind policy casts no counters, but an unless-pay request surfaced: $request")
             is DecisionRequest.ChooseRevealedHandCard ->
                 error("the grind policy casts no hand-reveal spells, but a revealed-hand request surfaced: $request")
+            is DecisionRequest.ChooseOptionalManaPayment ->
+                error("the grind policy plays no pay-then-draw permanents, but one surfaced: $request")
+            is DecisionRequest.ChooseGraveyardCardToExile ->
+                error("the grind policy activates no graveyard-exile abilities, but one surfaced: $request")
+            is DecisionRequest.ChooseRevealedCardType ->
+                error("the grind policy casts no type-choosing reveal spells, but one surfaced: $request")
             is DecisionRequest.MulliganRequest ->
                 error("the grind policy runs mulligan-free games, but a mulligan request surfaced: $request")
         }

@@ -54,6 +54,18 @@ internal fun applySingleOptionSelection(
         // (discard or linked exile) decides what happens to it.
         is DecisionRequest.ChooseRevealedHandCard ->
             applyHandRevealChoice(state, request.options[decision.index].objectId)
+        // CR 601.3b: index 0 declines and nothing is drawn; any other index pays a plan in full, then draws.
+        is DecisionRequest.ChooseOptionalManaPayment ->
+            applyOptionalManaPayment(
+                state,
+                (request.options[decision.index] as? DecisionRequest.ChooseOptionalManaPayment.Option.Pay)?.plan,
+            )
+        // CR 701.3a: the targeted player's pick from their own graveyard; every index exiles one card.
+        is DecisionRequest.ChooseGraveyardCardToExile ->
+            applyGraveyardExileChoice(state, request.options[decision.index].objectId)
+        // CR 609.4: the named card type, which then drives the reveal and its partition.
+        is DecisionRequest.ChooseRevealedCardType ->
+            applyChosenRevealType(state, request.options[decision.index])
     }
 }
 

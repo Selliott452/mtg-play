@@ -77,7 +77,14 @@ class CounterDtoSpec :
             // (CR 704.5h), so a strict 7.0.0 codec rejects every seat view; and Keyword gains
             // DEATHTOUCH and CHANGELING while Evasion gains BLOCKABLE_ONLY_BY_HASTE, all of which
             // ride in PrintedCardDto's strict `parseVocabulary` and so fail at *runtime*, mid-match.
+            // `W8-D` takes it to 9.0.0, and for the sharpest reason in the chain so far: it *changes*
+            // an existing payload rather than adding to one. SacrificeRequirementDto's `subtype: String`
+            // becomes `filter: SacrificeFilterDto` (Dread Return's flashback sacrifices three
+            // **creatures**, a card type), and that DTO rides inside every priority window offering a
+            // flashback or alternative-cost cast — so an 8.0.0 peer and a 9.0.0 peer disagree about a
+            // message they both already know how to send. Three new DecisionRequest kinds and a new
+            // CastingPermissionDto discriminator ride along.
             // Pinned here so no bump in the chain can be quietly reverted.
-            PROTOCOL_VERSION shouldBe "8.0.0"
+            PROTOCOL_VERSION shouldBe "9.0.0"
         }
     })

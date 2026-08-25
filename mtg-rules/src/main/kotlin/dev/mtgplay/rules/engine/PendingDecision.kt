@@ -195,6 +195,13 @@ private fun libraryLookOrLatePauseRequest(state: GameState): DecisionRequest? =
         // the one pause answered by a seat that is neither the controller nor the priority holder.
         state.pendingOpponentDiscard != null -> pendingOpponentDiscardRequest(state)
         state.pendingRebound != null -> pendingReboundRequest(state)
+        // CR 601.3b: the resolving object's *controller* may pay for a draw (`W8-D`, Nihil Spellbomb).
+        state.pendingOptionalManaPayment != null -> pendingOptionalManaPaymentRequest(state)
+        // CR 701.3a: the *targeted player* chooses which of their own graveyard cards is exiled — a
+        // decider named by a target, so unlike the opponent discard it may be the controller themselves.
+        state.pendingGraveyardExile != null -> pendingGraveyardExileRequest(state)
+        // CR 609.4: the resolution-time card-type choice, answered before anything is revealed.
+        state.pendingTypeChoice != null -> pendingTypeChoiceRequest(state)
         else -> null
     }
 

@@ -76,18 +76,25 @@ data class SourceClassKeyDto(
 )
 
 /**
- * Wire form of one [dev.mtgplay.rules.decision.DecisionRequest.ChooseCounterPayment.Option] (CR 118.3a):
- * decline, or pay by a named plan. Sealed so the fused request's two answers stay distinguishable on the
- * wire rather than being encoded as "index 0 means no".
+ * Wire form of one **decline-or-pay** answer: a
+ * [dev.mtgplay.rules.decision.DecisionRequest.ChooseCounterPayment.Option] (CR 118.3a) or a
+ * [dev.mtgplay.rules.decision.DecisionRequest.ChooseOptionalManaPayment.Option] (CR 601.3b). Sealed so
+ * the fused request's two answers stay distinguishable on the wire rather than being encoded as
+ * "index 0 means no".
+ *
+ * **Shared by the two mid-resolution mana payments on purpose**, though their *requests* are separate
+ * types (`W8-D`). The requests differ in who decides and what a decline costs — facts that live in the
+ * request's own payload — while the answer is the same two shapes either way, and spelling it twice is
+ * how two encodings of "a payment plan" drift apart on the wire.
  */
 @Serializable
 sealed interface CounterPaymentOptionDto {
-    /** Do not pay; the targeted spell is countered (CR 701.5a). Always index 0. */
+    /** Do not pay: the targeted spell is countered (CR 701.5a), or the draw is skipped (CR 601.3b). */
     @Serializable
     @SerialName("decline")
     data object Decline : CounterPaymentOptionDto
 
-    /** Pay the full cost by [plan] (CR 118.3a); the targeted spell is saved. */
+    /** Pay the full cost by [plan]: the targeted spell is saved (CR 118.3a), or the draw happens. */
     @Serializable
     @SerialName("pay")
     data class Pay(

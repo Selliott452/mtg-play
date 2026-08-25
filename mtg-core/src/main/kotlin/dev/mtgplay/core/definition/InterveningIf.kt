@@ -21,9 +21,9 @@ package dev.mtgplay.core.definition
  * have been invisible in the final board state and wrong in the action space, which is the ADR-005
  * defect this engine cares most about.
  *
- * Sealed with one member, for the reason [CastCondition] is: a card printing a condition the engine
- * does not implement must break the rules-side `when` at compile time rather than defaulting to true
- * and firing a trigger the rules forbid.
+ * Sealed, for the reason [CastCondition] is: a card printing a condition the engine does not implement
+ * must break the rules-side `when` at compile time rather than defaulting to true and firing a trigger
+ * the rules forbid.
  */
 sealed interface InterveningIf {
     /**
@@ -37,4 +37,23 @@ sealed interface InterveningIf {
      * afterwards, and the engine implements it by carrying the flag onto the entering permanent.
      */
     data object SourceWasKicked : InterveningIf
+
+    /**
+     * "…if its evoke cost was paid" (CR 702.74a, CR 603.4) — Mulldrifter's self-sacrifice trigger. True
+     * exactly when the permanent this ability's source is entered the battlefield from a spell cast via
+     * [CastingPermission.Evoke] ([dev.mtgplay.core.state.GameObject.evokedWhenCast]). Additive
+     * (`W8-D`).
+     *
+     * [SourceWasKicked]'s twin, down to the linked-information bridge, and worth stating separately
+     * rather than generalising the two into a "cast with a permission" condition: they answer questions
+     * about different keywords with different consequences, and a card printing both would need to tell
+     * them apart. What they share is the *shape* — a fact about the spell, read off the permanent — and
+     * that shape is now witnessed twice, which is when it stops being a special case.
+     *
+     * Like the kicker condition the two CR 603.4 checks can never disagree: evoked-ness is fixed as the
+     * permanent enters and nothing can change it. So the whole observable effect is again in the
+     * **firing** check — a hard-cast Mulldrifter puts *no* sacrifice ability on the stack, so nothing is
+     * ordered against its draw trigger and no priority round opens for it.
+     */
+    data object SourceWasEvoked : InterveningIf
 }

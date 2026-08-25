@@ -58,4 +58,9 @@ internal fun interveningIfHolds(
             state.sharedZones.battlefield
                 .firstOrNull { it.id == sourceId }
                 ?.kickedWhenCast == true
+        // CR 702.74a: "was its evoke cost paid" is carried across CR 400.7 the same way kicked-ness is.
+        InterveningIf.SourceWasEvoked ->
+            state.sharedZones.battlefield
+                .firstOrNull { it.id == sourceId }
+                ?.evokedWhenCast == true
     }
