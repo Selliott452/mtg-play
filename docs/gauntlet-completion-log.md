@@ -185,4 +185,90 @@ Dispatched as a refreshed triage plus four packets: the cards recent frameworks 
 the keyword tail (deathtouch, changeling, conditional statics), ninjutsu and the Faeries, and
 X costs / kicker / alternative costs.
 
+The refreshed triage's headline finding was worth the packet on its own: **`FW-PROTECT` was done and
+had shipped zero cards.** The blocker was never protection. It was that every ability-side target
+enumeration reached a live `error()` when it met a protected object, because the enumeration had no
+way to say *which* object was asking. `P-ABILSOURCE` replaced the overloaded `self: ObjectId?` with a
+sealed `Chooser` — `Spell` (a spell is its own source, CR 113.7c), `Ability` (printed identity,
+LKI-captured, CR 113.7b), and `Nobody`, the only case that still fails loudly — and six cards landed
+behind it, including Guardian of the Guildpact and Mask of Law and Grace.
+
+That packet also found the brief undercounted the work: I named four ability sites and there are
+**five**. The fifth is `AbilityResolution.kt:85`, the CR 608.2b re-check for triggered abilities —
+the site that matters most, since it is the one that runs after the board has had a chance to change.
+
+Spellstutter Sprite was routed here after the ninjutsu packet correctly dropped it, and it disproved
+a claim both the design note and the triage had made: it is not pure composition. X in "counter
+target spell with mana value X" is a **dynamic** bound re-read at every enumeration, so the Sprite
+counts itself, and a Faerie dying in response shrinks X and makes the trigger fizzle. That needed a
+new `ManaValueBound`.
+
+## Wave 7 — the three-packet merge
+
+Three packets finished together and merged in sequence, each gated on a full green build.
+
+**W7-C (filtered looks and the graveyard fold)** — five cards. Two packets had independently written
+`exileGraveyard` with equivalent bodies and incompatible KDoc. Composed rather than side-picked: the
+branch's "what it names" argument is the sharper reason the primitive is not a fold left to callers
+(a graveyard exile names a *player*, so there is no per-card fizzle and no stale id), and HEAD's
+read-the-zone-once and order-is-the-graveyard's-own notes are facts about the implementation the
+branch's copy did not state.
+
+**FW-TAPUNTAP** — four cards, and the packet fixed the CR 603.6c bug I routed to it:
+`returnPermanentToOwnersHand` was the one route off the battlefield that announced nothing, so
+bouncing a Journey to Nowhere left the creature it held **exiled forever**.
+
+Two packets collided head-on here, and one collision was a genuine disagreement rather than a
+duplicate:
+
+- Harrier Strix was encoded twice, from the same oracle text to the same shape. Kept the Ninjas.kt
+  copy. The packet shipped four cards, not the five its own notes claimed.
+- `tapPermanent` was written twice **with different contracts** — `FW-NINJUTSU`'s required a
+  battlefield object, `FW-TAPUNTAP`'s absorbed a bad id and returned the state unchanged. Kept the
+  loud contract and extended it to `untapPermanent` and `skipNextUntapStep`. Only a permanent has a
+  tapped status (CR 110.5b), so an id naming no permanent is not a rules case the engine can answer:
+  it means an effect or a selection kept a choice past the point it was legal, which is the ADR-005
+  failure a silent no-op hides. "Already tapped" stays absorbed, because *that* is a rules answer
+  (CR 701.21a). The branch's no-op test was rewritten to assert the throw — a change that makes the
+  assertion stronger, which is why it is not a violation of policy 1.
+
+**FW-X / FW-OPTCOST / FW-ALTCOST** — three cards. The two kickers are deliberately different halves
+of the same keyword: Bushwhacker reads "was it kicked" back from a *permanent* through CR 702.33f
+linked information and a CR 603.4 intervening-if, while Prohibit reads it during its own resolution
+off its own cast record. Two of its five stayed absent — Kaervek's Torch (a cost *increase* keyed on
+another spell's chosen targets, which `FW-COST` deliberately leaves unrepresentable) and Nyxborn
+Hydra (bestow plus a CR 614.1c enters-with-X-counters replacement).
+
+A recurring mechanical hazard is now automated. Unioning a conflict whose boundary falls mid-KDoc
+produces `MEMBER,` immediately followed by a comment body line — invalid Kotlin, and it has happened
+six times across the session in five different shapes. It is now a scripted post-union scan: a KDoc
+body line can never directly follow a code line, so wherever one does, the block is reopened.
+
+## Wave 8 — the last sixty-one
+
+Backlog at dispatch: 132/178 mainboard encoded, 61 distinct cards across both boards.
+
+Oracle text for every one of the 61 was extracted from the repo's own Scryfall snapshot and quoted
+verbatim into each packet prompt. That closes the largest remaining source of packet error this
+session: several earlier briefs of mine were wrong about what a card printed, and every packet that
+corrected me had to go and find the oracle text itself first.
+
+Seven packets dispatched, covering 51 cards, partitioned by file ownership:
+
+| Packet | Cards | Theme |
+|---|---|---|
+| W8-A | 6 | Gates and utility lands — as-enters colour choice, any-colour mana, surveil |
+| W8-B | 7 | Mana creatures and cost reduction — hybrid mana, ward, three shapes of cost reduction |
+| W8-C | 7 | Burn and removal — landfall, bargain, dependent second targets |
+| W8-D | 8 | Card advantage and graveyard artifacts — evoke, flashback, play-from-exile durations |
+| W8-E | 9 | ETB creatures and tokens — intervening-ifs, changeling, swampcycling |
+| W8-F | 7 | Flashback, prevention, and the additional-cost keywords — collect evidence, devoid |
+| W8-G | 7 | Artifacts and the awkward singles — equipment, energy, phase-skipping, flagbearer |
+
+Ten cards were deliberately **not** dispatched, because each needs a mechanic no gauntlet card has
+touched and several are one-of-a-kind in the pool: the initiative (Avenging Hunter, Goliath Paladin),
+prototype (Boulderbranch Golem), cascade (Maelstrom Colossus), adventure/omen (Fang Dragon, Sagu
+Wildling), station (Pinnacle Kill-Ship), storm (Weather the Storm), bestow (Nyxborn Hydra), and the
+cost *increase* on Kaervek's Torch. They are triaged after the wave lands rather than raced.
+
 _(entries appended as packets report)_
