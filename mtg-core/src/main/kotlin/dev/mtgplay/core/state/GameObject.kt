@@ -206,6 +206,7 @@ data class GameObject(
     val activatedAbilitiesActivatedThisTurn: PersistentSet<Int> = persistentSetOf(),
     val skipsNextUntapStep: Boolean = false,
     val kickedWhenCast: Boolean = false,
+    val optionalCostPaidWhenCast: Boolean = false,
 ) {
     init {
         require(damageMarked >= 0) { "CR 120.3: marked damage is non-negative, was $damageMarked" }

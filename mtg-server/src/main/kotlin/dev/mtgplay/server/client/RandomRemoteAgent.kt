@@ -57,16 +57,10 @@ class RandomRemoteAgent(
                 is DecisionRequestDto.ChooseCardsToExile -> request.options.size to request.count
                 is DecisionRequestDto.ChooseSacrifices -> request.options.size to request.count
                 is DecisionRequestDto.ChooseTapsForCost -> request.options.size to request.count
+                is DecisionRequestDto.ChooseOptionalCostSacrifice -> request.options.size to request.count
                 is DecisionRequestDto.ChooseCardsToDiscardForCost -> request.options.size to request.count
                 is DecisionRequestDto.ChooseSacrificesForCost -> request.options.size to request.count
-                is DecisionRequestDto.ChooseAbilitySacrifice -> request.options.size to request.count
-                is DecisionRequestDto.ChooseAbilityDiscard -> request.options.size to request.count
-                is DecisionRequestDto.ChooseAbilityReturn -> request.options.size to request.count
-                is DecisionRequestDto.ChooseOptionalDiscard -> request.options.size to request.count
-                is DecisionRequestDto.ChooseResolutionDiscards -> request.options.size to request.count
-                is DecisionRequestDto.ChooseOptionalCostObject -> request.options.size to 1
-                // CR 701.7a: an each-opponent discard, answered by an opponent over their own hand.
-                is DecisionRequestDto.ChooseOpponentDiscards -> request.options.size to request.count
+                else -> abilityOrResolutionBounds(request)
             }
         return DecisionDto.MultiSelect(request.id, subset(optionCount, requiredCount))
     }
@@ -190,4 +184,25 @@ private fun rangedBounds(request: DecisionRequestDto.RangedSelectionDto): Triple
             Triple(request.options.size, request.minimumCount, request.maximumCount)
         is DecisionRequestDto.ChoosePermanentsToAffect ->
             Triple(request.options.size, request.minimumCount, request.maximumCount)
+    }
+
+/**
+ * The activation-side and mid-resolution arms of [RandomRemoteAgent]'s sized-selection bounds, split out
+ * to keep that `when` inside detekt's complexity budget — and top-level rather than a further method
+ * because the class is at its own function budget. The split follows the cast-side / ability-side axis
+ * the wire mapping already uses, and this half reads nothing but its argument.
+ */
+private fun abilityOrResolutionBounds(request: DecisionRequestDto.SizedSelectionDto): Pair<Int, Int> =
+    when (request) {
+        is DecisionRequestDto.ChooseAbilitySacrifice -> request.options.size to request.count
+        is DecisionRequestDto.ChooseAbilityDiscard -> request.options.size to request.count
+        is DecisionRequestDto.ChooseAbilityReturn -> request.options.size to request.count
+        is DecisionRequestDto.ChooseOptionalDiscard -> request.options.size to request.count
+        is DecisionRequestDto.ChooseResolutionDiscards -> request.options.size to request.count
+        is DecisionRequestDto.ChooseOptionalCostObject -> request.options.size to 1
+        // CR 701.7a: an each-opponent discard, answered by an opponent over their own hand.
+        is DecisionRequestDto.ChooseOpponentDiscards -> request.options.size to request.count
+        // Every cast-side cost is handled by the caller; reaching here would mean a leaf fell out of both
+        // `when`s, which the compiler cannot catch once one of them carries an `else`.
+        else -> error("no bounds for the sized selection ${request::class.simpleName}")
     }

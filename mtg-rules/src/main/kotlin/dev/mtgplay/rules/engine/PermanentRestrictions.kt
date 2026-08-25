@@ -75,11 +75,15 @@ internal fun satisfiesPermanentRestriction(
         -> satisfiesColourRestriction(restriction, characteristics)
         PermanentRestriction.PERMANENT_YOU_CONTROL,
         PermanentRestriction.CREATURE_AN_OPPONENT_CONTROLS,
+        PermanentRestriction.ARTIFACT_OR_ENCHANTMENT_AN_OPPONENT_CONTROLS,
         PermanentRestriction.CREATURE_YOU_CONTROL,
         PermanentRestriction.ARTIFACT_CREATURE_OR_LAND_YOU_CONTROL,
         -> satisfiesControlRestriction(restriction, characteristics, candidate, you, isCreature)
     }
 }
+
+/** The card types Troublemaker Ouphe's "artifact or enchantment" admits (CR 205.2b). */
+private val ARTIFACT_OR_ENCHANTMENT: Set<CardType> = setOf(CardType.ARTIFACT, CardType.ENCHANTMENT)
 
 /** The card types Ghostly Flicker's "artifacts, creatures, and/or lands" admits (CR 205.2b). */
 private val BLINKABLE_TYPES: Set<CardType> = setOf(CardType.ARTIFACT, CardType.CREATURE, CardType.LAND)
@@ -123,6 +127,9 @@ private fun satisfiesControlRestriction(
         PermanentRestriction.PERMANENT_YOU_CONTROL -> yours
         PermanentRestriction.CREATURE_YOU_CONTROL -> isCreature && yours
         PermanentRestriction.CREATURE_AN_OPPONENT_CONTROLS -> isCreature && candidate.owner != you
+        // CR 205.1a/205.2b: a disjunction over two card types, then the control test.
+        PermanentRestriction.ARTIFACT_OR_ENCHANTMENT_AN_OPPONENT_CONTROLS ->
+            candidate.owner != you && characteristics.cardTypes.any { it in ARTIFACT_OR_ENCHANTMENT }
         // CR 205.2b: a permanent may have several card types, so "and/or" is a disjunction over them —
         // one match is enough, and an artifact land satisfies it twice over.
         PermanentRestriction.ARTIFACT_CREATURE_OR_LAND_YOU_CONTROL ->

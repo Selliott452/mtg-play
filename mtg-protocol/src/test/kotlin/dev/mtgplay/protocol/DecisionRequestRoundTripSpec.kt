@@ -290,6 +290,16 @@ private val allRequests: List<DecisionRequest> =
             ),
             count = 2,
         ),
+        DecisionRequest.ChooseOptionalCostSacrifice(
+            ID,
+            ObjectId(6),
+            CardRef("Troublemaker Ouphe"),
+            listOf(
+                DecisionRequest.ChooseOptionalCostSacrifice.Option(ObjectId(17), CardRef("Ichor Wellspring")),
+                DecisionRequest.ChooseOptionalCostSacrifice.Option(ObjectId(18), CardRef("Rancor")),
+            ),
+            count = 1,
+        ),
         DecisionRequest.ChooseTapsForCost(
             ID,
             ObjectId(6),

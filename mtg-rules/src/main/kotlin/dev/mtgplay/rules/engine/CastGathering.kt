@@ -75,6 +75,11 @@ internal fun beginCastGathering(
     // CR 601.2b/702.33a: a kicker announcement is due only for a card printing the keyword *and* only
     // when the kicked cost is affordable — a seat that cannot pay it has nothing to announce, and
     // offering a yes/no whose "yes" dead-ends is the ADR-005 defect. Every other cast settles `false`.
+    // CR 601.2b/702.166a: an optional additional cost with a chosen object (bargain) is announced only
+    // when the board can actually pay it; a declined or absent one settles both its stages at once.
+    val optionalCostTaken: Boolean? = initialOptionalCostAnnouncement(state, caster, definition)
+    val optionalCostObjects: PersistentList<ObjectId>? =
+        if (optionalCostTaken == null) null else persistentListOf()
     val subject = CastSubject(definition, permission, cardObjectId)
     val kicked: Boolean? =
         if (kickerAffordable(state, caster, subject, minimalSacrificeReservation(state, caster, definition))) {
@@ -102,6 +107,8 @@ internal fun beginCastGathering(
                     additionalDiscard = additionalDiscard,
                     additionalSacrifice = additionalSacrifice,
                     kicked = kicked,
+                    optionalCostTaken = optionalCostTaken,
+                    optionalCostObjects = optionalCostObjects,
                     chosenX = chosenX,
                 ),
         )

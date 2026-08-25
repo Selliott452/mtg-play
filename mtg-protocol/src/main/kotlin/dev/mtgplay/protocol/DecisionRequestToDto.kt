@@ -191,6 +191,7 @@ private fun sizedSelectionToDto(request: DecisionRequest.SizedSelection): Decisi
         is DecisionRequest.ChooseCardsToExile,
         is DecisionRequest.ChooseSacrifices,
         is DecisionRequest.ChooseTapsForCost,
+        is DecisionRequest.ChooseOptionalCostSacrifice,
         is DecisionRequest.ChooseCardsToDiscardForCost,
         is DecisionRequest.ChooseSacrificesForCost,
         is DecisionRequest.ChooseAbilitySacrifice,
@@ -228,14 +229,9 @@ private fun costSizedSelectionToDto(request: DecisionRequest.SizedSelection): De
                 request.options.map { cardOption(it.objectId, it.card) },
                 request.count,
             )
-        is DecisionRequest.ChooseTapsForCost ->
-            DecisionRequestDto.ChooseTapsForCost(
-                request.id.toDto(),
-                request.cardObjectId.value,
-                request.card.name,
-                request.options.map { cardOption(it.objectId, it.card) },
-                request.count,
-            )
+        is DecisionRequest.ChooseOptionalCostSacrifice,
+        is DecisionRequest.ChooseTapsForCost,
+        -> nonManaCostSelectionToDto(request)
         is DecisionRequest.ChooseCardsToDiscardForCost ->
             DecisionRequestDto.ChooseCardsToDiscardForCost(
                 request.id.toDto(),

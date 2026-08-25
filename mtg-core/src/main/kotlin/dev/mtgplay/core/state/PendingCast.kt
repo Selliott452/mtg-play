@@ -104,6 +104,8 @@ data class PendingCast(
     val additionalDiscard: PersistentList<ObjectId>? = null,
     val additionalSacrifice: PersistentList<ObjectId>? = null,
     val kicked: Boolean? = null,
+    val optionalCostTaken: Boolean? = null,
+    val optionalCostObjects: PersistentList<ObjectId>? = null,
     val chosenX: Int? = null,
 ) {
     init {

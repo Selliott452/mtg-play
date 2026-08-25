@@ -724,6 +724,56 @@ sealed interface DecisionRequest {
     }
 
     /**
+     * An **optional additional cost** selection (CR 601.2b, CR 702.166a): [seat] has announced they are
+     * paying [card]'s bargain, and picks exactly [count] of [options] — the artifacts, enchantments and
+     * tokens they control — by index (a [Decision.MultiSelect]). Additive, flagged (`FW-BARGAIN`).
+     *
+     * **Reached only after a "yes"**, so the option list is never empty: the announcement itself is
+     * surfaced only when the cost is payable, and declining settles this stage without a request. That
+     * pairing is the family's whole shape — see `OptionalAdditionalCostGathering.kt`.
+     *
+     * A distinct request from [ChooseSacrificesForCost], which pays the *mandatory*
+     * [dev.mtgplay.core.definition.AdditionalCost.Sacrifice], for the reason `FW-ADDSAC` gave when it
+     * declined to reuse `choose_sacrifices`: a card may print both, and one shared request would leave
+     * the wire ambiguous about which cost an answer paid.
+     *
+     * @property cardObjectId the object being cast (still in its source zone — see
+     *   [dev.mtgplay.core.state.PendingCast]).
+     * @property card the printed identity, for display.
+     * @property options the permanents that may be sacrificed to pay the cost, in battlefield order;
+     *   indices stable within this request (ADR-005).
+     * @property count how many must be sacrificed; bargain's is one.
+     */
+    data class ChooseOptionalCostSacrifice(
+        override val id: DecisionRequestId,
+        val cardObjectId: ObjectId,
+        val card: CardRef,
+        val options: List<Option>,
+        val count: Int,
+    ) : SizedSelection {
+        override val optionCount: Int get() = options.size
+        override val requiredCount: Int get() = count
+
+        init {
+            require(count in 1..options.size) {
+                "CR 601.2b: optional-cost sacrifice count must be between 1 and available " +
+                    "${options.size}, was $count"
+            }
+        }
+
+        /**
+         * One permanent that may be sacrificed to pay the optional additional cost.
+         *
+         * @property objectId the battlefield object that would be sacrificed.
+         * @property card its printed identity, for display.
+         */
+        data class Option(
+            val objectId: ObjectId,
+            val card: CardRef,
+        )
+    }
+
+    /**
      * A non-mana **tap** cost selection (CR 601.2h, CR 702.34c): [seat] is casting [card] via a
      * permission whose cost taps [count] permanents (Prismatic Strands' "Flashback—Tap an untapped
      * white creature you control"), and picks exactly [count] of [options] — the untapped permanents

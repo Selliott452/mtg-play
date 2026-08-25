@@ -53,7 +53,7 @@ class GauntletCoverageSpec :
                     Pinned("Grixis Affinity", 18, 22, 5, 7),
                     Pinned("GW Bogles", 18, 18, 7, 8),
                     Pinned("Jeskai Ephemerate", 18, 22, 5, 7),
-                    Pinned("Jund Wildfire", 17, 22, 5, 7),
+                    Pinned("Jund Wildfire", 17, 22, 6, 7),
                     // `FW-NINJUTSU` added Ninja of the Deep Hours and Harrier Strix: 6 -> 8.
                     Pinned("Mono Blue Faeries", 10, 14, 4, 6),
                     Pinned("Mono-Blue Terror", 12, 14, 6, 6),
@@ -109,11 +109,11 @@ private const val TOTAL_MISSING_MAIN = 45
 
 /** Distinct cards named by at least one gauntlet sideboard. */
 private const val TOTAL_DISTINCT_SIDEBOARD = 48
-private const val TOTAL_ENCODED_SIDEBOARD = 31
-private const val TOTAL_MISSING_SIDEBOARD = 17
+private const val TOTAL_ENCODED_SIDEBOARD = 32
+private const val TOTAL_MISSING_SIDEBOARD = 16
 
 /** The whole backlog: distinct undefined cards across both boards of all thirteen decks. */
-private const val TOTAL_MISSING_BOTH_BOARDS = 59
+private const val TOTAL_MISSING_BOTH_BOARDS = 58
 
 /** Of the backlog, the cards that appear only in sideboards. */
-private const val TOTAL_MISSING_SIDEBOARD_ONLY = 14
+private const val TOTAL_MISSING_SIDEBOARD_ONLY = 13

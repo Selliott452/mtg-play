@@ -371,6 +371,7 @@ class MvpCardsSpec :
                     CardRef("Thraben Charm"),
                     CardRef("Timberwatch Elf"),
                     CardRef("Toxin Analysis"),
+                    CardRef("Troublemaker Ouphe"),
                     CardRef("Twisted Landscape"),
                     CardRef("Unexpected Fangs"),
                     CardRef("Unfathomable Truths"),

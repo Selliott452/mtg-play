@@ -82,6 +82,8 @@ private fun resolveSpell(
                     sourceCard = entry.obj.card,
                     // CR 702.33f: the linked "was it kicked", which Prohibit's resolution reads.
                     kicked = entry.kicked,
+                    // CR 702.166b: the linked "was it bargained", read by Troublemaker Ouphe's trigger.
+                    optionalCostPaid = entry.optionalCostPaid,
                     // CR 202.3b: the announced value, which is what an "X damage" resolution deals.
                     chosenX = entry.chosenX,
                 ),
@@ -196,6 +198,8 @@ internal fun putResolvedSpellOntoBattlefield(
             // only place a resolving permanent spell becomes a permanent. Goblin Bushwhacker's
             // intervening-if reads it off the entering object a moment later.
             kickedWhenCast = entry.kicked,
+            // CR 702.166b: the same CR 400.7 bridge the kicked flag is, for the other optional cost.
+            optionalCostPaidWhenCast = entry.optionalCostPaid,
         )
     val moved =
         allocated

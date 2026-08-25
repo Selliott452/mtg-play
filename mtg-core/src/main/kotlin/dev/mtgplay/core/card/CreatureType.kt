@@ -59,6 +59,7 @@ object CreatureType {
             Myr
             Nightmare
             Ninja
+            Ouphe
             Pirate
             Plant
             Ranger

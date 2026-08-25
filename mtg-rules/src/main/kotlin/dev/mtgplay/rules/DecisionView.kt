@@ -103,6 +103,9 @@ enum class DecisionRequestKind {
     /** [DecisionRequest.ChooseTapsForCost] — a non-mana tap cost (CR 601.2h, CR 702.34c). */
     CHOOSE_TAPS_FOR_COST,
 
+    /** [DecisionRequest.ChooseOptionalCostSacrifice] — an announced bargain (CR 601.2b, CR 702.166a). */
+    CHOOSE_OPTIONAL_COST_SACRIFICE,
+
     /** [DecisionRequest.ChooseCardsToDiscardForCost] — an additional discard cost (CR 601.2b). */
     CHOOSE_CARDS_TO_DISCARD_FOR_COST,
 
@@ -223,8 +226,19 @@ private fun sizedSelectionKind(request: DecisionRequest.SizedSelection): Decisio
         is DecisionRequest.ChooseCardsToExile -> DecisionRequestKind.CHOOSE_CARDS_TO_EXILE
         is DecisionRequest.ChooseSacrifices -> DecisionRequestKind.CHOOSE_SACRIFICES
         is DecisionRequest.ChooseTapsForCost -> DecisionRequestKind.CHOOSE_TAPS_FOR_COST
+        is DecisionRequest.ChooseOptionalCostSacrifice -> DecisionRequestKind.CHOOSE_OPTIONAL_COST_SACRIFICE
         is DecisionRequest.ChooseCardsToDiscardForCost -> DecisionRequestKind.CHOOSE_CARDS_TO_DISCARD_FOR_COST
         is DecisionRequest.ChooseSacrificesForCost -> DecisionRequestKind.CHOOSE_SACRIFICES_FOR_COST
+        else -> abilityOrResolutionSelectionKind(request)
+    }
+
+/**
+ * The kind of one activation-side or mid-resolution fixed-size subset selection (CR 602.1, CR 602.2b,
+ * CR 601.2c, CR 701.7a, CR 701.8), split from [sizedSelectionKind] to keep it inside detekt's complexity
+ * budget along the cast-side / ability-side axis the wire mapping already uses.
+ */
+private fun abilityOrResolutionSelectionKind(request: DecisionRequest.SizedSelection): DecisionRequestKind =
+    when (request) {
         is DecisionRequest.ChooseAbilitySacrifice -> DecisionRequestKind.CHOOSE_ABILITY_SACRIFICE
         is DecisionRequest.ChooseAbilityDiscard -> DecisionRequestKind.CHOOSE_ABILITY_DISCARD
         is DecisionRequest.ChooseAbilityReturn -> DecisionRequestKind.CHOOSE_ABILITY_RETURN
@@ -232,6 +246,9 @@ private fun sizedSelectionKind(request: DecisionRequest.SizedSelection): Decisio
         is DecisionRequest.ChooseOptionalCostObject -> DecisionRequestKind.CHOOSE_OPTIONAL_COST_OBJECT
         is DecisionRequest.ChooseResolutionDiscards -> DecisionRequestKind.CHOOSE_RESOLUTION_DISCARDS
         is DecisionRequest.ChooseOpponentDiscards -> DecisionRequestKind.CHOOSE_OPPONENT_DISCARDS
+        // Every cast-side cost is handled by [sizedSelectionKind]; reaching here would mean a leaf fell
+        // out of both `when`s, which the compiler cannot catch once one of them carries an `else`.
+        else -> error("CR 601.2: no view kind for the sized selection ${request::class.simpleName}")
     }
 
 /**

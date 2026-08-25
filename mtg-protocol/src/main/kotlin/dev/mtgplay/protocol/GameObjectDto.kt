@@ -76,6 +76,7 @@ data class GameObjectDto(
     val activatedAbilitiesActivatedThisTurn: List<Int> = emptyList(),
     val skipsNextUntapStep: Boolean = false,
     val kickedWhenCast: Boolean,
+    val optionalCostPaidWhenCast: Boolean = false,
 )
 
 /** [GameObject] to its wire form. */
@@ -103,6 +104,7 @@ fun GameObject.toDto(): GameObjectDto =
         // CR 702.33f: publicly observable — everyone at the table saw the kicker paid, and the fact
         // changes what the permanent's own abilities do, so it rides unredacted (ADR-007).
         kickedWhenCast = kickedWhenCast,
+        optionalCostPaidWhenCast = optionalCostPaidWhenCast,
     )
 
 /** [GameObjectDto] back to the engine value. */
@@ -126,4 +128,5 @@ fun GameObjectDto.toDomain(): GameObject =
         activatedAbilitiesActivatedThisTurn = activatedAbilitiesActivatedThisTurn.toPersistentSet(),
         skipsNextUntapStep = skipsNextUntapStep,
         kickedWhenCast = kickedWhenCast,
+        optionalCostPaidWhenCast = optionalCostPaidWhenCast,
     )

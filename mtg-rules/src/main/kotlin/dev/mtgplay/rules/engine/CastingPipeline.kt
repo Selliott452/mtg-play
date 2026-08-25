@@ -54,6 +54,8 @@ internal fun executeCastPipeline(
     // CR 601.2b: both cost announcements are settled before the plan was ever enumerated; a null here
     // means the gathering order was violated, which would price the cast differently from the plan.
     cast.kicked ?: error("CR 601.2b: the kicker announcement must be settled before payment is chosen")
+    cast.optionalCostTaken
+        ?: error("CR 601.2b: the optional additional cost must be announced before payment is chosen")
     cast.chosenX ?: error("CR 601.2b: the value of X must be announced before payment is chosen")
     // Close the gathering record first: from here the cast either completes or throws whole.
     val casting = state.copy(pendingCast = null)
@@ -72,7 +74,10 @@ internal fun executeCastPipeline(
     // CR 601.2h after CR 601.2g: the intrinsic sacrifice cost is paid **after** the mana, so a land
     // tapped by the plan may be the one sacrificed (docs/design/mana-payment.md §2.2).
     val sacrificed = payAdditionalSacrificeCost(paid, cast)
-    val complete = completeCast(sacrificed, entry)
+    // CR 601.2h: the optional additional cost is paid beside the intrinsic one, after the mana, so a
+    // permanent tapped for mana by the plan may be the one sacrificed.
+    val bargained = payOptionalAdditionalCost(sacrificed, cast)
+    val complete = completeCast(bargained, entry)
     return priorityAfterCast(complete, cast)
 }
 
@@ -157,6 +162,9 @@ private fun proposeSpell(
             // CR 702.33f: the linked information "this spell was kicked", fixed here for the same reason
             // the modes are — it is settled while casting and everything downstream depends on it.
             kicked = cast.kicked ?: false,
+            // CR 702.166b: the linked information "this spell was bargained", fixed here for the reason
+            // the kicker flag is — it is settled while casting and read long after the spell is gone.
+            optionalCostPaid = cast.optionalCostTaken ?: false,
             // CR 202.3b: the announced value, which is what X *is* while this spell is on the stack.
             chosenX = cast.chosenX ?: 0,
         )

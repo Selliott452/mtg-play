@@ -88,10 +88,28 @@ private fun applySizedSelection(
             applyChosenSacrifices(state, decision.indices.map { request.options[it].objectId })
         is DecisionRequest.ChooseTapsForCost ->
             applyChosenTapCost(state, decision.indices.map { request.options[it].objectId })
+        is DecisionRequest.ChooseOptionalCostSacrifice ->
+            applyChosenOptionalCostObjects(state, decision.indices.map { request.options[it].objectId })
         is DecisionRequest.ChooseCardsToDiscardForCost ->
             applyChosenAdditionalDiscard(state, decision.indices.map { request.options[it].objectId })
         is DecisionRequest.ChooseSacrificesForCost ->
             applyChosenAdditionalSacrifice(state, decision.indices.map { request.options[it].objectId })
+        else -> applyAbilityOrResolutionSelection(state, request, decision)
+    }
+}
+
+/**
+ * The activation-side and mid-resolution arms of [applySizedSelection] (CR 602.1, CR 602.2b, CR 601.2c,
+ * CR 701.7a, CR 701.8), split out to keep that `when` inside detekt's complexity budget. The split is by
+ * *which stage* the selection belongs to — a cast's cost above, an ability's cost or a resolution's own
+ * choice here — the same axis `abilityCostSelectionToDto` uses on the wire side.
+ */
+private fun applyAbilityOrResolutionSelection(
+    state: GameState,
+    request: DecisionRequest.SizedSelection,
+    decision: Decision.MultiSelect,
+): AdvanceResult =
+    when (request) {
         is DecisionRequest.ChooseAbilitySacrifice ->
             applyChosenAbilitySacrifice(state, decision.indices.map { request.options[it].objectId })
         is DecisionRequest.ChooseAbilityDiscard ->
@@ -107,8 +125,10 @@ private fun applySizedSelection(
         // CR 701.7a: answered by an *opponent* of the resolving object's controller, over their own hand.
         is DecisionRequest.ChooseOpponentDiscards ->
             applyOpponentDiscards(state, decision.indices.map { request.options[it].objectId })
+        // Every cast-side cost is handled by [applySizedSelection]; reaching here would mean a leaf fell
+        // out of both `when`s, which the compiler cannot catch once one of them carries an `else`.
+        else -> error("CR 601.2: no applier for the sized selection ${request::class.simpleName}")
     }
-}
 
 /**
  * Applies one ranged subset selection — a multi-target choice (CR 601.2c) or an untargeted
@@ -171,6 +191,10 @@ private fun applyChosenYesNo(
     // gathering is the *first* thing that function checks (`gatheringPauseRequest`), so the kicker
     // branch is first here.
     return when {
+        // CR 601.2b: the optional additional cost is announced before the kicker, matching the order
+        // `pendingCastRequest` derives the two stages in.
+        state.pendingCast?.optionalCostTaken == null && state.pendingCast != null ->
+            applyOptionalCostAnnouncement(state, accept)
         state.pendingCast?.kicked == null && state.pendingCast != null -> applyChosenKicker(state, accept)
         state.pendingOptionalDiscardDraw != null -> applyOptionalDiscardYesNo(state, accept)
         state.pendingOptionalDraw != null -> applyOptionalDrawYesNo(state, accept)

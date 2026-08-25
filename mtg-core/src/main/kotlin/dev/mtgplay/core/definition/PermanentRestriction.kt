@@ -100,6 +100,22 @@ enum class PermanentRestriction {
     CREATURE_AN_OPPONENT_CONTROLS,
 
     /**
+     * "Target artifact or enchantment an opponent controls" (CR 115.1b, CR 205.2b, CR 102.1).
+     * Troublemaker Ouphe's bargained enters-the-battlefield trigger. Additive, flagged core
+     * (`FW-BARGAIN`).
+     *
+     * **A union over two card types *and* a control test**, which is why it is one member rather than a
+     * pairing of [ARTIFACT] and [ENCHANTMENT]: CR 205.1a lets a permanent have several card types, so
+     * "artifact or enchantment" is a disjunction — an artifact that is somehow also an enchantment
+     * matches once — and the restriction vocabulary is closed data, with no `or` combinator to build one
+     * out of the parts. [ARTIFACT_CREATURE_OR_LAND_YOU_CONTROL] is the same shape pointed the other way.
+     *
+     * Narrowed by hexproof exactly as [CREATURE_AN_OPPONENT_CONTROLS] is, and for the same reason: the
+     * enumeration's own `targetableBy` gate handles CR 702.11 before this member is consulted.
+     */
+    ARTIFACT_OR_ENCHANTMENT_AN_OPPONENT_CONTROLS,
+
+    /**
      * "Target red permanent" (CR 105, CR 202.2). Blue Elemental Blast's destroy mode. Additive, flagged
      * core (`FW-MODAL`).
      *

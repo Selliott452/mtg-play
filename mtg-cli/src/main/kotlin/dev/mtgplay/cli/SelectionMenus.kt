@@ -28,6 +28,9 @@ private fun sizedHeaderAndNames(request: DecisionRequest.SizedSelection): Pair<S
         is DecisionRequest.ChooseSacrifices ->
             "Sacrifice exactly ${request.count} permanent(s) to pay for ${request.card.name} (CR 601.2h):" to
                 request.options.map { it.card.name }
+        is DecisionRequest.ChooseOptionalCostSacrifice ->
+            "Sacrifice exactly ${request.count} permanent(s) to bargain ${request.card.name} (CR 601.2b):" to
+                request.options.map { it.card.name }
         is DecisionRequest.ChooseTapsForCost ->
             "Tap exactly ${request.count} permanent(s) to pay for ${request.card.name} (CR 601.2h):" to
                 request.options.map { it.card.name }
@@ -37,6 +40,17 @@ private fun sizedHeaderAndNames(request: DecisionRequest.SizedSelection): Pair<S
         is DecisionRequest.ChooseSacrificesForCost ->
             "Sacrifice exactly ${request.count} permanent(s) as a cost of ${request.card.name} (CR 601.2b):" to
                 request.options.map { it.card.name }
+        else -> abilityAndResolutionHeaderAndNames(request)
+    }
+
+/**
+ * The activation-side and mid-resolution arms of [sizedHeaderAndNames], split out to keep that `when`
+ * inside detekt's complexity budget. The split is by *which stage* the selection belongs to — a cast's
+ * cost above, an ability's cost or a resolution's own choice here — which is the same axis
+ * `abilityCostSelectionToDto` uses on the wire side.
+ */
+private fun abilityAndResolutionHeaderAndNames(request: DecisionRequest.SizedSelection): Pair<String, List<String>> =
+    when (request) {
         is DecisionRequest.ChooseAbilitySacrifice ->
             "Sacrifice exactly ${request.count} permanent(s) to pay ${request.card.name}'s ability (CR 602.1):" to
                 request.options.map { it.card.name }
@@ -58,6 +72,9 @@ private fun sizedHeaderAndNames(request: DecisionRequest.SizedSelection): Pair<S
         is DecisionRequest.ChooseOpponentDiscards ->
             "Discard exactly ${request.count} card(s) to ${request.sourceCard.name} (CR 701.7a):" to
                 request.options.map { it.card.name }
+        // Every cast-side cost is handled by [sizedHeaderAndNames]; reaching here would mean a leaf fell
+        // out of both `when`s, which the compiler cannot catch once one of them carries an `else`.
+        else -> error("CR 601.2b: no menu for the sized selection ${request::class.simpleName}")
     }
 
 /**

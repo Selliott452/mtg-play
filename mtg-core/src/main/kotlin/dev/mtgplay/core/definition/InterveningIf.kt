@@ -37,4 +37,22 @@ sealed interface InterveningIf {
      * afterwards, and the engine implements it by carrying the flag onto the entering permanent.
      */
     data object SourceWasKicked : InterveningIf
+
+    /**
+     * "…if it was bargained" (CR 702.166b, CR 603.4) — Troublemaker Ouphe. True exactly when the
+     * permanent this ability's source is entered the battlefield from a spell whose
+     * [OptionalAdditionalCost] was paid
+     * ([dev.mtgplay.core.state.GameObject.optionalCostPaidWhenCast]).
+     *
+     * **The sibling of [SourceWasKicked], and deliberately named for the *cost family* rather than for
+     * the keyword.** A card declares at most one [SpellDefinition.optionalAdditionalCost], so on a
+     * bargain card this member means exactly "if it was bargained" and there is nothing else it could
+     * mean. Naming it `SourceWasBargained` would have been narrower than the fact it reads and would
+     * force a second, identical member the first time another keyword occupies the same cell.
+     *
+     * Everything [SourceWasKicked]'s KDoc says about CR 400.7 and the bridging flag applies unchanged:
+     * the spell and the permanent are different objects, and the recorded boolean is the only thing
+     * that survives the move.
+     */
+    data object SourcePaidOptionalAdditionalCost : InterveningIf
 }

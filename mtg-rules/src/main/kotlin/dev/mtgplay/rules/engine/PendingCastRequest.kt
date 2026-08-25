@@ -95,6 +95,11 @@ internal fun pendingCastRequest(
         cast.additionalDiscard == null -> chooseDiscardForCostRequest(state, cast, definition, card.card, id)
         // CR 601.2b: then any intrinsic sacrifice additional cost selection (Eviscerator's Insight).
         cast.additionalSacrifice == null -> chooseSacrificeForCostRequest(state, cast, definition, card.card, id)
+        // CR 601.2b/702.166a: then the optional additional cost's announcement and, if taken, its
+        // object selection. Both sit here rather than beside the mandatory costs above because a
+        // declined announcement must settle the selection too, and the pair reads as a pair.
+        cast.optionalCostTaken == null -> optionalCostAnnouncementRequest(state, cast, definition, card.card, id)
+        cast.optionalCostObjects == null -> chooseOptionalCostObjectsRequest(state, cast, definition, card.card, id)
         // CR 601.2b/702.33a: then the optional kicker announcement, surfaced only when the kicked cost
         // is affordable — so both answers are legal, which is what a yes/no requires (ADR-005).
         cast.kicked == null -> kickerAnnouncementRequest(cast, definition, card.card, id)
@@ -169,6 +174,58 @@ private fun chooseSacrificesRequest(
             sacrificeableFor(state, cast.caster, requirement)
                 .map { DecisionRequest.ChooseSacrifices.Option(it.id, it.card) },
         count = requirement.count,
+    )
+}
+
+/**
+ * The CR 601.2b announcement of an optional additional cost with a chosen object (CR 702.166a): a plain
+ * yes/no, surfaced only when the cost is payable ([initialOptionalCostAnnouncement]), so both answers
+ * lead somewhere legal (ADR-005).
+ *
+ * The prompt names the cost, because "pay it?" is not answerable without knowing what it costs.
+ */
+private fun optionalCostAnnouncementRequest(
+    state: GameState,
+    cast: PendingCast,
+    definition: SpellDefinition,
+    card: CardRef,
+    id: DecisionRequestId,
+): DecisionRequest.ChooseYesNo {
+    val cost =
+        definition.optionalAdditionalCost
+            ?: error("CR 601.2b: an optional-cost announcement requires a card printing one")
+    // Named so the prompt is readable without the seat holding the card; the option set is the same
+    // two indices every yes/no has.
+    val payable = optionalCostPayableWith(state, cast.caster, cost).size
+    return DecisionRequest.ChooseYesNo(
+        id = id,
+        prompt = "Pay ${card.name}'s optional additional cost (bargain) by sacrificing 1 of $payable permanent(s)?",
+        cardObjectId = cast.cardObjectId,
+        card = card,
+    )
+}
+
+// CR 601.2b/702.166a: every artifact, enchantment, or token the caster controls pays an announced
+// bargain. Reached only after a "yes", so the option list is never empty.
+private fun chooseOptionalCostObjectsRequest(
+    state: GameState,
+    cast: PendingCast,
+    definition: SpellDefinition,
+    card: CardRef,
+    id: DecisionRequestId,
+): DecisionRequest.ChooseOptionalCostSacrifice {
+    val cost =
+        definition.optionalAdditionalCost
+            ?: error("CR 601.2b: an optional-cost selection requires a card printing one")
+    return DecisionRequest.ChooseOptionalCostSacrifice(
+        id = id,
+        cardObjectId = cast.cardObjectId,
+        card = card,
+        options =
+            optionalCostPayableWith(state, cast.caster, cost)
+                .map { DecisionRequest.ChooseOptionalCostSacrifice.Option(it.id, it.card) },
+        // CR 702.166a: bargain sacrifices exactly one permanent.
+        count = 1,
     )
 }
 
