@@ -100,4 +100,37 @@ sealed interface PriorityOption {
         val abilityIndex: Int,
         val scope: AbilityZoneScope,
     ) : PriorityOption
+
+    /**
+     * Activate the ninjutsu ability of the hand card [objectId], returning the unblocked attacker
+     * [returnedAttacker] to its owner's hand as part of the cost (CR 702.49a, CR 602.1). Additive, flagged
+     * (`FW-NINJUTSU`). Choosing it opens a payment gathering for the ninjutsu cost (a
+     * [ChoosePaymentPlan]); once paid, the attacker is returned and the ability goes on the stack, putting
+     * the ninja onto the battlefield tapped and attacking **when it resolves**.
+     *
+     * **Its own member rather than an [ActivateAbility] index**, because ninjutsu is not one of the
+     * source's [dev.mtgplay.core.definition.CardDefinition.activatedAbilities] — it is synthesized by the
+     * engine from a [dev.mtgplay.core.definition.Ninjutsu] declaration (CR 702.49a's reminder text is the
+     * ability), so there is no index to name it by. It also carries a chosen cost object that no other
+     * activation option carries.
+     *
+     * **The returned attacker is part of the option, not a later decision.** One option per (ninja,
+     * unblocked attacker) pair is enumerated, so an agent picks the whole action by a single stable index
+     * (ADR-005) — see `ninjutsuOptions` for why this choice is worth an option rather than a follow-up
+     * request. Enumerated only when fully legal: blockers have been declared (CR 509.1h — before that no
+     * attacker is unblocked and the ability cannot be activated at all), [returnedAttacker] is an
+     * unblocked attacker its activator controls, and the ninjutsu cost is payable.
+     *
+     * @property objectId the ninja card in the deciding player's hand.
+     * @property card the ninja's printed identity; CR 702.49a's cost reveals it, so naming it here leaks
+     *   nothing the opponent will not see.
+     * @property returnedAttacker the unblocked attacker the cost returns to its owner's hand.
+     * @property returnedAttackerCard the returned attacker's printed identity, for display.
+     */
+    data class ActivateNinjutsu(
+        val objectId: ObjectId,
+        val card: CardRef,
+        val returnedAttacker: ObjectId,
+        val returnedAttackerCard: CardRef,
+    ) : PriorityOption
 }

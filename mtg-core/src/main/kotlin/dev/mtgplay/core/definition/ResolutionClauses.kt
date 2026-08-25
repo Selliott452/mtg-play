@@ -87,6 +87,17 @@ interface ResolutionClauses {
      * [EachOpponentDiscards].
      */
     val eachOpponentDiscards: EachOpponentDiscards? get() = null
+
+    /**
+     * A bare optional "you may draw N cards" clause (CR 601.3b), or `null` for a definition with none.
+     * Ninja of the Deep Hours' *"you may draw a card"*. Additive, flagged core (`FW-OPTDRAW`).
+     *
+     * A clause rather than a [ResolutionEffect] for the reason every member here is one: the yes/no is a
+     * decision, and ADR-004 forbids a callback out of an effect. See [OptionalDraw] for why it is a
+     * separate clause from [optionalCostThenDraw] and [OptionalDiscardDraw] rather than either of them
+     * with an empty cost.
+     */
+    val optionalDraw: OptionalDraw? get() = null
 }
 
 /**
@@ -104,6 +115,7 @@ val ResolutionClauses.declaredClauses: List<Any>
             librarySearch,
             handRevealChoice,
             eachOpponentDiscards,
+            optionalDraw,
         )
 
 /**

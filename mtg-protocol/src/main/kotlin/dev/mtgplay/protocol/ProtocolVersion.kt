@@ -305,5 +305,36 @@ package dev.mtgplay.protocol
  * The seat view is untouched in shape but not in content: [GameObjectDto] already carries every
  * battlefield object, and objects that have spent a CR 602.5b "Activate only once each turn" mana
  * ability now report it through the existing per-object fields the view already serialises.
+ * ### `7.0.0` also carries `FW-NINJUTSU` / `FW-TRIGCOMBAT` / `FW-OPTDRAW`
+ *
+ * Ninjutsu (CR 702.49) breaks the wire in **both** directions, and it is absorbed into `7.0.0` rather
+ * than bumped to `8.0.0` on this file's own repeatedly-applied standard: `7.0.0` is **unreleased**. The
+ * only tag is `v0.1.0`, which shipped protocol `1.0.0`, so `1.0.0` remains the last version any consumer
+ * can have seen and an unshipped major absorbs further breaks from the same wave. Naming the breaks is
+ * still owed:
+ *
+ * 1. **[PriorityOptionDto] gains [PriorityOptionDto.ActivateNinjutsu]** — the sharper of the two break
+ *    modes. A peer meets the new `activate_ninjutsu` discriminator as a **runtime** decode failure
+ *    inside a priority window's options, and it is answerable client→server too, since it is an action
+ *    an agent sends an index for. This is the first new [PriorityOptionDto] member since `plot_card`.
+ *
+ *    It is a new member rather than a widened [PriorityOptionDto.ActivateAbility] because ninjutsu is
+ *    **synthesized** by the engine from a `Ninjutsu` cost declaration (CR 702.49a's reminder text is the
+ *    ability), so it has no index among the source's declared activated abilities — and because it
+ *    carries a chosen cost object, the returned attacker, that no other activation option has. Folding
+ *    it into `activate_ability` with a sentinel index would have made the wire ambiguous about which
+ *    ability an answer activated.
+ * 2. **[SeatViewDto] gains required `pendingNinjutsu` and `pendingOptionalDraw`**, which a strict codec
+ *    (`ignoreUnknownKeys = false`) on an older peer rejects outright — the break shape `4.0.0` recorded
+ *    for `pendingLibraryLook` and `6.0.0` for `pendingRebound`. [PendingNinjutsuDto] and
+ *    [PendingOptionalDrawDto] are the new payloads.
+ * 3. **No [DecisionRequestDto] member and no [DecisionRequestKindDto] member are added**, which is worth
+ *    stating because both frameworks add pauses. Ninjutsu's payment reuses `choose_payment_plan`
+ *    unchanged (it is a mana cost like any other), and the optional draw reuses `choose_yes_no` — the
+ *    fifth flow to share that request, routed by which `pending*` record is open, exactly as the four
+ *    before it. So the milder break mode applies to everything except point 1.
+ *
+ * `FW-TRIGCOMBAT` adds nothing to the wire at all: a new [dev.mtgplay.core.definition.TriggerCondition]
+ * is card-definition data, and definitions are static match configuration that never travels.
  */
 const val PROTOCOL_VERSION: String = "7.0.0"

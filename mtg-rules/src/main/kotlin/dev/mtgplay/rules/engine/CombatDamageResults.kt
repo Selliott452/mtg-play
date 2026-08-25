@@ -3,6 +3,7 @@ package dev.mtgplay.rules.engine
 import dev.mtgplay.core.card.Keyword
 import dev.mtgplay.core.identity.ObjectId
 import dev.mtgplay.core.state.GameState
+import dev.mtgplay.core.state.Target
 import dev.mtgplay.rules.effect.gainLife
 
 /*
@@ -46,10 +47,17 @@ internal fun applyCombatLifelink(
 internal fun fireCombatDamageTriggers(
     state: GameState,
     assignments: List<DamageAssignment>,
-): GameState =
-    damageBySource(assignments).entries.fold(state) { current, (source, total) ->
-        fireEnchantedDamageTriggers(current, source, total)
+): GameState {
+    val toPlayers = damageBySource(assignments.filter { it.recipient is Target.Player })
+    return damageBySource(assignments).entries.fold(state) { current, (source, total) ->
+        // CR 603.2: the Aura trigger reads the source's *whole* damage for this event...
+        val aura = fireEnchantedDamageTriggers(current, source, total)
+        // ...while the combat-damage-to-a-player trigger (CR 510.2, `FW-TRIGCOMBAT`) reads only the share
+        // that reached a player. A blocked attacker whose damage all went to blockers fires the first and
+        // not the second, which is the entire difference between the two conditions.
+        fireCombatDamageToPlayerTriggers(aura, source, toPlayers[source] ?: 0)
     }
+}
 
 // The total combat damage each source dealt this event, keyed by source in first-appearance order
 // (CR 510.2: combat damage is one event, so a source that split its damage dealt it once).

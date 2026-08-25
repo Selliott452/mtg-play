@@ -123,4 +123,18 @@ interface CardDefinition {
      * cost-modification framework carries the rules.
      */
     val spellCostReductions: PersistentList<SpellCostReduction> get() = persistentListOf()
+
+    /**
+     * This card's ninjutsu ability (CR 702.49), or `null` for a card without one. Additive, flagged core
+     * (`FW-NINJUTSU`) — Ninja of the Deep Hours' `Ninjutsu {1}{U}`.
+     *
+     * On [CardDefinition] rather than [SpellDefinition] for [entersTapped]'s reason: it functions from
+     * the **hand** (CR 702.49a) and never touches the casting pipeline, so a card's castability is
+     * irrelevant to it. It is deliberately **not** a [CastingPermission] — see [Ninjutsu], which records
+     * why a mechanic that never casts anything cannot ride the "alternative way to cast" contract.
+     *
+     * `mtg-rules` owns everything about when it may be activated and what it does; card definitions
+     * declare only the cost.
+     */
+    val ninjutsu: Ninjutsu? get() = null
 }

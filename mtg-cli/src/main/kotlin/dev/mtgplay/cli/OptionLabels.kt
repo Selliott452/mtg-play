@@ -11,7 +11,7 @@ import dev.mtgplay.rules.decision.PriorityOption
  * permission it uses (flashback vs escape from the graveyard, plot vs madness from exile).
  */
 
-/** A priority option's menu label (CR 117.1): pass, cast a spell, play a land, plot, or activate. */
+/** A priority option's menu label (CR 117.1): pass, cast, play a land, plot, activate, or ninjutsu. */
 fun priorityOptionLabel(option: PriorityOption): String =
     when (option) {
         PriorityOption.Pass -> "Pass"
@@ -20,6 +20,8 @@ fun priorityOptionLabel(option: PriorityOption): String =
         is PriorityOption.PlotCard -> "Plot ${option.card.name} (exile face-up; cast free later)"
         is PriorityOption.ActivateAbility ->
             "Activate ability ${option.abilityIndex + 1} of ${option.card.name} (from ${scopeName(option.scope)})"
+        is PriorityOption.ActivateNinjutsu ->
+            "Ninjutsu ${option.card.name} (return unblocked ${option.returnedAttackerCard.name} to hand)"
     }
 
 /** The " (from ...)" clause of a cast: its source zone and the permission it is cast with, or "". */

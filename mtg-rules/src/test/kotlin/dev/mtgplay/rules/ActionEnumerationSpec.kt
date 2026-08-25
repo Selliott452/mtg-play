@@ -170,6 +170,9 @@ class ActionEnumerationSpec :
                             error(
                                 "unreachable: no fixture in this spec has an activated ability",
                             )
+                        // No fixture in this spec declares ninjutsu, and none of these states is in combat.
+                        is PriorityOption.ActivateNinjutsu ->
+                            error("unreachable: no fixture in this spec has ninjutsu")
                     }
                 }
             }

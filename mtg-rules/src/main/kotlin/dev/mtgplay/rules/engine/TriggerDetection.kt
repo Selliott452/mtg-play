@@ -244,6 +244,43 @@ internal fun fireEnchantedDamageTriggers(
 }
 
 /**
+ * Fires the "whenever this creature deals combat damage to a player" triggers of [damagerId]
+ * (CR 603.2, CR 510.2) — Ninja of the Deep Hours' "you may draw a card". Additive (`FW-TRIGCOMBAT`).
+ *
+ * The sibling of [fireEnchantedDamageTriggers] and deliberately not a widening of it: that one watches an
+ * *Aura's* host and any damage to anyone, this one watches the source **itself** and only combat damage
+ * dealt **to a player**. See [TriggerCondition.DealtCombatDamageToPlayerSelf] for why each narrowing
+ * matters. The caller ([fireCombatDamageTriggers]) supplies [amount] already restricted to the damage
+ * this source dealt to players in this combat-damage step.
+ *
+ * CR 120.8: zero damage is not dealt, so a source whose player-bound damage totalled zero — an attacker
+ * with no power, or a blocked non-trampler whose damage all went to blockers — fires nothing. CR 510.2:
+ * combat damage is one event, so a trampler that split its damage between a blocker and the defending
+ * player fires this **once**, with the player's share as the trigger's [PendingTrigger.amount].
+ *
+ * Read off the *pre-step* battlefield like every other result of this step, so a creature that has since
+ * died still fires its trigger (CR 603.10 last-known information) — CR 510.2's simultaneity means the
+ * damage it dealt and the damage that killed it happened at the same moment.
+ */
+internal fun fireCombatDamageToPlayerTriggers(
+    state: GameState,
+    damagerId: ObjectId,
+    amount: Int,
+): GameState {
+    // CR 120.8: zero damage is not dealt. A damager already gone from the battlefield fires nothing here,
+    // because its last-known card is read off the pre-step battlefield the caller passes.
+    val damager = state.sharedZones.battlefield.firstOrNull { it.id == damagerId }
+    if (amount <= 0 || damager == null) return state
+    return battlefieldTriggersOf(state, damager.card, TriggerCondition.DealtCombatDamageToPlayerSelf)
+        .fold(state) { current, ability ->
+            enqueuePendingTrigger(
+                current,
+                PendingTrigger(damager.id, damager.card, damager.owner, ability, amount = amount, subject = damager.id),
+            )
+        }
+}
+
+/**
  * Detects cast triggers (CR 603.2, CR 601.2i) when the spell [castEntry] finishes casting: each
  * battlefield permanent carrying a [TriggerCondition.SpellCast] ability whose filters match the cast
  * fires for its controller. Guttersnipe's "whenever you cast an instant or sorcery spell" and Kessig

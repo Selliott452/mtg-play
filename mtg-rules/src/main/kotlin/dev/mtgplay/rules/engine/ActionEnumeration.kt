@@ -68,6 +68,9 @@ internal fun legalPriorityOptions(
         addAll(plotOptions(state, seat))
         // CR 602.1: activated abilities of the seat's permanents and (landcycling) hand cards.
         addAll(activationOptions(state, seat))
+        // CR 702.49a: ninjutsu, an activated ability of a card in hand whose cost returns an unblocked
+        // attacker. Synthesized rather than declared, so it is not part of activationOptions.
+        addAll(ninjutsuOptions(state, seat))
     }
 
 /**

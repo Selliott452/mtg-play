@@ -161,12 +161,13 @@ private fun applyChosenYesNo(
     // than the one that was asked.
     return when {
         state.pendingOptionalDiscardDraw != null -> applyOptionalDiscardYesNo(state, accept)
+        state.pendingOptionalDraw != null -> applyOptionalDrawYesNo(state, accept)
         state.pendingLibraryLook != null -> applyLibraryLookShuffle(state, accept)
         state.pendingMadness != null -> applyMadnessCastChoice(state, accept)
         state.pendingRebound != null -> applyReboundCastChoice(state, accept)
         else ->
             error(
-                "a yes/no was answered with no pending madness, rebound, discard, or look flow " +
+                "a yes/no was answered with no pending madness, rebound, discard, draw, or look flow " +
                     "(${request.card.name})",
             )
     }
@@ -200,6 +201,8 @@ private fun applyChosenAction(
         is PriorityOption.PlotCard -> beginPlot(state, request.seat, option.objectId)
         is PriorityOption.ActivateAbility ->
             beginActivation(state, request.seat, option.objectId, option.scope, option.abilityIndex)
+        is PriorityOption.ActivateNinjutsu ->
+            beginNinjutsu(state, request.seat, option.objectId, option.returnedAttacker)
     }
 }
 
