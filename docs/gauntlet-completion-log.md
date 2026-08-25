@@ -81,4 +81,51 @@ Dispatched as six parallel packets with disjoint file ownership. All six were ki
 a monthly spend limit before writing anything, and were restarted from scratch with context
 intact.
 
+All six landed. Decisions taken while merging them:
+
+- **`counterUnlessPaid` kept on `SpellDefinition`, not moved into `ResolutionClauses`.** It runs
+  *instead of* resolution and is spell-only, so folding it in would have made
+  `requireAtMostOneClause` count it wrongly.
+- **Six independent major protocol bumps coalesced into one `6.0.0`.** `FW-COST`, `FW-DURATION`,
+  `FW-ADDSAC` and `FW-COUNTERS` each independently proposed `6.0.0` from `5.0.0`; `FW-ZONETGT` and
+  the T18 fix each argued for holding. Since none shipped, `5.0.0` is the last version any consumer
+  could have seen, so one bump now documents every break.
+- **`ActionEnumeration` / `CastLegality` / `PendingCastRequest` composed rather than picked.**
+  `FW-COST` replaced the printed cost with `totalCost`; `FW-ADDSAC` added a sacrifice gate and a
+  payment reservation. Both were needed, so the merged expression prices with `totalCost` *and*
+  reserves. Picking either side would have silently lost a correctness property.
+- **`countMatchingPermanents` kept as one shared function with the wider matcher.** `FW-DURATION`
+  extracted the count to `PermanentCount.kt`; `FW-COUNTERS` widened `PermanentFilter` with card-type
+  and layered-keyword axes in the copy it could see. Merged so there is one counter supporting every
+  axis, rather than two that agree by luck.
+- **`Layers.kt` composed**: `FW-DURATION`'s reshaped `ActiveEffect` accessors with `FW-COUNTERS`'
+  counter application at layers 6 and 7c, and the corrected CR citations.
+- **Four merge defects fixed by hand**, none of which any single packet could have seen: a
+  duplicated `entersTapped` declaration after the type was widened from `Boolean` to a sealed set;
+  `countMatching`'s signature and body reconciled onto the perspective seat; two enum KDoc unions
+  that produced malformed Kotlin (the same failure mode as the earlier `Keyword.kt` case); and an
+  import-ordering violation.
+
+Judgement calls made *by* packets that I accepted rather than overrode:
+
+- **`FW-MANACOST` deliberately not built.** The land-ETB packet was offered a cost field on
+  `ManaAbility` and declined with reasons: the activation enumerator models activations as pure
+  producers, so a costed activation breaks the no-idle Hall's-theorem check, the pruning bound, and
+  introduces an acyclicity constraint. Adding the field without the enumerator would have made
+  Conduit Pylons read as a *free* any-colour source — a silent over-production defect. Re-scoped as
+  its own wave-5 packet.
+- **Surveil not added** because its only client dropped; a `LibraryLookMode` member no card uses
+  would be speculative generality.
+- **The CR 613.4e citation settled against the published rules text.** `FW-COUNTERS` downloaded the
+  2026-08-19 Comprehensive Rules and found 613.4 has four sublayers, not five: the phantom letter had
+  shifted **all four** of `Layers.kt`'s citations by one, and counters belong at 7c beside the Aura
+  modifiers, not at 7d. Fixed rather than preserved.
+- **T17 fixed by the `FW-MANA` packet** even though its own cards did not reach it, because the gate
+  belonged in the function it had just restructured — and reserved **by object, not by class**, since
+  over-reserving trades a crash for a silently missing legal play.
+
+## Wave 5 — multi-target, costed mana abilities, modality, flicker, cycling, prevention
+
+Dispatched as six parallel packets against the blockers wave 4 identified.
+
 _(entries appended as packets report)_
