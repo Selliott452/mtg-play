@@ -81,6 +81,7 @@ object InvariantChecker {
             addAll(checkManaAbilityActivationScope(residences, state.definitions))
             addAll(checkEntryTriggerDetection(state))
             addAll(checkExileAndReturnState(state, residences))
+            addAll(checkNinjutsuCost(state))
             if (expectedCards != null) addAll(checkCardConservation(state, expectedCards))
         }
     }

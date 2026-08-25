@@ -99,6 +99,8 @@ private fun applyChosenPaymentPlan(
     val plan = request.options[decision.index]
     return when {
         state.pendingPlot != null -> executePlot(state, plan)
+        // CR 702.49a / CR 602.2b: the ninjutsu ability's mana cost.
+        state.pendingNinjutsu != null -> executeNinjutsu(state, plan)
         state.pendingActivation != null -> executeActivation(state, plan)
         else -> executeCastPipeline(state, plan)
     }

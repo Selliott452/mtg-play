@@ -180,4 +180,32 @@ sealed interface TriggerCondition {
      * [ResolutionEffect].
      */
     data object MadnessCast : TriggerCondition
+
+    /**
+     * "Whenever this creature deals combat damage to a player" (CR 603.2, CR 510.2) — a self-referential
+     * combat-damage trigger. Additive, flagged core (`FW-TRIGCOMBAT`). Ninja of the Deep Hours' *"you may
+     * draw a card"* fires here.
+     *
+     * **Three narrowings, and each one is the difference between this and a condition the engine already
+     * had.** [EnchantedCreatureDealsDamage] watches damage dealt by the creature an *Aura* is attached to,
+     * of *any* kind, to *any* recipient. This one:
+     *
+     * - watches the trigger source **itself** rather than an attachment's host (CR 603.2e "this
+     *   creature");
+     * - is restricted to **combat** damage (CR 510.2) — damage from a resolving spell or ability does not
+     *   fire it, which is why it cannot be expressed as a filter over the general damage condition;
+     * - is restricted to damage dealt **to a player** (CR 510.1c) — a creature whose whole damage went to
+     *   a blocker fires nothing, and one that split its damage between a blocker and the defending player
+     *   (trample, CR 702.19) fires once.
+     *
+     * CR 120.8: zero damage is not dealt, so an attacker with no power fires nothing. Combat damage is one
+     * event per step (CR 510.2), so a source that split its damage among several recipients has dealt it
+     * **once** and this fires at most once per combat-damage step — the same aggregation the lifelink and
+     * Aura-damage results already use in `mtg-rules`.
+     *
+     * The fired trigger carries the amount dealt to players as [dev.mtgplay.core.state.PendingTrigger.amount]
+     * (CR 118.9 "that much"), which no pool card reads yet but which is the linked information a
+     * damage-scaled version of this trigger would need.
+     */
+    data object DealtCombatDamageToPlayerSelf : TriggerCondition
 }

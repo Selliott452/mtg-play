@@ -216,4 +216,5 @@ private fun triggerDescription(trigger: PendingTrigger): String =
         is TriggerCondition.SpellCast -> "spell-cast"
         TriggerCondition.MadnessCast -> "madness-may-cast"
         is TriggerCondition.DrewNthCardThisTurn -> "drew-card-number-${condition.n}"
+        TriggerCondition.DealtCombatDamageToPlayerSelf -> "deals-combat-damage-to-a-player"
     }

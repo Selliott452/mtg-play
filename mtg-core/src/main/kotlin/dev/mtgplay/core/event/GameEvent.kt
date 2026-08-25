@@ -794,4 +794,40 @@ sealed interface GameEvent {
         val powerMod: Int,
         val toughnessMod: Int,
     ) : GameEvent
+
+    /**
+     * [player] activated the ninjutsu ability of [card] (CR 702.49a), revealing it from hand and returning
+     * the unblocked attacker [returnedAttacker] to its owner's hand as part of the cost. Added with
+     * `FW-NINJUTSU`.
+     *
+     * The reveal is what makes this event public information: CR 702.49a's cost includes "Reveal this card
+     * from your hand", so both seats learn *which* card is coming while the ability is still on the stack
+     * and can be responded to. [ninjaObjectId] is the card's hand-residence id; it is **not** on the
+     * battlefield yet and may never get there (the ability can be countered, or the card can leave the
+     * hand first), which is why a separate [NinjaEnteredAttacking] narrates the arrival.
+     */
+    data class NinjutsuActivated(
+        val player: PlayerId,
+        val ninjaObjectId: ObjectId,
+        val card: CardRef,
+        val returnedAttacker: ObjectId,
+        val returnedAttackerCard: CardRef,
+    ) : GameEvent
+
+    /**
+     * A ninjutsu ability resolved and put [card] onto the battlefield **tapped and attacking**
+     * [defendingPlayer] (CR 702.49a, CR 702.49d), as the new object [battlefieldObjectId] (CR 400.7).
+     * Added with `FW-NINJUTSU`.
+     *
+     * Distinct from [PermanentEntered] because the creature never resolved as a permanent spell, and
+     * distinct from an attack declaration because it was never declared: no attack restriction or
+     * requirement applied to it, and no "whenever this creature attacks" ability triggers (CR 508.1). The
+     * log needs to be able to say that a creature is attacking without any [AttackersDeclared] naming it.
+     */
+    data class NinjaEnteredAttacking(
+        val controller: PlayerId,
+        val battlefieldObjectId: ObjectId,
+        val card: CardRef,
+        val defendingPlayer: PlayerId,
+    ) : GameEvent
 }

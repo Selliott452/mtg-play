@@ -42,6 +42,8 @@ data class SeatViewDto(
     val pendingHandReveal: PendingHandRevealViewDto?,
     val pendingOpponentDiscard: PendingOpponentDiscardViewDto?,
     val pendingRebound: PendingReboundDto?,
+    val pendingNinjutsu: PendingNinjutsuDto?,
+    val pendingOptionalDraw: PendingOptionalDrawDto?,
     val timedEffects: List<TimedContinuousEffectDto>,
 )
 
@@ -75,6 +77,8 @@ fun SeatView.toDto(): SeatViewDto =
         pendingHandReveal = pendingHandReveal?.toDto(),
         pendingOpponentDiscard = pendingOpponentDiscard?.toDto(),
         pendingRebound = pendingRebound?.toDto(),
+        pendingNinjutsu = pendingNinjutsu?.toDto(),
+        pendingOptionalDraw = pendingOptionalDraw?.toDto(),
         timedEffects = timedEffects.map { it.toDto() },
     )
 
@@ -108,5 +112,7 @@ fun SeatViewDto.toDomain(): SeatView =
         pendingHandReveal = pendingHandReveal?.toDomain(),
         pendingOpponentDiscard = pendingOpponentDiscard?.toDomain(),
         pendingRebound = pendingRebound?.toDomain(),
+        pendingNinjutsu = pendingNinjutsu?.toDomain(),
+        pendingOptionalDraw = pendingOptionalDraw?.toDomain(),
         timedEffects = timedEffects.map { it.toDomain() },
     )

@@ -332,4 +332,16 @@ enum class Invariant {
      * its action space (ADR-005). See `checkManaAbilityActivationScope`.
      */
     MANA_ABILITY_ACTIVATION_SCOPE,
+
+    /**
+     * An open ninjutsu gathering (CR 702.49a) names a cost its activator could actually pay: the returned
+     * creature is an **unblocked** attacker (CR 509.1h) that the activator controls, and blockers have
+     * been declared. Added with `FW-NINJUTSU`.
+     *
+     * The rules half of the pending record's well-formedness; the structural half — the ninja is still in
+     * hand, the creature is still on the battlefield and still attacking — is enforced by `GameState`'s
+     * own construction check, which is as far as a core noun can see. See `checkNinjutsuCost` for why the
+     * remaining halves fail *silently* and so need a backstop.
+     */
+    NINJUTSU_COST_VALID,
 }

@@ -11,8 +11,10 @@ import dev.mtgplay.core.state.PendingCounterPayment
 import dev.mtgplay.core.state.PendingLibrarySearch
 import dev.mtgplay.core.state.PendingMadness
 import dev.mtgplay.core.state.PendingMulligan
+import dev.mtgplay.core.state.PendingNinjutsu
 import dev.mtgplay.core.state.PendingOptionalCostDraw
 import dev.mtgplay.core.state.PendingOptionalDiscardDraw
+import dev.mtgplay.core.state.PendingOptionalDraw
 import dev.mtgplay.core.state.PendingPlot
 import dev.mtgplay.core.state.PendingRebound
 import dev.mtgplay.core.state.PendingReplacement
@@ -174,6 +176,12 @@ import dev.mtgplay.core.state.Turn
  *   [dev.mtgplay.rules.decision.DecisionRequest.ChooseOpponentDiscards] handed to the deciding seat, and
  *   [pendingDecision] already gives every other seat a bare [DecisionView.Elsewhere]. See
  *   [PendingOpponentDiscardView].
+ * @property pendingNinjutsu a ninjutsu ability gathering its mana payment (CR 702.49a), or `null`; the
+ *   fact that a ninjutsu activation is in progress is public, and the record names only object ids — the
+ *   ninja's card identity stays behind [VisibleCards] until CR 702.49a's reveal happens as the cost is
+ *   paid, exactly as a pending plot's does.
+ * @property pendingOptionalDraw a bare optional "you may draw N" clause awaiting its controller's yes/no
+ *   (CR 601.3b), or `null`. Names a battlefield source, so nothing here is hidden from either seat.
  * @property pendingRebound a resolved rebound delayed ability awaiting its controller's free-cast yes/no
  *   (CR 702.88b), or `null`; public — exile is a public zone (CR 406.3), so the card in question and the
  *   fact that its controller is being offered a free cast are both already visible in [exile].
@@ -215,6 +223,8 @@ data class SeatView(
     val pendingHandReveal: PendingHandRevealView? = null,
     val pendingOpponentDiscard: PendingOpponentDiscardView? = null,
     val pendingRebound: PendingRebound? = null,
+    val pendingNinjutsu: PendingNinjutsu? = null,
+    val pendingOptionalDraw: PendingOptionalDraw? = null,
     val timedEffects: List<TimedContinuousEffect> = emptyList(),
 )
 

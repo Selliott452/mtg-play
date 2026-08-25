@@ -100,7 +100,15 @@ private fun gatheringPauseRequest(
     val cast = state.pendingCast
     val plot = state.pendingPlot
     val activation = state.pendingActivation
+    val ninjutsu = state.pendingNinjutsu
     return when {
+        ninjutsu != null -> {
+            require(holder == ninjutsu.activator) {
+                "CR 702.49a: the activating player ${ninjutsu.activator} must hold priority while paying; " +
+                    "holder was $holder"
+            }
+            pendingNinjutsuRequest(state)
+        }
         cast != null -> {
             require(holder == cast.caster) {
                 "CR 601.2: the casting player ${cast.caster} must hold priority while gathering; holder was $holder"
@@ -149,6 +157,8 @@ private fun midTransitionPauseRequest(state: GameState): DecisionRequest? =
             } else {
                 pendingOptionalCostObjectRequest(state)
             }
+        // CR 601.3b: the bare optional draw clause's yes/no (`FW-OPTDRAW`, Ninja of the Deep Hours).
+        state.pendingOptionalDraw != null -> pendingOptionalDrawRequest(state)
         state.pendingResolutionDiscard != null -> pendingResolutionDiscardRequest(state)
         state.pendingLibrarySearch != null -> pendingLibrarySearchRequest(state)
         else -> libraryLookOrLatePauseRequest(state)

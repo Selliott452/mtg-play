@@ -89,6 +89,19 @@ private fun StringBuilder.appendPendingPositions(state: GameState) {
     // The plot special action's payment pause (P6.2a): whose action, which card.
     append("|pendingPlot=")
     append(state.pendingPlot?.let { "${it.caster.seat}:${it.cardObjectId.value}" } ?: "-")
+    // CR 702.49a: a ninjutsu activation's payment pause (`FW-NINJUTSU`) — whose activation, which ninja,
+    // and which attacker its cost will return. The attacker is load-bearing rather than decorative: it
+    // decides which creature survives and, via CR 702.49d, which player the ninja enters attacking, so two
+    // otherwise identical pauses that name different attackers are genuinely different positions.
+    append("|pendingNinjutsu=")
+    append(
+        state.pendingNinjutsu?.let {
+            "${it.activator.seat}:${it.ninjaObjectId.value}:${it.returnedAttacker.value}"
+        } ?: "-",
+    )
+    // CR 601.3b: the bare optional-draw clause's yes/no pause (`FW-OPTDRAW`) — whose choice, how many.
+    append("|pendingOptDraw=")
+    append(state.pendingOptionalDraw?.let { "${it.decider.seat}:${it.drawCount}" } ?: "-")
     appendP62aPendingPositions(state)
     appendP62cPendingPositions(state)
     // The pre-game mulligan phase (CR 103.4/103.5): whose decision, count, and stage.

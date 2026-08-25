@@ -57,7 +57,9 @@ internal fun orchestrateResolutionClauses(
     val search = clauses.librarySearch
     val handReveal = clauses.handRevealChoice
     val opponentDiscard = clauses.eachOpponentDiscards
+    val optionalDraw = clauses.optionalDraw
     return when {
+        optionalDraw != null -> orchestrateOptionalDraw(state, entry, optionalDraw)
         reveal != null -> orchestrateLibraryReveal(state, entry, reveal)
         look != null -> orchestrateLibraryLook(state, entry, look)
         costDraw != null -> orchestrateOptionalCostDraw(state, entry, costDraw)

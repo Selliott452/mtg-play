@@ -62,6 +62,12 @@ import kotlinx.collections.immutable.persistentMapOf
  * @property pendingPlot a plot special action gathering its payment (CR 702.140), or `null`. Additive,
  *   flagged core (P6.2a). Non-null only at that payment pause, where the plotting player holds priority
  *   and the card is still in their hand — see [PendingPlot].
+ * @property pendingNinjutsu a ninjutsu ability gathering its mana payment (CR 702.49a, CR 602.2b), or
+ *   `null`. Additive, flagged core (`FW-NINJUTSU`). Non-null only at that payment pause, where the
+ *   activating player holds priority and the ninja card is still in their hand — see [PendingNinjutsu].
+ * @property pendingOptionalDraw a bare optional "you may draw N" clause the engine is resolving
+ *   (CR 601.3b), or `null`. Additive, flagged core (`FW-OPTDRAW`). Non-null only at that yes/no pause,
+ *   where the clause's ability has already ceased to exist — see [PendingOptionalDraw].
  * @property pendingColorChoice an "as this permanent enters, choose a colour" choice gathered
  *   mid-resolution (CR 614.12), or `null`. Additive, flagged core (P6.2a). Non-null only at that pause,
  *   where the resolving permanent spell is still on top of the stack — see [PendingColorChoice].
@@ -147,6 +153,8 @@ data class GameState(
     val pendingHandReveal: PendingHandReveal? = null,
     val pendingOpponentDiscard: PendingOpponentDiscard? = null,
     val pendingRebound: PendingRebound? = null,
+    val pendingNinjutsu: PendingNinjutsu? = null,
+    val pendingOptionalDraw: PendingOptionalDraw? = null,
     val timedEffects: PersistentList<TimedContinuousEffect> = persistentListOf(),
 ) {
     init {
@@ -190,6 +198,27 @@ data class GameState(
             require(caster.hand.any { it.id == plot.cardObjectId }) {
                 "CR 702.140: a pending plot's card must still be in the caster's hand until it executes; " +
                     "${plot.cardObjectId} is not there for ${plot.caster}"
+            }
+        }
+        val ninjutsu = pendingNinjutsu
+        if (ninjutsu != null) {
+            val activator = players[ninjutsu.activator]
+            requireNotNull(activator) { "pending ninjutsu names unseated activator ${ninjutsu.activator}" }
+            // CR 702.49a: the ability functions from the hand, and the card is put onto the battlefield
+            // only when it resolves — so it must still be in hand while the payment is gathered.
+            require(activator.hand.any { it.id == ninjutsu.ninjaObjectId }) {
+                "CR 702.49a: a pending ninjutsu's card must still be in the activator's hand until it " +
+                    "executes; ${ninjutsu.ninjaObjectId} is not there for ${ninjutsu.activator}"
+            }
+            // CR 702.49a: the returned attacker is a cost, so it is still on the battlefield attacking
+            // until the activation executes.
+            require(sharedZones.battlefield.any { it.id == ninjutsu.returnedAttacker }) {
+                "CR 702.49a: a pending ninjutsu's returned attacker must still be on the battlefield " +
+                    "until the cost is paid; ${ninjutsu.returnedAttacker} is not"
+            }
+            require(turn.combat?.attackers?.any { it.attacker == ninjutsu.returnedAttacker } == true) {
+                "CR 702.49a: a pending ninjutsu returns an *attacking* creature; " +
+                    "${ninjutsu.returnedAttacker} is not a declared attacker"
             }
         }
         val activation = pendingActivation
