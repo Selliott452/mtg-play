@@ -161,6 +161,10 @@ internal val combatDefinitions: Map<CardRef, CardDefinition> =
         // (CR 702.15f — no damage dealt).
         creature("Meek", 0, 1, setOf(Keyword.LIFELINK)),
         creature("Skulker", 1, 1, evasions = setOf(Evasion.BLOCKABLE_ONLY_BY_FLYING)),
+        // `W8-E`: Troll of Khazad-dum's "can't be blocked except by three or more creatures"
+        // (CR 509.1b) — the first restriction on the blocker *count* rather than on a blocker's
+        // characteristics, so it is legality of the whole declaration and not of any pairing.
+        creature("Troll", 6, 5, evasions = setOf(Evasion.BLOCKABLE_ONLY_BY_THREE_OR_MORE)),
         // `FW-COUNTERS` keyword bodies. Hasty attacks the turn it arrives (CR 702.10b); Bulwark is a
         // plain defender Wall (CR 702.3b); Sentry has defender *and* haste, the pair that proves the
         // two clauses are independent — haste lifts summoning sickness and defender still bars the

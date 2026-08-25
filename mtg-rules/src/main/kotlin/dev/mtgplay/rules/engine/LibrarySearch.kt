@@ -47,8 +47,10 @@ internal fun orchestrateLibrarySearch(
     search: LibrarySearch,
 ): AdvanceResult {
     val decider = entry.resolutionController
-    // CR 701.18b: with no matching card there is nothing to find — the library is shuffled and the resolution ends.
-    if (matchingLibraryCards(state, decider, search.find).isEmpty()) {
+    // CR 701.18b: with no matching card a *mandatory* search has nothing to find — the library is
+    // shuffled and the resolution ends. A "you may search" still pauses, because declining and
+    // searching-then-failing differ by exactly that shuffle (LibrarySearch.optional).
+    if (!search.optional && matchingLibraryCards(state, decider, search.find).isEmpty()) {
         return completeClauseResolution(shuffleLibrary(state, decider), entry)
     }
     val paused = state.copy(pendingLibrarySearch = PendingLibrarySearch(decider))
@@ -67,6 +69,7 @@ internal fun pendingLibrarySearchRequest(state: GameState): DecisionRequest.Choo
     return DecisionRequest.ChooseFromLibrary(
         id = DecisionRequestId(pending.decider, state.player(pending.decider).decisionsAnswered),
         options = matches.map { DecisionRequest.ChooseFromLibrary.Option(it.id, it.card) },
+        optionalSearch = search.optional,
     )
 }
 
@@ -74,14 +77,23 @@ internal fun pendingLibrarySearchRequest(state: GameState): DecisionRequest.Choo
  * Applies the find-one choice (CR 701.18): moves [foundObjectId] (or none) out of the library to the
  * clause's destination as a new object (CR 400.7), shuffles the library through the match PRNG (ADR-006),
  * then completes the resolution.
+ *
+ * [searched] is `false` only for the "don't search at all" index of a "you may search" (CR 601.3b), and
+ * it is what suppresses the shuffle: the "then shuffle" belongs to a search that happened. A declined
+ * search finds nothing *and* randomises nothing, which is the one thing that distinguishes it from
+ * failing to find (see [dev.mtgplay.core.definition.LibrarySearch.optional]).
  */
 internal fun applyLibrarySearchChoice(
     state: GameState,
     foundObjectId: ObjectId?,
+    searched: Boolean = true,
 ): AdvanceResult {
     val pending = state.pendingLibrarySearch ?: error("no library search is pending")
     val entry = resolvingClauseEntry(state)
     val destination = resolvingSearch(state).destination
+    require(searched || foundObjectId == null) {
+        "CR 701.18: a declined search finds nothing, but $foundObjectId was reported found"
+    }
     val cleared = state.copy(pendingLibrarySearch = null)
     val withCard =
         if (foundObjectId == null) {
@@ -89,7 +101,8 @@ internal fun applyLibrarySearchChoice(
         } else {
             moveFoundCard(cleared, pending.decider, foundObjectId, destination)
         }
-    return completeClauseResolution(shuffleLibrary(withCard, pending.decider), entry)
+    val shuffled = if (searched) shuffleLibrary(withCard, pending.decider) else withCard
+    return completeClauseResolution(shuffled, entry)
 }
 
 /**

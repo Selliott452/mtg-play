@@ -23,10 +23,12 @@ import dev.mtgplay.rules.decision.PriorityOption
 /**
  * The activate-ability options for [seat] (CR 602.1, CR 117.1c): one [PriorityOption.ActivateAbility] per
  * (source, ability) the seat may activate right now (ADR-005). Scans [seat]'s battlefield permanents for
- * [AbilityZoneScope.Battlefield] abilities and their hand for [AbilityZoneScope.Hand] abilities; an
- * ability is offered only when its whole composite cost is payable ([abilityCostPayable]) **and** every
- * target it requires has a legal choice (CR 601.2c via CR 602.2b — an ability that cannot be fully
- * targeted cannot be activated). Battlefield order then hand order fixes the option order (ADR-006).
+ * [AbilityZoneScope.Battlefield] abilities, their hand for [AbilityZoneScope.Hand] abilities, and their
+ * graveyard for [AbilityZoneScope.Graveyard] abilities (CR 113.6b — Bramble Wurm's exile-from-graveyard
+ * lifegain); an ability is offered only when its whole composite cost is payable ([abilityCostPayable])
+ * **and** every target it requires has a legal choice (CR 601.2c via CR 602.2b — an ability that cannot
+ * be fully targeted cannot be activated). Battlefield order, then hand order, then graveyard order fixes
+ * the option order (ADR-006).
  */
 internal fun activationOptions(
     state: GameState,
@@ -40,6 +42,12 @@ internal fun activationOptions(
             .player(seat)
             .hand
             .forEach { source -> addAbilities(state, seat, source, AbilityZoneScope.Hand) }
+        // CR 113.6b: only an ability that says it functions from a graveyard does, which is exactly
+        // what declaring AbilityZoneScope.Graveyard says; every other card here contributes nothing.
+        state
+            .player(seat)
+            .graveyard
+            .forEach { source -> addAbilities(state, seat, source, AbilityZoneScope.Graveyard) }
     }
 
 private fun MutableList<PriorityOption.ActivateAbility>.addAbilities(
@@ -141,8 +149,10 @@ private fun componentPayable(
             ability.zoneScope == AbilityZoneScope.Battlefield &&
                 !source.tapped &&
                 !(isCreature(state, source) && source.summoningSick && !hasHaste(state, source.id))
-        AbilityCost.SacrificeSelf -> ability.zoneScope == AbilityZoneScope.Battlefield
-        AbilityCost.DiscardSelf -> ability.zoneScope == AbilityZoneScope.Hand
+        AbilityCost.SacrificeSelf,
+        AbilityCost.DiscardSelf,
+        AbilityCost.ExileSelfFromGraveyard,
+        -> selfCostMatchesZone(ability.zoneScope, component)
         AbilityCost.DiscardACard -> discardableForAbility(state, seat, source, ability.zoneScope).isNotEmpty()
         // CR 602.1 with CR 701.17: at least one permanent both matches the filter and leaves the
         // sibling mana component payable once reserving it is accounted for.
@@ -150,6 +160,33 @@ private fun componentPayable(
         // CR 602.1 with CR 701.4a: the same joint answer, over the return cost's candidates.
         is AbilityCost.ReturnPermanentYouControl ->
             abilityReturnCandidates(state, seat, source, ability).isNotEmpty()
+    }
+
+/**
+ * Whether a cost component that consumes **its own source** is payable given the ability's zone
+ * (CR 602.1, CR 113.6) — the three costs that name no chosen object and so ask nothing but "is my source
+ * where this cost can take it from?".
+ *
+ * Each pairs with exactly one zone by construction: a sacrifice takes a battlefield permanent
+ * (CR 701.17), a self-discard takes a hand card (CR 701.8), and a graveyard self-exile takes a graveyard
+ * card (CR 701.3a). The caller has already matched the source's zone against the ability's declared
+ * scope, so agreeing here is the whole test — nothing else can make one of them unpayable, since none of
+ * them can be blocked by another object and none of them can already have been spent.
+ */
+private fun selfCostMatchesZone(
+    scope: AbilityZoneScope,
+    component: AbilityCost,
+): Boolean =
+    when (component) {
+        AbilityCost.SacrificeSelf -> scope == AbilityZoneScope.Battlefield
+        AbilityCost.DiscardSelf -> scope == AbilityZoneScope.Hand
+        AbilityCost.ExileSelfFromGraveyard -> scope == AbilityZoneScope.Graveyard
+        is AbilityCost.Mana,
+        AbilityCost.TapSelf,
+        AbilityCost.DiscardACard,
+        is AbilityCost.Sacrifice,
+        is AbilityCost.ReturnPermanentYouControl,
+        -> error("CR 602.1: $component does not consume its own source")
     }
 
 /** The hand cards [seat] may discard to a "discard a card" cost — every hand card but a hand source itself. */

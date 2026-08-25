@@ -32,6 +32,26 @@ sealed interface AbilityCost {
     data object DiscardSelf : AbilityCost
 
     /**
+     * Exile the source card itself **from its owner's graveyard** (CR 701.3a) — the cost of a
+     * graveyard-functioning ability like Bramble Wurm's "{2}{G}, Exile this card from your graveyard:
+     * You gain 5 life." Additive, flagged core (`W8-E`). Pairs with [AbilityZoneScope.Graveyard].
+     *
+     * **The zone is in the member, not a parameter, because the zone is the whole rule.** CR 113.6b
+     * only lets an ability function from a graveyard when it says so, and this cost is how Bramble
+     * Wurm says so; a generic "exile the source" that worked from anywhere would be activatable off the
+     * battlefield too, which the printed line does not permit. It is the graveyard sibling of
+     * [DiscardSelf] (hand) and [SacrificeSelf] (battlefield), and like both of them it names its object
+     * rather than choosing one, so it needs no selection while gathering.
+     *
+     * **It is a cost, so it is paid on activation and is not undone if the ability is countered**
+     * (CR 601.2h via CR 602.2b) — and, critically, it makes the ability **once only**: the card leaves
+     * the graveyard for exile as the cost is paid, so a second activation has no source. That is why
+     * the printed line needs no "Activate only once" restriction and why [ActivatedAbility.oncePerTurn]
+     * is not the mechanism here.
+     */
+    data object ExileSelfFromGraveyard : AbilityCost
+
+    /**
      * Discard a chosen card from hand (CR 701.8) — Blood token's "Discard a card". The engine surfaces
      * the selection during activation and discards it through the CR 614/616 framework (so a discarded
      * madness card is exiled instead).

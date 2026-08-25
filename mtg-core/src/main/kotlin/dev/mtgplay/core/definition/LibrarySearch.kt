@@ -24,10 +24,23 @@ import kotlinx.collections.immutable.toPersistentSet
  * @property find which library cards the search may find (CR 701.18).
  * @property destination where the found card goes (CR 701.18); [LibrarySearchDestination.REVEALED_TO_HAND]
  *   for every cycling search.
+ * @property optional whether the printed line says "**you may** search" (CR 601.3b) — Gatecreeper Vine's
+ *   *"you may search your library for a basic land card or a Gate card, reveal it, put it into your
+ *   hand, then shuffle."* Additive, flagged core (`W8-E`); `false` for every mandatory search, which is
+ *   every cycling ability and every other client.
+ *
+ *   **Not the same as CR 701.18b's always-available "fail to find", and the shuffle is the difference.**
+ *   Every search of your own library lets you find nothing, and the engine has always offered that; but
+ *   "then shuffle" is a separate instruction that happens *anyway*, so failing to find still randomises
+ *   your library. Declining a "you may search" never begins the search at all, so nothing shuffles.
+ *   Collapsing the two would quietly hand a free shuffle to a seat that had just arranged its top cards
+ *   with Brainstorm or Ponder, or quietly deny one to a seat that wanted it — wrong in both directions,
+ *   which is why the decline is its own enumerated index rather than a reading of the find-none one.
  */
 data class LibrarySearch(
     val find: LibrarySearchFilter,
     val destination: LibrarySearchDestination = LibrarySearchDestination.REVEALED_TO_HAND,
+    val optional: Boolean = false,
 )
 
 /**
@@ -94,11 +107,21 @@ enum class LibrarySearchDestination {
  * @property landTypes the land types a match may have (CR 205.3b); a card matches when it has **at
  *   least one** of them. Empty means no land-type requirement at all — Expedition Map's bare "a land
  *   card". A set rather than a single type because the Landscapes name three.
+ * @property combination how the two axes combine (CR 701.18) — [LibrarySearchAxisCombination.ALL] for
+ *   every card printed before `W8-E`, [LibrarySearchAxisCombination.ANY] for Gatecreeper Vine.
  */
 data class LibrarySearchFilter(
     val basic: Boolean = false,
     val landTypes: PersistentSet<Subtype> = persistentSetOf(),
+    val combination: LibrarySearchAxisCombination = LibrarySearchAxisCombination.ALL,
 ) {
+    init {
+        require(combination == LibrarySearchAxisCombination.ALL || (basic && landTypes.isNotEmpty())) {
+            "CR 701.18: a disjunctive search filter needs both axes to say something, got " +
+                "basic=$basic landTypes=$landTypes"
+        }
+    }
+
     companion object {
         /** The Plains land type (CR 205.3b). */
         val PLAINS: Subtype = Subtype("Plains")
@@ -145,5 +168,43 @@ data class LibrarySearchFilter(
          */
         fun basicOneOf(types: Set<Subtype>): LibrarySearchFilter =
             LibrarySearchFilter(basic = true, landTypes = types.toPersistentSet())
+
+        /**
+         * A **basic land card or a card of one of [types]** (CR 205.3b, CR 205.4, CR 701.18) —
+         * Gatecreeper Vine's "a basic land card **or** a Gate card". The disjunctive pairing, and the
+         * reason [LibrarySearchAxisCombination] exists.
+         */
+        fun basicOrOneOf(types: Set<Subtype>): LibrarySearchFilter =
+            LibrarySearchFilter(
+                basic = true,
+                landTypes = types.toPersistentSet(),
+                combination = LibrarySearchAxisCombination.ANY,
+            )
     }
+}
+
+/**
+ * How a [LibrarySearchFilter]'s two axes combine (CR 701.18) — the "and" of "a basic Plains, Island, or
+ * Swamp card" against the "or" of "a basic land card or a Gate card". Additive, flagged core (`W8-E`).
+ *
+ * **A third axis would not have expressed this.** Every filter before Gatecreeper Vine narrowed a land
+ * search by *conjunction*: each property it named had to hold. Gatecreeper Vine names two alternatives,
+ * and neither is a narrowing of the other — a basic Forest is not a Gate and a Gate is not basic — so
+ * there is no set of `(basic, landTypes)` values that selects their union. Making the combination
+ * explicit keeps both readings on one type, with the conjunctive one as the default so no existing card
+ * changes meaning.
+ */
+enum class LibrarySearchAxisCombination {
+    /**
+     * Every named axis must hold (CR 701.18) — Ash Barrens' "a basic land card", the Landscapes' "a
+     * basic Plains, Island, or Swamp card". The default, and what every filter meant before `W8-E`.
+     */
+    ALL,
+
+    /**
+     * At least one named axis must hold (CR 701.18) — Gatecreeper Vine's "a basic land card or a Gate
+     * card". Meaningful only when both axes say something, which [LibrarySearchFilter]'s `init`
+     * requires: a disjunction with one empty side is the other side, spelled confusingly.
+     */
+    ANY,
 }

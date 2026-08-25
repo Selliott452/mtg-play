@@ -442,18 +442,56 @@ sealed interface DecisionRequest {
      *
      * The empty selection is legal (block nothing), so [options] may be empty. Every option is an
      * independently legal block (an untapped defending creature, and — CR 509.1b — a flyer only
-     * where the attacker's evasion permits); the cross-option rule the engine enforces is that no
-     * blocker is chosen twice (CR 509.1a — a creature blocks at most one attacker in the MVP
-     * pool).
+     * where the attacker's evasion permits); the engine enforces **two** cross-option rules, and
+     * neither can be read off [options] alone:
+     * - no blocker is chosen twice (CR 509.1a — a creature blocks at most one attacker in the MVP
+     *   pool), which the repeated blocker id in [options] at least hints at;
+     * - each attacker named in [minimumBlockers] is blocked by **either none or at least that many**
+     *   creatures (CR 509.1b), which nothing in [options] hints at, which is why it is published as
+     *   its own field rather than left for the deciding seat to infer (ADR-005).
      *
      * @property options one entry per legal (blocker, attacker) pairing, in a deterministic order
      *   (blocker battlefield order, then attacker declaration order); indices stable within this
      *   request (ADR-005).
+     * @property minimumBlockers the per-attacker blocker-count floors this declaration must respect
+     *   (CR 509.1b), in attacker-declaration order; **empty** for the ordinary combat, in which every
+     *   attacker's floor is the implicit 1. Additive, flagged (`W8-E`) — Troll of Khazad-dûm's "can't
+     *   be blocked except by three or more creatures" is the pool's only printing.
      */
     data class DeclareBlockers(
         override val id: DecisionRequestId,
         val options: List<Option>,
+        val minimumBlockers: List<BlockerMinimum> = emptyList(),
     ) : DecisionRequest {
+        /**
+         * One attacker's CR 509.1b blocker-count floor: [attacker] may be blocked by no creature at
+         * all, or by [minimum] or more, and by nothing in between.
+         *
+         * @property attacker the declared attacker the floor applies to.
+         * @property attackerCard the attacker's printed identity, for display.
+         * @property minimum the smallest legal **non-zero** number of blockers; always two or more,
+         *   since a floor of one is what every creature already has.
+         */
+        data class BlockerMinimum(
+            val attacker: ObjectId,
+            val attackerCard: CardRef,
+            val minimum: Int,
+        ) {
+            init {
+                require(minimum >= SMALLEST_PUBLISHED_MINIMUM) {
+                    "CR 509.1b: a published blocker-count floor is two or more, got $minimum"
+                }
+            }
+
+            companion object {
+                /**
+                 * The smallest floor worth publishing (CR 509.1b): every creature may already be
+                 * blocked by one, so a floor of one restricts nothing and would be noise on the wire.
+                 */
+                const val SMALLEST_PUBLISHED_MINIMUM: Int = 2
+            }
+        }
+
         /**
          * One legal block: [blocker] blocking [attacker].
          *
@@ -1474,18 +1512,33 @@ sealed interface DecisionRequest {
     data class ChooseFromLibrary(
         override val id: DecisionRequestId,
         val options: List<Option>,
+        val optionalSearch: Boolean = false,
     ) : ChoiceCountSelection {
         init {
-            require(options.isNotEmpty()) {
+            require(options.isNotEmpty() || optionalSearch) {
                 "CR 701.18: a find-one choice is surfaced only when a matching card is in the library"
             }
         }
 
-        /** How many selectable indices this request has: one per findable card, plus the "find none" index. */
-        override val choiceCount: Int get() = options.size + 1
+        /**
+         * How many selectable indices this request has: one per findable card, the "find none" index,
+         * and — for a "you may search" (CR 601.3b) — the "don't search" index after it.
+         */
+        override val choiceCount: Int get() = options.size + if (optionalSearch) 2 else 1
 
         /** The [Decision.SingleSelect] index meaning "find none of the matching cards" (CR 701.18b). */
         val findNoneIndex: Int get() = options.size
+
+        /**
+         * The [Decision.SingleSelect] index meaning "**don't search at all**" (CR 601.3b), or `null` for
+         * a mandatory search, which has no such choice. Gatecreeper Vine's "you may search".
+         *
+         * Distinct from [findNoneIndex], and the shuffle is the whole difference: failing to find still
+         * shuffles the library (the "then shuffle" is a separate instruction that happens regardless),
+         * where declining the search never starts it and shuffles nothing. Both lines exist on the
+         * printed card and both are enumerated (ADR-005) — see [LibrarySearch.optional].
+         */
+        val declineSearchIndex: Int? get() = if (optionalSearch) options.size + 1 else null
 
         /**
          * One library card that may be found and put into the hand.

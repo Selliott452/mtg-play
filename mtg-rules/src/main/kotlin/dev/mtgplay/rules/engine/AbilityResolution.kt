@@ -109,7 +109,7 @@ private fun interveningIfFailure(
     entry: StackEntry.Ability,
 ): AdvanceResult? {
     val trigger = entry.trigger
-    if (interveningIfHolds(state, trigger.ability, trigger.sourceId)) return null
+    if (interveningIfHolds(state, trigger.ability, trigger.sourceId, trigger.controller)) return null
     return abilityLeftStackDoingNothing(
         state,
         GameEvent.AbilityConditionFailed(trigger.controller, trigger.sourceCard),

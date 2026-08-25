@@ -1,6 +1,7 @@
 package dev.mtgplay.core.definition
 
 import dev.mtgplay.core.card.CardType
+import dev.mtgplay.core.mana.Color
 import kotlinx.collections.immutable.PersistentSet
 import kotlinx.collections.immutable.persistentSetOf
 
@@ -113,12 +114,14 @@ sealed interface TriggerCondition {
 
     /**
      * "Whenever a spell is cast" (CR 603.2, CR 601.2i) — the cast-trigger seam, now filterable
-     * (P6.2a; [excludedSpellTypes] added in P6.3). A card carrying this fires as a spell finishes
-     * casting (CR 601.2i) **iff** the cast spell matches all three filters:
+     * (P6.2a; [excludedSpellTypes] added in P6.3, [spellColors] by `W8-E`). A card carrying this fires
+     * as a spell finishes casting (CR 601.2i) **iff** the cast spell matches all four filters:
      * - [spellTypes]: the cast spell's printed card types must include at least one of these
      *   (CR 205.2); an **empty** set matches any spell (the bare "whenever a spell is cast").
      * - [excludedSpellTypes]: the cast spell's printed card types must include **none** of these —
      *   the "noncreature spell" shape (CR 205.2); an **empty** set excludes nothing.
+     * - [spellColors]: the cast spell must be at least one of these colours (CR 105.2); an **empty**
+     *   set imposes no colour requirement.
      * - [controlledByYou]: when `true`, the spell's controller must be the trigger source's
      *   controller (CR 603.2e "a spell you control") — control is ownership in the MVP pool; when
      *   `false` any player's cast matches.
@@ -127,19 +130,31 @@ sealed interface TriggerCondition {
      * {INSTANT, SORCERY}, controlledByYou = true)`; Kessig Flamebreather's "whenever you cast a
      * noncreature spell" is `SpellCast(excludedSpellTypes = {CREATURE}, controlledByYou = true)` —
      * a multi-type spell (an artifact creature) is a creature spell and so is excluded, which is why
-     * the exclusion is a type set rather than the complement of [spellTypes]. `mtg-rules` applies all
-     * three filters at the `completeCast` detection site; the fired ability's
-     * [TriggeredAbility.effect] runs on resolution.
+     * the exclusion is a type set rather than the complement of [spellTypes]. God-Pharaoh's Faithful's
+     * "whenever you cast a blue, black, or red spell" is `SpellCast(spellColors = {BLUE, BLACK, RED},
+     * controlledByYou = true)`. `mtg-rules` applies all four filters at the `completeCast` detection
+     * site; the fired ability's [TriggeredAbility.effect] runs on resolution.
+     *
+     * **Colour is a set membership, not a card-type test, and the two axes are independent** — which is
+     * why [spellColors] is its own property rather than a member of [spellTypes]. A spell is *every*
+     * colour in its mana cost (CR 105.2, CR 202.2), so a multicolour spell qualifies as soon as one of
+     * its colours is listed and a **colourless** spell qualifies for no non-empty list at all. That last
+     * part is the load-bearing half for God-Pharaoh's Faithful, whose deck plays artifacts: casting a
+     * colourless artifact gains nothing, and reading the printed line as "any spell" would quietly hand
+     * the seat life it never had.
      *
      * @property spellTypes the printed card types that qualify a cast (any one suffices); empty means
      *   any spell.
      * @property excludedSpellTypes the printed card types that disqualify a cast (any one suffices to
      *   disqualify); empty means nothing is excluded.
+     * @property spellColors the colours that qualify a cast (any one suffices, CR 105.2); empty means
+     *   no colour requirement. Additive, flagged core (`W8-E`).
      * @property controlledByYou whether the cast spell must be controlled by the trigger's controller.
      */
     data class SpellCast(
         val spellTypes: PersistentSet<CardType> = persistentSetOf(),
         val excludedSpellTypes: PersistentSet<CardType> = persistentSetOf(),
+        val spellColors: PersistentSet<Color> = persistentSetOf(),
         val controlledByYou: Boolean = false,
     ) : TriggerCondition {
         init {

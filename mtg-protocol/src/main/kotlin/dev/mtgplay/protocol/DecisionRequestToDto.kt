@@ -26,6 +26,7 @@ fun DecisionRequest.toDto(): DecisionRequestDto =
                 options.map {
                     BlockerOptionDto(it.blocker.value, it.blockerCard.name, it.attacker.value, it.attackerCard.name)
                 },
+                minimumBlockers.map { BlockerMinimumDto(it.attacker.value, it.attackerCard.name, it.minimum) },
             )
         is DecisionRequest.ChooseYesNo ->
             DecisionRequestDto.ChooseYesNo(id.toDto(), prompt, cardObjectId.value, card.name)
@@ -283,6 +284,7 @@ private fun choiceCountSelectionToDto(request: DecisionRequest.ChoiceCountSelect
             DecisionRequestDto.ChooseFromLibrary(
                 request.id.toDto(),
                 request.options.map { cardOption(it.objectId, it.card) },
+                request.optionalSearch,
             )
     }
 

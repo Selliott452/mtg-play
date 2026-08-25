@@ -151,6 +151,7 @@ sealed interface DecisionRequestDto {
     data class DeclareBlockers(
         override val id: DecisionRequestIdDto,
         val options: List<BlockerOptionDto>,
+        val minimumBlockers: List<BlockerMinimumDto> = emptyList(),
     ) : DecisionRequestDto
 
     /** Wire form of [DecisionRequest.AssignTrampleDamage] (CR 702.19e). */
@@ -386,6 +387,7 @@ sealed interface DecisionRequestDto {
     data class ChooseFromLibrary(
         override val id: DecisionRequestIdDto,
         val options: List<CardObjectOptionDto>,
+        val optionalSearch: Boolean = false,
     ) : ChoiceCountSelectionDto
 
     /**

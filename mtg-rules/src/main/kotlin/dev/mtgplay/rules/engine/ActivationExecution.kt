@@ -13,6 +13,7 @@ import dev.mtgplay.core.state.PendingActivation
 import dev.mtgplay.core.state.StackEntry
 import dev.mtgplay.rules.AdvanceResult
 import dev.mtgplay.rules.decision.PaymentPlan
+import dev.mtgplay.rules.effect.exileCardFromGraveyard
 import dev.mtgplay.rules.effect.returnPermanentToOwnersHand
 
 /*
@@ -32,6 +33,8 @@ internal fun activationSource(
         AbilityZoneScope.Battlefield ->
             state.sharedZones.battlefield.firstOrNull { it.id == objectId && it.owner == activator }
         AbilityZoneScope.Hand -> state.player(activator).hand.firstOrNull { it.id == objectId }
+        // CR 113.6b: a graveyard-functioning ability's source is a card in the activator's graveyard.
+        AbilityZoneScope.Graveyard -> state.player(activator).graveyard.firstOrNull { it.id == objectId }
     }
 
 /** The [abilityIndex]th activated ability of [sourceObjectId] in its [scope] zone; fails loudly if absent. */
@@ -170,6 +173,9 @@ private fun payAbilityCost(
             AbilityCost.TapSelf -> tapObjectForCost(current, source.id)
             AbilityCost.SacrificeSelf -> sacrificePermanents(current, payer, listOf(source.id))
             AbilityCost.DiscardSelf -> discardApplyingReplacements(current, payer, source.id)
+            // CR 701.3a: the source card leaves its owner's graveyard for exile as the cost is paid,
+            // which is also what makes the ability usable once and only once.
+            AbilityCost.ExileSelfFromGraveyard -> exileCardFromGraveyard(current, source.id)
             AbilityCost.DiscardACard ->
                 chosenDiscard.fold(current) { s, id -> discardApplyingReplacements(s, payer, id) }
             // CR 701.17: the permanents chosen while gathering, sacrificed to their owner's graveyard.

@@ -45,4 +45,31 @@ enum class Evasion {
      * this is a pure characteristic test on the blocker and nothing more.
      */
     BLOCKABLE_ONLY_BY_HASTE,
+
+    /**
+     * "This creature can't be blocked except by three or more creatures" (Troll of Khazad-dûm) — a
+     * block-legality restriction (CR 509.1b) on the **number** of blockers rather than on any blocker's
+     * characteristics. Added by `W8-E`. The three-blocker sibling of menace (CR 702.110a), which is the
+     * same sentence with "two".
+     *
+     * **The first evasion that is not a property of a (blocker, attacker) pair**, and that is its whole
+     * significance to the engine. Both members above are answered by looking at one blocker: a flyer
+     * either has flying or it does not, and either pairing is legal on its own. This one is a property
+     * of the **whole declaration** — one creature blocking the Troll is illegal, three are legal, and no
+     * amount of inspecting the first creature reveals which. `mtg-rules` therefore publishes it as a
+     * per-attacker minimum on the declare-blockers request, so the deciding seat can see the constraint
+     * it must satisfy (ADR-005), and enforces it across the chosen set beside the CR 509.1a "a creature
+     * blocks at most one attacker" rule that was already a cross-option check.
+     *
+     * **Zero blockers is always legal**: CR 509.1b restricts *how* a creature may be blocked, never
+     * *whether* it must be. The minimum is a floor on a non-empty block, not a requirement to block —
+     * conflating the two would force a defending player to throw three creatures under a 6/5 whenever
+     * they had them, which is a different card and an enumerated-but-illegal line either way (ADR-005).
+     *
+     * **Blockers that leave combat afterwards do not un-block it** (CR 506.4, CR 509.1h): the
+     * restriction is checked once, as blockers are declared. Kill two of the three in response and the
+     * Troll stays blocked by the survivor — which is exactly why the card is played over a plain
+     * unblockable body, and why this is a declaration-time check rather than a standing condition.
+     */
+    BLOCKABLE_ONLY_BY_THREE_OR_MORE,
 }

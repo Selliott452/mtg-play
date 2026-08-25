@@ -70,8 +70,10 @@ import dev.mtgplay.rules.decision.SourceClassKey
  * - Nothing else reserves anything. An ability whose cost is mana alone may be paid by tapping its
  *   own source, and always could.
  *
- * Only a battlefield-scoped ability can reserve **its source**: a hand-functioning ability's source is
- * not a mana source at all. A chosen sacrifice or return is a battlefield permanent either way, so the
+ * Only a battlefield-scoped ability can reserve **its source**: a hand- or graveyard-functioning
+ * ability's source is not a mana source at all, which is why [AbilityCost.ExileSelfFromGraveyard]
+ * reserves nothing even though it removes its source — the card it exiles was never able to produce
+ * mana from a graveyard. A chosen sacrifice or return is a battlefield permanent either way, so the
  * scope guard does not reach it.
  *
  * @param chosenSacrifice the permanents already chosen for an [AbilityCost.Sacrifice] component, empty
@@ -94,6 +96,7 @@ internal fun manaSourcesReservedBy(
                     AbilityCost.SacrificeSelf -> isSacrificeSource(state, source.id)
                     is AbilityCost.Mana,
                     AbilityCost.DiscardSelf,
+                    AbilityCost.ExileSelfFromGraveyard,
                     AbilityCost.DiscardACard,
                     is AbilityCost.Sacrifice,
                     is AbilityCost.ReturnPermanentYouControl,

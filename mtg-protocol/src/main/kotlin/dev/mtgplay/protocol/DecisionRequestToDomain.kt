@@ -51,6 +51,9 @@ private fun declareBlockersToDomain(dto: DecisionRequestDto.DeclareBlockers): De
                 CardRef(it.attackerCard),
             )
         },
+        dto.minimumBlockers.map {
+            DecisionRequest.DeclareBlockers.BlockerMinimum(ObjectId(it.attacker), CardRef(it.attackerCard), it.minimum)
+        },
     )
 
 private fun sizedSelectionToDomain(dto: DecisionRequestDto.SizedSelectionDto): DecisionRequest =
@@ -175,6 +178,7 @@ private fun choiceCountSelectionToDomain(dto: DecisionRequestDto.ChoiceCountSele
             DecisionRequest.ChooseFromLibrary(
                 dto.id.toDomain(),
                 dto.options.mapOptions { o, c -> DecisionRequest.ChooseFromLibrary.Option(o, c) },
+                dto.optionalSearch,
             )
     }
 

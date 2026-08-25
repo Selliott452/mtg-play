@@ -447,5 +447,38 @@ package dev.mtgplay.protocol
  *    own reader meets a symbol its `6.0.0` grammar rejects. No card in the gauntlet ships with an
  *    `{X}` cost, so this one is latent rather than live — recorded because a peer that hard-codes the
  *    symbol set will meet it the day one does.
+ *
+ * ### `8.0.0` also carries `W8-E`
+ *
+ * **Held at `8.0.0` rather than bumped to `9.0.0`**, on this file's own standard, stated in the
+ * `5.0.0` note and applied at `7.0.0`: **`8.0.0` is unreleased.** The only tag is `v0.1.0`, which
+ * shipped protocol `1.0.0`, so an unshipped major absorbs further breaks from the same wave rather
+ * than inflating the major count for a version nobody could have consumed. The breaks are still owed,
+ * in descending order of sharpness:
+ *
+ * 1. **A widened enum a peer decodes by name** — the runtime break mode, in **both** directions.
+ *    [AbilityZoneScopeDto] gains `GRAVEYARD` (CR 113.6b — Bramble Wurm's "{2}{G}, Exile this card from
+ *    your graveyard"). It travels server→client inside [PriorityOptionDto.ActivateAbility] and
+ *    [PendingCastDto], and client→server as part of an activation the agent chose, so an `7.0.0` peer
+ *    meets an unknown discriminator mid-match rather than at compile time. It is a *value* widening
+ *    inside an unchanged shape, which is the `{X}`-symbol break shape one entry above, except that
+ *    this one is live rather than latent: a Bramble Wurm in a graveyard produces the option.
+ * 2. **Required fields on payloads a peer already decodes.** [DecisionRequestDto.DeclareBlockers] gains
+ *    `minimumBlockers` (a list of the new [BlockerMinimumDto]) and
+ *    [DecisionRequestDto.ChooseFromLibrary] gains `optionalSearch`. Both are Kotlin-defaulted, so an
+ *    *older* payload still decodes into the new DTO; the break runs the other way, since the strict
+ *    codec (`ignoreUnknownKeys = false`) of an older peer rejects a payload that carries them.
+ *
+ *    Both fields exist for the same ADR-005 reason and neither is cosmetic. `minimumBlockers` is the
+ *    only way a deciding seat can see Troll of Khazad-dûm's CR 509.1b "except by three or more
+ *    creatures" — the pairing options cannot express it, so a peer that ignores the field will offer
+ *    single blocks the engine then rejects. `optionalSearch` is what tells a peer that
+ *    `ChooseFromLibrary` has **two** trailing indices rather than one: "fail to find" (CR 701.18b,
+ *    shuffles) and "don't search at all" (CR 601.3b, does not). A peer that assumes one would read
+ *    Gatecreeper Vine's decline as an out-of-range index.
+ *
+ * **No `DecisionRequest` kind is added**, which is the sharper break mode this wave avoids: every new
+ * decision here is a widening of a request that already exists, and the whole-block-declaration
+ * constraint is published as data on `DeclareBlockers` rather than as a new request shape.
  */
 const val PROTOCOL_VERSION: String = "8.0.0"

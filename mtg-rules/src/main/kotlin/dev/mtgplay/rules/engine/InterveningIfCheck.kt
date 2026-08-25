@@ -3,6 +3,7 @@ package dev.mtgplay.rules.engine
 import dev.mtgplay.core.definition.InterveningIf
 import dev.mtgplay.core.definition.TriggeredAbility
 import dev.mtgplay.core.identity.ObjectId
+import dev.mtgplay.core.identity.PlayerId
 import dev.mtgplay.core.state.GameState
 
 /*
@@ -38,24 +39,42 @@ import dev.mtgplay.core.state.GameState
  * kicked-ness is fixed when the permanent enters and nothing can change it — so the observable effect
  * of the clause is entirely in the firing check, which is what stops an unkicked Goblin Bushwhacker
  * putting an ability on the stack for its controller's opponent to respond to.
+ * [InterveningIf.YouControlAnotherCreatureNamed] is the member where they *do* differ: it reads the live
+ * battlefield, so a second Faerie Miscreant arriving (or leaving) while the trigger is on the stack
+ * changes the answer between the two checks, exactly as CR 603.4 describes.
  *
- * A source that is no longer on the battlefield answers `false` rather than throwing. That is the
- * CR 603.4 resolution check working as written for a permanent that has left since it fired — the
- * condition is not true, so the ability does nothing — and it is reachable in ordinary play (kill the
- * Bushwhacker in response to its own trigger). Note the CR-correct answer here is *not* last-known
- * information: CR 603.4 asks whether the condition is true *at that time*, and a permanent that has
- * left the battlefield does not satisfy a condition about itself.
+ * A source that is no longer on the battlefield answers `false` for [InterveningIf.SourceWasKicked]
+ * rather than throwing. That is the CR 603.4 resolution check working as written for a permanent that
+ * has left since it fired — the condition is not true, so the ability does nothing — and it is
+ * reachable in ordinary play (kill the Bushwhacker in response to its own trigger). Note the CR-correct
+ * answer here is *not* last-known information: CR 603.4 asks whether the condition is true *at that
+ * time*, and a permanent that has left the battlefield does not satisfy a condition about itself. A
+ * condition that says nothing about its own source ([InterveningIf.YouControlAnotherCreatureNamed])
+ * keeps answering about the board after the source is gone, which is why the departed-source answer is
+ * a property of each member and not of this function.
+ *
+ * @param controller the ability's controller (CR 109.5's "you"); ownership in the MVP pool.
  */
 internal fun interveningIfHolds(
     state: GameState,
     ability: TriggeredAbility,
     sourceId: ObjectId,
+    controller: PlayerId,
 ): Boolean =
-    when (ability.interveningIf) {
+    when (val condition = ability.interveningIf) {
         null -> true
         // CR 702.33f: "was it kicked" is a fact carried on the permanent by the spell that became it.
         InterveningIf.SourceWasKicked ->
             state.sharedZones.battlefield
                 .firstOrNull { it.id == sourceId }
                 ?.kickedWhenCast == true
+        // CR 201.2 with CR 109.1: a creature this player controls, named as printed, that is not the
+        // ability's own source object. Control is ownership in the MVP pool.
+        is InterveningIf.YouControlAnotherCreatureNamed ->
+            state.sharedZones.battlefield.any { obj ->
+                obj.id != sourceId &&
+                    obj.owner == controller &&
+                    isCreature(state, obj) &&
+                    obj.card.name == condition.name
+            }
     }
