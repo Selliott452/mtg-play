@@ -6,6 +6,8 @@ import dev.mtgplay.core.definition.CastCondition
 import dev.mtgplay.core.definition.CastingPermission
 import dev.mtgplay.core.definition.SacrificeFilter
 import dev.mtgplay.core.definition.SacrificeRequirement
+import dev.mtgplay.core.definition.TapRequirement
+import dev.mtgplay.core.mana.Color
 import dev.mtgplay.core.mana.ManaCost
 import kotlinx.collections.immutable.toPersistentSet
 import kotlinx.serialization.SerialName
@@ -56,6 +58,32 @@ data class SacrificeRequirementDto(
     val filter: SacrificeFilterDto,
 )
 
+/**
+ * Wire form of a non-mana [TapRequirement] (CR 601.2h, CR 702.34c): tap [count] untapped permanents of
+ * [cardType] and [color] the caster controls. Additive (`FW-PREVENT2`).
+ *
+ * The two axes ride as their vocabulary words, the choice [PrintedCharacteristicsDto] makes for the
+ * same enums, so a colour or card type this schema's engine version does not know fails loudly on
+ * decode rather than silently matching nothing.
+ *
+ * @property count how many permanents must be tapped.
+ * @property color the required colour, as a [Color] name.
+ * @property cardType the required card type, as a [CardType] name.
+ */
+@Serializable
+data class TapRequirementDto(
+    val count: Int,
+    val color: String,
+    val cardType: String,
+)
+
+/** [TapRequirement] to its wire form. */
+fun TapRequirement.toDto(): TapRequirementDto = TapRequirementDto(count, color.name, cardType.name)
+
+/** [TapRequirementDto] back to the engine value; an unknown colour or card type fails loudly. */
+fun TapRequirementDto.toDomain(): TapRequirement =
+    TapRequirement(count, parseVocabulary<Color>(color, "color"), parseVocabulary<CardType>(cardType, "card type"))
+
 /** [SacrificeRequirement] to its wire form. */
 fun SacrificeRequirement.toDto(): SacrificeRequirementDto = SacrificeRequirementDto(count, filter.toDto())
 
@@ -77,12 +105,19 @@ sealed interface CastingPermissionDto {
         val cost: String,
     ) : CastingPermissionDto
 
-    /** Flashback (CR 702.34): cast from the graveyard for [cost] plus an optional [sacrifice]. */
+    /**
+     * Flashback (CR 702.34): cast from the graveyard for [cost] plus an optional [sacrifice] or [tap].
+     *
+     * [tap] arrived with `FW-PREVENT2` — Prismatic Strands' "Flashback—Tap an untapped white creature
+     * you control" — and is independent of [sacrifice] for the reason CR 702.34c gives: a flashback
+     * cost may include more than mana, and the gauntlet prints both non-mana shapes.
+     */
     @Serializable
     @SerialName("flashback")
     data class Flashback(
         val cost: String,
         val sacrifice: SacrificeRequirementDto?,
+        val tap: TapRequirementDto?,
     ) : CastingPermissionDto
 
     /**
@@ -141,7 +176,8 @@ sealed interface CastingPermissionDto {
 fun CastingPermission.toDto(): CastingPermissionDto =
     when (this) {
         is CastingPermission.Madness -> CastingPermissionDto.Madness(cost.render())
-        is CastingPermission.Flashback -> CastingPermissionDto.Flashback(cost.render(), sacrifice?.toDto())
+        is CastingPermission.Flashback ->
+            CastingPermissionDto.Flashback(cost.render(), sacrifice?.toDto(), tap?.toDto())
         is CastingPermission.AlternativeCost ->
             CastingPermissionDto.AlternativeCost(
                 cost.render(),
@@ -159,7 +195,8 @@ fun CastingPermission.toDto(): CastingPermissionDto =
 fun CastingPermissionDto.toDomain(): CastingPermission =
     when (this) {
         is CastingPermissionDto.Madness -> CastingPermission.Madness(ManaCost.parse(cost))
-        is CastingPermissionDto.Flashback -> CastingPermission.Flashback(ManaCost.parse(cost), sacrifice?.toDomain())
+        is CastingPermissionDto.Flashback ->
+            CastingPermission.Flashback(ManaCost.parse(cost), sacrifice?.toDomain(), tap?.toDomain())
         is CastingPermissionDto.AlternativeCost ->
             CastingPermission.AlternativeCost(
                 ManaCost.parse(cost),

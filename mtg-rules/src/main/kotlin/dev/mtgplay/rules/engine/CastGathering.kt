@@ -59,6 +59,11 @@ internal fun beginCastGathering(
     // A non-mana sacrifice cost (Fireblast, Lava Dart) needs a selection; every other cast settles empty.
     val sacrificeCost: PersistentList<ObjectId>? =
         if (permission?.sacrifice != null) null else persistentListOf()
+    // A non-mana tap cost (Prismatic Strands' flashback) needs a selection; every other cast settles
+    // empty. Its own field beside `sacrificeCost` because a permission may in principle carry both, and
+    // because the two consume their permanents in opposite ways (`FW-PREVENT2`).
+    val tapCost: PersistentList<ObjectId>? =
+        if (permission != null && permission.tap != null) null else persistentListOf()
     // An additional discard cost (Grab the Prize) needs a selection; every other cast settles empty.
     val additionalDiscard: PersistentList<ObjectId>? =
         if (definition.additionalCost is AdditionalCost.DiscardCards) null else persistentListOf()
@@ -70,6 +75,11 @@ internal fun beginCastGathering(
     // CR 601.2b/702.33a: a kicker announcement is due only for a card printing the keyword *and* only
     // when the kicked cost is affordable — a seat that cannot pay it has nothing to announce, and
     // offering a yes/no whose "yes" dead-ends is the ADR-005 defect. Every other cast settles `false`.
+    // CR 601.2b/702.166a: an optional additional cost with a chosen object (bargain) is announced only
+    // when the board can actually pay it; a declined or absent one settles both its stages at once.
+    val optionalCostTaken: Boolean? = initialOptionalCostAnnouncement(state, caster, definition)
+    val optionalCostObjects: PersistentList<ObjectId>? =
+        if (optionalCostTaken == null) null else persistentListOf()
     val subject = CastSubject(definition, permission, cardObjectId)
     val kicked: Boolean? =
         if (kickerAffordable(state, caster, subject, minimalSacrificeReservation(state, caster, definition))) {
@@ -93,9 +103,12 @@ internal fun beginCastGathering(
                     castingPermission = permission,
                     additionalExileCost = additionalExileCost,
                     sacrificeCost = sacrificeCost,
+                    tapCost = tapCost,
                     additionalDiscard = additionalDiscard,
                     additionalSacrifice = additionalSacrifice,
                     kicked = kicked,
+                    optionalCostTaken = optionalCostTaken,
+                    optionalCostObjects = optionalCostObjects,
                     chosenX = chosenX,
                 ),
         )

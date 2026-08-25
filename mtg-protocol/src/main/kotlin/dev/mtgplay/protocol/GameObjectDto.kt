@@ -88,6 +88,7 @@ data class GameObjectDto(
     val kickedWhenCast: Boolean,
     val evokedWhenCast: Boolean = false,
     val playGrantedTurn: Int? = null,
+    val optionalCostPaidWhenCast: Boolean = false,
 )
 
 /** [GameObject] to its wire form. */
@@ -119,6 +120,7 @@ fun GameObject.toDto(): GameObjectDto =
         // everyone, and a playable exiled card sits face up (CR 406.3).
         evokedWhenCast = evokedWhenCast,
         playGrantedTurn = playGrantedTurn,
+        optionalCostPaidWhenCast = optionalCostPaidWhenCast,
     )
 
 /** [GameObjectDto] back to the engine value. */
@@ -144,4 +146,5 @@ fun GameObjectDto.toDomain(): GameObject =
         kickedWhenCast = kickedWhenCast,
         evokedWhenCast = evokedWhenCast,
         playGrantedTurn = playGrantedTurn,
+        optionalCostPaidWhenCast = optionalCostPaidWhenCast,
     )

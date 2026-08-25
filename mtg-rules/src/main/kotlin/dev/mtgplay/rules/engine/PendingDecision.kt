@@ -184,6 +184,9 @@ private fun resolutionClausePauseRequest(state: GameState): DecisionRequest? =
         state.pendingPermanentSelection != null -> pendingPermanentSelectionRequest(state)
         state.pendingTapOrUntap != null -> pendingTapOrUntapRequest(state)
         state.pendingLibrarySearch != null -> pendingLibrarySearchRequest(state)
+        // CR 609.4: a mid-resolution "choose a colour" clause (`FW-PREVENT2`, Prismatic Strands),
+        // decided by the resolving object's controller, who need not hold priority.
+        state.pendingChosenColor != null -> pendingChosenColorRequest(state)
         else -> libraryLookOrLatePauseRequest(state)
     }
 

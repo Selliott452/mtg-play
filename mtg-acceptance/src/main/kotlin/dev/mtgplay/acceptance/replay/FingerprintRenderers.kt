@@ -71,4 +71,31 @@ internal fun StringBuilder.appendTimedEffects(state: GameState) {
         append(':').append(effect.sourceCard.name)
         append('@').append(effect.source?.value ?: "-")
     }
+    appendPreventionEffects(state)
+}
+
+/**
+ * The global prevention store (`FW-PREVENT2`, CR 615): each running effect's payload, duration and
+ * last-known source, in store order.
+ *
+ * It is digested for the same reason the timed store is, and the omission would be sharper: a
+ * Prismatic Strands shield on red and one on white are two different positions in which every other
+ * digested field is identical, and a Flaring Pain leaves no other trace in the state at all. Without
+ * this line the two would hash alike and a replay divergence would go unnoticed until the damage
+ * landed differently.
+ *
+ * The payload is rendered by its own `toString`, which for a `data class`/`data object` is a stable,
+ * total description of the value — the same property [appendTimedEffects] gets from naming its fields
+ * one by one, reached in one line because the payload is a small closed sum rather than a record. No
+ * timestamp is digested because none is stored (see `TimedPreventionEffect`), and `createdOnTurn` is
+ * left out on [appendTimedEffects]' principle: it equals `turn.number` for every effect the store may
+ * legally hold.
+ */
+private fun StringBuilder.appendPreventionEffects(state: GameState) {
+    state.preventionEffects.forEach { effect ->
+        append("|prevent=").append(effect.effect)
+        append(':').append(effect.duration::class.simpleName)
+        append(':').append(effect.sourceCard.name)
+        append('@').append(effect.source?.value ?: "-")
+    }
 }

@@ -11,7 +11,7 @@ import dev.mtgplay.rules.decision.DecisionRequestId
 /*
  * The pending decision a cast in progress is waiting on (CR 601.2), split from PendingDecision.kt so
  * each file stays within its function budget. The gathering order is fixed: modes (601.2b), targets
- * (601.2c), then the additional-exile / sacrifice / additional-discard cost selections (601.2b/h), then
+ * (601.2c), then the additional-exile / sacrifice / tap / additional-discard cost selections (601.2b/h), then
  * the **kicker** announcement and the **value of X** (601.2b), then the payment plan (601.2g) — always
  * surfaced, even with a single plan, so replay logs stay canonical (P2.1).
  *
@@ -85,10 +85,17 @@ internal fun pendingCastRequest(
         cast.additionalExileCost == null -> chooseCardsToExileRequest(state, cast, card.card, id)
         // CR 601.2h: then any non-mana sacrifice cost selection (Fireblast, Lava Dart).
         cast.sacrificeCost == null -> chooseSacrificesRequest(state, cast, card.card, id)
+        // CR 601.2h: then any non-mana tap cost selection (Prismatic Strands' flashback).
+        cast.tapCost == null -> chooseTapsRequest(state, cast, card.card, id)
         // CR 601.2b: then any additional discard cost selection (Grab the Prize).
         cast.additionalDiscard == null -> chooseDiscardForCostRequest(state, cast, definition, card.card, id)
         // CR 601.2b: then any intrinsic sacrifice additional cost selection (Eviscerator's Insight).
         cast.additionalSacrifice == null -> chooseSacrificeForCostRequest(state, cast, definition, card.card, id)
+        // CR 601.2b/702.166a: then the optional additional cost's announcement and, if taken, its
+        // object selection. Both sit here rather than beside the mandatory costs above because a
+        // declined announcement must settle the selection too, and the pair reads as a pair.
+        cast.optionalCostTaken == null -> optionalCostAnnouncementRequest(state, cast, definition, card.card, id)
+        cast.optionalCostObjects == null -> chooseOptionalCostObjectsRequest(state, cast, definition, card.card, id)
         // CR 601.2b/702.33a: then the optional kicker announcement, surfaced only when the kicked cost
         // is affordable — so both answers are legal, which is what a yes/no requires (ADR-005).
         cast.kicked == null -> kickerAnnouncementRequest(cast, definition, card.card, id)
@@ -118,7 +125,7 @@ internal fun pendingCastRequest(
                         state,
                         cast.caster,
                         cost,
-                        sacrificeSourcesAmong(state, cast.additionalSacrifice.orEmpty()),
+                        sacrificeSourcesAmong(state, cast.sacrificedThisCast()),
                     ),
             )
         }
@@ -202,6 +209,80 @@ private fun chooseSacrificesRequest(
     )
 }
 
+/**
+ * The CR 601.2b announcement of an optional additional cost with a chosen object (CR 702.166a): a plain
+ * yes/no, surfaced only when the cost is payable ([initialOptionalCostAnnouncement]), so both answers
+ * lead somewhere legal (ADR-005).
+ *
+ * The prompt names the cost, because "pay it?" is not answerable without knowing what it costs.
+ */
+private fun optionalCostAnnouncementRequest(
+    state: GameState,
+    cast: PendingCast,
+    definition: SpellDefinition,
+    card: CardRef,
+    id: DecisionRequestId,
+): DecisionRequest.ChooseYesNo {
+    val cost =
+        definition.optionalAdditionalCost
+            ?: error("CR 601.2b: an optional-cost announcement requires a card printing one")
+    // Named so the prompt is readable without the seat holding the card; the option set is the same
+    // two indices every yes/no has.
+    val payable = optionalCostPayableWith(state, cast.caster, cost).size
+    return DecisionRequest.ChooseYesNo(
+        id = id,
+        prompt = "Pay ${card.name}'s optional additional cost (bargain) by sacrificing 1 of $payable permanent(s)?",
+        cardObjectId = cast.cardObjectId,
+        card = card,
+    )
+}
+
+// CR 601.2b/702.166a: every artifact, enchantment, or token the caster controls pays an announced
+// bargain. Reached only after a "yes", so the option list is never empty.
+private fun chooseOptionalCostObjectsRequest(
+    state: GameState,
+    cast: PendingCast,
+    definition: SpellDefinition,
+    card: CardRef,
+    id: DecisionRequestId,
+): DecisionRequest.ChooseOptionalCostSacrifice {
+    val cost =
+        definition.optionalAdditionalCost
+            ?: error("CR 601.2b: an optional-cost selection requires a card printing one")
+    return DecisionRequest.ChooseOptionalCostSacrifice(
+        id = id,
+        cardObjectId = cast.cardObjectId,
+        card = card,
+        options =
+            optionalCostPayableWith(state, cast.caster, cost)
+                .map { DecisionRequest.ChooseOptionalCostSacrifice.Option(it.id, it.card) },
+        // CR 702.166a: bargain sacrifices exactly one permanent.
+        count = 1,
+    )
+}
+
+// CR 601.2h: every untapped matching permanent the caster controls is a tap-cost option (Prismatic
+// Strands). Summoning sickness is deliberately not consulted — CR 302.6 restricts a permanent's own
+// {T} abilities, and this is a spell's cost.
+private fun chooseTapsRequest(
+    state: GameState,
+    cast: PendingCast,
+    card: CardRef,
+    id: DecisionRequestId,
+): DecisionRequest.ChooseTapsForCost {
+    val requirement =
+        cast.castingPermission?.tap ?: error("CR 601.2h: a tap cost requires a casting permission")
+    return DecisionRequest.ChooseTapsForCost(
+        id = id,
+        cardObjectId = cast.cardObjectId,
+        card = card,
+        options =
+            tappableFor(state, cast.caster, requirement)
+                .map { DecisionRequest.ChooseTapsForCost.Option(it.id, it.card) },
+        count = requirement.count,
+    )
+}
+
 // CR 601.2b: every matching permanent the caster controls is an additional-sacrifice-cost option
 // (Eviscerator's Insight's "an artifact or creature", Raze's "a land"). The card being cast is in the
 // hand or the graveyard, never on the battlefield, so it excludes nothing from its own option list.
@@ -250,57 +331,3 @@ private fun chooseDiscardForCostRequest(
         count = additional.count,
     )
 }
-
-/**
- * The CR 601.2b kicker announcement (CR 702.33a): a plain yes/no, because declining is always legal and
- * the announcement is only surfaced at all when the kicked cost is affordable ([kickerAffordable]) — so
- * both answers lead somewhere payable, which is what a yes/no requires (ADR-005).
- *
- * The prompt names the cost, because "pay the kicker?" is not answerable without knowing what it costs
- * and the request carries no other price.
- */
-private fun kickerAnnouncementRequest(
-    cast: PendingCast,
-    definition: SpellDefinition,
-    card: CardRef,
-    id: DecisionRequestId,
-): DecisionRequest.ChooseYesNo =
-    DecisionRequest.ChooseYesNo(
-        id = id,
-        prompt = "Pay the kicker cost ${definition.kicker?.render()} for ${card.name}?",
-        cardObjectId = cast.cardObjectId,
-        card = card,
-    )
-
-/**
- * The CR 601.2b announcement of a variable cost (CR 107.3b), whose options are the values this seat can
- * actually pay for (`XCost.kt`).
- *
- * Two inputs make the bound exact, and both are settled by the time this branch is reached. The kicker
- * answer, one branch above, is part of the cost each candidate is priced against. And the reservation is
- * the **identical** set the [DecisionRequest.ChoosePaymentPlan] below will use — which is the whole
- * reason the announcement is settled here rather than at CR 601.2b's printed position, above the target
- * stage (see the file header).
- */
-private fun xAnnouncementRequest(
-    state: GameState,
-    cast: PendingCast,
-    definition: SpellDefinition,
-    card: CardRef,
-    id: DecisionRequestId,
-): DecisionRequest.ChooseXValue =
-    DecisionRequest.ChooseXValue(
-        id = id,
-        cardObjectId = cast.cardObjectId,
-        card = card,
-        values =
-            xValueOptions(
-                state,
-                cast.caster,
-                cast.subject(definition),
-                // Non-null in this branch, but a cross-module property the compiler will not smart-cast;
-                // `?: false` is the same value, exactly as `chosenModes.orEmpty()` is above.
-                kicked = cast.kicked ?: false,
-                reserved = sacrificeSourcesAmong(state, cast.additionalSacrifice.orEmpty()),
-            ),
-    )

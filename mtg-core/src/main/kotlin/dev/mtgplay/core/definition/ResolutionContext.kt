@@ -91,6 +91,7 @@ data class ResolutionContext(
     val linkedExiled: PersistentList<ObjectId> = persistentListOf(),
     val kicked: Boolean = false,
     val chosenX: Int = 0,
+    val optionalCostPaid: Boolean = false,
 ) {
     /**
      * The [dev.mtgplay.core.state.DamageSource] this resolving object is, for the damage primitives

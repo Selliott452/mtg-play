@@ -156,6 +156,19 @@ interface ResolutionClauses {
      * [ChosenTypeReveal] for both arguments in full.
      */
     val chosenTypeReveal: ChosenTypeReveal? get() = null
+
+    /**
+     * A "choose a colour, then do something with it" clause (CR 609.4), or `null` for a definition with
+     * none. Prismatic Strands' "the color of your choice". Additive, flagged core (`FW-PREVENT2`).
+     *
+     * The first clause whose decision is over neither a zone nor the battlefield but over a **closed
+     * vocabulary**: its five options are the five colours (CR 105.1) and are the same five on every
+     * board, so unlike every sibling here it can never have an empty option list and never needs a
+     * "can this be done at all" pre-check. See [ChosenColorEffect] for why it is distinct from
+     * [CardDefinition.choosesColorAsItEnters], the CR 614.12 flag that looks like it and is a different
+     * rule at a different moment.
+     */
+    val chosenColorEffect: ChosenColorEffect? get() = null
 }
 
 /**
@@ -179,6 +192,7 @@ val ResolutionClauses.declaredClauses: List<Any>
             optionalManaThenDraw,
             targetPlayerExilesFromGraveyard,
             chosenTypeReveal,
+            chosenColorEffect,
         )
 
 /**

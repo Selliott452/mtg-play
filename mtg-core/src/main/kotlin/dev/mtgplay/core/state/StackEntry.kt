@@ -95,6 +95,7 @@ sealed interface StackEntry {
         val sacrificedForCost: PersistentList<CardRef> = persistentListOf(),
         val chosenModes: PersistentList<Int> = persistentListOf(),
         val kicked: Boolean = false,
+        val optionalCostPaid: Boolean = false,
         val chosenX: Int = 0,
     ) : StackEntry {
         init {

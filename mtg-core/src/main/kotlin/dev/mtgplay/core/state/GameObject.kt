@@ -240,6 +240,7 @@ data class GameObject(
     val kickedWhenCast: Boolean = false,
     val evokedWhenCast: Boolean = false,
     val playGrantedTurn: Int? = null,
+    val optionalCostPaidWhenCast: Boolean = false,
 ) {
     init {
         require(damageMarked >= 0) { "CR 120.3: marked damage is non-negative, was $damageMarked" }

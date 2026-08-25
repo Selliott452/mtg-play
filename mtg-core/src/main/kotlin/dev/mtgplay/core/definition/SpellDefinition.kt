@@ -161,6 +161,23 @@ interface SpellDefinition :
     val kicker: ManaCost? get() = null
 
     /**
+     * This spell's **optional additional cost with a chosen object** (CR 601.2b), or `null` for a card
+     * with none. Additive, flagged core (`FW-BARGAIN`). Troublemaker Ouphe's
+     * [OptionalAdditionalCost.Bargain].
+     *
+     * The fourth cost declaration on this interface, and the one cell of the mandatory/optional by
+     * mana/non-mana square that was empty — see [OptionalAdditionalCost] for the table and for why each
+     * cell needs its own pipeline rather than a flag on a neighbour. Distinct from [kicker], which is
+     * optional but has nothing to *choose*; from [additionalCost], which chooses but is mandatory; and
+     * from [castingPermissions], which replace the printed cost rather than adding to it (CR 118.9).
+     *
+     * **At most one per card**, which the field's nullability enforces and which is what lets a single
+     * recorded boolean answer "was it bargained?" unambiguously
+     * ([dev.mtgplay.core.state.StackEntry.Spell.optionalCostPaid]).
+     */
+    val optionalAdditionalCost: OptionalAdditionalCost? get() = null
+
+    /**
      * Whether this spell has **rebound** (CR 702.88a), the keyword Ephemerate prints. Additive, flagged
      * core (`FW-BLINK`, docs/design/exile-and-return.md §5).
      *

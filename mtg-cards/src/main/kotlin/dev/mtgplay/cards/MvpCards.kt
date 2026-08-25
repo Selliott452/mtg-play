@@ -1,6 +1,7 @@
 package dev.mtgplay.cards
 
 import dev.mtgplay.core.definition.CardDefinition
+import dev.mtgplay.core.definition.InterveningIf
 import dev.mtgplay.core.identity.CardRef
 
 /**
@@ -390,6 +391,17 @@ import dev.mtgplay.core.identity.CardRef
  * has; **Monstrous Emergence** needs an additional cost that is a *choice between two shapes*, neither of
  * which consumes what it names, whose two branches read power from the battlefield and from a hand
  * respectively (CR 613 versus CR 109.3).
+ *
+ * The `FW-PREVENT2` packet adds the gauntlet's **prevention pair** (Flashback.kt): [flaringPain], whose
+ * CR 615.9 "damage can't be prevented" is the off-switch for the whole CR 615 framework, and
+ * [prismaticStrands], whose CR 615.1 colour shield is the thing it switches off. Between them they are
+ * the first cards to put anything in the global prevention store; Prismatic Strands is additionally the
+ * first card whose flashback cost is not mana at all — "Tap an untapped white creature you control"
+ * (CR 702.34c) — and the first to choose a colour *as it resolves* (CR 609.4) rather than as a permanent
+ * enters (CR 614.12, Utopia Sprawl). The same packet adds [troublemakerOuphe] (AdditionalCostCards.kt),
+ * whose **bargain** opens the one cost cell the engine lacked — optional *and* object-choosing — and
+ * whose enters trigger reads the answer back through a second [InterveningIf] member. That packet's
+ * four remaining cards are absent, with their diagnoses recorded in AdditionalCostCards.kt.
  */
 object MvpCards {
     /** Every defined card, keyed by its printed-name [CardRef] (CR 201). */
@@ -451,6 +463,7 @@ object MvpCards {
             faithlessLooting,
             fieryTemper,
             fireblast,
+            flaringPain,
             forceSpike,
             forest,
             fyndhornElves,
@@ -521,6 +534,7 @@ object MvpCards {
             pyroblast,
             preordain,
             priestOfTitania,
+            prismaticStrands,
             pulseOfMurasa,
             pursueThePast,
             quirionRanger,
@@ -571,6 +585,7 @@ object MvpCards {
             timberwatchElf,
             toxinAnalysis,
             trollOfKhazadDum,
+            troublemakerOuphe,
             twistedLandscape,
             unexpectedFangs,
             unfathomableTruths,

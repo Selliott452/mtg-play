@@ -74,6 +74,9 @@ fun viewFor(
             pendingPermanentSelection = state.pendingPermanentSelection,
             // CR 611.2: a resolved spell's continuous effect is public information; no filtering applies.
             timedEffects = state.timedEffects,
+            // CR 615: a prevention effect governs damage to every permanent and both players, so there
+            // is no seat it could sensibly be hidden from; no filtering applies.
+            preventionEffects = state.preventionEffects,
         )
     return projected.copy(cards = cardsOf(state.definitions, visibleCardRefs(projected)))
 }

@@ -82,4 +82,10 @@ internal fun interveningIfHolds(
             state.sharedZones.battlefield
                 .firstOrNull { it.id == sourceId }
                 ?.evokedWhenCast == true
+        // CR 702.166b: "was it bargained", carried onto the permanent by the spell that became it in
+        // exactly the way kicked-ness is, and read here at both CR 603.4 checks.
+        InterveningIf.SourcePaidOptionalAdditionalCost ->
+            state.sharedZones.battlefield
+                .firstOrNull { it.id == sourceId }
+                ?.optionalCostPaidWhenCast == true
     }

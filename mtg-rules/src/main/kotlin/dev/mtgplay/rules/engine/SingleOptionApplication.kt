@@ -39,7 +39,16 @@ internal fun applySingleOptionSelection(
         // The option index *is* the amount assigned to the defending player (options are 0..excess).
         is DecisionRequest.AssignTrampleDamage ->
             applyTrampleAssignment(state, request, request.options[decision.index])
-        is DecisionRequest.ChooseColor -> applyChosenColor(state, request.options[decision.index])
+        // CR 614.12 / CR 609.4: two flows share this request and are told apart by which pending record
+        // is open — the as-enters choice on an entering permanent, and the mid-resolution clause. The
+        // disambiguation is the one five yes/no flows already use, and the order matches the one
+        // `pendingDecisionRequest` derives them in.
+        is DecisionRequest.ChooseColor ->
+            if (state.pendingChosenColor != null) {
+                applyChosenColorClause(state, request.options[decision.index])
+            } else {
+                applyChosenColor(state, request.options[decision.index])
+            }
         is DecisionRequest.ChooseReplacement -> applyChosenReplacement(state)
         // CR 701.14a/701.17a: one index names a complete arrangement of the privately looked-at cards.
         is DecisionRequest.ChooseLibraryArrangement ->

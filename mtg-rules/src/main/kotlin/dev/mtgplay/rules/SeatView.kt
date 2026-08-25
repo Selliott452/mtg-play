@@ -25,6 +25,7 @@ import dev.mtgplay.core.state.PendingTapOrUntap
 import dev.mtgplay.core.state.PendingTriggerTargets
 import dev.mtgplay.core.state.PriorityStatus
 import dev.mtgplay.core.state.TimedContinuousEffect
+import dev.mtgplay.core.state.TimedPreventionEffect
 import dev.mtgplay.core.state.Turn
 
 /**
@@ -216,6 +217,12 @@ import dev.mtgplay.core.state.Turn
  *   as the integers they are (CR 608.2h), so an agent is told what the pump *is* rather than a
  *   formula it would have to re-derive — the same disclosure a player gets by reading the card.
  *   Empty at every pause outside the turn an effect was created on (CR 514.2).
+ * @property preventionEffects the **global** prevention effects still in force (CR 615), in creation
+ *   order; **fully public and carried unfiltered** (`FW-PREVENT2`) — Prismatic Strands' colour shield
+ *   and Flaring Pain's CR 615.9 off-switch. Public for [timedEffects]' reason and more sharply: an
+ *   agent that cannot see which colour is shielded cannot evaluate a single attack or burn spell for
+ *   the rest of the turn, and both cards resolved face-up on the public stack (CR 405). Empty outside
+ *   the turn an effect was created on (CR 514.2).
  */
 data class SeatView(
     val viewer: PlayerId,
@@ -251,6 +258,7 @@ data class SeatView(
     val pendingPermanentSelection: PendingPermanentSelection? = null,
     val pendingTapOrUntap: PendingTapOrUntap? = null,
     val timedEffects: List<TimedContinuousEffect> = emptyList(),
+    val preventionEffects: List<TimedPreventionEffect> = emptyList(),
 )
 
 /**

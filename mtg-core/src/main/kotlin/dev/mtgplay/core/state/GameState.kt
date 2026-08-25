@@ -151,6 +151,18 @@ import kotlinx.collections.immutable.persistentMapOf
  *   rules-relevant content of a [GameState] that hangs off no object: an "until end of turn" effect
  *   outlives the ability that made it and may outlive the permanent it modifies. Empty outside the turn
  *   an effect was created on, because the CR 514.2 cleanup turn-based action ends every one of them.
+ * @property pendingChosenColor a "choose a colour, then do something with it" clause gathered
+ *   mid-resolution (CR 609.4), or `null`. Additive, flagged core (`FW-PREVENT2`) — Prismatic Strands.
+ *   Non-null only at that pause, where the resolving object is still on top of the stack. The sibling of
+ *   [pendingColorChoice] and not a mode of it: that one is CR 614.12's as-enters choice on a permanent
+ *   and resumes into a battlefield entry — see [PendingChosenColor].
+ * @property preventionEffects the **global**, turn-scoped effects read at the CR 615 damage-prevention
+ *   application point, in creation order. Additive, flagged core (`FW-PREVENT2`) — Prismatic Strands'
+ *   colour shield and Flaring Pain's CR 615.9 off-switch. The second piece of rules-relevant content
+ *   that hangs off no object, and a separate store from [timedEffects] rather than a widening of it
+ *   because neither member names an affected object or classifies into a CR 613 layer (see
+ *   [PreventionEffect]). Empty outside the turn an effect was created on, for [timedEffects]' reason:
+ *   the same CR 514.2 turn-based action ends both.
  */
 data class GameState(
     val players: PersistentMap<PlayerId, PlayerState>,
@@ -188,6 +200,8 @@ data class GameState(
     val pendingGraveyardExile: PendingGraveyardExile? = null,
     val pendingTypeChoice: PendingTypeChoice? = null,
     val timedEffects: PersistentList<TimedContinuousEffect> = persistentListOf(),
+    val preventionEffects: PersistentList<TimedPreventionEffect> = persistentListOf(),
+    val pendingChosenColor: PendingChosenColor? = null,
 ) {
     init {
         require(players.isNotEmpty()) { "a game has at least one seated player" }
@@ -338,6 +352,16 @@ data class GameState(
             require(sharedZones.exile.any { it.id == rebound.exiledObjectId }) {
                 "CR 702.88b: the rebounding card ${rebound.exiledObjectId} must still be in exile while its " +
                     "free cast is pending"
+            }
+        }
+        val chosenColor = pendingChosenColor
+        if (chosenColor != null) {
+            require(chosenColor.decider in players) {
+                "CR 609.4: the colour-choice decider ${chosenColor.decider} is not seated"
+            }
+            require(sharedZones.stack.isNotEmpty()) {
+                "CR 609.4: a mid-resolution colour choice pauses inside a resolution, so the " +
+                    "resolving object must still be on the stack"
             }
         }
         val permanentSelection = pendingPermanentSelection

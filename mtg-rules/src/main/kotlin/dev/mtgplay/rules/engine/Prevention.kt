@@ -1,7 +1,9 @@
 package dev.mtgplay.rules.engine
 
+import dev.mtgplay.core.card.Quality
 import dev.mtgplay.core.state.DamageSource
 import dev.mtgplay.core.state.GameState
+import dev.mtgplay.core.state.PreventionEffect
 import dev.mtgplay.core.state.Target
 
 /**
@@ -12,21 +14,21 @@ import dev.mtgplay.core.state.Target
  * ## Why this is one function taking (source, recipient, amount)
  *
  * The shape is deliberate and is the packet's main extension decision. Prevention is a *family* of
- * effects that all answer the same question at the same moment, and the family already has three
- * known members with only one built:
+ * effects that all answer the same question at the same moment, and the family had three known
+ * members with only one built. All three are built now:
  *
  * - **CR 702.16e protection** — "any damage that would be dealt by sources that have the stated
- *   quality to a permanent or player with protection is prevented". Built here. It is a pure
+ *   quality to a permanent or player with protection is prevented". `FW-PREVENT`. It is a pure
  *   *static read* of the recipient's layered characteristics: no stored effect, no duration, no
  *   shield. That is the load-bearing sizing insight of docs/design/protection.md §3 — protection's
  *   prevention needs nothing but the source's identity threaded to this moment.
- * - **CR 615.1 shields** — Prismatic Strands' "prevent all damage that sources of the colour of
- *   your choice would deal this turn". *Not built*: it needs a turn-duration prevention store on
- *   [GameState], which needs a card that produces one, and Prismatic Strands is blocked on a cost
- *   shape the engine does not have. Its slot is this function's second clause.
- * - **CR 615.9 "damage can't be prevented"** — Flaring Pain. *Not built*, and it is why the
- *   signature is a function rather than a sprinkling of booleans through `dealDamage`: it inverts
- *   the whole framework, and a single application point has exactly one place to invert.
+ * - **CR 615.1 shields** — Prismatic Strands' "prevent all damage that sources of the colour of your
+ *   choice would deal this turn". `FW-PREVENT2`, built into the slot this KDoc reserved for it: the
+ *   turn-duration store is [GameState.preventionEffects] and the clause is [colorShieldCatches].
+ * - **CR 615.9 "damage can't be prevented"** — Flaring Pain. Same packet, and it is why the
+ *   signature is a function rather than a sprinkling of booleans through `dealDamage`: it inverts the
+ *   whole framework, and a single application point has exactly one place to invert. That inversion
+ *   is the first branch of the body, ahead of every clause including protection's.
  *
  * ## Three CR corners this must not approximate
  *
@@ -45,12 +47,77 @@ import dev.mtgplay.core.state.Target
  * - **Prevention shrinks no enumeration.** It changes an outcome, not an option set
  *   (docs/design/protection.md §6). A Lightning Bolt must still be castable at a creature with
  *   protection from red — the cast is legal, the *targeting* is what CR 702.16b forbids, and a Bolt
- *   aimed at the player is legal regardless.
+ *   aimed at the player is legal regardless. The two store-backed members inherit this exactly: a
+ *   Prismatic Strands shield on red does not remove a Bolt from anybody's action list, and a Flaring
+ *   Pain does not add one.
  */
 internal fun damageIsPrevented(
     state: GameState,
     source: DamageSource,
     recipient: Target,
+): Boolean =
+    when {
+        // CR 615.9: "A prevention effect that can't be applied simply doesn't do anything." So Flaring
+        // Pain deletes no shield, races none on a timestamp, and does not care which came first — while
+        // it is in force **every** clause below fails to apply, protection's CR 702.16e prevention
+        // included. Protection's other three letters (CR 702.16b targeting, CR 702.16c attachment,
+        // CR 702.16f blocking) are untouched: none of them is prevention, and Flaring Pain says nothing
+        // about them.
+        preventionCannotApply(state) -> false
+        // CR 615.1: a shield keyed on the *source's* colour, catching damage to every permanent and to
+        // both players alike. It is checked before protection only because the two are independent —
+        // damage caught by either is prevented — so no ordering between them is observable.
+        colorShieldCatches(state, source) -> true
+        else -> recipientHasProtectionFrom(state, recipient, source)
+    }
+
+/**
+ * Whether a CR 615.9 "damage can't be prevented" effect is in force (Flaring Pain) — the one predicate
+ * that turns the whole framework off.
+ *
+ * A presence test over the store rather than a count or a timestamp comparison, because CR 615.9 admits
+ * no arithmetic: one such effect and two behave identically, and one created *after* a shield disables
+ * that shield exactly as one created before it does. A Prismatic Strands cast in response to a Flaring
+ * Pain still resolves and still creates its shield; the shield simply never applies this turn.
+ */
+private fun preventionCannotApply(state: GameState): Boolean =
+    state.preventionEffects.any { it.effect is PreventionEffect.DamageCantBePrevented }
+
+/**
+ * Whether any CR 615.1 colour shield in force catches damage from [source] (Prismatic Strands).
+ *
+ * The colour test is [sourceHasQuality] with a [Quality.OfColor], which is the *same* predicate
+ * CR 702.16e protection uses — deliberately, because the two rules ask an identical question of an
+ * identical object, and a second colour read is a second thing that could drift. It inherits that
+ * predicate's recorded blind spot too: colours come from
+ * [dev.mtgplay.core.card.PrintedCharacteristics.colors], so a source with
+ * [dev.mtgplay.core.card.Keyword.DEVOID] is colourless everywhere (CR 702.114a) and no shield ever
+ * catches it — which is correct — while a layer-5 colour-*changing* effect would need this read to move
+ * to layered colour. Layer 5 is kept empty behind a loud gate, so that day cannot pass silently.
+ *
+ * **Colourless damage is never caught, and that is the printed card rather than a gap.** [Quality.OfColor]
+ * ranges over [dev.mtgplay.core.mana.Color], which has five members: CR 105.4 makes colourless the
+ * absence of colour rather than a sixth one, so "the colour of your choice" cannot name it.
+ */
+private fun colorShieldCatches(
+    state: GameState,
+    source: DamageSource,
+): Boolean =
+    state.preventionEffects.any { timed ->
+        val effect = timed.effect
+        effect is PreventionEffect.PreventDamageFromColor &&
+            sourceHasQuality(state, source.card, Quality.OfColor(effect.color))
+    }
+
+/**
+ * The CR 702.16e clause: whether [recipient] has protection from a quality the object printed as
+ * [source]'s card has. Unchanged by `FW-PREVENT2` — it is split out of [damageIsPrevented] only so the
+ * three clauses read as three clauses.
+ */
+private fun recipientHasProtectionFrom(
+    state: GameState,
+    recipient: Target,
+    source: DamageSource,
 ): Boolean =
     when (recipient) {
         // CR 702.16e: a player with protection from the source's quality takes no damage from it.
