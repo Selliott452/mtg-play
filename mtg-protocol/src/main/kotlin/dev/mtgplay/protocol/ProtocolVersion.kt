@@ -447,5 +447,27 @@ package dev.mtgplay.protocol
  *    own reader meets a symbol its `6.0.0` grammar rejects. No card in the gauntlet ships with an
  *    `{X}` cost, so this one is latent rather than live — recorded because a peer that hard-codes the
  *    symbol set will meet it the day one does.
+ *
+ * ### `8.0.0` also carries `W8-G` — artifacts and the awkward singles
+ *
+ * **Held at `8.0.0` rather than bumped to `9.0.0`**, on this file's own standard and for the reason the
+ * `FW-X` entry above states in full: **`8.0.0` is unreleased.** The only tag is `v0.1.0`, which shipped
+ * protocol `1.0.0`, so an unshipped major absorbs further breaks from the same wave rather than inflating
+ * the major count for a version nobody could have consumed. Naming the breaks is still owed:
+ *
+ * 1. **A new `DecisionRequest` kind** — the sharper break mode. [DecisionRequestDto] gains
+ *    [DecisionRequestDto.ChooseTapOrUntap] (`choose_tap_or_untap`) and [DecisionRequestKindDto] gains
+ *    `CHOOSE_TAP_OR_UNTAP`, whose `valueOf` mapping fails at **runtime** mid-match rather than at compile
+ *    time. It is answerable client→server, since the three-way decline/tap/untap answer is a decision an
+ *    agent sends an index for. [TapOrUntapChoiceDto] is the new payload enum.
+ * 2. **Two optional seat-view fields, both defaulted, so an older payload still decodes.**
+ *    [SeatViewDto.pendingTapOrUntap] ([PendingTapOrUntapDto]) and, on [PlayerViewDto],
+ *    `combatPhasesToSkip`. Both are public information: a mid-resolution choice over a target announced at
+ *    CR 603.3d hides nothing, and a CR 500.10 scheduled combat skip resolves face-up.
+ *
+ * `combatPhasesToSkip` is the one worth a peer's attention rather than a codec's. It is not decoration:
+ * an agent that cannot see it will plan attacks in a combat phase that is never going to happen, which is
+ * the enumeration blindness ADR-005 exists to prevent. It is defaulted only so the wire stays
+ * backward-decodable, not because it is optional to *understand*.
  */
 const val PROTOCOL_VERSION: String = "8.0.0"

@@ -69,7 +69,18 @@ import dev.mtgplay.core.identity.CardRef
  * time: each would be the pool's first permanent that is both a mana source and the source of a
  * `{T}`-costed activated ability with a mana component, and payment enumeration offered a plan that
  * tapped it for mana and then could not pay its own `{T}`. `FW-MANACOST` fixed that, and [hauntedFengraf]
- * has since landed (GraveyardHate.kt); Bonder's Ornament still needs "add one mana of any color".
+ * has since landed (GraveyardHate.kt), and `W8-G` has landed [bondersOrnament] too — the sentence that
+ * stood here, that it "still needs add one mana of any color", was false when it was written:
+ * [giantsBoulder] had been declaring that exact production shape in the same file since `FW-MANACOST`.
+ *
+ * The `W8-G` packet adds the three gauntlet cards that belong to no family (AwkwardSingles.kt), each of
+ * which had been picked up and put down at least once before: [stonehornDignitary], whose "target opponent
+ * skips their next combat phase" is the CR 500.10 phase-skip framework (one field on `PlayerState`, one
+ * clause in `isSkipped`, one decrement); [standardBearer], the pool's first CR 601.2c targeting
+ * *requirement*, which narrows what an **opponent** may announce rather than what is legal; and
+ * [sewerVeillanceCam], whose "you may tap or untap target creature" is **not** modal (CR 700.2) and needed
+ * a three-way resolution clause rather than the `FW-MODAL` its earlier drop named. Kenku Artificer, Sacred
+ * Cat and Inventor's Axe stay absent, with their diagnoses in AwkwardSingles.kt's header.
  *
  * The keyword-tail packet adds the last four gauntlet cards whose blocker was a missing keyword or a
  * missing framework half (KeywordTailCards.kt): [toxinAnalysis], which **grants** the pool's first
@@ -281,6 +292,7 @@ object MvpCards {
             bloodFountain,
             bojukaBog,
             blueElementalBlast,
+            bondersOrnament,
             barrelsOfBlastingJelly,
             brainstorm,
             breathWeapon,
@@ -387,6 +399,7 @@ object MvpCards {
             seaGateOracle,
             seatOfTheSynod,
             sentinelsEyes,
+            sewerVeillanceCam,
             silhanaLedgewalker,
             silverbluffBridge,
             rooftopPercher,
@@ -405,7 +418,9 @@ object MvpCards {
             spinewoodsPaladin,
             steelSabotage,
             spiritLink,
+            standardBearer,
             standingTroops,
+            stonehornDignitary,
             swamp,
             tamiyosSafekeeping,
             terminate,

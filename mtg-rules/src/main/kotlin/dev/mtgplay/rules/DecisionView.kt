@@ -165,6 +165,9 @@ enum class DecisionRequestKind {
     /** [DecisionRequest.ChooseRevealedHandCard] — pick a card from an opponent's revealed hand (CR 701.16a). */
     CHOOSE_REVEALED_HAND_CARD,
 
+    /** [DecisionRequest.ChooseTapOrUntap] — decline, tap, or untap a clause's target (CR 608.2c). */
+    CHOOSE_TAP_OR_UNTAP,
+
     /**
      * [DecisionRequest.ChooseOpponentDiscards] — an "each opponent discards a card" selection (CR 701.7a),
      * made by an opponent of the resolving object's controller over their own hand. The kind an opposing
@@ -211,6 +214,7 @@ private fun singleOptionSelectionKind(request: DecisionRequest.SingleOptionSelec
         is DecisionRequest.ChooseLibraryArrangement -> DecisionRequestKind.CHOOSE_LIBRARY_ARRANGEMENT
         is DecisionRequest.ChooseCounterPayment -> DecisionRequestKind.CHOOSE_COUNTER_PAYMENT
         is DecisionRequest.ChooseRevealedHandCard -> DecisionRequestKind.CHOOSE_REVEALED_HAND_CARD
+        is DecisionRequest.ChooseTapOrUntap -> DecisionRequestKind.CHOOSE_TAP_OR_UNTAP
     }
 
 /** The kind of one fixed-size subset selection (CR 514.1 / 601.2b/h / 602.2b). */

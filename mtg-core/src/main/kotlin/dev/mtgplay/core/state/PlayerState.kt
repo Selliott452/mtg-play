@@ -46,6 +46,23 @@ import kotlinx.collections.immutable.persistentListOf
  *   successful draw and reset to 0 for every player when a turn begins (`mtg-rules`); a per-player
  *   counter because any player may draw on any turn (an opponent's-turn draw effect still counts
  *   toward *that* player's per-turn total). Non-negative.
+ * @property combatPhasesToSkip how many of this player's **next** combat phases are skipped (CR 500.10),
+ *   Stonehorn Dignitary's "target opponent skips their next combat phase". Additive, flagged core
+ *   (`W8-G`). Non-negative.
+ *
+ *   **A count, not a flag**, and that is the one place it deliberately parts company with
+ *   [GameObject.skipsNextUntapStep], the marker it otherwise mirrors: two Dignitaries — or one blinked
+ *   twice, which is the line UWX Familiar actually plays — must cost their victim two combat phases, so
+ *   a second application has to add rather than be absorbed. A permanent's untap marker is a fact about
+ *   a permanent ("it doesn't untap"); this is a queue of scheduled skips.
+ *
+ *   **It is not reset when a turn begins**, unlike [drawsThisTurn]. "Their next combat phase" is a
+ *   standing obligation with no deadline: it is set during somebody else's turn and spent whenever this
+ *   player's next combat phase would have begun, however many turns later. `mtg-rules` decrements it at
+ *   exactly one point, the moment a combat phase is actually skipped.
+ *
+ *   Per-player rather than on [Turn] — the split [Turn.landsPlayedThisTurn] sits on the other side of —
+ *   because the fact is written about a *non-active* player and must outlive the turn it was written on.
  */
 data class PlayerState(
     val life: Int,
@@ -57,9 +74,13 @@ data class PlayerState(
     val attemptedDrawFromEmptyLibrary: Boolean = false,
     val decisionsAnswered: Int = 0,
     val drawsThisTurn: Int = 0,
+    val combatPhasesToSkip: Int = 0,
 ) {
     init {
         require(decisionsAnswered >= 0) { "answered-decision count must be non-negative, was $decisionsAnswered" }
         require(drawsThisTurn >= 0) { "CR 121.1: draws this turn must be non-negative, was $drawsThisTurn" }
+        require(combatPhasesToSkip >= 0) {
+            "CR 500.10: scheduled combat-phase skips must be non-negative, was $combatPhasesToSkip"
+        }
     }
 }

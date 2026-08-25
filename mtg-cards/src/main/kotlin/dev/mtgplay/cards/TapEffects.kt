@@ -55,17 +55,21 @@ import kotlinx.collections.immutable.persistentSetOf
  * - [ManaAmount.FixedMultiset], the mixed production the Chancery's "{T}: Add {W}{U}" needs, which
  *   `ManaAbility`'s own KDoc had been recording as inexpressible.
  *
- * **Two cards from the packet's list are deliberately absent**, both for missing frameworks rather
- * than missing primitives, and both are recorded in the packet report:
+ * **Two cards from the packet's list were deliberately absent, and `W8-G` has since encoded both**
+ * (AwkwardSingles.kt). The diagnoses are kept because one of them was right and the other was wrong:
  * - **Sewer-veillance Cam** — "When this artifact enters **or leaves** the battlefield, you may tap
- *   **or** untap target creature." The two conditions are Ichor Wellspring's (two entries, disjoint
- *   events) and both branches are this file's primitives, but the resolution is a *mode* choice on a
- *   triggered ability — decline, tap, or untap — and modal resolution exists only for spells
- *   ([SpellDefinition.modes] with `ModalSpell`, `FW-MODAL`). Encoding it as tap-only or untap-only
- *   would be a plausible-looking wrong card (PLAN.md §7).
- * - **Stonehorn Dignitary** — "target opponent skips their next combat phase". A CR 500.6 skip effect
- *   is a *delayed* per-player fact, and `positionAfter` decides skipping from the [Turn] alone with no
- *   access to player state, so the card needs a skip framework rather than a primitive.
+ *   **or** untap target creature." This packet recorded the resolution as "a *mode* choice on a
+ *   triggered ability" needing `FW-MODAL`, which handles modes on spells only. **That was a
+ *   misreading of CR 700.2**, which makes an object modal only when it prints two or more options in a
+ *   bulleted list preceded by an instruction to choose among them. The Cam prints one sentence with a
+ *   conjunction, so nothing is announced at CR 601.2b and the choice belongs in the resolution
+ *   (CR 608.2c). What it needed was a mid-resolution decision — a `ResolutionClauses` member — and
+ *   `dev.mtgplay.core.definition.OptionalTapOrUntap` is it. The instinct not to ship a tap-only or
+ *   untap-only approximation was right; only the diagnosis of the blocker was wrong.
+ * - **Stonehorn Dignitary** — "target opponent skips their next combat phase". This diagnosis was
+ *   exact: `positionAfter` decided skipping from the [Turn] alone with no access to player state, so
+ *   the card needed a skip framework rather than a primitive. `W8-G` widened that function to take the
+ *   whole state and added `PlayerState.combatPhasesToSkip` (CR 500.10); nothing else moved.
  */
 
 /** Sleep of the Dead, for the target it taps (CR 115.1b). */

@@ -95,6 +95,8 @@ class RandomRemoteAgent(
             is DecisionRequestDto.ChooseCounterPayment -> request.options.size
             // CR 701.16a: the controller's pick from an opponent's revealed hand.
             is DecisionRequestDto.ChooseRevealedHandCard -> request.options.size
+            // CR 608.2c: decline, tap, or untap a clause's target.
+            is DecisionRequestDto.ChooseTapOrUntap -> request.options.size
         }
 
     // The number of selectable indices of a "choose one, or opt out" request (real options + one opt-out).

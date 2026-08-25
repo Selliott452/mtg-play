@@ -143,6 +143,7 @@ data class PlayerViewDto(
     val attemptedDrawFromEmptyLibrary: Boolean,
     val decisionsAnswered: Int,
     val drawsThisTurn: Int,
+    val combatPhasesToSkip: Int = 0,
 )
 
 /** [PlayerView] to its wire form. */
@@ -158,6 +159,7 @@ fun PlayerView.toDto(): PlayerViewDto =
         attemptedDrawFromEmptyLibrary = attemptedDrawFromEmptyLibrary,
         decisionsAnswered = decisionsAnswered,
         drawsThisTurn = drawsThisTurn,
+        combatPhasesToSkip = combatPhasesToSkip,
     )
 
 /** [PlayerViewDto] back to the engine value. */
@@ -173,4 +175,5 @@ fun PlayerViewDto.toDomain(): PlayerView =
         attemptedDrawFromEmptyLibrary = attemptedDrawFromEmptyLibrary,
         decisionsAnswered = decisionsAnswered,
         drawsThisTurn = drawsThisTurn,
+        combatPhasesToSkip = combatPhasesToSkip,
     )

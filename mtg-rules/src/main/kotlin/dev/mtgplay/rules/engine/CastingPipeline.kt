@@ -250,7 +250,9 @@ private fun establishTargets(
     // CR 601.2a ran before this stage, so the spell is already on the stack under `entry.obj.id`;
     // naming it here keeps this re-validation's enumeration equal to the gathering-time one, in which
     // the card was still in its source zone.
-    val options = legalTargets(state, spec, entry.controller, Chooser.Spell(entry.obj.id))
+    // CR 601.2c: announceable, not merely legal — a targeting requirement standing against the caster
+    // narrowed what could be offered, so it must narrow what is re-validated (`W8-G`).
+    val options = announceableTargets(state, spec, entry.controller, Chooser.Spell(entry.obj.id))
     requireWellFormedTargetChoice(spec, entry.targets, options.size, entry.obj.card.name)
     entry.targets.forEach { target ->
         require(target in options) {

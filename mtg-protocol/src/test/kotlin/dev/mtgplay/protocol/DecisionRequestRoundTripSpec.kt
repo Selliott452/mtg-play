@@ -6,6 +6,7 @@ import dev.mtgplay.core.definition.CastSource
 import dev.mtgplay.core.definition.CastingPermission
 import dev.mtgplay.core.definition.OptionalCostMode
 import dev.mtgplay.core.definition.SacrificeRequirement
+import dev.mtgplay.core.definition.TapOrUntapChoice
 import dev.mtgplay.core.identity.CardRef
 import dev.mtgplay.core.identity.ObjectId
 import dev.mtgplay.core.identity.PlayerId
@@ -31,8 +32,7 @@ import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 
 /**
- * The schema round-trip (ADR-008): every one of the 29 [DecisionRequest] kinds, and every
- * The schema round-trip (ADR-008): every one of the 30 [DecisionRequest] kinds, and every
+ * The schema round-trip (ADR-008): every one of the 31 [DecisionRequest] kinds, and every
  * [Decision] shape, survives engine value -> DTO -> JSON -> DTO -> engine value unchanged, through
  * the strict [ProtocolJson] codec. The `allRequests` fixture is asserted to cover every kind, so the
  * exhaustive mapping is exercised end to end.
@@ -387,6 +387,14 @@ private val allRequests: List<DecisionRequest> =
         DecisionRequest.ChooseFromLibrary(
             ID,
             listOf(DecisionRequest.ChooseFromLibrary.Option(ObjectId(1), CardRef("Mountain"))),
+        ),
+        // CR 608.2c: decline, tap, or untap the clause's target — the source may be off the battlefield.
+        DecisionRequest.ChooseTapOrUntap(
+            ID,
+            cardObjectId = ObjectId(7),
+            card = CardRef("Sewer-veillance Cam"),
+            targetId = ObjectId(8),
+            options = TapOrUntapChoice.entries.toList(),
         ),
         // CR 701.16a: the revealer is the opponent, never the deciding seat — the request's own invariant.
         DecisionRequest.ChooseRevealedHandCard(

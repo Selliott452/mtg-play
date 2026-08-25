@@ -1,6 +1,7 @@
 package dev.mtgplay.rules.decision
 
 import dev.mtgplay.core.definition.OptionalCostMode
+import dev.mtgplay.core.definition.TapOrUntapChoice
 import dev.mtgplay.core.identity.CardRef
 import dev.mtgplay.core.identity.ObjectId
 import dev.mtgplay.core.identity.PlayerId
@@ -1140,6 +1141,45 @@ sealed interface DecisionRequest {
 
         init {
             require(options.isNotEmpty()) { "CR 614.12: a colour choice offers at least one colour" }
+        }
+    }
+
+    /**
+     * A "you may tap or untap [target]" clause's three-way answer (CR 701.20a, CR 701.21a):
+     * Sewer-veillance Cam's trigger is resolving and its controller picks one of [options] — decline,
+     * tap, untap — by index (a [Decision.SingleSelect]). Additive, flagged (`W8-G`).
+     *
+     * **A [SingleOptionSelection] rather than a [ChooseYesNo] with a follow-up**, because the card asks
+     * one question with three answers, not two questions. Splitting it into "do you want to?" and then
+     * "tap or untap?" would put two decision requests into the log where the game has one, which changes
+     * both the request-id sequence and what a replay of an interrupted match resumes into (ADR-004).
+     *
+     * **All three options are always offered**, and the two that look redundant are not. Tapping a
+     * permanent already tapped does nothing (CR 701.20a) and so does untapping an untapped one, but the
+     * engine offers them anyway: they are legal instructions with a defined (empty) outcome, and
+     * filtering them would make the option list depend on the target's current status — a set that can
+     * change between the pause and the answer in no way a player caused. ADR-005 asks for the legal
+     * options, not the useful ones.
+     *
+     * @property cardObjectId the clause's source as last known (CR 113.7c), for display; the Cam's second
+     *   trigger fires *because* it left the battlefield, so this id may name nothing on the board.
+     * @property card the printed identity behind [cardObjectId], for display.
+     * @property targetId the creature that would be tapped or untapped, chosen at CR 603.3d.
+     * @property options the answers, [TapOrUntapChoice.DECLINE] first; the answer's index selects one.
+     */
+    data class ChooseTapOrUntap(
+        override val id: DecisionRequestId,
+        val cardObjectId: ObjectId,
+        val card: CardRef,
+        val targetId: ObjectId,
+        val options: List<TapOrUntapChoice>,
+    ) : SingleOptionSelection {
+        override val optionCount: Int get() = options.size
+
+        init {
+            require(options.isNotEmpty()) {
+                "CR 608.2c: a tap-or-untap choice offers at least one answer"
+            }
         }
     }
 

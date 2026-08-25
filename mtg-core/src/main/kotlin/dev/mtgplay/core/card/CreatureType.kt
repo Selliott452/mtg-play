@@ -47,6 +47,7 @@ object CreatureType {
             Elemental
             Elf
             Faerie
+            Flagbearer
             Giant
             Goblin
             Golem
@@ -63,6 +64,7 @@ object CreatureType {
             Plant
             Ranger
             Rat
+            Rhino
             Robot
             Rogue
             Scientist

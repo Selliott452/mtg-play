@@ -111,6 +111,18 @@ interface ResolutionClauses {
      * for why the permanents are chosen here, mid-resolution, rather than as targets.
      */
     val permanentSelection: PermanentSelection? get() = null
+
+    /**
+     * A "you may tap **or** untap [the target]" clause (CR 701.20a, CR 701.21a), or `null` for a
+     * definition with none. Sewer-veillance Cam's enters-or-leaves trigger. Additive, flagged core
+     * (`W8-G`).
+     *
+     * The first clause whose decision is neither a selection nor a yes/no but a **three-way** answer —
+     * decline, tap, untap — and the first that operates on the resolving object's *target* rather than on
+     * a set it derives for itself. [OptionalTapOrUntap] records why it is a clause and not a
+     * [ModalSpell] mode, which is the diagnosis this member was written to correct.
+     */
+    val optionalTapOrUntap: OptionalTapOrUntap? get() = null
 }
 
 /**
@@ -130,6 +142,7 @@ val ResolutionClauses.declaredClauses: List<Any>
             eachOpponentDiscards,
             optionalDraw,
             permanentSelection,
+            optionalTapOrUntap,
         )
 
 /**

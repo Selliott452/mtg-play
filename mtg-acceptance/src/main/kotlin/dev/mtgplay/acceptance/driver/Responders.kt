@@ -102,6 +102,10 @@ object Responders {
                 // never cast is resolving, so reaching one is a defect, not a decision.
                 is DecisionRequest.ChooseRevealedHandCard ->
                     error("the pass-everything responder never casts a hand-reveal spell: $request")
+                // CR 608.2c: a tap-or-untap clause only exists while an object this policy never put on
+                // the stack is resolving, so reaching one is a defect, not a decision.
+                is DecisionRequest.ChooseTapOrUntap ->
+                    error("the pass-everything responder never resolves a tap-or-untap clause: $request")
                 // CR 103.4/103.5: the passive policy keeps every hand at seven — so no bottoming ever
                 // follows — but bottoms the lowest indices if a mulligan game is ever driven this way.
                 is DecisionRequest.MulliganRequest -> keepAtSeven(request)

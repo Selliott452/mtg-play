@@ -54,6 +54,8 @@ internal fun applySingleOptionSelection(
         // (discard or linked exile) decides what happens to it.
         is DecisionRequest.ChooseRevealedHandCard ->
             applyHandRevealChoice(state, request.options[decision.index].objectId)
+        // CR 608.2c: decline, tap, or untap the clause's target (`W8-G`, Sewer-veillance Cam).
+        is DecisionRequest.ChooseTapOrUntap -> applyTapOrUntapChoice(state, request.options[decision.index])
     }
 }
 

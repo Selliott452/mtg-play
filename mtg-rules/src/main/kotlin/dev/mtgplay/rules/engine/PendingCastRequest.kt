@@ -78,7 +78,7 @@ internal fun pendingCastRequest(
                 // nothing from the stack — and naming it here is what makes this enumeration equal the
                 // one `establishTargets` recomputes once the card is on the stack under a fresh id.
                 options =
-                    legalTargets(
+                    announceableTargets(
                         state,
                         effectiveTargetSpec(definition, cast.chosenModes.orEmpty()),
                         cast.caster,

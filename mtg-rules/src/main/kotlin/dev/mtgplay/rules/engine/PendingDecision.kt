@@ -164,6 +164,9 @@ private fun midTransitionPauseRequest(state: GameState): DecisionRequest? =
         // CR 609.4: an untargeted mid-resolution choice of battlefield permanents (Snap, Azorius
         // Chancery) — decided by the resolving object's controller, who need not hold priority.
         state.pendingPermanentSelection != null -> pendingPermanentSelectionRequest(state)
+        // CR 608.2c: the "you may tap or untap [target]" clause's three-way answer (`W8-G`,
+        // Sewer-veillance Cam) — decided by the resolving object's controller, who need not hold priority.
+        state.pendingTapOrUntap != null -> pendingTapOrUntapRequest(state)
         state.pendingLibrarySearch != null -> pendingLibrarySearchRequest(state)
         else -> libraryLookOrLatePauseRequest(state)
     }

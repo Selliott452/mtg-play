@@ -114,7 +114,13 @@ internal fun pendingActivationRequest(state: GameState): DecisionRequest {
                 spec = ability.targetSpec,
                 // CR 113.7b/702.16b: enumerated against the ability's *source*, so the options offered
                 // are the ones execution will re-validate against (ADR-005).
-                options = legalTargets(state, ability.targetSpec, pending.activator, Chooser.Ability(source.card)),
+                options =
+                    announceableTargets(
+                        state,
+                        ability.targetSpec,
+                        pending.activator,
+                        Chooser.Ability(source.card),
+                    ),
             )
         pending.chosenDiscard == null ->
             DecisionRequest.ChooseAbilityDiscard(
