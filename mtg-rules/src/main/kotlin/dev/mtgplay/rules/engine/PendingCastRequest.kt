@@ -129,7 +129,7 @@ internal fun pendingCastRequest(
                         state,
                         cast.caster,
                         cost,
-                        sacrificeSourcesAmong(state, cast.additionalSacrifice.orEmpty()),
+                        sacrificeSourcesAmong(state, cast.sacrificedThisCast()),
                     ),
             )
         }
@@ -350,6 +350,6 @@ private fun xAnnouncementRequest(
                 // Non-null in this branch, but a cross-module property the compiler will not smart-cast;
                 // `?: false` is the same value, exactly as `chosenModes.orEmpty()` is above.
                 kicked = cast.kicked ?: false,
-                reserved = sacrificeSourcesAmong(state, cast.additionalSacrifice.orEmpty()),
+                reserved = sacrificeSourcesAmong(state, cast.sacrificedThisCast()),
             ),
     )

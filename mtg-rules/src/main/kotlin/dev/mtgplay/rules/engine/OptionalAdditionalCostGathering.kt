@@ -136,3 +136,18 @@ internal fun payOptionalAdditionalCost(
             ?: error("CR 601.2b: the optional additional cost of ${cast.cardObjectId} was not settled before payment")
     return sacrificePermanents(state, cast.caster, toSacrifice)
 }
+
+/**
+ * Every permanent this cast has already committed to sacrificing (CR 601.2b/h) — the *intrinsic*
+ * additional cost's choices and the *optional* one's, together.
+ *
+ * The two are separate fields because they are separate costs (a card may print both), but the mana
+ * enumeration cares about neither distinction: what it must not do is offer a plan that spends a
+ * permanent one of them is about to consume. Reading only one of the two would leave the other's
+ * choice enumerable as a mana source and then fail loudly at payment — the enumerate-then-unpayable
+ * defect ADR-005 forbids. `sacrificeSourcesAmong` narrows this to the permanents that produce mana
+ * *by* being sacrificed, so a land tapped for mana and then sacrificed stays legal and stays offered
+ * (docs/design/mana-payment.md §2.2).
+ */
+internal fun PendingCast.sacrificedThisCast(): List<ObjectId> =
+    additionalSacrifice.orEmpty() + optionalCostObjects.orEmpty()
