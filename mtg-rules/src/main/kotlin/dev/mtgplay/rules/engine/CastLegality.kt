@@ -71,6 +71,7 @@ internal fun permissionCastIsLegal(
         castConditionHolds(state, seat, permission) &&
         additionalExileSatisfiable(state, seat, permission, sourceObject) &&
         sacrificeSatisfiable(state, seat, permission.sacrifice) &&
+        tapSatisfiable(state, seat, permission.tap) &&
         additionalDiscardSatisfiable(state, seat, definition, sourceObject.id, permission.source) &&
         plotMarkerAllows(state, permission, sourceObject) &&
         targetsAndCostAvailable(state, seat, definition, permission, self = sourceObject.id)

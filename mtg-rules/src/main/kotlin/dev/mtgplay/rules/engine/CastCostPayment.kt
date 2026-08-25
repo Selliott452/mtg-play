@@ -1,5 +1,6 @@
 package dev.mtgplay.rules.engine
 
+import dev.mtgplay.core.event.GameEvent
 import dev.mtgplay.core.identity.PlayerId
 import dev.mtgplay.core.mana.ManaCost
 import dev.mtgplay.core.state.GameState
@@ -84,6 +85,40 @@ internal fun paySacrificeCosts(
         cast.sacrificeCost
             ?: error("CR 601.2h: the sacrifice cost of ${cast.cardObjectId} was not settled before payment")
     return sacrificePermanents(state, cast.caster, toSacrifice)
+}
+
+/**
+ * Stage CR 601.2h — non-mana tap cost: taps the permanents chosen for a tap cost (Prismatic Strands'
+ * "Flashback—Tap an untapped white creature you control"). A no-op when the permission has no such cost
+ * (the settled list is empty). The permanents were chosen legally while gathering (ADR-005), so a
+ * missing or already-tapped one is an engine defect and fails loudly.
+ *
+ * **A cost's tap demands, where an effect's tap merely does** — the distinction `FW-TAPUNTAP` drew
+ * between `tapObjectForCost` and the [dev.mtgplay.rules.effect.tapPermanent] primitive. This is a cost,
+ * so an already-tapped permanent is a defect rather than a silent no-op, and it does not route through
+ * the effect primitive.
+ */
+internal fun payTapCosts(
+    state: GameState,
+    cast: PendingCast,
+): GameState {
+    val toTap =
+        cast.tapCost
+            ?: error("CR 601.2h: the tap cost of ${cast.cardObjectId} was not settled before payment")
+    return toTap.fold(state) { current, id ->
+        val battlefield = current.sharedZones.battlefield
+        val index = battlefield.indexOfFirst { it.id == id }
+        require(index >= 0) { "CR 601.2h: tap-cost permanent $id is not on the battlefield" }
+        val permanent = battlefield[index]
+        require(!permanent.tapped) { "CR 601.2h: tap-cost permanent $id is already tapped" }
+        current
+            .copy(
+                sharedZones =
+                    current.sharedZones.copy(
+                        battlefield = battlefield.removingAt(index).addingAt(index, permanent.copy(tapped = true)),
+                    ),
+            ).emit(GameEvent.ObjectTapped(id, permanent.card))
+    }
 }
 
 /**

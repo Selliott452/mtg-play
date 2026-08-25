@@ -59,6 +59,11 @@ internal fun beginCastGathering(
     // A non-mana sacrifice cost (Fireblast, Lava Dart) needs a selection; every other cast settles empty.
     val sacrificeCost: PersistentList<ObjectId>? =
         if (permission?.sacrifice != null) null else persistentListOf()
+    // A non-mana tap cost (Prismatic Strands' flashback) needs a selection; every other cast settles
+    // empty. Its own field beside `sacrificeCost` because a permission may in principle carry both, and
+    // because the two consume their permanents in opposite ways (`FW-PREVENT2`).
+    val tapCost: PersistentList<ObjectId>? =
+        if (permission != null && permission.tap != null) null else persistentListOf()
     // An additional discard cost (Grab the Prize) needs a selection; every other cast settles empty.
     val additionalDiscard: PersistentList<ObjectId>? =
         if (definition.additionalCost is AdditionalCost.DiscardCards) null else persistentListOf()
@@ -93,6 +98,7 @@ internal fun beginCastGathering(
                     castingPermission = permission,
                     additionalExileCost = additionalExileCost,
                     sacrificeCost = sacrificeCost,
+                    tapCost = tapCost,
                     additionalDiscard = additionalDiscard,
                     additionalSacrifice = additionalSacrifice,
                     kicked = kicked,

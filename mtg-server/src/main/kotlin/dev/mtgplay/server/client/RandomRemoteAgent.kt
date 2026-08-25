@@ -56,6 +56,7 @@ class RandomRemoteAgent(
                 is DecisionRequestDto.ChooseDiscards -> request.options.size to request.count
                 is DecisionRequestDto.ChooseCardsToExile -> request.options.size to request.count
                 is DecisionRequestDto.ChooseSacrifices -> request.options.size to request.count
+                is DecisionRequestDto.ChooseTapsForCost -> request.options.size to request.count
                 is DecisionRequestDto.ChooseCardsToDiscardForCost -> request.options.size to request.count
                 is DecisionRequestDto.ChooseSacrificesForCost -> request.options.size to request.count
                 is DecisionRequestDto.ChooseAbilitySacrifice -> request.options.size to request.count

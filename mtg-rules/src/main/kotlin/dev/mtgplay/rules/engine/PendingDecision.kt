@@ -165,6 +165,9 @@ private fun midTransitionPauseRequest(state: GameState): DecisionRequest? =
         // Chancery) — decided by the resolving object's controller, who need not hold priority.
         state.pendingPermanentSelection != null -> pendingPermanentSelectionRequest(state)
         state.pendingLibrarySearch != null -> pendingLibrarySearchRequest(state)
+        // CR 609.4: a mid-resolution "choose a colour" clause (`FW-PREVENT2`, Prismatic Strands),
+        // decided by the resolving object's controller, who need not hold priority.
+        state.pendingChosenColor != null -> pendingChosenColorRequest(state)
         else -> libraryLookOrLatePauseRequest(state)
     }
 

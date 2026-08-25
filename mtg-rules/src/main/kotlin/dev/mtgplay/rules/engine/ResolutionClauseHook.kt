@@ -59,6 +59,7 @@ internal fun orchestrateResolutionClauses(
     val opponentDiscard = clauses.eachOpponentDiscards
     val optionalDraw = clauses.optionalDraw
     val permanents = clauses.permanentSelection
+    val chosenColor = clauses.chosenColorEffect
     return when {
         optionalDraw != null -> orchestrateOptionalDraw(state, entry, optionalDraw)
         reveal != null -> orchestrateLibraryReveal(state, entry, reveal)
@@ -69,6 +70,7 @@ internal fun orchestrateResolutionClauses(
         handReveal != null -> orchestrateHandRevealChoice(state, entry, handReveal)
         opponentDiscard != null -> orchestrateEachOpponentDiscards(state, entry, opponentDiscard)
         permanents != null -> orchestratePermanentSelection(state, entry, permanents)
+        chosenColor != null -> orchestrateChosenColor(state, entry)
         else -> completeClauseResolution(state, entry)
     }
 }

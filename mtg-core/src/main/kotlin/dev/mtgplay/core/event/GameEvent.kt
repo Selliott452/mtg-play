@@ -8,6 +8,7 @@ import dev.mtgplay.core.state.AttackerAssignment
 import dev.mtgplay.core.state.BlockAssignment
 import dev.mtgplay.core.state.Counter
 import dev.mtgplay.core.state.DamageSource
+import dev.mtgplay.core.state.PreventionEffect
 import dev.mtgplay.core.state.Target
 import dev.mtgplay.core.state.TurnPhase
 import dev.mtgplay.core.state.TurnStep
@@ -809,6 +810,27 @@ sealed interface GameEvent {
         val affected: ObjectId,
         val powerMod: Int,
         val toughnessMod: Int,
+    ) : GameEvent
+
+    /**
+     * A resolving spell or ability created a **global** prevention effect (CR 615): [sourceCard]'s
+     * resolution put [effect] in force until it expires. Added with `FW-PREVENT2` — Prismatic Strands'
+     * colour shield and Flaring Pain's CR 615.9 off-switch.
+     *
+     * The sibling of [ContinuousEffectCreated], and it names no affected object for the reason
+     * [dev.mtgplay.core.state.PreventionEffect] gives: neither of these effects has one. The payload is
+     * reported whole rather than flattened into fields, because a colour and a bare disabler share no
+     * columns and a log line that had to be reassembled from two nullable ones would be less readable
+     * than the value itself.
+     *
+     * No event narrates the CR 514.2 wear-off, exactly as none narrates a timed continuous effect's: it
+     * is silent bookkeeping, and the acceptance invariant confirms no prevention effect survives its
+     * turn. The *use* of an effect is narrated separately, by [DamagePrevented] at the moment damage
+     * would have been dealt.
+     */
+    data class PreventionEffectCreated(
+        val sourceCard: CardRef,
+        val effect: PreventionEffect,
     ) : GameEvent
 
     /**

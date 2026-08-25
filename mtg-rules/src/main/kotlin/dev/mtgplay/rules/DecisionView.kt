@@ -100,6 +100,9 @@ enum class DecisionRequestKind {
     /** [DecisionRequest.ChooseSacrifices] — a non-mana sacrifice cost (CR 601.2h). */
     CHOOSE_SACRIFICES,
 
+    /** [DecisionRequest.ChooseTapsForCost] — a non-mana tap cost (CR 601.2h, CR 702.34c). */
+    CHOOSE_TAPS_FOR_COST,
+
     /** [DecisionRequest.ChooseCardsToDiscardForCost] — an additional discard cost (CR 601.2b). */
     CHOOSE_CARDS_TO_DISCARD_FOR_COST,
 
@@ -219,6 +222,7 @@ private fun sizedSelectionKind(request: DecisionRequest.SizedSelection): Decisio
         is DecisionRequest.ChooseDiscards -> DecisionRequestKind.CHOOSE_DISCARDS
         is DecisionRequest.ChooseCardsToExile -> DecisionRequestKind.CHOOSE_CARDS_TO_EXILE
         is DecisionRequest.ChooseSacrifices -> DecisionRequestKind.CHOOSE_SACRIFICES
+        is DecisionRequest.ChooseTapsForCost -> DecisionRequestKind.CHOOSE_TAPS_FOR_COST
         is DecisionRequest.ChooseCardsToDiscardForCost -> DecisionRequestKind.CHOOSE_CARDS_TO_DISCARD_FOR_COST
         is DecisionRequest.ChooseSacrificesForCost -> DecisionRequestKind.CHOOSE_SACRIFICES_FOR_COST
         is DecisionRequest.ChooseAbilitySacrifice -> DecisionRequestKind.CHOOSE_ABILITY_SACRIFICE

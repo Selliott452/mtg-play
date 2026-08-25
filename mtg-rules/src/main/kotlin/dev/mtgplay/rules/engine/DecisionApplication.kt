@@ -86,6 +86,8 @@ private fun applySizedSelection(
             applyChosenExileCost(state, decision.indices.map { request.options[it].objectId })
         is DecisionRequest.ChooseSacrifices ->
             applyChosenSacrifices(state, decision.indices.map { request.options[it].objectId })
+        is DecisionRequest.ChooseTapsForCost ->
+            applyChosenTapCost(state, decision.indices.map { request.options[it].objectId })
         is DecisionRequest.ChooseCardsToDiscardForCost ->
             applyChosenAdditionalDiscard(state, decision.indices.map { request.options[it].objectId })
         is DecisionRequest.ChooseSacrificesForCost ->

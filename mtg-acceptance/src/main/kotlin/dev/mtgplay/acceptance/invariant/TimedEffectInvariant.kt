@@ -49,7 +49,37 @@ internal fun checkTimedEffectSanity(state: GameState): List<Violation> =
         addAll(checkDurationsHonoured(state))
         addAll(checkTimestampSequence(state))
         addAll(checkEveryEffectActs(state.timedEffects))
+        addAll(checkPreventionDurationsHonoured(state))
     }
+
+/**
+ * Property 1 again, for the **global prevention store** (`FW-PREVENT2`, CR 615, CR 514.2): a
+ * "this turn" prevention effect exists only during the turn it was created on.
+ *
+ * The same guarantee as [checkDurationsHonoured] over a second store, and it is checked here rather
+ * than in an invariant of its own because it is the same failure: the CR 514.2 turn-based action ends
+ * both stores in one transition, so an effect surviving in either means that one action failed. A
+ * Prismatic Strands shield that outlived its turn would silently prevent damage on every later turn,
+ * which is the worst-behaved bug this framework can have and leaves no other trace in the state.
+ *
+ * Properties 2 and 3 have no counterpart: a prevention effect stores no timestamp (nothing orders
+ * them — see `TimedPreventionEffect`), and its payload is a closed sum every member of which does
+ * something, so there is no "acts on nothing" shape to exclude.
+ */
+private fun checkPreventionDurationsHonoured(state: GameState): List<Violation> =
+    state.preventionEffects
+        .filter { effect ->
+            when (effect.duration) {
+                EffectDuration.UntilEndOfTurn -> effect.createdOnTurn != state.turn.number
+            }
+        }.map { effect ->
+            Violation(
+                Invariant.TIMED_EFFECT_SANITY,
+                "CR 514.2: the until-end-of-turn prevention effect from ${effect.sourceCard.name} was " +
+                    "created on turn ${effect.createdOnTurn} but survives into turn ${state.turn.number}; " +
+                    "the cleanup step's end-of-effects turn-based action failed to fire",
+            )
+        }
 
 /** Property 1: an "until end of turn" effect exists only during its own turn (CR 514.2). */
 private fun checkDurationsHonoured(state: GameState): List<Violation> =

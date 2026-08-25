@@ -261,6 +261,15 @@ import dev.mtgplay.core.identity.CardRef
  * fired no CR 603.6c leaves-the-battlefield trigger, so bouncing a [journeyToNowhere] left the creature
  * it held exiled forever. Sewer-veillance Cam and Stonehorn Dignitary stay absent — modal resolution for
  * a *triggered ability* and CR 500.6 phase-skipping are frameworks this packet does not own.
+ *
+ * The `FW-PREVENT2` packet adds the gauntlet's **prevention pair** (Flashback.kt): [flaringPain], whose
+ * CR 615.9 "damage can't be prevented" is the off-switch for the whole CR 615 framework, and
+ * [prismaticStrands], whose CR 615.1 colour shield is the thing it switches off. Between them they are
+ * the first cards to put anything in the global prevention store; Prismatic Strands is additionally the
+ * first card whose flashback cost is not mana at all — "Tap an untapped white creature you control"
+ * (CR 702.34c) — and the first to choose a colour *as it resolves* (CR 609.4) rather than as a permanent
+ * enters (CR 614.12, Utopia Sprawl). That packet's other five cards are absent, with their diagnoses
+ * recorded in AdditionalCostCards.kt.
  */
 object MvpCards {
     /** Every defined card, keyed by its printed-name [CardRef] (CR 201). */
@@ -310,6 +319,7 @@ object MvpCards {
             faithlessLooting,
             fieryTemper,
             fireblast,
+            flaringPain,
             forceSpike,
             forest,
             fyndhornElves,
@@ -373,6 +383,7 @@ object MvpCards {
             pyroblast,
             preordain,
             priestOfTitania,
+            prismaticStrands,
             pulseOfMurasa,
             pursueThePast,
             quirionRanger,

@@ -44,6 +44,23 @@ sealed interface CastingPermission {
     val sacrifice: SacrificeRequirement? get() = null
 
     /**
+     * A non-mana **tap** cost component of casting this way (CR 601.2h, CR 702.34c), or `null` for a
+     * permission with none (every permission but Prismatic Strands' flashback). Additive, flagged core
+     * (`FW-PREVENT2`). Prismatic Strands' is "Tap an untapped white creature you control".
+     *
+     * The sibling of [sacrifice], and a second field rather than a widening of it because the two costs
+     * differ in the one way that matters: a sacrificed permanent is *gone* and a tapped one is alive,
+     * still on the battlefield, and untaps next turn. Encoding either as the other would be a
+     * plausible-looking wrong card (PLAN.md §7). They are also filtered on different axes —
+     * [SacrificeRequirement] is keyed on a printed subtype and cannot say "white" — and nothing stops a
+     * future permission carrying both, which a single field would.
+     *
+     * The engine surfaces the selection decision (which untapped matching permanents) and taps them
+     * during payment (CR 601.2h), alongside the mana [cost].
+     */
+    val tap: TapRequirement? get() = null
+
+    /**
      * A condition on the game state that must hold for this permission to be usable (CR 118.9), or
      * `null` for a permission that is always available once its card is in the right zone. Additive,
      * flagged core (`FW-ALTCOST`). Land Grant's "If you have no land cards in hand".
@@ -113,12 +130,16 @@ sealed interface CastingPermission {
      * [exilesOnLeaveStack]). Cast from [CastSource.GRAVEYARD] at the card's own timing. Faithless
      * Looting's flashback is `Flashback({2}{R})`; Lava Dart's is `Flashback({0}, sacrifice a Mountain)`.
      *
-     * @property sacrifice the non-mana part of the flashback cost (Lava Dart's "Sacrifice a Mountain"),
-     *   or `null` when the flashback cost is mana only.
+     * @property sacrifice the sacrifice part of the flashback cost (Lava Dart's "Sacrifice a Mountain"),
+     *   or `null` when the flashback cost demands no sacrifice.
+     * @property tap the tap part of the flashback cost (Prismatic Strands' "Tap an untapped white
+     *   creature you control"), or `null` when it demands no tap. CR 702.34c is explicit that a
+     *   flashback cost may include more than mana, and the gauntlet prints both non-mana shapes.
      */
     data class Flashback(
         override val cost: ManaCost,
         override val sacrifice: SacrificeRequirement? = null,
+        override val tap: TapRequirement? = null,
     ) : CastingPermission {
         override val source: CastSource = CastSource.GRAVEYARD
         override val exilesOnLeaveStack: Boolean = true

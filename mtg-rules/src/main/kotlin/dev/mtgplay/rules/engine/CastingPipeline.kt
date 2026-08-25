@@ -65,7 +65,8 @@ internal fun executeCastPipeline(
     val totalCost = determineTotalCost(targeted, cast, entry)
     val withAdditional = payAdditionalCosts(targeted, cast)
     val withSacrifice = paySacrificeCosts(withAdditional, cast)
-    val withDiscard = payAdditionalDiscardCost(withSacrifice, cast)
+    val withTap = payTapCosts(withSacrifice, cast)
+    val withDiscard = payAdditionalDiscardCost(withTap, cast)
     val revealed = payHandRevealCost(withDiscard, cast)
     val paid = payCosts(revealed, entry, totalCost, plan)
     // CR 601.2h after CR 601.2g: the intrinsic sacrifice cost is paid **after** the mana, so a land

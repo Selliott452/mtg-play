@@ -88,6 +88,7 @@ private fun sizedSelectionToDomain(dto: DecisionRequestDto.SizedSelectionDto): D
             )
         is DecisionRequestDto.ChooseCardsToExile,
         is DecisionRequestDto.ChooseSacrifices,
+        is DecisionRequestDto.ChooseTapsForCost,
         is DecisionRequestDto.ChooseCardsToDiscardForCost,
         is DecisionRequestDto.ChooseSacrificesForCost,
         is DecisionRequestDto.ChooseAbilitySacrifice,
@@ -117,6 +118,14 @@ private fun costSizedSelectionToDomain(dto: DecisionRequestDto.SizedSelectionDto
                 ObjectId(dto.cardObjectId),
                 CardRef(dto.card),
                 dto.options.mapOptions { o, c -> DecisionRequest.ChooseSacrifices.Option(o, c) },
+                dto.count,
+            )
+        is DecisionRequestDto.ChooseTapsForCost ->
+            DecisionRequest.ChooseTapsForCost(
+                dto.id.toDomain(),
+                ObjectId(dto.cardObjectId),
+                CardRef(dto.card),
+                dto.options.mapOptions { o, c -> DecisionRequest.ChooseTapsForCost.Option(o, c) },
                 dto.count,
             )
         is DecisionRequestDto.ChooseCardsToDiscardForCost ->

@@ -724,6 +724,63 @@ sealed interface DecisionRequest {
     }
 
     /**
+     * A non-mana **tap** cost selection (CR 601.2h, CR 702.34c): [seat] is casting [card] via a
+     * permission whose cost taps [count] permanents (Prismatic Strands' "Flashback—Tap an untapped
+     * white creature you control"), and picks exactly [count] of [options] — the untapped permanents
+     * they control matching the requirement — by index (a [Decision.MultiSelect]). Additive, flagged
+     * (`FW-PREVENT2`).
+     *
+     * Surfaced only when at least [count] matching untapped permanents exist (the cast is otherwise not
+     * enumerated at all, ADR-005), so a legal selection always exists. Every option is independently
+     * tappable, so any distinct subset of size [count] is legal.
+     *
+     * **The options are not filtered by summoning sickness**, and that is the rule rather than an
+     * oversight: CR 302.6 restricts the `{T}` symbol in an activated ability *of that permanent*, and
+     * this is a cost of a **spell** — the tapped creature is the source of nothing. A creature that
+     * entered the battlefield this turn is a legal answer, and excluding it would delete a real and
+     * frequently-correct line (ADR-005).
+     *
+     * The sibling of [ChooseSacrifices], and a separate request for the reason the two costs are
+     * separate fields on the permission: a tapped permanent is alive and a sacrificed one is gone, and
+     * a permission carrying both would make one shared request ambiguous about which cost an answer
+     * paid — the objection `FW-ADDSAC` recorded when it declined to reuse `choose_sacrifices`.
+     *
+     * @property cardObjectId the object being cast (still in its source zone — see
+     *   [dev.mtgplay.core.state.PendingCast]).
+     * @property card the printed identity, for display.
+     * @property options the untapped permanents that may be tapped to pay the cost, in battlefield
+     *   order; indices stable within this request (ADR-005).
+     * @property count how many must be tapped.
+     */
+    data class ChooseTapsForCost(
+        override val id: DecisionRequestId,
+        val cardObjectId: ObjectId,
+        val card: CardRef,
+        val options: List<Option>,
+        val count: Int,
+    ) : SizedSelection {
+        override val optionCount: Int get() = options.size
+        override val requiredCount: Int get() = count
+
+        init {
+            require(count in 1..options.size) {
+                "CR 601.2h: tap count must be between 1 and available ${options.size}, was $count"
+            }
+        }
+
+        /**
+         * One permanent that may be tapped to pay the cost.
+         *
+         * @property objectId the battlefield object that would be tapped.
+         * @property card its printed identity, for display.
+         */
+        data class Option(
+            val objectId: ObjectId,
+            val card: CardRef,
+        )
+    }
+
+    /**
      * An additional discard cost selection (CR 601.2b): [seat] is casting [card] via a cost that
      * discards [count] cards (Grab the Prize's "discard a card"), and picks exactly [count] of
      * [options] — their remaining hand — by index (a [Decision.MultiSelect]). Additive, flagged

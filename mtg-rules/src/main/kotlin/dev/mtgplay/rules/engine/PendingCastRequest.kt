@@ -11,7 +11,7 @@ import dev.mtgplay.rules.decision.DecisionRequestId
 /*
  * The pending decision a cast in progress is waiting on (CR 601.2), split from PendingDecision.kt so
  * each file stays within its function budget. The gathering order is fixed: modes (601.2b), targets
- * (601.2c), then the additional-exile / sacrifice / additional-discard cost selections (601.2b/h), then
+ * (601.2c), then the additional-exile / sacrifice / tap / additional-discard cost selections (601.2b/h), then
  * the **kicker** announcement and the **value of X** (601.2b), then the payment plan (601.2g) — always
  * surfaced, even with a single plan, so replay logs stay canonical (P2.1).
  *
@@ -89,6 +89,8 @@ internal fun pendingCastRequest(
         cast.additionalExileCost == null -> chooseCardsToExileRequest(state, cast, card.card, id)
         // CR 601.2h: then any non-mana sacrifice cost selection (Fireblast, Lava Dart).
         cast.sacrificeCost == null -> chooseSacrificesRequest(state, cast, card.card, id)
+        // CR 601.2h: then any non-mana tap cost selection (Prismatic Strands' flashback).
+        cast.tapCost == null -> chooseTapsRequest(state, cast, card.card, id)
         // CR 601.2b: then any additional discard cost selection (Grab the Prize).
         cast.additionalDiscard == null -> chooseDiscardForCostRequest(state, cast, definition, card.card, id)
         // CR 601.2b: then any intrinsic sacrifice additional cost selection (Eviscerator's Insight).
@@ -166,6 +168,28 @@ private fun chooseSacrificesRequest(
         options =
             sacrificeableFor(state, cast.caster, requirement)
                 .map { DecisionRequest.ChooseSacrifices.Option(it.id, it.card) },
+        count = requirement.count,
+    )
+}
+
+// CR 601.2h: every untapped matching permanent the caster controls is a tap-cost option (Prismatic
+// Strands). Summoning sickness is deliberately not consulted — CR 302.6 restricts a permanent's own
+// {T} abilities, and this is a spell's cost.
+private fun chooseTapsRequest(
+    state: GameState,
+    cast: PendingCast,
+    card: CardRef,
+    id: DecisionRequestId,
+): DecisionRequest.ChooseTapsForCost {
+    val requirement =
+        cast.castingPermission?.tap ?: error("CR 601.2h: a tap cost requires a casting permission")
+    return DecisionRequest.ChooseTapsForCost(
+        id = id,
+        cardObjectId = cast.cardObjectId,
+        card = card,
+        options =
+            tappableFor(state, cast.caster, requirement)
+                .map { DecisionRequest.ChooseTapsForCost.Option(it.id, it.card) },
         count = requirement.count,
     )
 }

@@ -213,6 +213,7 @@ private fun StringBuilder.appendPendingCast(cast: dev.mtgplay.core.state.Pending
     append(':').append(cast.castingPermission?.let { it::class.simpleName } ?: "-")
     append(':').append(cast.additionalExileCost?.joinToString("+") { it.value.toString() } ?: "-")
     append(':').append(cast.sacrificeCost?.joinToString("+") { it.value.toString() } ?: "-")
+    append(':').append(cast.tapCost?.joinToString("+") { it.value.toString() } ?: "-")
     append(':').append(cast.additionalDiscard?.joinToString("+") { it.value.toString() } ?: "-")
 }
 

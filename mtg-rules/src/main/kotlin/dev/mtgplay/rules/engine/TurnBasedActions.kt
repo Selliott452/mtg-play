@@ -64,7 +64,8 @@ internal fun drawStepTurnBasedAction(state: GameState): GameState = drawCard(sta
  *
  * Both halves are now real. All damage marked on battlefield objects (CR 120.3d) wears off, and
  * every [dev.mtgplay.core.state.EffectDuration.UntilEndOfTurn] effect leaves
- * [GameState.timedEffects] (`FW-DURATION`, docs/design/duration.md §5.4).
+ * [GameState.timedEffects] (`FW-DURATION`, docs/design/duration.md §5.4) — and, since `FW-PREVENT2`,
+ * every global prevention effect in [GameState.preventionEffects] alongside them.
  *
  * **The simultaneity is load-bearing, not a formality.** A 1/2 pumped to a 4/5 that took 4 combat
  * damage survives (4 < 5). If the pump ended *before* the damage cleared, the creature would
@@ -104,8 +105,19 @@ internal fun cleanupRemoveDamageAndEndEffects(state: GameState): GameState {
                     EffectDuration.UntilEndOfTurn -> true
                 }
             }.toPersistentList()
+    // CR 514.2 ends *every* until-end-of-turn effect, and the global prevention store holds them too
+    // (`FW-PREVENT2`): Prismatic Strands' shield and Flaring Pain's disabler both say "this turn". The
+    // `when` is the same exhaustive one for the same reason — a new duration must break both.
+    val survivingPrevention =
+        state.preventionEffects
+            .filterNot { effect ->
+                when (effect.duration) {
+                    EffectDuration.UntilEndOfTurn -> true
+                }
+            }.toPersistentList()
     return state.copy(
         sharedZones = state.sharedZones.copy(battlefield = cleared),
         timedEffects = surviving,
+        preventionEffects = survivingPrevention,
     )
 }

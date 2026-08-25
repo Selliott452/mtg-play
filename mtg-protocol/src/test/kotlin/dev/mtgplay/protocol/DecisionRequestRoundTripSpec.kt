@@ -290,6 +290,16 @@ private val allRequests: List<DecisionRequest> =
             ),
             count = 2,
         ),
+        DecisionRequest.ChooseTapsForCost(
+            ID,
+            ObjectId(6),
+            CardRef("Prismatic Strands"),
+            listOf(
+                DecisionRequest.ChooseTapsForCost.Option(ObjectId(15), CardRef("Standing Troops")),
+                DecisionRequest.ChooseTapsForCost.Option(ObjectId(16), CardRef("Youthful Knight")),
+            ),
+            count = 1,
+        ),
         DecisionRequest.ChooseSacrificesForCost(
             ID,
             ObjectId(7),

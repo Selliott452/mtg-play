@@ -447,5 +447,35 @@ package dev.mtgplay.protocol
  *    own reader meets a symbol its `6.0.0` grammar rejects. No card in the gauntlet ships with an
  *    `{X}` cost, so this one is latent rather than live — recorded because a peer that hard-codes the
  *    symbol set will meet it the day one does.
+ *
+ * ### Held at `8.0.0` — `FW-PREVENT2`: the global prevention store
+ *
+ * **Call: no bump**, on this file's own repeatedly-applied standard — `8.0.0` is **unreleased**. The
+ * only tag is `v0.1.0`, which shipped protocol `1.0.0`, so `1.0.0` remains the last version any
+ * consumer can have seen and an unshipped major absorbs a further break from the same wave rather than
+ * inflating a major count for a version nobody could have consumed. Naming the break is still owed:
+ *
+ * 1. **A new required field on [SeatViewDto]**: `preventionEffects`, a list of
+ *    [TimedPreventionEffectDto] (CR 615). A strict `8.0.0` codec (`ignoreUnknownKeys = false`) rejects
+ *    every seat view carrying it, which is exactly the break shape the `timedEffects` addition
+ *    recorded in the `6.0.0` note — and the field is required for the same reason: an
+ *    omitted-by-default list would let an old client watch a Lightning Bolt deal nothing with nothing
+ *    in the message explaining why.
+ *
+ * The client→server direction is **unchanged**, and that is not an accident of scope. Both cards this
+ * framework ships resolve without asking the wire anything new: Flaring Pain makes no choice at all,
+ * and Prismatic Strands' "colour of your choice" reuses [DecisionRequestDto.ChooseColor], the request
+ * Utopia Sprawl's CR 614.12 as-enters choice already defined. Reusing it is the honest call rather
+ * than the cheap one — the payload is identical (five colours in WUBRG order, answered by index) and
+ * the two flows differ only in which pending record is open, which is precisely the disambiguation
+ * `ChooseYesNo`'s five sharers already rely on. So no [DecisionRequestKindDto] value is added and
+ * nothing fails at `valueOf` mid-match.
+ *
+ * **The option set is otherwise deliberately unchanged**, which is the framework's central claim.
+ * Prevention changes an *outcome*, never an option list: a Bolt is still castable at a creature a
+ * shield protects, an attack into a shielded board is still declarable, and Flaring Pain adds no line
+ * anywhere. An agent that could not see [SeatViewDto.preventionEffects] would still be offered every
+ * legal play — it would simply misvalue all of them, which is why the field is carried unfiltered to
+ * both seats rather than left off.
  */
 const val PROTOCOL_VERSION: String = "8.0.0"
