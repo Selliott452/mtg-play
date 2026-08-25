@@ -9,6 +9,7 @@ import dev.mtgplay.core.definition.PermanentRestriction
 import dev.mtgplay.core.definition.RevealedCardOutcome
 import dev.mtgplay.core.definition.RevealedCardRestriction
 import dev.mtgplay.core.definition.SpellDefinition
+import dev.mtgplay.core.definition.TargetCount
 import dev.mtgplay.core.definition.TargetSpec
 import dev.mtgplay.core.definition.TimingClass
 import dev.mtgplay.core.definition.TriggerCondition
@@ -19,6 +20,7 @@ import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
+import kotlinx.collections.immutable.persistentSetOf
 
 /**
  * The five exile-and-return cards against their Scryfall oracle text: printed characteristics
@@ -160,8 +162,50 @@ class ExileAndReturnCardsSpec :
             refurbishedFamiliar.costReduction shouldBe affinityForArtifacts
         }
 
-        "the five exile-and-return cards are registered in the catalog" {
-            listOf(ephemerate, journeyToNowhere, mesmericFiend, duress, refurbishedFamiliar).forEach { card ->
+        "CR 202/304: Ghostly Flicker is a plain blue instant costing {2}{U}" {
+            with(ghostlyFlicker.characteristics) {
+                name shouldBe "Ghostly Flicker"
+                manaCost?.render() shouldBe "{2}{U}"
+                cardTypes shouldBe persistentSetOf(CardType.INSTANT)
+                powerToughness.shouldBeNull()
+            }
+            ghostlyFlicker.timing shouldBe TimingClass.INSTANT_SPEED
+            // Not rebound: only Ephemerate prints it (CR 702.88).
+            ghostlyFlicker.rebound shouldBe false
+        }
+
+        "CR 601.2c: Ghostly Flicker demands *exactly* two targets, which is a castability rule" {
+            val spec = ghostlyFlicker.targetSpec
+            spec shouldBe
+                TargetSpec.TargetPermanent(
+                    PermanentRestriction.ARTIFACT_CREATURE_OR_LAND_YOU_CONTROL,
+                    TargetCount.Exactly(2),
+                )
+            // The minimum is what makes it uncastable with one legal permanent — the first card in the
+            // pool for which a minimum above zero decides anything.
+            spec.count.minimum shouldBe 2
+            spec.count.maximum shouldBe 2
+        }
+
+        "CR 115.1b: Ghostly Flicker's restriction is narrower than 'permanent you control'" {
+            // The distinction is observable: an Ephemerate deck's own Journey to Nowhere is a permanent
+            // it controls and is *not* a legal Ghostly Flicker target, so the blink cannot re-fire it.
+            ghostlyFlicker.targetSpec shouldNotBe
+                TargetSpec.TargetPermanent(
+                    PermanentRestriction.PERMANENT_YOU_CONTROL,
+                    TargetCount.Exactly(2),
+                )
+        }
+
+        "the six exile-and-return cards are registered in the catalog" {
+            listOf(
+                ephemerate,
+                journeyToNowhere,
+                mesmericFiend,
+                duress,
+                refurbishedFamiliar,
+                ghostlyFlicker,
+            ).forEach { card ->
                 MvpCards.definitions[CardRef(card.characteristics.name)] shouldBe card
             }
         }

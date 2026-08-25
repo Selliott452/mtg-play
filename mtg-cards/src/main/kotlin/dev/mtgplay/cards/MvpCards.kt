@@ -184,6 +184,23 @@ import dev.mtgplay.core.identity.CardRef
  * hexproof and indestructible) and [brinebarrowIntruder] (flash, and "target creature an opponent
  * controls" gets -2/-0). Rooftop Percher and Call Damage Control stay absent — changeling and modality
  * are frameworks this packet does not own.
+ *
+ * The **unblocked-cards** packet then encodes the five cards earlier packets had written, diagnosed, and
+ * dropped, every one of them on a framework that has since landed. [ghostlyFlicker] (ExileAndReturn.kt)
+ * is the pool's first card with an **exact** count above one, so it is the first whose targeting minimum
+ * decides castability at all — it is absent from the priority window with only one legal permanent.
+ * [castIntoTheFire] and [thrabenCharm] (ModalInstants.kt) are the two `FW-MODAL` cards whose modes carry
+ * their own counts; the Charm's third brings [dev.mtgplay.core.definition.TargetCount.AnyNumber], the
+ * **unbounded** count, and the first count on [dev.mtgplay.core.definition.TargetSpec.TargetPlayer].
+ * [giantsBoulder] (ColorlessArtifacts.kt) and [basiliskGate] (NonbasicLands.kt) are the two cards trap
+ * **T17** kept out — each is both a mana source and the source of a `{T}`-costed ability with a mana
+ * component — and `FW-MANA`'s payment reservation is what makes them encodable with no card-side
+ * workaround. Two of the standing diagnoses turned out to be **wrong**: Giant's Boulder was filed as
+ * needing a "target permanent" restriction that [scourFromExistence] had already shipped, and Basilisk
+ * Gate's was never the restriction either. The packet adds two
+ * [dev.mtgplay.core.definition.PermanentRestriction] members (`ENCHANTMENT` and the pool's first
+ * disjunctive one, `ARTIFACT_CREATURE_OR_LAND_YOU_CONTROL`) and two `mtg-rules` primitives,
+ * `flickerPermanents` (exile all, *then* return all) and `exileGraveyard`.
  */
 object MvpCards {
     /** Every defined card, keyed by its printed-name [CardRef] (CR 201). */
@@ -196,6 +213,7 @@ object MvpCards {
             archaeomancer,
             armadilloCloak,
             ashBarrens,
+            basiliskGate,
             bloodFountain,
             blueElementalBlast,
             barrelsOfBlastingJelly,
@@ -203,6 +221,7 @@ object MvpCards {
             breathWeapon,
             brinebarrowIntruder,
             cartoucheOfSolidarity,
+            castIntoTheFire,
             castDown,
             contaminatedLandscape,
             counterspell,
@@ -228,8 +247,10 @@ object MvpCards {
             fyndhornElves,
             galvanicBlast,
             generousEnt,
+            giantsBoulder,
             gingerbreadCabin,
             glacialFloodplain,
+            ghostlyFlicker,
             gladecoverScout,
             gnawToTheBone,
             grabThePrize,
@@ -309,6 +330,7 @@ object MvpCards {
             terminate,
             thoughtcast,
             thoughtScour,
+            thrabenCharm,
             timberwatchElf,
             twistedLandscape,
             unexpectedFangs,

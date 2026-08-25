@@ -111,8 +111,9 @@ internal fun legalTargets(
 ): List<Target> =
     when (spec) {
         TargetSpec.None -> emptyList()
-        // CR 115.1a: "target player" enumerates the players in turn order and nothing else.
-        TargetSpec.TargetPlayer -> state.players.keys.map { Target.Player(it) }
+        // CR 115.1a: "target player" enumerates the players in turn order and nothing else. The spec's
+        // count says how many of them may be named; the pool of choices is the same either way.
+        is TargetSpec.TargetPlayer -> state.players.keys.map { Target.Player(it) }
         // CR 115.1a/102.1: every player but the one choosing. A player is always targetable —
         // hexproof and shroud are object qualities (CR 702.11) — so only the opponent test applies.
         TargetSpec.TargetOpponent ->

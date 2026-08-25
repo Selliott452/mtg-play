@@ -8,17 +8,23 @@ import dev.mtgplay.core.definition.AbilityCost
 import dev.mtgplay.core.definition.AbilityZoneScope
 import dev.mtgplay.core.definition.CardDefinition
 import dev.mtgplay.core.definition.EntersTapped
+import dev.mtgplay.core.definition.LibraryLook
+import dev.mtgplay.core.definition.LibraryLookMode
 import dev.mtgplay.core.definition.LibrarySearch
 import dev.mtgplay.core.definition.LibrarySearchFilter
+import dev.mtgplay.core.definition.ManaAbilityCost
+import dev.mtgplay.core.definition.PermanentRestriction
 import dev.mtgplay.core.definition.TargetSpec
 import dev.mtgplay.core.definition.TimingClass
 import dev.mtgplay.core.definition.TriggerCondition
 import dev.mtgplay.core.definition.TriggerZoneScope
 import dev.mtgplay.core.identity.CardRef
 import dev.mtgplay.core.mana.ManaCost
+import dev.mtgplay.core.mana.ManaType
 import io.kotest.core.spec.style.StringSpec
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContainExactly
+import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
 import kotlinx.collections.immutable.persistentSetOf
@@ -99,14 +105,76 @@ class ColorlessArtifactsSpec :
             }
         }
 
-        "both colourless artifacts are registered under their printed names (CR 201)" {
+        "CR 202: Giant's Boulder is a {1} artifact with no subtype and no P/T box" {
+            with(giantsBoulder.characteristics) {
+                name shouldBe "Giant's Boulder"
+                manaCost?.render() shouldBe "{1}"
+                supertypes shouldBe persistentSetOf<Supertype>()
+                cardTypes shouldBe persistentSetOf(CardType.ARTIFACT)
+                subtypes shouldBe persistentSetOf<Subtype>()
+                powerToughness.shouldBeNull()
+            }
+            giantsBoulder.timing shouldBe TimingClass.SORCERY_SPEED
+        }
+
+        "CR 701.17a: Giant's Boulder's enters trigger is scry 2 — a scry, not the surveil it is filed as" {
+            val enters = giantsBoulder.triggeredAbilities.single()
+            enters.condition shouldBe TriggerCondition.EnteredBattlefieldSelf
+            // The `FW-CLAUSEHOOK` correction, pinned: LibraryLookMode.Scry, never a graveyard destination.
+            enters.libraryLook shouldBe LibraryLook(mode = LibraryLookMode.Scry(GIANTS_BOULDER_SCRY))
+            enters.librarySearch.shouldBeNull()
+        }
+
+        "CR 605.1a: its mana ability costs {1} and {T} together and offers all five colours" {
+            val mana = giantsBoulder.manaAbilities.single()
+            mana.cost shouldContainExactly
+                listOf(
+                    ManaAbilityCost.Mana(ManaCost.parse("{1}")),
+                    ManaAbilityCost.TapSelf,
+                )
+            mana.options shouldContainExactly
+                listOf(ManaType.WHITE, ManaType.BLUE, ManaType.BLACK, ManaType.RED, ManaType.GREEN)
+            // Not once-per-turn: the {T} is what bounds it (CR 602.5b's alternative).
+            mana.oncePerTurn shouldBe false
+        }
+
+        "CR 602.1/115.1b: the {7} ability is mana + tap + sacrifice, targeting *any* permanent" {
+            val ability = giantsBoulder.activatedAbilities.single()
+            ability.cost shouldContainExactly
+                listOf(
+                    AbilityCost.Mana(ManaCost.parse("{7}")),
+                    AbilityCost.TapSelf,
+                    AbilityCost.SacrificeSelf,
+                )
+            // ANY_PERMANENT, not CREATURE: a land or an enchantment is a legal choice. This is the
+            // restriction the triage said was missing and that Scour from Existence had already shipped.
+            ability.targetSpec shouldBe TargetSpec.TargetPermanent(PermanentRestriction.ANY_PERMANENT)
+            // Instant speed: only Basilisk Gate prints the sorcery restriction (CR 602.5a is the default).
+            ability.timing shouldBe TimingClass.INSTANT_SPEED
+        }
+
+        "trap T17: Giant's Boulder is a mana source *and* has a {T}-costed ability with a mana component" {
+            // The exact shape that used to crash payment enumeration, encoded with no card-side
+            // workaround — the reservation lives in `manaSourcesReservedBy` (mana-payment.md §2.2).
+            giantsBoulder.manaAbilities.shouldNotBeEmpty()
+            val ability = giantsBoulder.activatedAbilities.single()
+            ability.cost.contains(AbilityCost.TapSelf) shouldBe true
+            ability.cost.any { it is AbilityCost.Mana } shouldBe true
+        }
+
+        "all three colourless artifacts are registered under their printed names (CR 201)" {
             val registered: Map<CardRef, CardDefinition> = MvpCards.definitions
             listOf(
                 "Ichor Wellspring" to ichorWellspring,
                 "Expedition Map" to expeditionMap,
+                "Giant's Boulder" to giantsBoulder,
             ).forEach { (name, definition) -> registered[CardRef(name)] shouldBe definition }
         }
     })
 
-/** Every artifact this packet's ColorlessArtifacts.kt encodes. */
+/**
+ * The two artifacts with **no** mana ability of their own — the property the file header calls out as
+ * what kept them clear of trap T17. Giant's Boulder is deliberately not in this list: it is a mana
+ * source, and it is here precisely because that trap is now fixed.
+ */
 private val packetArtifacts: List<CardDefinition> = listOf(ichorWellspring, expeditionMap)

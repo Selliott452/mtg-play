@@ -49,6 +49,22 @@ enum class PermanentRestriction {
     ARTIFACT,
 
     /**
+     * "Target enchantment" (CR 303): any enchantment on the battlefield, Auras included. Thraben Charm's
+     * "Destroy target enchantment" mode. Additive, flagged core.
+     *
+     * **An Aura is an enchantment** (CR 303.4), so every Aura in the pool — Rancor, Ethereal Armor,
+     * Journey to Nowhere — is a legal choice here, which is the whole point of the card printing this
+     * line against a GW-Bogles board. Nothing narrows the set to non-Aura enchantments and the card does
+     * not ask for one.
+     *
+     * Hexproof (CR 702.11) is checked by the enumeration's own `targetableBy` gate rather than here, as
+     * for every other restriction; no enchantment in the gauntlet has it, but a Bogles creature's
+     * hexproof does **not** protect the Auras attached to it — the Aura is a separate permanent with its
+     * own qualities, which is exactly why this mode is a real answer to that deck.
+     */
+    ENCHANTMENT,
+
+    /**
      * "Target permanent you control" (CR 115.1b, CR 108.4). Tamiyo's Safekeeping. The first restriction
      * whose answer depends on **who is choosing**: the same board offers each seat only its own
      * permanents, so the deciding player is an input to `satisfiesPermanentRestriction` rather than a
@@ -114,4 +130,28 @@ enum class PermanentRestriction {
      * leaving the equivalence to be rediscovered.
      */
     CREATURE_YOU_CONTROL,
+
+    /**
+     * "Target **artifacts, creatures, and/or lands** you control" (CR 115.1b, CR 109.5) — Ghostly
+     * Flicker's targeting line. Additive, flagged core (`FW-MULTITGT`'s second wave).
+     *
+     * The pool's **first disjunctive** restriction: three card types, any one of which qualifies
+     * (CR 205.2b, a permanent may have several). Every restriction before it named one type or none, and
+     * "and/or" in a targeting line is the CR's ordinary way of writing that disjunction — it does *not*
+     * mean the two chosen targets must differ in type. Two lands is a legal Ghostly Flicker, and so is a
+     * creature and an artifact; the only thing stopping the same permanent being named twice is
+     * CR 601.2c, which is a property of the choice and not of this restriction
+     * (docs/design/multi-target.md §3).
+     *
+     * Decider-relative, like [PERMANENT_YOU_CONTROL] and [CREATURE_YOU_CONTROL], and read the same way:
+     * control is ownership while nothing in the gauntlet changes it (docs/design/layer-system.md §4).
+     * Hexproof never subtracts from it for [PERMANENT_YOU_CONTROL]'s reason — you may always target your
+     * own permanents (CR 702.11) — which matters because the UWX Familiar list that plays this card also
+     * plays hexproof-granting effects.
+     *
+     * Narrower than [PERMANENT_YOU_CONTROL] by exactly the enchantments and the planeswalkers, and that
+     * gap is observable: an Ephemerate deck's own Journey to Nowhere is a permanent it controls and is
+     * *not* a legal Ghostly Flicker target, so the blink cannot be pointed at it to re-fire its exile.
+     */
+    ARTIFACT_CREATURE_OR_LAND_YOU_CONTROL,
 }

@@ -68,14 +68,27 @@ sealed interface TargetSpec {
     }
 
     /**
-     * "Target player" (CR 115.1a): one target that must be a player, never an object. Additive,
-     * flagged core (the card-selection packet). Thought Scour's "Target player mills two cards" is the first
-     * client. Narrower than [AnyTarget] on purpose — a creature is not a legal choice — so it is
-     * its own member rather than a reuse of the any-target enumeration.
+     * "Target player" (CR 115.1a): [count] targets, each of which must be a player, never an object.
+     * Additive, flagged core (the card-selection packet). Thought Scour's "Target player mills two cards"
+     * is the first client. Narrower than [AnyTarget] on purpose — a creature is not a legal choice — so it
+     * is its own member rather than a reuse of the any-target enumeration.
+     *
+     * **It became count-bearing for Thraben Charm**, whose third mode is "exile **any number of** target
+     * players' graveyards" ([TargetCount.AnyNumber]). It was a `data object` with a fixed count of one
+     * until then, exactly as [TargetOpponent] and [SpellOnStack] still are: the rule
+     * docs/design/multi-target.md §2 set is that a member gains a count parameter on the day a card in the
+     * pool prints one, and not before. Its default keeps every existing call site — and Thought Scour —
+     * spelled the same way.
+     *
+     * A targeted player stops being a legal target only by leaving the game, which in a two-player game
+     * *is* the game ending (CR 104.2a), so this spec's CR 608.2b fizzle stays unreachable however many
+     * players it names.
+     *
+     * @property count how many players are demanded (CR 601.2c); "target player" is [TargetCount.ONE].
      */
-    data object TargetPlayer : TargetSpec {
-        override val count: TargetCount get() = TargetCount.ONE
-    }
+    data class TargetPlayer(
+        override val count: TargetCount = TargetCount.ONE,
+    ) : TargetSpec
 
     /**
      * "Target &lt;permanent&gt;" (CR 115.1b): one target that must be a battlefield permanent

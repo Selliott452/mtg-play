@@ -65,15 +65,21 @@ internal fun satisfiesPermanentRestriction(
         PermanentRestriction.CREATURE_POWER_2_OR_LESS ->
             isCreature && effectivePower(state, candidate.id) <= POWER_TWO_OR_LESS_LIMIT
         PermanentRestriction.ARTIFACT -> CardType.ARTIFACT in characteristics.cardTypes
+        // CR 303: an Aura is an enchantment, so every Aura in the pool qualifies.
+        PermanentRestriction.ENCHANTMENT -> CardType.ENCHANTMENT in characteristics.cardTypes
         PermanentRestriction.RED_PERMANENT,
         PermanentRestriction.BLUE_PERMANENT,
         -> satisfiesColourRestriction(restriction, characteristics)
         PermanentRestriction.PERMANENT_YOU_CONTROL,
         PermanentRestriction.CREATURE_AN_OPPONENT_CONTROLS,
         PermanentRestriction.CREATURE_YOU_CONTROL,
-        -> satisfiesControlRestriction(restriction, candidate, you, isCreature)
+        PermanentRestriction.ARTIFACT_CREATURE_OR_LAND_YOU_CONTROL,
+        -> satisfiesControlRestriction(restriction, characteristics, candidate, you, isCreature)
     }
 }
+
+/** The card types Ghostly Flicker's "artifacts, creatures, and/or lands" admits (CR 205.2b). */
+private val BLINKABLE_TYPES: Set<CardType> = setOf(CardType.ARTIFACT, CardType.CREATURE, CardType.LAND)
 
 /**
  * The colour arms of [satisfiesPermanentRestriction] (CR 202.2), split out to keep that `when` inside
@@ -100,6 +106,7 @@ private fun satisfiesColourRestriction(
  */
 private fun satisfiesControlRestriction(
     restriction: PermanentRestriction,
+    characteristics: PrintedCharacteristics,
     candidate: GameObject,
     you: PlayerId,
     isCreature: Boolean,
@@ -108,5 +115,9 @@ private fun satisfiesControlRestriction(
         PermanentRestriction.PERMANENT_YOU_CONTROL -> candidate.owner == you
         PermanentRestriction.CREATURE_YOU_CONTROL -> isCreature && candidate.owner == you
         PermanentRestriction.CREATURE_AN_OPPONENT_CONTROLS -> isCreature && candidate.owner != you
+        // CR 205.2b: a permanent may have several card types, so "and/or" is a disjunction over them —
+        // one match is enough, and an artifact land satisfies it twice over.
+        PermanentRestriction.ARTIFACT_CREATURE_OR_LAND_YOU_CONTROL ->
+            candidate.owner == you && characteristics.cardTypes.any { it in BLINKABLE_TYPES }
         else -> error("CR 109.5: $restriction is not a control restriction")
     }

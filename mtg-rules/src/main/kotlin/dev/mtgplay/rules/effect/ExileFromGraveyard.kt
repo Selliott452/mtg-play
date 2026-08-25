@@ -2,6 +2,7 @@ package dev.mtgplay.rules.effect
 
 import dev.mtgplay.core.event.GameEvent
 import dev.mtgplay.core.identity.ObjectId
+import dev.mtgplay.core.identity.PlayerId
 import dev.mtgplay.core.state.GameObject
 import dev.mtgplay.core.state.GameState
 import dev.mtgplay.rules.engine.emit
@@ -55,3 +56,38 @@ fun exileCardFromGraveyard(
         .updateExile { it.adding(reborn) }
         .emit(GameEvent.GraveyardCardExiled(owner, objectId, leaving.card, exileId))
 }
+
+/**
+ * Effect primitive: **exiles every card in [owner]'s graveyard** (CR 701.3a, CR 404) — the published
+ * building block Thraben Charm's "Exile any number of target players' graveyards" composes (ADR-003;
+ * it is the first and only client). Additive, flagged (`FW-MULTITGT`'s second wave).
+ *
+ * The whole-zone sibling of [exileCardFromGraveyard], and a separate primitive rather than a fold left
+ * to the card, because "exile a player's graveyard" is a distinct printed instruction and the card
+ * definition should name it rather than re-derive it (ADR-003 vocabulary discipline). Each card moves
+ * individually, so every consequence [exileCardFromGraveyard] documents holds per card: a new object
+ * with a fresh id (CR 400.7) and a [GameEvent.GraveyardCardExiled] apiece.
+ *
+ * **The graveyard is read once, up front.** The ids are collected before any card moves, so the fold
+ * cannot be confused by the zone shrinking under it — the alternative, looping until the graveyard is
+ * empty, would be a different program the moment anything ever replaced a graveyard exile with a
+ * different move.
+ *
+ * **Order is the graveyard's own** (CR 404.1 makes a graveyard an ordered zone). Nothing in the
+ * gauntlet observes it — no card counts what was exiled or in what sequence — but exiling in an
+ * arbitrary or seeded-random order would be a hidden nondeterminism (ADR-006), so the zone's own order
+ * is used and stated.
+ *
+ * **An empty graveyard is a correct input**: the state comes back unchanged, with no events. "Any
+ * number of target players' graveyards" may legally name a player whose graveyard is empty, and that
+ * choice simply does nothing rather than failing.
+ */
+fun exileGraveyard(
+    state: GameState,
+    owner: PlayerId,
+): GameState =
+    state.players
+        .getValue(owner)
+        .graveyard
+        .map { it.id }
+        .fold(state, ::exileCardFromGraveyard)

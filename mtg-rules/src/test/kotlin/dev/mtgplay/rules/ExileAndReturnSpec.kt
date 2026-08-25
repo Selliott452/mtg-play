@@ -37,6 +37,7 @@ import dev.mtgplay.rules.decision.DecisionRequest
 import dev.mtgplay.rules.effect.exileLinkedToSource
 import dev.mtgplay.rules.effect.exilePermanent
 import dev.mtgplay.rules.effect.flickerPermanent
+import dev.mtgplay.rules.effect.flickerPermanents
 import dev.mtgplay.rules.effect.returnExiledToBattlefield
 import dev.mtgplay.rules.effect.returnExiledToOwnersHand
 import dev.mtgplay.rules.engine.announceBattlefieldDeparture
@@ -116,6 +117,45 @@ class ExileAndReturnSpec :
             reborn.damageMarked shouldBe 0
             reborn.tapped shouldBe false
             reborn.summoningSick shouldBe true
+        }
+
+        "CR 400.7: a multi-permanent flicker exiles *both* before returning either" {
+            // The printed "then" in "exile two target …, then return those cards". The discriminator is
+            // the exile zone mid-sequence, which a fold of the one-permanent flicker would never fill:
+            // both departures are matched against a board that still holds the other permanent, so both
+            // leaves-the-battlefield triggers see two permanents rather than one.
+            val state = blinkState(aliceSeat = BlinkSeat(battlefield = listOf(WARDEN, WARDEN)))
+            val before = state.allPermanents(WARDEN).map { it.id }
+
+            val flickered = flickerPermanents(state, before)
+
+            // Both departures fired, and the exile zone is empty again — everything came back.
+            flickered.pendingTriggers
+                .filter { it.ability.condition == TriggerCondition.LeftBattlefieldSelf }
+                .shouldHaveSize(2)
+            flickered.sharedZones.exile.shouldBeEmpty()
+            flickered.sharedZones.battlefield shouldHaveSize 2
+            // CR 400.7: two new objects, neither of which is either original.
+            flickered.sharedZones.battlefield.none { it.id in before } shouldBe true
+        }
+
+        "CR 400.7: the returns happen in the order the targets were named" {
+            val state = blinkState(aliceSeat = BlinkSeat(battlefield = listOf(GREETER, OX)))
+            val greeter = state.onePermanent(GREETER).id
+            val ox = state.onePermanent(OX).id
+
+            // Named ox-first, so ox returns first and the battlefield order follows the choice.
+            val flickered = flickerPermanents(state, listOf(ox, greeter))
+
+            flickered.sharedZones.battlefield.map { it.card } shouldContainExactly
+                listOf(CardRef(OX), CardRef(GREETER))
+        }
+
+        "CR 608.2b: flickering an empty list of permanents is a legal no-op" {
+            val state = blinkState(aliceSeat = BlinkSeat(battlefield = listOf(GREETER)))
+            val untouched = flickerPermanents(state, emptyList())
+            untouched.sharedZones.battlefield shouldContainExactly state.sharedZones.battlefield
+            untouched.pendingTriggers.shouldBeEmpty()
         }
 
         "CR 603.6c: exiling a permanent fires its leaves-the-battlefield trigger and not its graveyard one" {

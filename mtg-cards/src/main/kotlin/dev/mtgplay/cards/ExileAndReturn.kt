@@ -12,14 +12,17 @@ import dev.mtgplay.core.definition.ResolutionEffect
 import dev.mtgplay.core.definition.RevealedCardOutcome
 import dev.mtgplay.core.definition.RevealedCardRestriction
 import dev.mtgplay.core.definition.SpellDefinition
+import dev.mtgplay.core.definition.TargetCount
 import dev.mtgplay.core.definition.TargetSpec
 import dev.mtgplay.core.definition.TimingClass
 import dev.mtgplay.core.definition.TriggerCondition
 import dev.mtgplay.core.definition.TriggeredAbility
+import dev.mtgplay.core.identity.ObjectId
 import dev.mtgplay.core.mana.ManaCost
 import dev.mtgplay.core.state.Target
 import dev.mtgplay.rules.effect.exileLinkedToSource
 import dev.mtgplay.rules.effect.flickerPermanent
+import dev.mtgplay.rules.effect.flickerPermanents
 import dev.mtgplay.rules.effect.returnExiledToBattlefield
 import dev.mtgplay.rules.effect.returnExiledToOwnersHand
 import kotlinx.collections.immutable.persistentListOf
@@ -42,12 +45,11 @@ import kotlinx.collections.immutable.persistentSetOf
  *   which look alike and are opposites: the first two are the *controller* choosing from information a
  *   reveal has made public, the third is an *opponent* choosing from a hand that stays hidden.
  *
- * **Ghostly Flicker is deliberately absent.** Its oracle text is "Exile two target artifacts,
- * creatures, and/or lands you control, then return those cards to the battlefield under your control" —
- * *two* targets, which is `FW-MULTITGT`: [TargetSpec] is single-target by construction and
- * [dev.mtgplay.rules.decision.DecisionRequest.ChooseTargets] is a single-select. The blink half of it
- * is entirely expressible with [flickerPermanent]; only the cardinality is missing. Encoding it with one
- * target would be a different card (PLAN.md §7).
+ * **Ghostly Flicker has since landed** ([ghostlyFlicker], below). This file's header used to record it
+ * as the packet's one absence — "*two* targets, which is `FW-MULTITGT`… the blink half of it is entirely
+ * expressible with [flickerPermanent]; only the cardinality is missing" — and that diagnosis was exactly
+ * right: `FW-MULTITGT` supplied the count, nothing else was needed, and the card is four lines plus a
+ * targeting restriction.
  */
 
 /** The resolution of a permanent spell: entering the battlefield is the whole of it (CR 608.3). */
@@ -326,4 +328,82 @@ val refurbishedFamiliar: SpellDefinition =
                         EachOpponentDiscards(count = 1, drawPerOpponentWhoCannot = 1),
                 ),
             )
+    }
+
+/** The permanents Ghostly Flicker blinks (CR 115.1) — exactly two, never fewer. */
+private const val GHOSTLY_FLICKER_TARGETS: Int = 2
+
+/**
+ * Ghostly Flicker — `{2}{U}` Instant. "Exile two target artifacts, creatures, and/or lands you control,
+ * then return those cards to the battlefield under your control."
+ *
+ * [ephemerate]'s bigger sibling, and the card that makes `FW-MULTITGT`'s count matter on the
+ * **battlefield** rather than in a graveyard. Everything it does to each permanent is [flickerPermanent]'s
+ * and is documented there; the whole of what is new is the targeting line, and it is new twice over.
+ *
+ * **"Two target" is [TargetCount.Exactly]`(2)`, not "up to two", and the difference is a castability
+ * rule** (CR 601.2c). A required count that the board cannot fill makes the spell **uncastable**: with
+ * exactly one artifact, creature, or land on your side, Ghostly Flicker is absent from the priority
+ * window entirely rather than being offered and fizzling. That is the first time in the pool that a
+ * *minimum* above zero has decided anything — every count-bearing card before it printed "up to", whose
+ * minimum is zero and which is therefore always castable (docs/design/multi-target.md §4). It is also
+ * the reason the two halves of [TargetCount] are separate members rather than a range: `Exactly(2)` and
+ * `UpTo(2)` share a maximum and behave differently at both ends of a resolution.
+ *
+ * **The two targets must be different objects** (CR 601.2c), which is the same-object rule enforced as
+ * index distinctness on the answer and re-checked on the recorded targets — not something this card
+ * declares. Blinking one permanent twice with one Ghostly Flicker is not a legal choice, and the engine
+ * refuses it rather than this definition doing so.
+ *
+ * **"Artifacts, creatures, and/or lands you control"** is
+ * [PermanentRestriction.ARTIFACT_CREATURE_OR_LAND_YOU_CONTROL], the pool's first *disjunctive*
+ * restriction. "And/or" does not require the two targets to differ in type — two lands is the line UWX
+ * Familiar actually plays, blinking a pair of Archaeomancer-style value permanents or, more often,
+ * generating mana with two Azorius bouncelands. What it does exclude is enchantments, so the deck's own
+ * Journey to Nowhere is not a legal target.
+ *
+ * **"Then" is load-bearing and the primitive honours it** ([flickerPermanents]): both permanents are
+ * exiled, and only then are both returned. Folding a one-permanent flicker twice would put the first
+ * back on the battlefield before the second had left, which is a different sequence of game events from
+ * the one the card prints (CR 603.10).
+ *
+ * A **fizzle** needs *both* targets to have become illegal (CR 608.2b). Kill one in response and the
+ * Flicker still resolves, blinking the survivor — the CR 608.2b "does what it can" case that had no
+ * observable instance in the pool until a card targeted more than one thing.
+ */
+val ghostlyFlicker: SpellDefinition =
+    object : SpellDefinition {
+        override val characteristics =
+            PrintedCharacteristics(
+                name = "Ghostly Flicker",
+                manaCost = ManaCost.parse("{2}{U}"),
+                supertypes = persistentSetOf(),
+                cardTypes = persistentSetOf(CardType.INSTANT),
+                subtypes = persistentSetOf(),
+                powerToughness = null,
+            )
+
+        override val timing = TimingClass.INSTANT_SPEED
+        override val targetSpec =
+            TargetSpec.TargetPermanent(
+                restriction = PermanentRestriction.ARTIFACT_CREATURE_OR_LAND_YOU_CONTROL,
+                count = TargetCount.Exactly(GHOSTLY_FLICKER_TARGETS),
+            )
+
+        // CR 400.7: exile both, *then* return both — one resolution, two zone changes each.
+        override val resolution =
+            ResolutionEffect { state, context ->
+                flickerPermanents(state, blinkedPermanents(context.targets))
+            }
+    }
+
+/**
+ * The battlefield permanents Ghostly Flicker was told to blink (CR 115.1b), failing loudly on any other
+ * target kind: the CR 608.2b re-check has already run, so anything but a [Target.Permanent] here is an
+ * engine defect rather than a rules case (ADR-005).
+ */
+private fun blinkedPermanents(targets: List<Target>): List<ObjectId> =
+    targets.map { target ->
+        (target as? Target.Permanent)?.id
+            ?: error("CR 115.1b: Ghostly Flicker targets only battlefield permanents, got $target")
     }
