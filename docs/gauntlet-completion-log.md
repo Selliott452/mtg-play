@@ -126,6 +126,63 @@ Judgement calls made *by* packets that I accepted rather than overrode:
 
 ## Wave 5 — multi-target, costed mana abilities, modality, flicker, cycling, prevention
 
-Dispatched as six parallel packets against the blockers wave 4 identified.
+Dispatched as six parallel packets against the blockers wave 4 identified. All six were killed
+mid-implementation by a monthly spend limit (7–31 files each, uncommitted) and resumed in place —
+nothing was lost. All six then landed.
+
+Decisions taken while merging them:
+
+- **Seven protocol bumps coalesced, then one genuine escalation.** `FW-MULTITGT`, `FW-MODAL`,
+  `FW-PREVENT`, `P-SEARCH` and the flicker packet all folded into the unreleased `6.0.0`.
+  `FW-MANACOST` reshaped `PaymentPlanDto` in both directions and took it to `7.0.0` — the only bump
+  this wave that describes a break a consumer could actually meet.
+- **`establishTargets` composed**: multi-target's arity and CR 601.2c same-object checking, with
+  modality's `effectiveTargetSpec`, so a modal spell's targets are validated against the *chosen
+  mode's* spec rather than the card's.
+- **`Targets.kt` needed both** prevention's `self` (protection self-exclusion) and multi-target's
+  `you` (decider-relative restrictions). Either alone silently drops a correctness property.
+- **One `satisfiesPermanentRestriction`, not two.** The flicker packet added a parallel
+  `...For` wrapper for decider-relative restrictions; `main` had meanwhile given the original
+  function the chooser. Merged to one function, wrapper deleted.
+- **`declaredClauses` unioned to all seven clause types** — the search packet made `librarySearch`
+  a clause while the flicker packet added two more, and each saw only its own.
+- **`singleOptionSelectionToDomain` deduplicated across a file split.** Modality moved it to its own
+  file; flicker added a branch to the old copy. Kept the moved file, ported the branch, and split
+  the to-DTO side the same way when it outgrew its length budget.
+- **Eight further merge defects fixed by hand**, all invisible to any single packet: a duplicated
+  `entersTapped` after the type widened, `countMatching`'s signature vs body, `ResolutionContext`'s
+  `linkedExiled` landing outside the constructor, a guard function spliced into another's KDoc, two
+  more malformed enum unions, an unused import, and two detekt complexity budgets.
+- **I committed one merge before its build finished** and had to amend — `main` briefly held four
+  style violations. The gating rule exists precisely for that and I broke it once.
+
+Judgement calls made *by* packets that I accepted:
+
+- **Prevention shipped the framework and dropped all four of its cards.** CR 702.16b targeting is
+  complete for spells and structurally blind for abilities; rather than ship protection with that
+  hole it made the gap a **loud gate** naming the four files to fix.
+- **`FW-MANACOST` engaged the prior packet's refusal rather than routing around it** — moving the
+  cost onto the production alternative, replacing the Hall's-theorem no-idle check with a real
+  bipartite matching on the costed path while keeping the old check where it provably agrees, and
+  *deriving* activation order rather than recording it (recording would multiply every plan by its
+  permutations and falsify the dedup argument).
+- **The search packet made `librarySearch` a resolution clause**, which fixed a latent bug: the
+  activated-ability path ran a search *instead of* the ability's ordinary effect.
+
+Corrections to my own briefs, recorded because I wrote them wrong:
+
+- I told the flicker packet Duress and Mesmeric Fiend were non-controller decisions. Both print
+  "**You** choose" — the opponent reveals, the controller picks. Only Refurbished Familiar is a
+  genuine `FW-NONCTRLDEC` card, and the distinction inverts the ADR-007 answer.
+- I told the land-ETB packet that four cards print `{N}, {T}: Add …`. Only two do.
+- I told the prevention packet the design note's blast-radius estimate would hold; it was far too
+  large, because the replay fingerprint excludes the event log by design and `GameEvent` is not in
+  the protocol at all.
+
+## Wave 6 — the remaining tail
+
+Dispatched as a refreshed triage plus four packets: the cards recent frameworks just unblocked,
+the keyword tail (deathtouch, changeling, conditional statics), ninjutsu and the Faeries, and
+X costs / kicker / alternative costs.
 
 _(entries appended as packets report)_
