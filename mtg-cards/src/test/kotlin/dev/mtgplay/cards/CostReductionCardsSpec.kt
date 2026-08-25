@@ -150,18 +150,23 @@ class CostReductionCardsSpec :
                 .toSet() shouldBe registered.map { it.characteristics.name }.toSet()
         }
 
-        "no card declares an other-object cost reduction yet: Sunscape Familiar needs FW-DEFENDERKW" {
-            // The C6 declaration slot ships and is exercised by rules fixtures; the only gauntlet card
-            // that would use it prints Defender, which `mtg-core` has no keyword for. Encoding it
-            // without Defender would put a 0/3 Wall in the pool that can attack.
-            MvpCards.definitions.values.forEach { it.spellCostReductions.shouldBeEmptyList() }
-            MvpCards.definitions[CardRef("Sunscape Familiar")].shouldBeNull()
+        "Sunscape Familiar is the pool's only other-object cost reducer (CR 604.5)" {
+            // This assertion was the *absence* of the card until `W8-B`: the C6 declaration slot shipped
+            // with `FW-COST` and the only gauntlet card that would use it printed Defender, which
+            // `mtg-core` had no keyword for. `FW-COUNTERS` added `Keyword.DEFENDER` with its CR 702.3b
+            // effect, so the card is encoded (CostReduction.kt) and the pin is now positive — a second
+            // such card cannot arrive unnoticed either way round.
+            MvpCards.definitions.values
+                .filter { it.spellCostReductions.isNotEmpty() }
+                .map { it.characteristics.name } shouldContainExactly listOf("Sunscape Familiar")
         }
 
-        "the three other FW-COST cards stay unencoded, each on a framework this packet does not own" {
+        "the two other FW-COST cards stay unencoded, each on a framework this packet does not own" {
             // Tolarian Terror: ward {2} (CR 702.21a) — a triggered ability, `FW-WARD`.
-            // Deem Inferior: the *owner* chooses a library position, and the reduction counts cards drawn
-            //   this turn — a turn-scoped event count the state still does not track.
+            // Deem Inferior: the *owner* chooses a library position, second-from-top or bottom — a zone
+            //   move nothing performs plus a non-controller mid-resolution decision. Its reduction is
+            //   **not** the blocker: `W8-B` found `PlayerState.drawsThisTurn` has existed since Sneaky
+            //   Snacker, so the earlier "the state does not track it" diagnosis was wrong.
             // Ride's End: a cost priced off the chosen target, `FW-TGTCOND`.
             // Refurbished Familiar has left this list: `FW-NONCTRLDEC` landed and it is now encoded.
             listOf("Tolarian Terror", "Deem Inferior", "Ride's End").forEach {
@@ -172,11 +177,6 @@ class CostReductionCardsSpec :
 
 /** Cryptic Serpent's printed mana value (CR 203.3): five generic plus two blue. */
 private const val CRYPTIC_SERPENT_MANA_VALUE: Int = 7
-
-/** Asserts a collection is empty, reading as the absence it documents. */
-private fun <T> Collection<T>.shouldBeEmptyList() {
-    size shouldBe 0
-}
 
 /** Kotest's non-null assertion, named to read inside a chained expression. */
 private fun <T : Any> T?.shouldNotNull(): T = this.shouldNotBeNull()

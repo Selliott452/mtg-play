@@ -39,6 +39,11 @@ import kotlinx.collections.immutable.persistentSetOf
  *
  * The wave's other four costed sources are absent, each for a framework this packet does not own; the
  * packet report lists them.
+ *
+ * `W8-B` adds the fourth, and it is the composite cost's *simplest* witness rather than another hard
+ * one: [lotusPetal] — "{T}, Sacrifice this artifact: Add one mana of any color" — is the card the
+ * original triage recorded as trap **T2**, the pairing the old `viaSacrifice` flag could not express
+ * without giving a tapped Petal a live mana ability.
  */
 
 /** The damage Barrels of Blasting Jelly's sacrifice ability deals (CR 120.3a). */
@@ -222,6 +227,58 @@ val barrelsOfBlastingJelly: SpellDefinition =
                             dealDamage(state, context.damageSource(), context.targets.single(), BARRELS_DAMAGE)
                         },
                     targetSpec = TargetSpec.TargetPermanent(PermanentRestriction.CREATURE),
+                ),
+            )
+    }
+
+/**
+ * Lotus Petal — `{0}` Artifact. "`{T}`, Sacrifice this artifact: Add one mana of any color."
+ *
+ * Spy Combo's fixer, and the card the original gauntlet triage recorded as **trap T2**. Its cost is
+ * `{T}` **and** a sacrifice, which the old `ManaAbility.viaSacrifice` flag made an either/or: setting
+ * it gave a *tapped* Lotus Petal a live mana ability, because a sacrifice source was deliberately
+ * usable while tapped. `FW-MANACOST` replaced the flag with the composite [ManaAbilityCost] list that
+ * simply says what the card says, and this is the card that says it — the first two-component
+ * consuming cost in the pool.
+ *
+ * The composition is the whole encoding, and every part of it is load-bearing:
+ *
+ * - **`[TapSelf, SacrificeSelf]`, in printed order.** The `{T}` demands an untapped source
+ *   (CR 602.2a), so a tapped Petal is no mana source; the sacrifice then removes it (CR 701.17), so it
+ *   is a one-shot and the payment planner never offers two mana off one Petal.
+ * - **A `{0}` mana cost is a real cost, not the absence of one** (CR 202.1). The Petal is cast for
+ *   nothing, which enumerates exactly one payment plan — the empty one — and still surfaces the
+ *   decision rather than auto-passing it.
+ * - **It is not a creature**, so CR 302.6 never touches it: a Petal played this turn is a mana source
+ *   this turn. That is the difference between it and every other free accelerant in this file.
+ *
+ * It has no `{T}`-and-mana-component clash to reserve around ([manaSourcesReservedBy]'s **T17**), and
+ * it costs no mana of its own, so it is the simplest member of this file — and it is filed here rather
+ * than beside the lands because the *shape* it exercises is the composite activation cost, which is
+ * what this file is about.
+ */
+val lotusPetal: SpellDefinition =
+    object : SpellDefinition {
+        override val characteristics =
+            PrintedCharacteristics(
+                name = "Lotus Petal",
+                manaCost = ManaCost.parse("{0}"),
+                supertypes = persistentSetOf(),
+                cardTypes = persistentSetOf(CardType.ARTIFACT),
+                subtypes = persistentSetOf(),
+                powerToughness = null,
+            )
+
+        override val timing = TimingClass.SORCERY_SPEED
+        override val targetSpec = TargetSpec.None
+        override val resolution = entersTheBattlefield
+        override val manaAbilities =
+            persistentListOf(
+                ManaAbility(
+                    options = ANY_COLOR,
+                    // CR 602.1: printed order — the {T} first (so a tapped Petal is no source at all),
+                    // then the sacrifice that removes it. Trap T2: this is not "sacrifice instead of tap".
+                    cost = persistentListOf(ManaAbilityCost.TapSelf, ManaAbilityCost.SacrificeSelf),
                 ),
             )
     }

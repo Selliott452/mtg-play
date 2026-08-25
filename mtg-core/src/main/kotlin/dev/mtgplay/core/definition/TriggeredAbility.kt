@@ -1,5 +1,9 @@
 package dev.mtgplay.core.definition
 
+import dev.mtgplay.core.mana.ManaType
+import kotlinx.collections.immutable.PersistentList
+import kotlinx.collections.immutable.persistentListOf
+
 /**
  * One triggered ability of a card (CR 603): a [condition] that fires it, the zone it functions from
  * ([zoneScope]), and the [effect] it performs on resolution. Card-definition data, additive and
@@ -62,6 +66,23 @@ package dev.mtgplay.core.definition
  *   ability's resolution (CR 701.18), or `null` for an ability with none. Additive, flagged core
  *   (`W8-E`). Gatecreeper Vine's enters-the-battlefield "you may search your library for a basic land
  *   card or a Gate card". Run **after** the ordinary [effect], pausing for the find-one choice.
+ *
+ * @property addsMana the mana this ability's resolution adds to its controller's pool (CR 106.1,
+ *   CR 106.4), in printed order; empty for every ability that adds none. Additive, flagged core
+ *   (`W8-B`) — Burning-Tree Emissary's "When this creature enters, add `{R}{G}`".
+ *
+ *   **Not a [TriggeredManaAbility], and the difference is the stack.** CR 605.1b makes a triggered
+ *   ability a *mana* ability only if it triggers off the activation or resolution of a mana ability;
+ *   this one triggers off a permanent entering the battlefield (CR 603.2), so it is an ordinary
+ *   triggered ability that uses the stack, is put on it in APNAP order, and can be responded to. That
+ *   is the whole card: an opponent gets a window between the Emissary entering and its mana arriving.
+ *
+ *   **A declaration rather than a `dealMana`-style [effect], for two reasons that are not style.**
+ *   First, the mana pool is engine bookkeeping (CR 106.4) and the acceptance module's
+ *   `MANA_POOL_EMPTY_AT_PAUSE` invariant has to know, *from the definitions alone*, which seats may
+ *   legitimately hold floating mana at a pause — a lambda hides that and the invariant would report
+ *   a correct game as engine wrongness. Second, a declaration cannot drift from what the engine does,
+ *   because the engine is what does it.
  */
 data class TriggeredAbility(
     val condition: TriggerCondition,
@@ -79,6 +100,7 @@ data class TriggeredAbility(
     override val eachOpponentDiscards: EachOpponentDiscards? = null,
     override val optionalDraw: OptionalDraw? = null,
     override val permanentSelection: PermanentSelection? = null,
+    val addsMana: PersistentList<ManaType> = persistentListOf(),
 ) : ResolutionClauses {
     init {
         requireAtMostOneClause(this) { "the $condition triggered ability" }

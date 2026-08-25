@@ -480,5 +480,33 @@ package dev.mtgplay.protocol
  * **No `DecisionRequest` kind is added**, which is the sharper break mode this wave avoids: every new
  * decision here is a widening of a request that already exists, and the whole-block-declaration
  * constraint is published as data on `DeclareBlockers` rather than as a new request shape.
+ * ### Held at `8.0.0` — `W8-B`: a mana ability's non-mana rider
+ *
+ * [ProductionAlternativeDto] gains `rider`, a nullable [ManaAbilityRiderDto] carrying the CR 605.1a
+ * non-mana half of a mana ability — Elves of Deep Shadow's "This creature deals 1 damage to you".
+ *
+ * **Held at `8.0.0` rather than bumped to `9.0.0`**, on this file's own repeatedly-applied standard:
+ * `8.0.0` is **unreleased**. The only tag is `v0.1.0`, which shipped protocol `1.0.0`, so `1.0.0`
+ * remains the last version any consumer can have seen, and an unshipped major absorbs further breaks
+ * from the same wave rather than inflating the major count for a version nobody could have consumed.
+ *
+ * **The break is nonetheless live rather than latent, and it is worth being precise about why.** The
+ * field defaults to `null`, but [ProtocolJson] sets `encodeDefaults = true`, so `"rider": null` is
+ * written on *every* production alternative in *every* offered payment plan — not only on the plans
+ * that carry one. A strict `8.0.0` codec (`ignoreUnknownKeys = false`) therefore rejects every
+ * `choose_payment_plan` on any board with a mana source, which is every board. That is the same break
+ * shape `FW-COUNTERS` recorded for `GameObjectDto`, and it is folded here for the identical reason.
+ *
+ * **It has to be on the wire at all** for two independent reasons, either of which alone would settle
+ * it. A remote agent choosing between plans must be able to see that one of them costs it life, or the
+ * option set it observes is not the option set the engine offered (ADR-005). And the round trip must be
+ * lossless: the rider is part of the payment-equivalence key
+ * ([dev.mtgplay.rules.decision.SourceClassKey.profile]), so an alternative reconstructed without it
+ * would no longer belong to its own source class, and the executor's CR 601.2g membership check would
+ * refuse the plan outright rather than quietly running it.
+ *
+ * `TriggeredAbility.addsMana` — the packet's other core addition, Burning-Tree Emissary's "When this
+ * creature enters, add `{R}{G}`" — adds **nothing** to the wire. It is a property of a card definition,
+ * and its only observable consequence is mana in a pool, which [SeatViewDto] already carries.
  */
 const val PROTOCOL_VERSION: String = "8.0.0"

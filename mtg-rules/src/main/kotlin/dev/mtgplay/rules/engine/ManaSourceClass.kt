@@ -220,7 +220,10 @@ internal fun productionProfile(
             .filterIndexed { index, ability -> manaAbilityAvailable(state, obj, index, ability) }
             .flatMap { ability ->
                 producedMultisets(state, obj, ability).map { produced ->
-                    ProductionAlternative(ability.cost, produced, ability.oncePerTurn)
+                    // CR 605.1a: an ability's non-mana rider travels with the alternative it belongs to,
+                    // so the executor knows which ability it activated and two sources charging different
+                    // life never collapse into one payment-equivalence class (`W8-B`).
+                    ProductionAlternative(ability.cost, produced, ability.oncePerTurn, ability.rider)
                 }
             }.distinct()
             .sortedWith(PRODUCTION_ALTERNATIVE_ORDER)
@@ -274,6 +277,10 @@ private val PRODUCTION_ALTERNATIVE_ORDER: Comparator<ProductionAlternative> =
         // Two alternatives whose costs rank equally but differ in a component's payload (two counter
         // kinds) are still distinct; the rendered cost breaks the tie totally and state-independently.
         if (verdict == 0) verdict = left.cost.toString().compareTo(right.cost.toString())
+        // …and two that agree on cost *and* production may still differ in their CR 605.1a rider
+        // (`W8-B`). The rendered rider finishes the order off, so it stays total: an order that ties
+        // on distinct alternatives would let equal states enumerate unequal plan lists (ADR-006).
+        if (verdict == 0) verdict = left.rider.toString().compareTo(right.rider.toString())
         verdict
     }
 

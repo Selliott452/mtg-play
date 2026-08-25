@@ -54,6 +54,13 @@ enum class Invariant {
      * the step; as of P6.2b (when the first such card is encoded) this invariant carries that
      * declared exception — a seat controlling a triggered-mana-ability source may hold floating mana
      * at a pause — while CR 500.4 still bounds it at each step's end and every other deck stays exact.
+     *
+     * `W8-B` adds the **second** declared exception, for the other way mana reaches a pool outside a
+     * payment: an ordinary triggered ability that adds mana (CR 106.1,
+     * [dev.mtgplay.core.definition.TriggeredAbility.addsMana] — Burning-Tree Emissary). Unlike the
+     * CR 605.1b one this mana arrives from the *stack*, so it is floating by design rather than as a
+     * remainder, and the exemption is keyed on owning such a card in **any** zone: the trigger outlives
+     * its source (CR 603.3), so the Emissary is often in a graveyard when the mana is in the pool.
      */
     MANA_POOL_EMPTY_AT_PAUSE,
 

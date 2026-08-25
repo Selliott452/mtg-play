@@ -314,6 +314,47 @@ class ManaAbilityCostSpec :
             alternative.manaCost.shouldBeNull()
         }
 
+        "gauntlet triage T2: a TAPPED tap-and-sacrifice source is no mana source at all" {
+            // The behavioural half of the declaration test above, and the assertion the old
+            // `viaSacrifice` flag would have failed: a sacrifice source is deliberately usable while
+            // tapped, so a flag-encoded Lotus Petal kept a live mana ability after being tapped. With
+            // the {T} component present, CR 602.2a removes it from every source class.
+            val untapped = stateWith(SeatSetup(battlefield = listOf("Fixture Petal")))
+            manaSourceClasses(untapped, alice) shouldHaveSize 1
+            val tapped =
+                untapped.copy(
+                    sharedZones =
+                        untapped.sharedZones.copy(
+                            battlefield =
+                                untapped.sharedZones.battlefield
+                                    .map { it.copy(tapped = true) }
+                                    .toPersistentList(),
+                        ),
+                )
+            manaSourceClasses(tapped, alice).shouldBeEmpty()
+            enumeratePaymentPlans(tapped, alice, ManaCost.parse("{G}")).shouldBeEmpty()
+        }
+
+        "gauntlet triage T2: executing the plan sacrifices the source, so it is a one-shot" {
+            // Two Petals pay {G}{G} and both leave the battlefield; one Petal cannot pay {G}{G} at all.
+            val state = stateWith(SeatSetup(battlefield = listOf("Fixture Petal", "Fixture Petal")))
+            val cost = ManaCost.parse("{G}{G}")
+            val plan = enumeratePaymentPlans(state, alice, cost).single()
+            plan.activations shouldHaveSize 2
+            val after = payManaPlan(state, alice, cost, plan)
+            after.sharedZones.battlefield
+                .filter { it.card.name == "Fixture Petal" }
+                .shouldBeEmpty()
+            after.players
+                .getValue(alice)
+                .graveyard shouldHaveSize 2
+            enumeratePaymentPlans(
+                stateWith(SeatSetup(battlefield = listOf("Fixture Petal"))),
+                alice,
+                cost,
+            ).shouldBeEmpty()
+        }
+
         "CR 601.2g: a plan whose recorded cost payment does not satisfy the ability's cost fails loudly" {
             val state = stateWith(SeatSetup(battlefield = listOf("Fixture Filter"))).withPool(ManaType.GREEN)
             val key = manaSourceClasses(state, alice).single().key

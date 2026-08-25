@@ -135,6 +135,22 @@ object InvariantChecker {
      * exemption: a payment plan may now spend a CR 605.1b bonus inside the cast that produced it, so
      * the bonus reaches a pause only when the plan genuinely had no use for it. The exemption stays
      * keyed on the same seats, because the same Auras are still the only things that can float mana.
+     *
+     * **`W8-B` adds a second, structurally different floater** and therefore a second exemption:
+     * a triggered ability that adds mana without being a CR 605.1b mana ability at all
+     * ([dev.mtgplay.core.definition.TriggeredAbility.addsMana] — Burning-Tree Emissary's "When this
+     * creature enters, add {R}{G}"). Its mana arrives on the **stack**, in the priority window the
+     * ability's resolution hands back, so floating it across a pause is not a side effect of the card,
+     * it *is* the card. Nothing narrows it the way P8.3 narrowed the Aura bonus: no payment is in
+     * progress to spend it.
+     *
+     * That exemption is keyed on **ownership in any zone**, not on the battlefield, which is a
+     * deliberate widening rather than laziness. The Emissary can be killed in response to its own
+     * trigger: the trigger still resolves (CR 603.3, it is independent of its source), the mana still
+     * arrives, and the source is in a graveyard by the time the checker sees the pause. A
+     * battlefield-keyed exemption would report that entirely correct game as engine wrongness — the
+     * same shape of false positive the Aura fix above records, found before it could cost 7,920
+     * violations rather than after.
      */
     internal fun checkManaPoolEmptiness(state: GameState): List<Violation> {
         val permanentsById = state.sharedZones.battlefield.associateBy { it.id }
@@ -142,7 +158,7 @@ object InvariantChecker {
             state.sharedZones.battlefield
                 .filter { state.definitions[it.card]?.triggeredManaAbilities?.isNotEmpty() == true }
                 .mapNotNull { aura -> aura.attachedTo?.let { permanentsById[it]?.owner } }
-                .toSet()
+                .toSet() + seatsOwningAManaAddingTrigger(state)
         return state.players.entries
             .sortedBy { it.key.seat }
             .filter { it.value.manaPool.isNotEmpty() && it.key !in seatsThatMayFloat }
