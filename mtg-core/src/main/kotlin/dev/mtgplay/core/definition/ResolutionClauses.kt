@@ -98,6 +98,19 @@ interface ResolutionClauses {
      * with an empty cost.
      */
     val optionalDraw: OptionalDraw? get() = null
+
+    /**
+     * An **untargeted** "choose up to N permanents matching this, then untap them / return them to
+     * their owners' hands" clause (CR 609.4), or `null` for a definition with none. Snap's "Untap up to
+     * two lands" and Azorius Chancery's "return a land you control to its owner's hand". Additive,
+     * flagged core (`FW-TAPUNTAP`).
+     *
+     * The first clause whose decision is over the **battlefield** rather than over cards in a library,
+     * a hand, or a graveyard — and the first whose option list is entirely public (CR 400.2), so unlike
+     * [libraryLook] and [eachOpponentDiscards] it hides nothing from anybody. See [PermanentSelection]
+     * for why the permanents are chosen here, mid-resolution, rather than as targets.
+     */
+    val permanentSelection: PermanentSelection? get() = null
 }
 
 /**
@@ -116,6 +129,7 @@ val ResolutionClauses.declaredClauses: List<Any>
             handRevealChoice,
             eachOpponentDiscards,
             optionalDraw,
+            permanentSelection,
         )
 
 /**

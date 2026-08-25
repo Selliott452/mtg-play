@@ -68,6 +68,8 @@ fun viewFor(
             pendingRebound = state.pendingRebound,
             pendingNinjutsu = state.pendingNinjutsu,
             pendingOptionalDraw = state.pendingOptionalDraw,
+            // CR 400.2: the battlefield is public, so an untargeted selection over it hides nothing.
+            pendingPermanentSelection = state.pendingPermanentSelection,
             // CR 611.2: a resolved spell's continuous effect is public information; no filtering applies.
             timedEffects = state.timedEffects,
         )

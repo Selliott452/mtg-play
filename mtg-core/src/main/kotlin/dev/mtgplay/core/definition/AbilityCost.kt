@@ -64,4 +64,35 @@ sealed interface AbilityCost {
     data class Sacrifice(
         val filter: SacrificeFilter,
     ) : AbilityCost
+
+    /**
+     * Return **one chosen permanent you control** matching [filter] to its owner's hand as a cost
+     * (CR 602.1, CR 701.4a) — Quirion Ranger's "Return a Forest you control to its owner's hand:
+     * Untap target creature." Additive, flagged core (`FW-TAPUNTAP`).
+     *
+     * The third cost component with a *chosen* object, after [DiscardACard] and [Sacrifice], and
+     * deliberately their shape: the engine surfaces an enumerated selection during activation
+     * (ADR-005) and performs the return during payment (CR 602.2b). Exactly one permanent, matching
+     * [DiscardACard]'s "exactly one card" and [Sacrifice]'s "exactly one permanent" — Quirion Ranger
+     * is the only printing in the gauntlet and it returns one — and a count is the extension point
+     * for the same reason it is there.
+     *
+     * **Not a [Sacrifice] with a different verb.** Where the permanent *goes* is the whole difference,
+     * and it is not cosmetic: a returned permanent is alive in its owner's hand and recastable, so a
+     * card whose cost returns a land is a mana-neutral loop (Quirion Ranger untaps a creature, and the
+     * Forest can be replayed), while a sacrifice is a real loss. Encoding one as the other would be a
+     * plausible-looking wrong card (PLAN.md §7). It is also a *different filter type*: this one carries
+     * [PermanentFilter], because "a **Forest** you control" names a subtype (CR 205.3) and
+     * [SacrificeFilter] carries card types alone and cannot say it.
+     *
+     * **"You control" is in the filter, not the member name's promise.** [PermanentFilter.controlledByYou]
+     * is what restricts the choice to the activator's own permanents; a printing that returned any
+     * permanent would be the same member with the flag off, and nothing here would change.
+     *
+     * @property filter which permanents may be chosen to pay it (CR 602.1) — Quirion Ranger's is
+     *   `PermanentFilter(subtype = Subtype("Forest"), controlledByYou = true)`.
+     */
+    data class ReturnPermanentYouControl(
+        val filter: PermanentFilter,
+    ) : AbilityCost
 }

@@ -40,6 +40,9 @@ private fun sizedHeaderAndNames(request: DecisionRequest.SizedSelection): Pair<S
         is DecisionRequest.ChooseAbilityDiscard ->
             "Discard exactly ${request.count} card(s) to pay ${request.card.name}'s ability (CR 602.2b):" to
                 request.options.map { it.card.name }
+        is DecisionRequest.ChooseAbilityReturn ->
+            "Return exactly ${request.count} permanent(s) to hand to pay ${request.card.name}'s ability " +
+                "(CR 602.1):" to request.options.map { it.card.name }
         is DecisionRequest.ChooseOptionalDiscard ->
             "Discard exactly ${request.count} card(s) (CR 701.8):" to request.options.map { it.card.name }
         is DecisionRequest.ChooseOptionalCostObject ->
@@ -55,10 +58,11 @@ private fun sizedHeaderAndNames(request: DecisionRequest.SizedSelection): Pair<S
     }
 
 /**
- * A ranged subset selection (CR 601.2c): a multi-target choice. The header states the printed
- * cardinality — "up to two", "two" — because that is the part of the line neither an agent nor a human
- * can infer from the option list, and the hint states the bound actually enforced, which may be smaller
- * when the board offers fewer options than the card asks for.
+ * A ranged subset selection: a multi-target choice (CR 601.2c) or an untargeted mid-resolution
+ * permanent selection (CR 609.4). The header states the printed cardinality — "up to two", "two" —
+ * because that is the part of the line neither an agent nor a human can infer from the option list, and
+ * the hint states the bound actually enforced, which may be smaller when the board offers fewer options
+ * than the card asks for.
  */
 internal fun rangedSelectionMenu(
     view: MatchView,
@@ -68,6 +72,12 @@ internal fun rangedSelectionMenu(
         is DecisionRequest.ChooseMultipleTargets ->
             listOf("Choose ${targetCountPhrase(request)} for ${request.card.name} (CR 601.2c):") +
                 numbered(request.options.map { targetLabel(view, it) }) +
+                rangedHint(request.minimumCount, request.maximumCount)
+        // CR 609.4: the prompt carries the verb, because the option list alone cannot say whether the
+        // chosen permanents will be untapped or bounced.
+        is DecisionRequest.ChoosePermanentsToAffect ->
+            listOf("${request.prompt} for ${request.sourceCard.name} (CR 609.4):") +
+                numbered(request.options.map { it.card.name }) +
                 rangedHint(request.minimumCount, request.maximumCount)
     }
 

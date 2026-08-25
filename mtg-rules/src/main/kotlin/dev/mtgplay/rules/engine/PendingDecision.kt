@@ -135,7 +135,8 @@ private fun gatheringPauseRequest(
  * The request of a mid-transition pause with no priority round open — an as-enters colour choice
  * (CR 614.12), a reveal-keep-one (CR 701.16), a CR 616.1 replacement ordering, an optional
  * discard-then-draw (CR 601.3b), an optional cost-then-draw mode/object (CR 601.3b, Highway Robbery),
- * a mandatory resolution discard (CR 601.2c, Faithless Looting), a counter's unless-pay (CR 118.3a,
+ * a mandatory resolution discard (CR 601.2c, Faithless Looting), an untargeted permanent selection
+ * (CR 609.4, Snap and Azorius Chancery), a counter's unless-pay (CR 118.3a,
  * Force Spike), a library search find-one (CR 701.18,
  * Ash Barrens), a private look's arrangement or its optional shuffle (CR 701.14a/701.17a, Preordain and
  * Ponder), or a madness yes/no (CR 702.35b) — or `null` if none is open.
@@ -160,6 +161,9 @@ private fun midTransitionPauseRequest(state: GameState): DecisionRequest? =
         // CR 601.3b: the bare optional draw clause's yes/no (`FW-OPTDRAW`, Ninja of the Deep Hours).
         state.pendingOptionalDraw != null -> pendingOptionalDrawRequest(state)
         state.pendingResolutionDiscard != null -> pendingResolutionDiscardRequest(state)
+        // CR 609.4: an untargeted mid-resolution choice of battlefield permanents (Snap, Azorius
+        // Chancery) — decided by the resolving object's controller, who need not hold priority.
+        state.pendingPermanentSelection != null -> pendingPermanentSelectionRequest(state)
         state.pendingLibrarySearch != null -> pendingLibrarySearchRequest(state)
         else -> libraryLookOrLatePauseRequest(state)
     }

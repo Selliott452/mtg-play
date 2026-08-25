@@ -1,5 +1,6 @@
 package dev.mtgplay.core.definition
 
+import dev.mtgplay.core.mana.ManaType
 import kotlinx.collections.immutable.PersistentList
 
 /**
@@ -34,6 +35,56 @@ sealed interface ManaAmount {
     ) : ManaAmount {
         init {
             require(count >= 1) { "CR 605.1a: a mana ability adds at least one mana, got $count" }
+        }
+    }
+
+    /**
+     * A constant **mixed** multiset: exactly the mana of [types], of two or more different kinds in one
+     * activation (CR 605.1a) — Azorius Chancery's "{T}: Add {W}{U}", Burning-Tree Emissary's "Add
+     * {R}{G}". Additive, flagged core (`FW-TAPUNTAP`), and the addition [ManaAbility]'s KDoc and
+     * docs/design/mana-payment.md §9 both promised: a mixed production was recorded as expressible in
+     * `SourceClassKey` (whose profile is already a list of arbitrary multisets) but **not declarable**
+     * on a [ManaAbility], and this is the declaration.
+     *
+     * **The one member that supplies its own types, and that is why it is a [ManaAmount] rather than a
+     * widening of [ManaAbility.options].** Every other member is a *number* that the ability's option
+     * list is multiplied by: `options × amount` is a choice of type crossed with a count, which can
+     * only ever produce a uniform multiset. A mixed production is not a point in that cross product at
+     * all — there is no chosen type — so it enters as a shape that replaces the product outright, and
+     * [ManaAbility]'s `init` requires such an ability's [ManaAbility.options] to be exactly the distinct
+     * types listed here so the two halves of the declaration cannot disagree.
+     *
+     * **No choice, therefore one production alternative.** A Chancery's activation adds `{W}` *and*
+     * `{U}`; it does not offer a pick between them. `mtg-rules` builds one [ProductionAlternative] from
+     * this member rather than one per option, which is precisely the difference between "add {W}{U}"
+     * and "add one mana of white or blue" — two genuinely different cards that a widened option list
+     * could not tell apart.
+     *
+     * **A single-type multiset is not expressible**, and deliberately: `FixedMultiset([RED, RED])` and
+     * [Fixed]`(2)` on a one-option ability would be two spellings of one card, which is how a rules
+     * read drifts (the collapse [TargetSpec.TargetPermanent]'s KDoc records). At least two *distinct*
+     * types are required.
+     *
+     * @property types the mana one activation adds, in printed order — Azorius Chancery's is
+     *   `[WHITE, BLUE]`. At least two entries, and at least two distinct kinds among them.
+     */
+    data class FixedMultiset(
+        val types: PersistentList<ManaType>,
+    ) : ManaAmount {
+        init {
+            require(types.size >= MIXED_PRODUCTION_MINIMUM) {
+                "CR 605.1a: a mixed production adds at least two mana, got $types"
+            }
+            require(types.distinct().size >= MIXED_PRODUCTION_MINIMUM) {
+                "a uniform multiset is Fixed(${types.size}) on a one-option ability, not a mixed " +
+                    "production; two spellings of one card would have to be kept in agreement forever, " +
+                    "got $types"
+            }
+        }
+
+        private companion object {
+            /** A mixed production names at least this many mana, and at least this many distinct kinds. */
+            const val MIXED_PRODUCTION_MINIMUM: Int = 2
         }
     }
 

@@ -38,6 +38,13 @@ enum class LibraryLookSourceDto { TOP_OF_LIBRARY, HAND }
 @Serializable
 enum class RevealedCardOutcomeDto { DISCARD, EXILE_LINKED }
 
+/*
+ * [PermanentSelectionAction]'s wire form is deliberately **not** here despite being a card-definition
+ * enum: it belongs with the pending record that is its only carrier, in PermanentSelectionDtos.kt, and
+ * this file is at its function budget. The grouping is by flow rather than by kind, which is the same
+ * call PendingHiddenChoiceDtos.kt makes.
+ */
+
 /** [LibraryLookSource] to its wire form. */
 fun LibraryLookSource.toDto(): LibraryLookSourceDto =
     when (this) {

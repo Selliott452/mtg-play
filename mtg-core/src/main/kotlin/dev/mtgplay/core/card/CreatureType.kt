@@ -61,6 +61,7 @@ object CreatureType {
             Ninja
             Pirate
             Plant
+            Ranger
             Rat
             Robot
             Rogue

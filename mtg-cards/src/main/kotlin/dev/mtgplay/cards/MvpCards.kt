@@ -229,6 +229,20 @@ import dev.mtgplay.core.identity.CardRef
  * [dev.mtgplay.core.definition.PermanentRestriction] members (`ENCHANTMENT` and the pool's first
  * disjunctive one, `ARTIFACT_CREATURE_OR_LAND_YOU_CONTROL`) and two `mtg-rules` primitives,
  * `flickerPermanents` (exile all, *then* return all) and `exileGraveyard`.
+ *
+ * The `FW-TAPUNTAP` packet adds the pool's first cards that **tap, untap, or choose a permanent of
+ * their own** (TapEffects.kt): [sleepOfTheDead] (tap target creature, and it does not untap next untap
+ * step), [quirionRanger] (return a Forest you control: untap target
+ * creature, once each turn), [snap] (bounce a creature, untap up to two lands) and [azoriusChancery]
+ * (`{T}: Add {W}{U}`, and an untargeted enters-the-battlefield land bounce). It brings four
+ * primitives with them — `tapPermanent`/`untapPermanent` as CR 701.21a/701.21b *effects* rather than
+ * cost bookkeeping, [dev.mtgplay.core.definition.AbilityCost.ReturnPermanentYouControl],
+ * [dev.mtgplay.core.definition.PermanentSelection] (the untargeted CR 609.4 choice), and
+ * [dev.mtgplay.core.definition.ManaAmount.FixedMultiset] (the mixed production `ManaAbility`'s own KDoc
+ * had recorded as inexpressible) — and it closed a live defect on the way: `returnPermanentToOwnersHand`
+ * fired no CR 603.6c leaves-the-battlefield trigger, so bouncing a [journeyToNowhere] left the creature
+ * it held exiled forever. Sewer-veillance Cam and Stonehorn Dignitary stay absent — modal resolution for
+ * a *triggered ability* and CR 500.6 phase-skipping are frameworks this packet does not own.
  */
 object MvpCards {
     /** Every defined card, keyed by its printed-name [CardRef] (CR 201). */
@@ -245,6 +259,7 @@ object MvpCards {
             ashBarrens,
             basiliskGate,
             balustradeSpy,
+            azoriusChancery,
             bloodFountain,
             bojukaBog,
             blueElementalBlast,
@@ -339,6 +354,7 @@ object MvpCards {
             priestOfTitania,
             pulseOfMurasa,
             pursueThePast,
+            quirionRanger,
             rancor,
             raze,
             reckonersBargain,
@@ -355,8 +371,10 @@ object MvpCards {
             rooftopPercher,
             skred,
             slagwoodsBridge,
+            sleepOfTheDead,
             slipperyBogle,
             smashToSmithereens,
+            snap,
             sneakySnacker,
             snowCoveredIsland,
             snowCoveredMountain,

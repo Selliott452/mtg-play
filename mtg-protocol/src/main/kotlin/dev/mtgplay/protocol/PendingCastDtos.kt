@@ -76,6 +76,7 @@ data class PendingActivationDto(
     val chosenDiscard: List<Long>?,
     val chosenTargets: List<TargetDto>?,
     val chosenSacrifice: List<Long>?,
+    val chosenReturn: List<Long>? = null,
 )
 
 /** [PendingActivation] to its wire form. */
@@ -88,6 +89,11 @@ fun PendingActivation.toDto(): PendingActivationDto =
         chosenDiscard = chosenDiscard?.map(ObjectId::value),
         chosenTargets = chosenTargets?.map { it.toDto() },
         chosenSacrifice = chosenSacrifice?.map(ObjectId::value),
+        // CR 602.1 (`FW-TAPUNTAP`): the "return a permanent you control" cost's chosen object. Null
+        // means "not yet answered" and an empty list "settled, nothing to choose" — the same
+        // three-valued shape the sibling cost selections use, so it must ride the wire rather than
+        // being reconstructed, or a paused activation would decode to a *different* gathering stage.
+        chosenReturn = chosenReturn?.map(ObjectId::value),
     )
 
 /** [PendingActivationDto] back to the engine value. */
@@ -100,6 +106,7 @@ fun PendingActivationDto.toDomain(): PendingActivation =
         chosenDiscard = chosenDiscard?.map(::ObjectId)?.toPersistentList(),
         chosenTargets = chosenTargets?.map { it.toDomain() }?.toPersistentList(),
         chosenSacrifice = chosenSacrifice?.map(::ObjectId)?.toPersistentList(),
+        chosenReturn = chosenReturn?.map(::ObjectId)?.toPersistentList(),
     )
 
 /** Wire form of [PendingPlot] (CR 702.140) — the fact and the plotting seat; the card stays in hand. */

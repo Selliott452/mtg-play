@@ -60,6 +60,7 @@ class RandomRemoteAgent(
                 is DecisionRequestDto.ChooseSacrificesForCost -> request.options.size to request.count
                 is DecisionRequestDto.ChooseAbilitySacrifice -> request.options.size to request.count
                 is DecisionRequestDto.ChooseAbilityDiscard -> request.options.size to request.count
+                is DecisionRequestDto.ChooseAbilityReturn -> request.options.size to request.count
                 is DecisionRequestDto.ChooseOptionalDiscard -> request.options.size to request.count
                 is DecisionRequestDto.ChooseResolutionDiscards -> request.options.size to request.count
                 is DecisionRequestDto.ChooseOptionalCostObject -> request.options.size to 1
@@ -179,9 +180,11 @@ class RandomRemoteAgent(
     }
 }
 
-/** The option count and inclusive answer-size bounds of a ranged selection (CR 601.2c). */
+/** The option count and inclusive answer-size bounds of a ranged selection (CR 601.2c, CR 609.4). */
 private fun rangedBounds(request: DecisionRequestDto.RangedSelectionDto): Triple<Int, Int, Int> =
     when (request) {
         is DecisionRequestDto.ChooseMultipleTargets ->
+            Triple(request.options.size, request.minimumCount, request.maximumCount)
+        is DecisionRequestDto.ChoosePermanentsToAffect ->
             Triple(request.options.size, request.minimumCount, request.maximumCount)
     }

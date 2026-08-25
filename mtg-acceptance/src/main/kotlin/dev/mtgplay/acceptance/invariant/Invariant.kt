@@ -351,4 +351,29 @@ enum class Invariant {
      * remaining halves fail *silently* and so need a backstop.
      */
     NINJUTSU_COST_VALID,
+
+    /**
+     * The per-turn **non-mana** activated-ability record is battlefield-only (CR 400.7) and every index
+     * in [dev.mtgplay.core.state.GameObject.activatedAbilitiesActivatedThisTurn] names a printed
+     * activated ability that actually carries the "Activate only once each turn" restriction
+     * (CR 602.5b). Added with `FW-TAPUNTAP` — Quirion Ranger.
+     *
+     * The sibling of [MANA_ABILITY_ACTIVATION_SCOPE], checked separately because the two records index
+     * different ability lists on the same definition. It backstops the same quiet failure: a leaked or
+     * mis-indexed record makes an ability silently stop being enumerated, which an agent experiences as
+     * a legal line missing from its action space (ADR-005). See `checkActivatedAbilityActivationScope`.
+     */
+    ACTIVATED_ABILITY_ACTIVATION_SCOPE,
+
+    /**
+     * The "doesn't untap during its controller's next untap step" marker
+     * ([dev.mtgplay.core.state.GameObject.skipsNextUntapStep], CR 502.2) is carried only by battlefield
+     * permanents. Added with `FW-TAPUNTAP` — Sleep of the Dead.
+     *
+     * Tapped status is battlefield-only (CR 110.5), so anything qualifying it is too, and the fresh
+     * object born of any zone move has no history (CR 400.7). A leaked marker would hold down a
+     * permanent that in rules terms was never affected — invisible until an untap step silently did
+     * nothing. See `checkSkipsNextUntapScope`.
+     */
+    SKIPS_NEXT_UNTAP_SCOPE,
 }

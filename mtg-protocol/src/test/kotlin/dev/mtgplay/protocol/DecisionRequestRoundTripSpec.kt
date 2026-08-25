@@ -303,6 +303,26 @@ private val allRequests: List<DecisionRequest> =
             listOf(DecisionRequest.ChooseAbilitySacrifice.Option(ObjectId(15), CardRef("Ichor Wellspring"))),
             count = 1,
         ),
+        // CR 602.1 / CR 701.4a (`FW-TAPUNTAP`): the return-a-permanent activation cost, the third
+        // activation-side cost selection and the one with a live client (Quirion Ranger).
+        DecisionRequest.ChooseAbilityReturn(
+            ID,
+            ObjectId(8),
+            CardRef("Quirion Ranger"),
+            listOf(DecisionRequest.ChooseAbilityReturn.Option(ObjectId(15), CardRef("Forest"))),
+            count = 1,
+        ),
+        // CR 609.4 (`FW-TAPUNTAP`): the untargeted mid-resolution permanent selection. It shares
+        // `ChooseMultipleTargets`' ranged shape but names no `cardObjectId` — the visible tell that it
+        // is not a targeting request — so both bounds and the prompt are in the fixture.
+        DecisionRequest.ChoosePermanentsToAffect(
+            ID,
+            CardRef("Snap"),
+            prompt = "Choose up to 2 permanent(s) to untap",
+            options = listOf(DecisionRequest.ChoosePermanentsToAffect.Option(ObjectId(16), CardRef("Island"))),
+            minimumCount = 0,
+            maximumCount = 1,
+        ),
         DecisionRequest.ChooseCardsToDiscardForCost(
             ID,
             ObjectId(1),

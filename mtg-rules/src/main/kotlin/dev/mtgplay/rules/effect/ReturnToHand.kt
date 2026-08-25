@@ -6,6 +6,7 @@ import dev.mtgplay.core.identity.ObjectId
 import dev.mtgplay.core.identity.PlayerId
 import dev.mtgplay.core.state.GameObject
 import dev.mtgplay.core.state.GameState
+import dev.mtgplay.rules.engine.announceBattlefieldDeparture
 import dev.mtgplay.rules.engine.clearCombatReferences
 import dev.mtgplay.rules.engine.emit
 import dev.mtgplay.rules.engine.satisfiesGraveyardCardRestriction
@@ -111,10 +112,20 @@ fun returnRandomCardFromGraveyardToHand(
  *   bounced attacker or blocker leaves combat as a destroyed one does.
  * - An **Aura on it falls off** at the next CR 704.5m state-based check, which is where that rule lives —
  *   not here, and not for this primitive to anticipate.
- * - **No graveyard trigger fires.** A "put into a graveyard from the battlefield" trigger (CR 603.6b)
- *   watches for the graveyard specifically, so a bounce is deliberately not routed through
- *   `detectPutIntoGraveyardTriggers`. A general "leaves the battlefield" trigger would be — and the
- *   engine has no such condition, which is why this is a note rather than a call.
+ * - **No graveyard trigger fires, but the general departure trigger does.** A "put into a graveyard
+ *   from the battlefield" trigger (CR 603.6b) watches for the graveyard specifically, so a bounce is
+ *   deliberately not routed through `detectPutIntoGraveyardTriggers` — that is [graveyardId] being
+ *   `null` below. The **general** CR 603.6c leaves-the-battlefield trigger *is* fired, through
+ *   [announceBattlefieldDeparture], exactly as [exilePermanent] fires it.
+ *
+ *   This KDoc used to end "a general 'leaves the battlefield' trigger would be — and the engine has no
+ *   such condition, which is why this is a note rather than a call", and that sentence outlived its
+ *   truth: `FW-TRIGLTB` added [dev.mtgplay.core.definition.TriggerCondition.LeftBattlefieldSelf] and
+ *   `FW-BLINK`/ninjutsu gave every *other* departure path the shared announcement, leaving this one the
+ *   single route out of the battlefield that fired nothing. It was reachable and silent: bouncing a
+ *   Journey to Nowhere left the creature it was holding exiled **forever**, with no crash and no
+ *   invariant to notice. `FW-TAPUNTAP` closed it because Snap, Azorius Chancery and Quirion Ranger's
+ *   activation cost are all on this path.
  * - **Indestructible is not consulted** (CR 702.12b): it stops destruction, not a zone change. Bouncing
  *   an indestructible permanent works, and that is the rules answer rather than an oversight.
  *
@@ -138,6 +149,11 @@ fun returnPermanentToOwnersHand(
             .updateBattlefield { it.removingAt(index) }
             .updatePlayer(permanent.owner) { it.copy(hand = it.hand.adding(reborn)) }
             .emit(GameEvent.CardReturnedToHand(permanent.owner, handId, permanent.card))
+    // CR 603.6c, CR 603.10: a leaves-the-battlefield trigger fires against the pre-bounce state, and
+    // carries the departed permanent's last-known information — including the CR 607.2 linked-exile
+    // record a Journey to Nowhere wrote on itself, which is the whole content of its return ability.
+    // `graveyardId = null`: nothing went to a graveyard, so no CR 603.6b trigger is fired.
+    val triggered = announceBattlefieldDeparture(moved, permanent, graveyardId = null)
     // CR 506.4: a bounced permanent that was in combat is removed from it.
-    return clearCombatReferences(moved, setOf(objectId))
+    return clearCombatReferences(triggered, setOf(objectId))
 }

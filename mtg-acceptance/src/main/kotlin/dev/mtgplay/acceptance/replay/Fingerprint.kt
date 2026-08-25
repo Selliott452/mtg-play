@@ -121,6 +121,15 @@ private fun StringBuilder.appendP62cPendingPositions(state: GameState) {
     append(state.pendingResolutionDiscard?.let { "${it.decider.seat}:${it.count}" } ?: "-")
     append("|pendingLibrarySearch=")
     append(state.pendingLibrarySearch?.let { "${it.decider.seat}" } ?: "-")
+    // CR 609.4: an untargeted mid-resolution permanent selection (Snap, Azorius Chancery) — whose
+    // choice, which action, and the already-clamped bounds. The options are re-derived from the
+    // resolving object's own clause, which the stack digest already covers.
+    append("|pendingPermSel=")
+    append(
+        state.pendingPermanentSelection?.let {
+            "${it.decider.seat}:${it.action.name}:${it.minimum}..${it.maximum}"
+        } ?: "-",
+    )
     // CR 701.14a/701.17a: a private look — whose, over which objects, and which of its two stages. The
     // object ids are the position; the fingerprint is engine-internal and never a per-seat channel, so
     // digesting them here is not the disclosure the seat view withholds.
@@ -164,7 +173,12 @@ private fun StringBuilder.appendP62aPendingPositions(state: GameState) {
         state.pendingActivation?.let {
             "${it.activator.seat}:${it.sourceObjectId.value}:${it.abilityIndex}:" +
                 (it.chosenDiscard?.joinToString("+") { id -> id.value.toString() } ?: "-") + ":" +
-                (it.chosenTargets?.joinToString("+") { target -> renderTarget(target) } ?: "-")
+                (it.chosenTargets?.joinToString("+") { target -> renderTarget(target) } ?: "-") + ":" +
+                // CR 602.1: the chosen-object cost components decide what the activation will do to the
+                // board and what its payment plan may tap, so two gatherings differing only in them are
+                // different positions. Added by `FW-TAPUNTAP`, which also picked up the sacrifice half.
+                (it.chosenSacrifice?.joinToString("+") { id -> id.value.toString() } ?: "-") + ":" +
+                (it.chosenReturn?.joinToString("+") { id -> id.value.toString() } ?: "-")
         } ?: "-",
     )
     append("|pendingOptDiscard=")
@@ -259,6 +273,7 @@ private fun StringBuilder.appendResidence(residence: ZoneResidence) {
                 }
             append(":ctr=").append(tag).append('x').append(count)
         }
+        appendPerTurnAndUntapStatus(residence)
     }
     if (residence.zone == ZoneId.Exile) {
         // The madness marker (CR 702.35a) is an exile-only status — a card waiting on its reflexive cast.

@@ -953,6 +953,125 @@ sealed interface DecisionRequest {
     }
 
     /**
+     * A chosen-permanent **return** cost selection of an activated ability (CR 602.1, CR 701.4a):
+     * [seat] is activating an ability of [sourceObjectId] whose cost returns [count] permanents matching
+     * a filter to their owners' hands (Quirion Ranger's "Return a Forest you control to its owner's
+     * hand"), and picks exactly [count] of [options] by index (a [Decision.MultiSelect]). Additive,
+     * flagged (`FW-TAPUNTAP`).
+     *
+     * The sibling of [ChooseAbilitySacrifice] and deliberately its shape — a cost with a chosen object
+     * is a fixed-size subset selection over an engine-enumerated option list, whatever the object is —
+     * but a **separate request** rather than a widened one, for the reason
+     * [ChooseSacrificesForCost] is separate from [ChooseSacrifices]: the two costs have different
+     * filters and different consequences (a returned permanent is alive in a hand, a sacrificed one is
+     * in a graveyard), and an ability could in principle print both.
+     *
+     * Surfaced only when at least [count] candidates are available (the activation is otherwise not
+     * enumerated, ADR-005), so a legal selection always exists. Every option is *independently*
+     * completable — the option list is filtered to candidates that leave the ability's mana component
+     * payable once reserving them is accounted for — so no answer here can dead-end the activation.
+     * Unlike the sacrifice cost's, a chosen return is reserved from the payment plan
+     * **unconditionally**: a permanent in a hand is a new object (CR 400.7) and cannot have been tapped
+     * for mana on the way there.
+     *
+     * @property sourceObjectId the ability's source, for display.
+     * @property card the source's printed identity, for display.
+     * @property options the permanents that may be returned to pay the cost, in battlefield order;
+     *   indices stable within this request (ADR-005).
+     * @property count how many must be returned.
+     */
+    data class ChooseAbilityReturn(
+        override val id: DecisionRequestId,
+        val sourceObjectId: ObjectId,
+        val card: CardRef,
+        val options: List<Option>,
+        val count: Int,
+    ) : SizedSelection {
+        override val optionCount: Int get() = options.size
+        override val requiredCount: Int get() = count
+
+        init {
+            require(count in 1..options.size) {
+                "CR 602.1: return count must be between 1 and available ${options.size}, was $count"
+            }
+        }
+
+        /**
+         * One permanent that may be returned to its owner's hand to pay the ability's cost.
+         *
+         * @property objectId the battlefield object that would be returned.
+         * @property card its printed identity, for display.
+         */
+        data class Option(
+            val objectId: ObjectId,
+            val card: CardRef,
+        )
+    }
+
+    /**
+     * An **untargeted** mid-resolution choice of battlefield permanents (CR 609.4): [seat] is resolving
+     * an object whose text says "Untap up to two lands" (Snap) or "return a land you control to its
+     * owner's hand" (Azorius Chancery), and picks between [minimumCount] and [maximumCount] of
+     * [options] by distinct index (a [Decision.MultiSelect]). Additive, flagged (`FW-TAPUNTAP`).
+     *
+     * **Not a target choice**, and the option list shows it: hexproof and shroud subtract nothing here
+     * (CR 702.11a and CR 702.18a speak of targeting alone), so an opponent's hexproof land is offered.
+     * See [dev.mtgplay.core.definition.PermanentSelection] for the full consequence list.
+     *
+     * A [RangedSelection] rather than a [SizedSelection] because the answer's *size* is part of the
+     * choice — Snap's "up to two" may untap none, one, or two — which is the distinction that grouping
+     * draws. Both bounds arrive already clamped to what the board offers, so a mandatory "a land you
+     * control" whose controller has none left demands nothing rather than demanding the impossible.
+     *
+     * The request is surfaced only when [options] is non-empty; a resolution with nothing to choose
+     * from performs the clause's action on nothing and completes without a pause (ADR-004 — a decision
+     * with one legal answer that changes nothing is not a decision point, the same rule
+     * `targetChoiceIsVacuous` applies to targets).
+     *
+     * @property sourceCard the resolving object's printed identity, for display.
+     * @property prompt a short human description of the clause, for display (ADR-005).
+     * @property options the permanents that may be chosen, in battlefield order; never empty.
+     * @property minimumCount the fewest that must be chosen (0 for "up to N"), clamped to the board.
+     * @property maximumCount the most that may be chosen, clamped to [options]`.size`.
+     */
+    data class ChoosePermanentsToAffect(
+        override val id: DecisionRequestId,
+        val sourceCard: CardRef,
+        val prompt: String,
+        val options: List<Option>,
+        override val minimumCount: Int,
+        override val maximumCount: Int,
+    ) : RangedSelection {
+        override val optionCount: Int get() = options.size
+
+        init {
+            require(options.isNotEmpty()) {
+                "CR 609.4: a permanent selection is surfaced only when a legal choice exists (ADR-005)"
+            }
+            require(minimumCount in 0..maximumCount) {
+                "CR 609.4: a selection range runs from a non-negative minimum up to its maximum, " +
+                    "got $minimumCount..$maximumCount"
+            }
+            require(maximumCount <= options.size) {
+                "CR 609.4: at most ${options.size} distinct permanent(s) can be chosen from " +
+                    "${options.size} option(s), but the request allows $maximumCount"
+            }
+        }
+
+        /**
+         * One battlefield permanent that may be chosen.
+         *
+         * @property objectId the battlefield object.
+         * @property card its printed identity, for display — public, because the battlefield is
+         *   (CR 400.2).
+         */
+        data class Option(
+            val objectId: ObjectId,
+            val card: CardRef,
+        )
+    }
+
+    /**
      * An "as this permanent enters, choose a colour" choice (CR 614.12): [seat] is resolving a
      * permanent that chooses a colour as it enters (Utopia Sprawl) and picks one of [options] — the
      * five colours in WUBRG order — by index (a [Decision.SingleSelect]). Additive, flagged (P6.2a).

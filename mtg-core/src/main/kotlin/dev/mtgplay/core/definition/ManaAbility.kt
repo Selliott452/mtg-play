@@ -29,10 +29,17 @@ import kotlinx.collections.immutable.persistentListOf
  * count from being smuggled into the option list.
  *
  * A **mixed** multiset — Azorius Chancery's "{T}: Add {W}{U}", one activation adding two mana of
- * *different* types — is deliberately **not** expressible: an amount multiplies one chosen type.
- * That card needs another `ManaAmount`-sized addition here, and no change at all to
- * `SourceClassKey`, whose production descriptor is already a list of arbitrary multisets
+ * *different* types — is [ManaAmount.FixedMultiset] since `FW-TAPUNTAP`, and it landed exactly where
+ * this KDoc predicted: another `ManaAmount`-sized addition, with no change at all to `SourceClassKey`,
+ * whose production descriptor was already a list of arbitrary multisets
  * (docs/design/mana-payment.md §8.1).
+ *
+ * It is the one amount that **supplies its own types**, so it does not multiply [options] — it
+ * replaces the product. An ability declaring it adds every one of its types in a single activation
+ * with no choice between them, and the `init` below requires [options] to be exactly the distinct
+ * types the multiset names, in WUBRG-then-colorless order, so the two halves of the declaration cannot
+ * drift: [options] keeps meaning "the types this source can produce" for every reader that asks, while
+ * the amount says they arrive together rather than one at a time.
  *
  * The option list's order is the canonical enumeration order for payment plans (see
  * docs/design/mana-payment.md), so definitions should list options in WUBRG-then-colorless
@@ -82,6 +89,15 @@ data class ManaAbility(
         require(cost.isNotEmpty()) { "CR 602.1: an activated ability has a cost, and a mana ability is one" }
         require(cost.distinct().size == cost.size) {
             "CR 602.1: a composite cost names each component once, got $cost"
+        }
+        // CR 605.1a: a mixed production names its own types, so the option list must say the same
+        // thing the multiset does — otherwise a reader asking "what can this source add?" and the
+        // production profile would answer differently for the same ability.
+        val mixed = amount as? ManaAmount.FixedMultiset
+        require(mixed == null || options == mixed.types.distinct().sortedBy(ManaType::ordinal)) {
+            "CR 605.1a: a mixed production's options are the distinct types it adds, in " +
+                "WUBRG-then-colorless order; ${mixed?.types} needs " +
+                "${mixed?.types?.distinct()?.sortedBy(ManaType::ordinal)}, got $options"
         }
         require(cost.count { it is ManaAbilityCost.Mana } <= 1) {
             "CR 601.2g: a mana ability has at most one mana component; the payment plan records one " +

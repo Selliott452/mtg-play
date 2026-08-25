@@ -263,6 +263,45 @@ sealed interface DecisionRequestDto {
         val count: Int,
     ) : SizedSelectionDto
 
+    /**
+     * Wire form of [DecisionRequest.ChooseAbilityReturn] (CR 602.1, CR 701.4a) — an activated ability's
+     * "Return a Forest you control to its owner's hand" cost. Additive (`FW-TAPUNTAP`).
+     */
+    @Serializable
+    @SerialName("choose_ability_return")
+    data class ChooseAbilityReturn(
+        override val id: DecisionRequestIdDto,
+        val sourceObjectId: Long,
+        val card: String,
+        val options: List<CardObjectOptionDto>,
+        val count: Int,
+    ) : SizedSelectionDto
+
+    /**
+     * Wire form of [DecisionRequest.ChoosePermanentsToAffect] (CR 609.4) — an **untargeted**
+     * mid-resolution choice of battlefield permanents to untap or return to their owners' hands (Snap,
+     * Azorius Chancery). Additive (`FW-TAPUNTAP`).
+     *
+     * [minimumCount] and [maximumCount] bound how many of [options] the answer names by distinct index;
+     * both arrive already clamped to the board, so a peer never has to reconcile them with what it can
+     * see. [prompt] says which action the chosen permanents receive, since the wire form carries no
+     * clause declaration.
+     *
+     * There is no `cardObjectId`: an ability on the stack is not a card (CR 113.7a) and the choice
+     * belongs to the resolving object as a whole, so [sourceCard] alone identifies it for display —
+     * the shape [ChooseOpponentDiscards] already uses.
+     */
+    @Serializable
+    @SerialName("choose_permanents_to_affect")
+    data class ChoosePermanentsToAffect(
+        override val id: DecisionRequestIdDto,
+        val sourceCard: String,
+        val prompt: String,
+        val options: List<CardObjectOptionDto>,
+        val minimumCount: Int,
+        val maximumCount: Int,
+    ) : RangedSelectionDto
+
     /** Wire form of [DecisionRequest.ChooseOptionalDiscard] (CR 601.3b). */
     @Serializable
     @SerialName("choose_optional_discard")

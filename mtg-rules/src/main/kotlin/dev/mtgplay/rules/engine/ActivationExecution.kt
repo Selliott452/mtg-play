@@ -13,6 +13,7 @@ import dev.mtgplay.core.state.PendingActivation
 import dev.mtgplay.core.state.StackEntry
 import dev.mtgplay.rules.AdvanceResult
 import dev.mtgplay.rules.decision.PaymentPlan
+import dev.mtgplay.rules.effect.returnPermanentToOwnersHand
 
 /*
  * Activated-ability execution and resolution (CR 602.2b–c, CR 608.2): paying the composite cost, putting
@@ -78,7 +79,10 @@ internal fun executeActivation(
         )
     val cleared = state.copy(pendingActivation = null)
     establishActivationTargets(cleared, entry)
-    val paid = payAbilityCost(cleared, source, ability, plan, pending)
+    // CR 602.5b: the "activate only once each turn" record is made *before* the cost is paid, because a
+    // cost that returns or sacrifices the source would otherwise leave nothing to record it on.
+    val marked = markAbilityOncePerTurn(cleared, source, ability, pending.abilityIndex)
+    val paid = payAbilityCost(marked, source, ability, plan, pending)
     val onStack =
         paid
             .updateStack { it.adding(entry) }
@@ -159,6 +163,7 @@ private fun payAbilityCost(
     val payer = source.owner
     val chosenDiscard = pending.chosenDiscard.orEmpty()
     val chosenSacrifice = pending.chosenSacrifice.orEmpty()
+    val chosenReturn = pending.chosenReturn.orEmpty()
     return ability.cost.fold(state) { current, component ->
         when (component) {
             is AbilityCost.Mana -> payManaPlan(current, payer, component.cost, plan)
@@ -169,8 +174,50 @@ private fun payAbilityCost(
                 chosenDiscard.fold(current) { s, id -> discardApplyingReplacements(s, payer, id) }
             // CR 701.17: the permanents chosen while gathering, sacrificed to their owner's graveyard.
             is AbilityCost.Sacrifice -> sacrificePermanents(current, payer, chosenSacrifice)
+            // CR 701.4a: the permanents chosen while gathering, returned to their owners' hands. The
+            // enumeration reserved each of them from the payment plan unconditionally, so none of them
+            // can already have been tapped for mana by the fold above.
+            is AbilityCost.ReturnPermanentYouControl ->
+                chosenReturn.fold(current) { s, id -> returnPermanentToOwnersHand(s, id) }
         }
     }
+}
+
+/**
+ * Records that [source] has activated its CR 602.5b "Activate only once each turn" ability, so that
+ * [activationOptions] stops enumerating it for the rest of the turn. A no-op for every unrestricted
+ * ability, which keeps [GameObject.activatedAbilitiesActivatedThisTurn] empty on ordinary boards and
+ * their replay fingerprints unchanged.
+ *
+ * The index recorded is [abilityIndex], the ability's index among the card's printed activated
+ * abilities — the same index the enumeration checks and the same one [PendingActivation] carried, so
+ * there is no lookup to get wrong (contrast the mana-ability record, which has to *find* the restricted
+ * ability because a plan names a production alternative rather than an ability).
+ *
+ * A **hand**-scoped ability records nothing: the restriction follows the object (CR 602.5b), and a
+ * hand-scoped activation's source is a card that is about to change zones and become a different object
+ * (CR 400.7). No card in the gauntlet prints the pairing, and marking a hand object would be a record
+ * nothing could ever read.
+ */
+private fun markAbilityOncePerTurn(
+    state: GameState,
+    source: GameObject,
+    ability: ActivatedAbility,
+    abilityIndex: Int,
+): GameState {
+    if (!ability.oncePerTurn || ability.zoneScope != AbilityZoneScope.Battlefield) return state
+    val battlefield = state.sharedZones.battlefield
+    val index = battlefield.indexOfFirst { it.id == source.id }
+    require(index >= 0) {
+        "CR 602.5b: ${source.card.name}'s once-each-turn ability is recorded on its source, but " +
+            "${source.id} is not on the battlefield"
+    }
+    val marked =
+        battlefield[index].let {
+            it.copy(activatedAbilitiesActivatedThisTurn = it.activatedAbilitiesActivatedThisTurn.adding(abilityIndex))
+        }
+    // In place: battlefield order is the determinism spine (CR 613.7), so a record must not reorder it.
+    return state.updateBattlefield { it.removingAt(index).addingAt(index, marked) }
 }
 
 /** Taps the battlefield object [id] to pay a `{T}` cost (CR 602.2a); emits [GameEvent.ObjectTapped]. */
