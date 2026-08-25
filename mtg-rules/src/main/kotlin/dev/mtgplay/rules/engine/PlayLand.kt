@@ -1,6 +1,7 @@
 package dev.mtgplay.rules.engine
 
 import dev.mtgplay.core.definition.CardDefinition
+import dev.mtgplay.core.definition.CastSource
 import dev.mtgplay.core.event.GameEvent
 import dev.mtgplay.core.identity.ObjectId
 import dev.mtgplay.core.identity.PlayerId
@@ -31,9 +32,12 @@ internal fun executePlayLand(
     state: GameState,
     player: PlayerId,
     cardObjectId: ObjectId,
+    source: CastSource = CastSource.HAND,
 ): AdvanceResult {
-    val definition = playedLandDefinition(state, player, cardObjectId)
-    if (definition.asEntersColorChoice == null) return completePlayLand(state, player, cardObjectId, null)
+    val definition = playedLandDefinition(state, player, cardObjectId, source)
+    if (definition.asEntersColorChoice == null) {
+        return completePlayLand(state, player, cardObjectId, null, source)
+    }
     val paused = state.copy(pendingColorChoice = PendingColorChoice(player, playedLand = cardObjectId))
     return AdvanceResult.NeedsDecision(paused, pendingColorChoiceRequest(paused))
 }
@@ -68,11 +72,12 @@ internal fun completePlayLand(
     player: PlayerId,
     cardObjectId: ObjectId,
     chosenColor: Color?,
+    source: CastSource = CastSource.HAND,
 ): AdvanceResult {
-    val definition = playedLandDefinition(state, player, cardObjectId)
-    val hand = state.player(player).hand
-    val index = hand.indexOfFirst { it.id == cardObjectId }
-    val card = hand[index]
+    val definition = playedLandDefinition(state, player, cardObjectId, source)
+    val zone = objectsInZone(state, player, source)
+    val index = zone.indexOfFirst { it.id == cardObjectId }
+    val card = zone[index]
     val (id, allocated) = state.allocateObjectId()
     // CR 400.7: a new object with no memory of its former self. It enters untapped (CR 110.5a) unless
     // the card's own CR 614.1c "this land enters tapped" replacement says otherwise — read here,
@@ -84,10 +89,14 @@ internal fun completePlayLand(
             tapped = entersTappedNow(allocated, player, definition),
             // CR 614.12: the colour chosen as this land entered (the Gates), or null.
             chosenColor = chosenColor,
+            // CR 400.7 again: the play permission that let this land be played from exile does not
+            // survive the move — the battlefield object is a new object, and a land that later
+            // returns to exile is not still playable.
+            playGrantedTurn = null,
         )
     val played =
         allocated
-            .updatePlayer(player) { it.copy(hand = it.hand.removingAt(index)) }
+            .let { removePlayedLandFromSource(it, player, source, cardObjectId) }
             .copy(turn = allocated.turn.copy(landsPlayedThisTurn = allocated.turn.landsPlayedThisTurn + 1))
             .let { it.copy(sharedZones = it.sharedZones.copy(battlefield = it.sharedZones.battlefield.adding(land))) }
             // CR 603.6a: narrating the entry and firing the land's own enters-the-battlefield
@@ -107,11 +116,11 @@ private fun playedLandDefinition(
     state: GameState,
     player: PlayerId,
     cardObjectId: ObjectId,
+    source: CastSource,
 ): CardDefinition {
-    val hand = state.player(player).hand
     val card =
-        hand.firstOrNull { it.id == cardObjectId }
-            ?: error("CR 115.2a: object $cardObjectId is not in $player's hand")
+        objectsInZone(state, player, source).firstOrNull { it.id == cardObjectId }
+            ?: error("CR 115.2a: object $cardObjectId is not in $player's $source zone")
     val definition = state.definitions[card.card]
     require(definition.isLand()) {
         "CR 305.1: ${card.card.name} is not a defined land card; enumeration must not have offered it (ADR-005)"
@@ -121,3 +130,29 @@ private fun playedLandDefinition(
     }
     return checkNotNull(definition) { "CR 305.1: ${card.card.name} is a land, so it has a definition" }
 }
+
+/**
+ * Removes the played land [cardObjectId] from the [source] zone it was played from (CR 400.7) — the
+ * hand for an ordinary land drop, exile for a land an effect granted permission to play (Reckless
+ * Impulse). Additive (`W8-D`).
+ *
+ * A graveyard source is unreachable and fails loudly rather than being silently supported: no card in
+ * the pool grants permission to play a land from a graveyard, and a branch that quietly handled one
+ * would be an untested path pretending to be a tested one.
+ */
+private fun removePlayedLandFromSource(
+    state: GameState,
+    player: PlayerId,
+    source: CastSource,
+    cardObjectId: ObjectId,
+): GameState =
+    when (source) {
+        CastSource.HAND ->
+            state.updatePlayer(player) { p ->
+                p.copy(hand = p.hand.removingAt(p.hand.indexOfFirst { it.id == cardObjectId }))
+            }
+        CastSource.EXILE ->
+            state.updateExile { exile -> exile.removingAt(exile.indexOfFirst { it.id == cardObjectId }) }
+        CastSource.GRAVEYARD ->
+            error("CR 305.1: no pool card plays a land from a graveyard, but $cardObjectId was")
+    }

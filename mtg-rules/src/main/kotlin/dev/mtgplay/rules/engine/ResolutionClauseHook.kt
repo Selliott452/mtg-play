@@ -59,9 +59,17 @@ internal fun orchestrateResolutionClauses(
     val opponentDiscard = clauses.eachOpponentDiscards
     val optionalDraw = clauses.optionalDraw
     val permanents = clauses.permanentSelection
-    val tapOrUntap = clauses.optionalTapOrUntap
+    val manaThenDraw = clauses.optionalManaThenDraw
+    val typeReveal = clauses.chosenTypeReveal
     return when {
         optionalDraw != null -> orchestrateOptionalDraw(state, entry, optionalDraw)
+        // CR 601.3b: "you may pay {B}. If you do, draw a card" (Nihil Spellbomb).
+        manaThenDraw != null -> orchestrateOptionalManaThenDraw(state, entry, manaThenDraw)
+        // CR 701.3a: "target player exiles a card from their graveyard" (Relic of Progenitus) — the
+        // clause carries no data, so the flag itself is the dispatch.
+        clauses.targetPlayerExilesFromGraveyard != null -> orchestrateGraveyardExileChoice(state, entry)
+        // CR 609.4: "choose creature or land", then reveal and partition (Winding Way).
+        typeReveal != null -> orchestrateChosenTypeReveal(state, entry, typeReveal)
         reveal != null -> orchestrateLibraryReveal(state, entry, reveal)
         look != null -> orchestrateLibraryLook(state, entry, look)
         costDraw != null -> orchestrateOptionalCostDraw(state, entry, costDraw)
@@ -70,6 +78,27 @@ internal fun orchestrateResolutionClauses(
         handReveal != null -> orchestrateHandRevealChoice(state, entry, handReveal)
         opponentDiscard != null -> orchestrateEachOpponentDiscards(state, entry, opponentDiscard)
         permanents != null -> orchestratePermanentSelection(state, entry, permanents)
+        else -> lateClauseOrCompletion(state, entry, clauses)
+    }
+}
+
+/**
+ * The tail of [orchestrateResolutionClauses]: the clauses that arrived last, and the completion when
+ * none is declared.
+ *
+ * Split out only so the dispatch stays inside detekt's complexity budget — the same shape as the splits
+ * in `PendingDecision.kt`, `DecisionView.kt`, `SingleOptionApplication.kt`, the CLI menu family, and the
+ * protocol codec. The order here is a **continuation** of the chain above and must not be reasoned
+ * about separately; at most one clause may be declared (the caller has already required it), so the
+ * order is documentation rather than precedence.
+ */
+private fun lateClauseOrCompletion(
+    state: GameState,
+    entry: StackEntry,
+    clauses: ResolutionClauses,
+): AdvanceResult {
+    val tapOrUntap = clauses.optionalTapOrUntap
+    return when {
         tapOrUntap != null -> orchestrateTapOrUntap(state, entry, tapOrUntap)
         else -> completeClauseResolution(state, entry)
     }

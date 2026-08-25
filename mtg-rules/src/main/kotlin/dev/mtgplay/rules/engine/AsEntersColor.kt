@@ -1,6 +1,7 @@
 package dev.mtgplay.rules.engine
 
 import dev.mtgplay.core.definition.AsEntersColorChoice
+import dev.mtgplay.core.definition.CastSource
 import dev.mtgplay.core.event.GameEvent
 import dev.mtgplay.core.identity.CardRef
 import dev.mtgplay.core.mana.Color
@@ -92,7 +93,19 @@ internal fun applyChosenColor(
     val pending = state.pendingColorChoice ?: error("no colour choice is pending")
     val cleared = state.copy(pendingColorChoice = null)
     val playedLand = pending.playedLand
-    if (playedLand != null) return completePlayLand(cleared, pending.decider, playedLand, color)
+    if (playedLand != null) {
+        // CR 614.12 resumption: re-derive the zone the card is still sitting in rather than carrying
+        // a source across the pause. The card cannot have moved while the choice was open, and a
+        // recorded source is one more thing that could disagree with the board (ADR-004 — a
+        // resumption is a pure function of the state it is handed).
+        val source =
+            if (cleared.player(pending.decider).hand.any { it.id == playedLand }) {
+                CastSource.HAND
+            } else {
+                CastSource.EXILE
+            }
+        return completePlayLand(cleared, pending.decider, playedLand, color, source)
+    }
     val entry =
         state.sharedZones.stack.lastOrNull() as? StackEntry.Spell
             ?: error("CR 614.12: an as-enters colour choice requires a resolving spell on top of the stack")

@@ -102,3 +102,24 @@ fun exileGraveyard(
         .graveyard
         .map { it.id }
         .fold(state, ::exileCardFromGraveyard)
+
+/**
+ * Effect primitive: **exiles every card in every player's graveyard** (CR 701.3a, CR 404) — the
+ * published building block Relic of Progenitus' "Exile all graveyards" composes (ADR-003). Additive,
+ * flagged (`W8-D`).
+ *
+ * **A primitive rather than a fold left to the card, for [exileGraveyard]'s reason one level up.** That
+ * one names a *player* where [exileCardFromGraveyard] names a card; this one names **no player at all**,
+ * which is a third thing and not a loop over the second. "Exile all graveyards" has no target, so it
+ * cannot be pointed anywhere, cannot fizzle, and — the part a card-side fold would get wrong by accident
+ * — always includes the **controller's own** graveyard. A Relic activated to break up an opponent's
+ * recursion empties its controller's yard too, and that symmetry is the card's real cost.
+ *
+ * **Seat order is the state's own**, which is deterministic (the player map's iteration order) rather
+ * than seeded or arbitrary — the same argument [exileGraveyard] makes about a graveyard's internal
+ * order. Nothing in the gauntlet observes it; a hidden nondeterminism here would be an ADR-006 defect
+ * whether or not anything currently reads it.
+ *
+ * Empty graveyards are correct input: the state comes back unchanged, with no events.
+ */
+fun exileAllGraveyards(state: GameState): GameState = state.players.keys.fold(state, ::exileGraveyard)

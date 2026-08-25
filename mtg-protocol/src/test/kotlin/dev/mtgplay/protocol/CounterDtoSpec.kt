@@ -83,6 +83,13 @@ class CounterDtoSpec :
             // `pendingOptionalTrigger` (CR 603.2); and PendingColorChoiceDto gains `playedLand`, because a
             // CR 614.12 choice can now interrupt the play-land special action as well as a resolving
             // spell. No DecisionRequest kind is added — all three decisions reuse existing requests.
+            // `W8-D` takes it to 9.0.0, and for the sharpest reason in the chain so far: it *changes*
+            // an existing payload rather than adding to one. SacrificeRequirementDto's `subtype: String`
+            // becomes `filter: SacrificeFilterDto` (Dread Return's flashback sacrifices three
+            // **creatures**, a card type), and that DTO rides inside every priority window offering a
+            // flashback or alternative-cost cast — so an 8.0.0 peer and a 9.0.0 peer disagree about a
+            // message they both already know how to send. Three new DecisionRequest kinds and a new
+            // CastingPermissionDto discriminator ride along.
             // Pinned here so no bump in the chain can be quietly reverted.
             PROTOCOL_VERSION shouldBe "9.0.0"
         }

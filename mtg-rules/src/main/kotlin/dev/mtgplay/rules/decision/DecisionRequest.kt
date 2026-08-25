@@ -1,6 +1,7 @@
 package dev.mtgplay.rules.decision
 
 import dev.mtgplay.core.definition.OptionalCostMode
+import dev.mtgplay.core.definition.RevealedCardFilter
 import dev.mtgplay.core.definition.TapOrUntapChoice
 import dev.mtgplay.core.identity.CardRef
 import dev.mtgplay.core.identity.ObjectId
@@ -1731,6 +1732,148 @@ sealed interface DecisionRequest {
             data class Pay(
                 val plan: PaymentPlan,
             ) : Option
+        }
+    }
+
+    /**
+     * An optional "**you may pay [cost]**; if you do, draw" clause awaiting its payment (CR 601.3b) —
+     * Nihil Spellbomb's dies trigger. [seat] is the resolving object's **controller**. Additive, flagged
+     * (`W8-D`).
+     *
+     * **The exact shape of [ChooseCounterPayment], and deliberately not a reuse of it.** Both fuse a
+     * decline with one option per affordable payment plan, for the same ADR-005 reason — a bare yes/no
+     * would have to offer "yes" to a seat that cannot pay, an option that dead-ends mid-flow. What
+     * differs is not the shape but the *rule*: CR 118.3a puts a counter's payment on the targeted
+     * spell's controller and makes declining counter that spell, while "you may pay" addresses the
+     * object's own controller and makes declining merely skip a draw. Sharing one request type would put
+     * the countered spell's identity ([ChooseCounterPayment.card]) on a request that counters nothing.
+     *
+     * Surfaced even when no plan is affordable — a decline-only request — per the [ChoosePaymentPlan]
+     * precedent: a uniform decision sequence is what keeps a replay log canonical (ADR-004).
+     *
+     * Paying is not a cast and grants nobody priority (CR 605.3b permits the mana abilities, CR 605.3a
+     * resolves them without the stack).
+     *
+     * @property sourceCard the printed identity of the object offering the payment, for display; its
+     *   last-known identity (CR 113.7c), which for Nihil Spellbomb is a card already in a graveyard.
+     * @property cost the mana [seat] may pay in full (CR 118.4).
+     * @property drawCount how many cards a completed payment draws.
+     * @property options the legal answers: index 0 declines, the rest pay by a distinct plan.
+     */
+    data class ChooseOptionalManaPayment(
+        override val id: DecisionRequestId,
+        val sourceCard: CardRef,
+        val cost: ManaCost,
+        val drawCount: Int,
+        val options: List<Option>,
+    ) : SingleOptionSelection {
+        override val optionCount: Int get() = options.size
+
+        init {
+            require(options.firstOrNull() == Option.Decline) {
+                "CR 601.3b: declining is always legal and is index 0, got ${options.firstOrNull()}"
+            }
+            require(options.drop(1).all { it is Option.Pay }) {
+                "CR 601.3b: every option after the decline pays a plan, got $options"
+            }
+        }
+
+        /** One legal answer to "you may pay". */
+        sealed interface Option {
+            /**
+             * Do not pay (CR 601.3b): nothing is drawn. Always legal and always index 0 — a player may
+             * decline even when they could pay, which with a nearly empty library is a real play
+             * (CR 104.3c).
+             */
+            data object Decline : Option
+
+            /**
+             * Pay the full cost by [plan] (CR 118.4), after which the clause draws.
+             *
+             * @property plan the payment plan, in the deterministic order of docs/design/mana-payment.md.
+             */
+            data class Pay(
+                val plan: PaymentPlan,
+            ) : Option
+        }
+    }
+
+    /**
+     * A "target player exiles a card from their graveyard" clause awaiting that player's choice
+     * (CR 701.3a, CR 404) — Relic of Progenitus' first ability. Additive, flagged (`W8-D`).
+     *
+     * **[seat] is the *targeted* player**, who may or may not be the ability's controller: pointing a
+     * Relic at one's own graveyard is a legal and frequently correct line. That makes this the second
+     * request whose decider is not the resolving object's controller, after [ChooseOpponentDiscards] —
+     * and unlike that one its option list is **public**, because a graveyard is a public zone
+     * (CR 400.2), so nothing here needs ADR-007 filtering.
+     *
+     * **Every answer exiles exactly one card; there is no decline.** The printed line is mandatory for
+     * the targeted player. The request is therefore surfaced only when their graveyard is non-empty — an
+     * empty graveyard means the clause does nothing and nobody is asked, rather than a request with no
+     * legal answer (ADR-005).
+     *
+     * @property controller the ability's controller, carried for display only.
+     * @property sourceCard the printed identity of the ability's source, for display.
+     * @property options the deciding player's graveyard cards, in graveyard (bottom-first) order; never
+     *   empty.
+     */
+    data class ChooseGraveyardCardToExile(
+        override val id: DecisionRequestId,
+        val controller: PlayerId,
+        val sourceCard: CardRef,
+        val options: List<Option>,
+    ) : SingleOptionSelection {
+        override val optionCount: Int get() = options.size
+
+        init {
+            require(options.isNotEmpty()) {
+                "CR 701.3a: this choice is surfaced only when the targeted player has a graveyard card"
+            }
+        }
+
+        /**
+         * One card in the deciding player's graveyard.
+         *
+         * @property objectId the graveyard object that would be exiled.
+         * @property card its printed identity, for display.
+         */
+        data class Option(
+            val objectId: ObjectId,
+            val card: CardRef,
+        )
+    }
+
+    /**
+     * A resolution-time "choose one of these card types" choice (CR 609.4) — Winding Way's "Choose
+     * creature or land", answered **before** anything is revealed. [seat] is the resolving spell's
+     * controller. Additive, flagged (`W8-D`).
+     *
+     * **Not [ChooseModes].** That request is the CR 601.2b mode choice a modal spell makes while being
+     * cast; this one is made as the spell resolves, a whole priority round later, which is why an
+     * opponent responding to Winding Way cannot know which half it will be. The two carry different
+     * option types for that reason — a mode index versus a card-type filter — and fusing them would make
+     * the timing of the choice invisible at the request.
+     *
+     * There is no opt-out index: the printed line is "Choose creature or land", not "you may choose".
+     *
+     * @property sourceCard the printed identity of the resolving object, for display.
+     * @property revealCount how many cards will be revealed once the type is named, for display.
+     * @property options the offered types in printed order; at least two, and the answer is an index into
+     *   this list (ADR-005).
+     */
+    data class ChooseRevealedCardType(
+        override val id: DecisionRequestId,
+        val sourceCard: CardRef,
+        val revealCount: Int,
+        val options: List<RevealedCardFilter>,
+    ) : SingleOptionSelection {
+        override val optionCount: Int get() = options.size
+
+        init {
+            require(options.size >= 2) {
+                "CR 609.4: a resolution-time type choice offers at least two types, got $options"
+            }
         }
     }
 }

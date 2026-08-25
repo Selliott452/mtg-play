@@ -1,36 +1,71 @@
 package dev.mtgplay.protocol
 
+import dev.mtgplay.core.card.CardType
 import dev.mtgplay.core.card.Subtype
 import dev.mtgplay.core.definition.CastCondition
 import dev.mtgplay.core.definition.CastingPermission
+import dev.mtgplay.core.definition.SacrificeFilter
 import dev.mtgplay.core.definition.SacrificeRequirement
 import dev.mtgplay.core.mana.ManaCost
+import kotlinx.collections.immutable.toPersistentSet
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 /**
- * Wire form of a non-mana [SacrificeRequirement] (CR 601.2h): sacrifice [count] permanents of a
- * printed [subtype].
+ * Wire form of a [SacrificeFilter] (CR 601.2h): which permanents a sacrifice cost may be paid with.
+ *
+ * The two axes are conjunctive and either may be absent, exactly as the engine value states — an empty
+ * [anyOfCardTypes] names no card type and a `null` [subtype] names no subtype, and at least one of them
+ * is always present.
+ *
+ * @property anyOfCardTypes the [CardType] names a permanent may have to match (CR 300.1); a permanent
+ *   matches when it has at least one of them, or when the list is empty.
+ * @property subtype the subtype name every matching permanent must have (CR 205.3), or `null`.
+ */
+@Serializable
+data class SacrificeFilterDto(
+    val anyOfCardTypes: List<String> = emptyList(),
+    val subtype: String? = null,
+)
+
+/** [SacrificeFilter] to its wire form. */
+fun SacrificeFilter.toDto(): SacrificeFilterDto =
+    SacrificeFilterDto(anyOfCardTypes.map { it.name }.sorted(), subtype?.value)
+
+/** [SacrificeFilterDto] back to the engine value. */
+fun SacrificeFilterDto.toDomain(): SacrificeFilter =
+    SacrificeFilter(
+        anyOfCardTypes = anyOfCardTypes.map { parseVocabulary<CardType>(it, "card type") }.toPersistentSet(),
+        subtype = subtype?.let { Subtype(it) },
+    )
+
+/**
+ * Wire form of a non-mana [SacrificeRequirement] (CR 601.2h): sacrifice [count] permanents matching
+ * [filter].
+ *
+ * **[filter] replaced a bare `subtype` string in the `W8-D` wire revision**, when Dread Return's
+ * "Sacrifice three creatures" showed that a permission-side sacrifice cost can name a card type; see
+ * [SacrificeRequirement].
  *
  * @property count how many permanents must be sacrificed.
- * @property subtype the subtype name every sacrificed permanent must have (CR 205.3).
+ * @property filter which permanents may be chosen to pay it.
  */
 @Serializable
 data class SacrificeRequirementDto(
     val count: Int,
-    val subtype: String,
+    val filter: SacrificeFilterDto,
 )
 
 /** [SacrificeRequirement] to its wire form. */
-fun SacrificeRequirement.toDto(): SacrificeRequirementDto = SacrificeRequirementDto(count, subtype.value)
+fun SacrificeRequirement.toDto(): SacrificeRequirementDto = SacrificeRequirementDto(count, filter.toDto())
 
 /** [SacrificeRequirementDto] back to the engine value. */
-fun SacrificeRequirementDto.toDomain(): SacrificeRequirement = SacrificeRequirement(count, Subtype(subtype))
+fun SacrificeRequirementDto.toDomain(): SacrificeRequirement = SacrificeRequirement(count, filter.toDomain())
 
 /**
  * Wire form of a [CastingPermission] (CR 118.9): one alternative way to cast a card. The mana cost
  * is carried as its Scryfall brace-syntax string ([ManaCost.render]/[ManaCost.parse] round-trip it
- * exactly), so no separate mana-cost DTO tree is needed. Sealed to mirror [CastingPermission]'s six
+ * exactly), so no separate mana-cost DTO tree is needed. Sealed to mirror [CastingPermission]'s
  * members exhaustively.
  */
 @Serializable
@@ -65,6 +100,16 @@ sealed interface CastingPermissionDto {
         val sacrifice: SacrificeRequirementDto?,
         val condition: CastConditionDto?,
         val revealsHand: Boolean,
+    ) : CastingPermissionDto
+
+    /**
+     * Evoke (CR 702.74): cast from the hand for the evoke [cost], with the resulting permanent
+     * sacrificed as it enters. Added by `W8-D`.
+     */
+    @Serializable
+    @SerialName("evoke")
+    data class Evoke(
+        val cost: String,
     ) : CastingPermissionDto
 
     /** Escape (CR 702.139): cast from the graveyard for [cost] plus exiling [exileOthers] others. */
@@ -104,6 +149,7 @@ fun CastingPermission.toDto(): CastingPermissionDto =
                 condition?.toDto(),
                 revealsHand,
             )
+        is CastingPermission.Evoke -> CastingPermissionDto.Evoke(cost.render())
         is CastingPermission.Escape -> CastingPermissionDto.Escape(cost.render(), exileOthers)
         is CastingPermission.Plot -> CastingPermissionDto.Plot(plotCost.render())
         is CastingPermission.Rebound -> CastingPermissionDto.Rebound
@@ -121,6 +167,7 @@ fun CastingPermissionDto.toDomain(): CastingPermission =
                 condition?.toDomain(),
                 revealsHand,
             )
+        is CastingPermissionDto.Evoke -> CastingPermission.Evoke(ManaCost.parse(cost))
         is CastingPermissionDto.Escape -> CastingPermission.Escape(ManaCost.parse(cost), exileOthers)
         is CastingPermissionDto.Plot -> CastingPermission.Plot(ManaCost.parse(plotCost))
         is CastingPermissionDto.Rebound -> CastingPermission.Rebound

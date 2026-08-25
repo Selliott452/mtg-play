@@ -149,9 +149,16 @@ private fun componentPayable(
             ability.zoneScope == AbilityZoneScope.Battlefield &&
                 !source.tapped &&
                 !(isCreature(state, source) && source.summoningSick && !hasHaste(state, source.id))
+        // CR 701.17 / CR 701.8 / CR 701.3a: every cost that consumes its own source asks one question
+        // — is the source in the zone this cost can take it from? Unlike `{T}`, neither tapped status
+        // nor summoning sickness bears on any of them, and where the object *goes* is a payment
+        // concern rather than a payability one. Two packets wrote these arms independently, one
+        // through the helper and one inline; the helper form is kept because it is the single place
+        // the cost-to-zone pairing is stated.
         AbilityCost.SacrificeSelf,
         AbilityCost.DiscardSelf,
         AbilityCost.ExileSelfFromGraveyard,
+        AbilityCost.ExileSelf,
         -> selfCostMatchesZone(ability.zoneScope, component)
         AbilityCost.DiscardACard -> discardableForAbility(state, seat, source, ability.zoneScope).isNotEmpty()
         // CR 602.1 with CR 701.17: at least one permanent both matches the filter and leaves the
@@ -168,8 +175,9 @@ private fun componentPayable(
  * where this cost can take it from?".
  *
  * Each pairs with exactly one zone by construction: a sacrifice takes a battlefield permanent
- * (CR 701.17), a self-discard takes a hand card (CR 701.8), and a graveyard self-exile takes a graveyard
- * card (CR 701.3a). The caller has already matched the source's zone against the ability's declared
+ * (CR 701.17), a self-discard takes a hand card (CR 701.8), a graveyard self-exile takes a graveyard
+ * card and a battlefield self-exile takes a permanent (CR 701.3a, the two halves of Relic of
+ * Progenitus and Bramble Wurm). The caller has already matched the source's zone against the ability's declared
  * scope, so agreeing here is the whole test — nothing else can make one of them unpayable, since none of
  * them can be blocked by another object and none of them can already have been spent.
  */
@@ -181,6 +189,10 @@ private fun selfCostMatchesZone(
         AbilityCost.SacrificeSelf -> scope == AbilityZoneScope.Battlefield
         AbilityCost.DiscardSelf -> scope == AbilityZoneScope.Hand
         AbilityCost.ExileSelfFromGraveyard -> scope == AbilityZoneScope.Graveyard
+        // CR 701.3a again, from the other side: Relic of Progenitus exiles itself *from the
+        // battlefield*. Same keyword action, different zone, and so a different cost — which is why
+        // the two are separate members rather than one parameterised by scope.
+        AbilityCost.ExileSelf -> scope == AbilityZoneScope.Battlefield
         is AbilityCost.Mana,
         AbilityCost.TapSelf,
         AbilityCost.DiscardACard,

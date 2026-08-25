@@ -365,6 +365,31 @@ import dev.mtgplay.core.identity.CardRef
  * action untaps, which no CR 613 layer can express. Bonder's Ornament stays absent, and its recorded
  * reason expired long ago: "add one mana of any color" has been expressible since `FW-MANA`, and
  * [bendersWaterskin] prints exactly that ability.
+ *
+ * The `W8-D` packet adds six cards across three files and closes four gaps earlier packets had written
+ * down by name. **CardAdvantage.kt**: [mulldrifter], the pool's first **evoke** card (CR 702.74 — an
+ * alternative cost *plus* a self-sacrifice trigger, so the keyword is two abilities and encoding only the
+ * cheap cast would have produced a Mulldrifter that never dies); [windingWay], the card-selection
+ * family's last absentee, whose "choose creature or land" is made **as the spell resolves** rather than
+ * at CR 601.2b — exactly the diagnosis CardSelection.kt recorded — and whose keep is *all*, not "up to";
+ * and [recklessImpulse], whose "until the end of your next turn, you may play those cards" is the first
+ * permission in the engine granted **by an effect to another object** rather than declared on the card
+ * being played, and so the first that could not be a
+ * [dev.mtgplay.core.definition.CastingPermission]. **GraveyardArtifacts.kt**: [nihilSpellbomb] and
+ * [relicOfProgenitus], the two cards GraveyardHate.kt left behind when Bojuka Bog landed, each unblocked
+ * exactly where that file said it was stuck — an optional *mana* payment inside a resolution, a decision
+ * made by a **non-controller**, and an `AbilityCost` member for "Exile this artifact". **DreadReturn.kt**:
+ * [dreadReturn], which docs/design/graveyard-targeting.md §6 recorded as blocked on one narrow thing —
+ * a flashback cost naming a card type ("Sacrifice three creatures") where
+ * [dev.mtgplay.core.definition.SacrificeRequirement] could only name a printed subtype; the fix folds
+ * that requirement onto the [dev.mtgplay.core.definition.SacrificeFilter] the cast-side and
+ * activation-side sacrifice costs already used, so all three now share one answer.
+ *
+ * Two of the packet's cards stay absent, diagnosed in full in CardAdvantage.kt: **Fanatical Offering**
+ * needs **explore** (CR 701.40) for its Map token, a conditional mid-resolution clause no existing one
+ * has; **Monstrous Emergence** needs an additional cost that is a *choice between two shapes*, neither of
+ * which consumes what it names, whose two branches read power from the battlefield and from a hand
+ * respectively (CR 613 versus CR 109.3).
  */
 object MvpCards {
     /** Every defined card, keyed by its printed-name [CardRef] (CR 201). */
@@ -405,6 +430,7 @@ object MvpCards {
             cryoshatter,
             crypticSerpent,
             dispel,
+            dreadReturn,
             drossforgeBridge,
             duress,
             elvesOfDeepShadow,
@@ -480,9 +506,11 @@ object MvpCards {
             mistvaultBridge,
             mortuaryMire,
             mountain,
+            mulldrifter,
             murmuringMystic,
             myrEnforcer,
             negate,
+            nihilSpellbomb,
             ninjaOfTheDeepHours,
             ofOneMind,
             outlawMedic,
@@ -499,7 +527,9 @@ object MvpCards {
             rancor,
             rallyAtTheHornburg,
             raze,
+            recklessImpulse,
             reckonersBargain,
+            relicOfProgenitus,
             redElementalBlast,
             refurbishedFamiliar,
             removeSoul,
@@ -557,6 +587,7 @@ object MvpCards {
             wellwisher,
             wildGrowth,
             windDrake,
+            windingWay,
             youthfulKnight,
         ).associateBy { CardRef(it.characteristics.name) }
 }

@@ -7,6 +7,7 @@ import dev.mtgplay.core.definition.CardDefinition
 import dev.mtgplay.core.definition.CastingPermission
 import dev.mtgplay.core.definition.ManaAbility
 import dev.mtgplay.core.definition.ResolutionEffect
+import dev.mtgplay.core.definition.SacrificeFilter
 import dev.mtgplay.core.definition.SacrificeRequirement
 import dev.mtgplay.core.definition.SpellDefinition
 import dev.mtgplay.core.definition.TargetSpec
@@ -223,7 +224,7 @@ private val sacRegistry: Map<CardRef, CardDefinition> =
                     listOf(
                         CastingPermission.AlternativeCost(
                             cost = ManaCost.parse("{0}"),
-                            sacrifice = SacrificeRequirement(2, Subtype("Mountain")),
+                            sacrifice = SacrificeRequirement(2, SacrificeFilter(subtype = Subtype("Mountain"))),
                         ),
                     ),
             ),
@@ -235,7 +236,7 @@ private val sacRegistry: Map<CardRef, CardDefinition> =
                     listOf(
                         CastingPermission.Flashback(
                             cost = ManaCost.parse("{0}"),
-                            sacrifice = SacrificeRequirement(1, Subtype("Mountain")),
+                            sacrifice = SacrificeRequirement(1, SacrificeFilter(subtype = Subtype("Mountain"))),
                         ),
                     ),
             ),

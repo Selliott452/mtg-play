@@ -1,6 +1,7 @@
 package dev.mtgplay.rules.engine
 
 import dev.mtgplay.core.card.CardType
+import dev.mtgplay.core.definition.CastingPermission
 import dev.mtgplay.core.definition.ResolutionContext
 import dev.mtgplay.core.definition.TargetSpec
 import dev.mtgplay.core.event.GameEvent
@@ -196,6 +197,11 @@ internal fun putResolvedSpellOntoBattlefield(
             // only place a resolving permanent spell becomes a permanent. Goblin Bushwhacker's
             // intervening-if reads it off the entering object a moment later.
             kickedWhenCast = entry.kicked,
+            // CR 702.74a: "was its evoke cost paid" crosses the same CR 400.7 boundary, for the same
+            // reason and at the same moment — Mulldrifter's self-sacrifice trigger reads it off the
+            // entering object. The cast record already knows *how* the spell was cast (`castVia`); this
+            // is where that survives becoming a permanent.
+            evokedWhenCast = entry.castVia is CastingPermission.Evoke,
         )
     val moved =
         allocated

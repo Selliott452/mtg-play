@@ -55,6 +55,16 @@ import kotlinx.serialization.Serializable
  *   untap step (CR 502.2) — Sleep of the Dead's rider; `false` for almost every object. Public
  *   information (ADR-007): a "doesn't untap" effect resolves face-up on the stack and both players
  *   must reason about it. Added by `FW-TAPUNTAP`.
+ * @property evokedWhenCast whether this permanent entered from a spell cast for its **evoke** cost
+ *   (CR 702.74a); `false` for almost every object. The exact sibling of [kickedWhenCast], and public for
+ *   the same reason (ADR-007): everyone at the table saw the evoke cost paid, and the fact is what makes
+ *   the permanent sacrifice itself a moment later. Added by `W8-D`.
+ * @property playGrantedTurn the turn an effect granted this **exile** card's owner permission to play it
+ *   (CR 118.5) — Reckless Impulse's; `null` for every other object. An exile-only marker in the shape
+ *   [plottedTurn] and [reboundTurn] already set, and public for the same CR 406.3 reason: the cards are
+ *   exiled face up. It records when the permission *began*, not when it ends — see
+ *   [dev.mtgplay.core.state.GameObject.playGrantedTurn] for why that is the honest encoding. Added by
+ *   `W8-D`.
  */
 @Serializable
 data class GameObjectDto(
@@ -76,6 +86,8 @@ data class GameObjectDto(
     val activatedAbilitiesActivatedThisTurn: List<Int> = emptyList(),
     val skipsNextUntapStep: Boolean = false,
     val kickedWhenCast: Boolean,
+    val evokedWhenCast: Boolean = false,
+    val playGrantedTurn: Int? = null,
 )
 
 /** [GameObject] to its wire form. */
@@ -103,6 +115,10 @@ fun GameObject.toDto(): GameObjectDto =
         // CR 702.33f: publicly observable — everyone at the table saw the kicker paid, and the fact
         // changes what the permanent's own abilities do, so it rides unredacted (ADR-007).
         kickedWhenCast = kickedWhenCast,
+        // CR 702.74a / CR 118.5: both are public — an evoked permanent sacrifices itself in front of
+        // everyone, and a playable exiled card sits face up (CR 406.3).
+        evokedWhenCast = evokedWhenCast,
+        playGrantedTurn = playGrantedTurn,
     )
 
 /** [GameObjectDto] back to the engine value. */
@@ -126,4 +142,6 @@ fun GameObjectDto.toDomain(): GameObject =
         activatedAbilitiesActivatedThisTurn = activatedAbilitiesActivatedThisTurn.toPersistentSet(),
         skipsNextUntapStep = skipsNextUntapStep,
         kickedWhenCast = kickedWhenCast,
+        evokedWhenCast = evokedWhenCast,
+        playGrantedTurn = playGrantedTurn,
     )

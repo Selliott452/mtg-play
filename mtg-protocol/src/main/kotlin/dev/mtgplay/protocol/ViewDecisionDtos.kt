@@ -155,6 +155,19 @@ enum class DecisionRequestKindDto {
      * Chancery. Not a targeting request: see the `FW-TAPUNTAP` note in ProtocolVersion.kt.
      */
     CHOOSE_PERMANENTS_TO_AFFECT,
+
+    /** An optional "you may pay {cost}; if you do, draw" clause (CR 601.3b) — Nihil Spellbomb. */
+    CHOOSE_OPTIONAL_MANA_PAYMENT,
+
+    /**
+     * A "target player exiles a card from their graveyard" choice (CR 701.3a) — Relic of Progenitus —
+     * made by the **targeted** player. The kind an opposing seat may see, options included: a graveyard
+     * is a public zone (CR 400.2), so unlike [CHOOSE_OPPONENT_DISCARDS] nothing here is hidden.
+     */
+    CHOOSE_GRAVEYARD_CARD_TO_EXILE,
+
+    /** A resolution-time "choose creature or land" (CR 609.4) — Winding Way. */
+    CHOOSE_REVEALED_CARD_TYPE,
 }
 
 /**

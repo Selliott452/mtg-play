@@ -7,6 +7,8 @@ import dev.mtgplay.core.definition.CastingPermission
 import dev.mtgplay.core.definition.ManaAbilityCost
 import dev.mtgplay.core.definition.ManaAbilityRider
 import dev.mtgplay.core.definition.OptionalCostMode
+import dev.mtgplay.core.definition.RevealedCardFilter
+import dev.mtgplay.core.definition.SacrificeFilter
 import dev.mtgplay.core.definition.SacrificeRequirement
 import dev.mtgplay.core.definition.TapOrUntapChoice
 import dev.mtgplay.core.identity.CardRef
@@ -35,6 +37,7 @@ import kotlinx.serialization.encodeToString
 
 /**
  * The schema round-trip (ADR-008): every one of the 31 [DecisionRequest] kinds, and every
+ * The schema round-trip (ADR-008): every one of the [DecisionRequest] kinds, and every
  * [Decision] shape, survives engine value -> DTO -> JSON -> DTO -> engine value unchanged, through
  * the strict [ProtocolJson] codec. The `allRequests` fixture is asserted to cover every kind, so the
  * exhaustive mapping is exercised end to end.
@@ -96,7 +99,10 @@ private val richPriorityWindow: DecisionRequest.ChooseAction =
                 ObjectId(3),
                 CardRef("Lava Dart"),
                 CastSource.GRAVEYARD,
-                CastingPermission.Flashback(ManaCost.parse("{0}"), SacrificeRequirement(1, Subtype("Mountain"))),
+                CastingPermission.Flashback(
+                    ManaCost.parse("{0}"),
+                    SacrificeRequirement(1, SacrificeFilter(subtype = Subtype("Mountain"))),
+                ),
             ),
             PriorityOption.CastSpell(
                 ObjectId(4),
@@ -114,7 +120,10 @@ private val richPriorityWindow: DecisionRequest.ChooseAction =
                 ObjectId(6),
                 CardRef("Fireblast"),
                 CastSource.HAND,
-                CastingPermission.AlternativeCost(ManaCost.parse("{0}"), SacrificeRequirement(2, Subtype("Mountain"))),
+                CastingPermission.AlternativeCost(
+                    ManaCost.parse("{0}"),
+                    SacrificeRequirement(2, SacrificeFilter(subtype = Subtype("Mountain"))),
+                ),
             ),
             PriorityOption.CastSpell(
                 ObjectId(11),
@@ -459,5 +468,49 @@ private val allRequests: List<DecisionRequest> =
                     DecisionRequest.ChooseLibraryArrangement.Option(emptyList(), emptyList(), listOf(0, 1)),
                     DecisionRequest.ChooseLibraryArrangement.Option(emptyList(), emptyList(), listOf(1, 0)),
                 ),
+        ),
+        // CR 601.3b: "you may pay {B}. If you do, draw a card" — Nihil Spellbomb's dies trigger. The
+        // decline-plus-plans shape of the counter's unless-pay, on a request that counters nothing.
+        DecisionRequest.ChooseOptionalManaPayment(
+            ID,
+            sourceCard = CardRef("Nihil Spellbomb"),
+            cost = ManaCost.parse("{B}"),
+            drawCount = 1,
+            options =
+                listOf(
+                    DecisionRequest.ChooseOptionalManaPayment.Option.Decline,
+                    DecisionRequest.ChooseOptionalManaPayment.Option.Pay(
+                        PaymentPlan(
+                            listOf(
+                                ManaActivation(
+                                    SourceClassKey(
+                                        CardRef("Swamp"),
+                                        listOf(ProductionAlternative.tapping(ManaType.BLACK)),
+                                    ),
+                                    ProductionAlternative.tapping(ManaType.BLACK),
+                                ),
+                            ),
+                            listOf(SymbolPayment.WithMana(ManaType.BLACK)),
+                        ),
+                    ),
+                ),
+        ),
+        // CR 701.3a: decided by the *targeted* player, over their own graveyard — a public zone.
+        DecisionRequest.ChooseGraveyardCardToExile(
+            ID,
+            controller = PlayerId(1),
+            sourceCard = CardRef("Relic of Progenitus"),
+            options =
+                listOf(
+                    DecisionRequest.ChooseGraveyardCardToExile.Option(ObjectId(5), CardRef("Lightning Bolt")),
+                    DecisionRequest.ChooseGraveyardCardToExile.Option(ObjectId(6), CardRef("Mountain")),
+                ),
+        ),
+        // CR 609.4: Winding Way's "choose creature or land", answered before anything is revealed.
+        DecisionRequest.ChooseRevealedCardType(
+            ID,
+            sourceCard = CardRef("Winding Way"),
+            revealCount = 4,
+            options = listOf(RevealedCardFilter.CREATURE_CARD, RevealedCardFilter.LAND_CARD),
         ),
     )

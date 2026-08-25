@@ -10,6 +10,7 @@ import dev.mtgplay.core.definition.CastingPermission
 import dev.mtgplay.core.definition.OptionalCostMode
 import dev.mtgplay.core.definition.ReplacementEffect
 import dev.mtgplay.core.definition.ResolutionContext
+import dev.mtgplay.core.definition.SacrificeFilter
 import dev.mtgplay.core.definition.TargetSpec
 import dev.mtgplay.core.definition.TimingClass
 import dev.mtgplay.core.definition.TriggerCondition
@@ -168,7 +169,7 @@ class MadnessDeckSpec :
             check(alt is CastingPermission.AlternativeCost)
             alt.cost shouldBe ManaCost.parse("{0}")
             alt.sacrifice?.count shouldBe 2
-            alt.sacrifice?.subtype shouldBe Subtype("Mountain")
+            alt.sacrifice?.filter shouldBe SacrificeFilter(subtype = Subtype("Mountain"))
         }
 
         "CR 702.34c: Lava Dart's flashback sacrifices a Mountain for {0} and exiles the spell off the stack" {
@@ -176,7 +177,7 @@ class MadnessDeckSpec :
             check(flashback is CastingPermission.Flashback)
             flashback.cost shouldBe ManaCost.parse("{0}")
             flashback.sacrifice?.count shouldBe 1
-            flashback.sacrifice?.subtype shouldBe Subtype("Mountain")
+            flashback.sacrifice?.filter shouldBe SacrificeFilter(subtype = Subtype("Mountain"))
             flashback.exilesOnLeaveStack shouldBe true
         }
 

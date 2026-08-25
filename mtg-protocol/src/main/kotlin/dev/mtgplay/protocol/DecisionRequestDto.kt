@@ -452,6 +452,53 @@ sealed interface DecisionRequestDto {
         val count: Int,
     ) : SizedSelectionDto
 
+    /**
+     * Wire form of [DecisionRequest.ChooseOptionalManaPayment] (CR 601.3b) — an optional "you may pay
+     * {cost}; if you do, draw" clause. [cost] is the Scryfall brace string, as every mana cost on the
+     * wire is. Index 0 of [options] is always the decline; the rest pay. Added by `W8-D`.
+     *
+     * It carries its own discriminator rather than reusing [ChooseCounterPayment]'s, whose payload names
+     * the spell that would be countered — a spell this request does not have.
+     */
+    @Serializable
+    @SerialName("choose_optional_mana_payment")
+    data class ChooseOptionalManaPayment(
+        override val id: DecisionRequestIdDto,
+        val sourceCard: String,
+        val cost: String,
+        val drawCount: Int,
+        val options: List<CounterPaymentOptionDto>,
+    ) : SingleOptionSelectionDto
+
+    /**
+     * Wire form of [DecisionRequest.ChooseGraveyardCardToExile] (CR 701.3a) — a "target player exiles a
+     * card from their graveyard" choice, made by the **targeted** player. [controller] is the ability's
+     * controller, carried for display; unlike [ChooseOpponentDiscards] the options are public, because a
+     * graveyard is a public zone (CR 400.2). Added by `W8-D`.
+     */
+    @Serializable
+    @SerialName("choose_graveyard_card_to_exile")
+    data class ChooseGraveyardCardToExile(
+        override val id: DecisionRequestIdDto,
+        val controller: Int,
+        val sourceCard: String,
+        val options: List<CardObjectOptionDto>,
+    ) : SingleOptionSelectionDto
+
+    /**
+     * Wire form of [DecisionRequest.ChooseRevealedCardType] (CR 609.4) — Winding Way's resolution-time
+     * "choose creature or land", answered before anything is revealed. The options ride as
+     * [dev.mtgplay.core.definition.RevealedCardFilter] names. Added by `W8-D`.
+     */
+    @Serializable
+    @SerialName("choose_revealed_card_type")
+    data class ChooseRevealedCardType(
+        override val id: DecisionRequestIdDto,
+        val sourceCard: String,
+        val revealCount: Int,
+        val options: List<String>,
+    ) : SingleOptionSelectionDto
+
     /** Wire form of [DecisionRequest.ChooseMulligan] (CR 103.4). */
     @Serializable
     @SerialName("choose_mulligan")

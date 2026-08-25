@@ -592,5 +592,53 @@ package dev.mtgplay.protocol
  * an agent that cannot see it will plan attacks in a combat phase that is never going to happen, which is
  * the enumeration blindness ADR-005 exists to prevent. It is defaulted only so the wire stays
  * backward-decodable, not because it is optional to *understand*.
+ * ### `9.0.0` — `W8-D`: card advantage and graveyard artifacts
+ *
+ * **Bumped rather than folded**, unlike the last several packets, and for one specific reason: this wave
+ * changes the shape of an **existing** payload rather than only adding members. Every prior break was
+ * either a new discriminator (met at runtime, only when a card printing it is in play) or a new required
+ * field (met on the first seat view). This one is a field *replacement* on a payload that travels in both
+ * directions, which no amount of "the peer has not met that card yet" softens — an `8.0.0` peer and a
+ * `9.0.0` peer disagree about a message they both already know how to send.
+ *
+ * In descending order of sharpness:
+ *
+ * 1. **A changed field on an existing payload.** [SacrificeRequirementDto] replaces its `subtype: String`
+ *    with `filter: SacrificeFilterDto`, because Dread Return's flashback cost is "Sacrifice three
+ *    **creatures**" — a card type, which a printed subtype cannot express. It rides inside
+ *    [CastingPermissionDto.Flashback] and [CastingPermissionDto.AlternativeCost], which ride inside
+ *    [DecisionRequestDto.ChooseAction]'s cast options, so a strict `8.0.0` codec rejects every priority
+ *    window that offers Fireblast, Lava Dart, or Dread Return. Both directions: the same permission
+ *    travels back inside an answered option.
+ * 2. **Three new `DecisionRequest` kinds** — the runtime break mode. [DecisionRequestDto] gains
+ *    `choose_optional_mana_payment` (CR 601.3b, Nihil Spellbomb's "you may pay {B}"),
+ *    `choose_graveyard_card_to_exile` (CR 701.3a, Relic of Progenitus — answered by the **targeted**
+ *    player, whose graveyard is public so the options are unredacted), and `choose_revealed_card_type`
+ *    (CR 609.4, Winding Way's resolution-time "choose creature or land"). [DecisionRequestKindDto] gains
+ *    the three matching values, whose `valueOf` mapping fails mid-match on an old peer. All three are
+ *    answerable client→server.
+ *
+ *    The optional-mana request deliberately **reuses** [CounterPaymentOptionDto] as its answer payload:
+ *    who decides and what a decline costs are facts of the *request*, while "decline, or pay by this
+ *    plan" is the same two shapes either way.
+ * 3. **A new `CastingPermission` discriminator.** [CastingPermissionDto.Evoke] (`evoke`, CR 702.74a) —
+ *    Mulldrifter. Runtime break, met only in a window that offers an evoke cast.
+ * 4. **Two new defaulted [GameObjectDto] fields.** `evokedWhenCast` (CR 702.74a's linked information,
+ *    public exactly as `kickedWhenCast` is) and `playGrantedTurn` (CR 118.5, the face-up exile marker
+ *    Reckless Impulse leaves). Both defaulted, so an older *payload* still decodes here; a strict older
+ *    peer still rejects the newer one, which is the asymmetry every `GameObjectDto` addition has had.
+ * 5. **A widened enum inside an unchanged shape.** [DecisionRequestDto.ChooseRevealedCardType] carries
+ *    [dev.mtgplay.core.definition.RevealedCardFilter] names, and the enum gains `LAND_CARD`. No peer
+ *    that predates the request can meet the value, so this is latent by construction.
+ *
+ * **`PriorityOption.PlayLand` gains a `source`**, defaulted to the hand, so a land may be played from
+ * exile (Reckless Impulse). It is *not* a [CastingPermissionDto] change: a land is never cast (CR 305.1),
+ * so no casting permission could ever have reached one, which is precisely why the field is on the option
+ * rather than on a permission.
+ *
+ * No new seat-view field is added. The three new pauses are all public — a graveyard is a public zone
+ * (CR 400.2) and the other two are the resolving object's controller's — so
+ * [DecisionViewDto.Elsewhere]'s kind is the whole of what a non-deciding seat needs, and the
+ * count-only mirrors that [SeatViewDto.pendingOpponentDiscard] exists for have nothing to hide here.
  */
 const val PROTOCOL_VERSION: String = "9.0.0"

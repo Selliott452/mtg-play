@@ -39,14 +39,15 @@ import kotlinx.collections.immutable.persistentSetOf
  * through the same `announceBattlefieldEntry` a resolving permanent uses (CR 603.6a applies to a *played*
  * land exactly as it does to a cast one), so playing a Bog fires its trigger; `GraveyardHateSpec` pins it.
  *
- * Their two siblings in the same triage row stay unencoded. **Nihil Spellbomb**'s activated half is exactly
- * Bojuka Bog's clause on an artifact, but its dies trigger — "you may pay {B}. If you do, draw a card" —
- * is an optional *mana* cost inside a resolution, which needs payment-plan enumeration in a clause that has
- * none (`OptionalCostMode` offers a discard and a land sacrifice, not mana). **Relic of Progenitus** needs
- * two things this packet does not own: "Target player exiles a card from their graveyard" is a decision made
- * by a **non-controller** (`FW-NONCTRLDEC`'s shape, whose one clause is an each-opponent discard), and
- * "{1}, Exile this artifact:" is an `AbilityCost` member that does not exist. Partial encodings would be the
- * silent approximation CONVENTIONS.md forbids.
+ * **Their two siblings in the same triage row have since landed** (GraveyardArtifacts.kt, `W8-D`), and each
+ * of the three blockers this comment used to record was closed exactly where it was diagnosed. Nihil
+ * Spellbomb's dies trigger — "you may pay {B}. If you do, draw a card" — is an optional *mana* cost inside a
+ * resolution, which `OptionalCostMode` (a discard or a land sacrifice) genuinely could not express; it is
+ * now its own clause, [dev.mtgplay.core.definition.OptionalManaThenDraw]. Relic of Progenitus needed a
+ * decision made by a **non-controller**, now
+ * [dev.mtgplay.core.definition.TargetPlayerExilesFromGraveyard], and an `AbilityCost` member for
+ * "{1}, Exile this artifact:", now [dev.mtgplay.core.definition.AbilityCost.ExileSelf]. The exile
+ * primitives below needed no change at all: both cards compose [exileGraveyard] and its siblings unmodified.
  */
 
 /** What Haunted Fengraf's sacrifice ability costs in generic mana (CR 602.1). */

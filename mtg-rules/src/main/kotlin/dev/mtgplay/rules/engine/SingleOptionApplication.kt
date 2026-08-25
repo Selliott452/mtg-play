@@ -55,9 +55,42 @@ internal fun applySingleOptionSelection(
         is DecisionRequest.ChooseRevealedHandCard ->
             applyHandRevealChoice(state, request.options[decision.index].objectId)
         // CR 608.2c: decline, tap, or untap the clause's target (`W8-G`, Sewer-veillance Cam).
-        is DecisionRequest.ChooseTapOrUntap -> applyTapOrUntapChoice(state, request.options[decision.index])
+        else -> applyResolutionClauseSelection(state, request, decision)
     }
 }
+
+/**
+ * The tail of [applySingleOptionSelection]: the answers to the clauses a *resolving* object opens — a
+ * tap-or-untap choice (CR 608.2c), an optional mana payment (CR 601.3b), a graveyard exile
+ * (CR 701.3a), and a revealed-card type choice.
+ *
+ * Split out only so the dispatch stays inside detekt's complexity budget, the same shape as the splits
+ * in `PendingDecision.kt`, `DecisionView.kt`, the CLI menu family, and the protocol codec. These four
+ * are the arms that arrived last; there is no seam in the rules here. The `else` is exhaustive by
+ * construction and fails loudly, because an answer silently dropped here would leave the engine paused
+ * on a decision it had already been given.
+ */
+private fun applyResolutionClauseSelection(
+    state: GameState,
+    request: DecisionRequest.SingleOptionSelection,
+    decision: Decision.SingleSelect,
+): AdvanceResult =
+    when (request) {
+        is DecisionRequest.ChooseTapOrUntap -> applyTapOrUntapChoice(state, request.options[decision.index])
+        // CR 601.3b: index 0 declines and nothing is drawn; any other index pays a plan in full, then draws.
+        is DecisionRequest.ChooseOptionalManaPayment ->
+            applyOptionalManaPayment(
+                state,
+                (request.options[decision.index] as? DecisionRequest.ChooseOptionalManaPayment.Option.Pay)?.plan,
+            )
+        // CR 701.3a: the targeted player's pick from their own graveyard; every index exiles one card.
+        is DecisionRequest.ChooseGraveyardCardToExile ->
+            applyGraveyardExileChoice(state, request.options[decision.index].objectId)
+        // CR 609.4: the named card type, which then drives the reveal and its partition.
+        is DecisionRequest.ChooseRevealedCardType ->
+            applyChosenRevealType(state, request.options[decision.index])
+        else -> error("no application for ${request::class.simpleName}; every answered request must have one")
+    }
 
 /**
  * Applies a chosen target (CR 601.2c), the single-target shape.

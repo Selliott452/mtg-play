@@ -95,8 +95,7 @@ class RandomRemoteAgent(
             is DecisionRequestDto.ChooseCounterPayment -> request.options.size
             // CR 701.16a: the controller's pick from an opponent's revealed hand.
             is DecisionRequestDto.ChooseRevealedHandCard -> request.options.size
-            // CR 608.2c: decline, tap, or untap a clause's target.
-            is DecisionRequestDto.ChooseTapOrUntap -> request.options.size
+            else -> resolutionClauseOptionCount(request)
         }
 
     // The number of selectable indices of a "choose one, or opt out" request (real options + one opt-out).
@@ -191,4 +190,21 @@ private fun rangedBounds(request: DecisionRequestDto.RangedSelectionDto): Triple
             Triple(request.options.size, request.minimumCount, request.maximumCount)
         is DecisionRequestDto.ChoosePermanentsToAffect ->
             Triple(request.options.size, request.minimumCount, request.maximumCount)
+    }
+
+// The tail of [singleOptionCount]: the clauses a resolving object opens. Split out only so the
+// dispatch stays inside detekt's complexity budget — the same shape as the splits this wave forced
+// in `PendingDecision.kt`, `DecisionView.kt`, `SingleOptionApplication.kt`, the CLI menu family,
+// and the protocol codec. Both halves stay exhaustive, so a new member still breaks compilation.
+private fun resolutionClauseOptionCount(request: DecisionRequestDto.SingleOptionSelectionDto): Int =
+    when (request) {
+        // CR 608.2c: decline, tap, or untap a clause's target.
+        is DecisionRequestDto.ChooseTapOrUntap -> request.options.size
+        // CR 601.3b: decline at index 0, then one option per affordable payment plan.
+        is DecisionRequestDto.ChooseOptionalManaPayment -> request.options.size
+        // CR 701.3a: the targeted player's own graveyard, one index per card.
+        is DecisionRequestDto.ChooseGraveyardCardToExile -> request.options.size
+        // CR 609.4: one index per offered card type, chosen before anything is revealed.
+        is DecisionRequestDto.ChooseRevealedCardType -> request.options.size
+        else -> error("no option count for ${request::class.simpleName}")
     }

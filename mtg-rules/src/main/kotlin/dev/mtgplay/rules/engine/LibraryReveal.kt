@@ -161,7 +161,7 @@ private fun remainingCandidates(
  * a [GameEvent.CardReturnedToHand] for each kept card (reused as the generic move-to-hand event) and a
  * [GameEvent.CardDiscarded] for each to the graveyard (reused as the generic move-to-graveyard event).
  */
-private fun putRevealedIntoGraveyard(
+internal fun putRevealedIntoGraveyard(
     state: GameState,
     player: PlayerId,
     revealedIds: List<ObjectId>,
@@ -212,5 +212,8 @@ internal fun matchesFilter(
         RevealedCardFilter.COLORLESS_CARD -> printed?.colors.orEmpty().isEmpty()
         RevealedCardFilter.INSTANT_OR_SORCERY_CARD -> CardType.INSTANT in types || CardType.SORCERY in types
         RevealedCardFilter.CREATURE_CARD -> CardType.CREATURE in types
+        // CR 305.1: a land card. Winding Way's second half; a land *creature* satisfies both members,
+        // which is right — "cards of the chosen type" reads a card's whole type set.
+        RevealedCardFilter.LAND_CARD -> CardType.LAND in types
     }
 }

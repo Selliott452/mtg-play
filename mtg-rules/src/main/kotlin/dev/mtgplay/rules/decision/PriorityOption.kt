@@ -50,19 +50,29 @@ sealed interface PriorityOption {
     ) : PriorityOption
 
     /**
-     * Play the land [objectId] from the deciding player's hand (CR 115.2a) — the CR 116.2a
-     * special action, not a spell: it uses no stack and the player retains priority afterward
-     * (CR 116.4). Enumerated only when the play is fully legal (ADR-005): the player's own
-     * turn, a main phase, the stack empty (CR 305.1 via CR 116.2a), and the turn's land drop
-     * still available (CR 305.2 — one land per turn).
+     * Play the land [objectId] from [source] (CR 115.2a) — the CR 116.2a special action, not a spell:
+     * it uses no stack and the player retains priority afterward (CR 116.4). Enumerated only when the
+     * play is fully legal (ADR-005): the player's own turn, a main phase, the stack empty (CR 305.1 via
+     * CR 116.2a), and the turn's land drop still available (CR 305.2 — one land per turn).
      *
-     * @property objectId the land object in the deciding player's hand.
+     * @property objectId the land object in [source].
      * @property card the printed identity, for display; the object is reborn on the
      *   battlefield with a fresh id when the action executes (CR 400.7).
+     * @property source the zone the land is played from (CR 601.2a's zone, reused for a play).
+     *   [CastSource.HAND] for every ordinary land drop, and [CastSource.EXILE] for a land an effect
+     *   granted permission to play from exile — Reckless Impulse's. Additive, flagged (`W8-D`).
+     *
+     *   **A land play needs a source for the reason a cast does, and it did not before.** Every
+     *   permission to play a card from elsewhere had been a [CastingPermission], which only ever
+     *   describes a *cast*; a land is never cast (CR 305.1), so no such permission could reach one. An
+     *   effect that says "you may **play** those cards" reaches both, and dropping the land half would
+     *   silently delete every land off the top of a Reckless Impulse — which on a two-card exile is
+     *   most of them.
      */
     data class PlayLand(
         val objectId: ObjectId,
         val card: CardRef,
+        val source: CastSource = CastSource.HAND,
     ) : PriorityOption
 
     /**

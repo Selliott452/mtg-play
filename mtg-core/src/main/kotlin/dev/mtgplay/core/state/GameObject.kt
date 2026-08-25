@@ -145,6 +145,38 @@ import kotlinx.collections.immutable.persistentSetOf
  *   `false` everywhere but the battlefield, and on the fresh object born of any later zone move
  *   (CR 400.7) -- a kicked creature that dies and is returned comes back unkicked, because it is a new
  *   object that was never cast at all. The acceptance invariant checker enforces the scope.
+ * @property evokedWhenCast whether this permanent entered the battlefield from a spell cast for its
+ *   **evoke** cost (CR 702.74a) — Mulldrifter. Additive, flagged core (`W8-D`); the exact sibling of
+ *   [kickedWhenCast], for the exact reason.
+ *
+ *   CR 702.74a's second half is "When this permanent enters, **if its evoke cost was paid**, sacrifice
+ *   it", which is an ability of the *permanent* asking a question about the *spell* — the CR 702.33f
+ *   situation word for word, one keyword over. The two flags stay separate rather than collapsing into
+ *   one "cast with a permission" marker because they answer different questions and a card could print
+ *   both: kicked-ness selects between two effects, evoked-ness destroys the permanent.
+ *
+ *   `false` everywhere but the battlefield and on the fresh object born of any later zone move
+ *   (CR 400.7) — which is what makes an evoked Mulldrifter reanimated out of the graveyard *stay* on the
+ *   battlefield, since the returned permanent is a new object that was never cast.
+ * @property playGrantedTurn the turn on which an effect gave this **exile** card's owner permission to
+ *   play it (CR 118.5, CR 601.2a) — Reckless Impulse's *"Until the end of your next turn, you may play
+ *   those cards."* `null` for every other object. Additive, flagged core (`W8-D`).
+ *
+ *   **It records when the permission was granted, not when it ends, and that is the whole design.**
+ *   "Your next turn" cannot be named as a turn number when the effect resolves without predicting who
+ *   will be active two turns hence — a prediction the engine has no business making. Storing the grant
+ *   turn instead lets the CR 514.2 cleanup decide with a rule that needs no foresight: the permission
+ *   ends at the cleanup of the first turn that is the owner's **and** is strictly later than
+ *   [playGrantedTurn]. Cast on your own turn N it survives N's cleanup (not later than N), survives the
+ *   opponent's N+1 (not yours), and ends at N+2 — exactly "the end of your next turn".
+ *
+ *   **The grantee is the owner**, so no second field names them: every printing exiles from its
+ *   controller's own library, so the cards' owner and the player granted the permission are the same
+ *   person. A card granting an *opponent* permission to play an exiled card would need one, and it
+ *   would be a field here rather than a reinterpretation of this one.
+ *
+ *   `null` on the fresh object born of any zone move (CR 400.7), which is what stops a card played from
+ *   exile and later returned to exile from still being playable.
  * @property manaAbilitiesActivatedThisTurn the indices of this object's **printed** mana abilities that
  *   have been activated during the turn now in progress (CR 602.5b). Additive, flagged core
  *   (`FW-MANACOST`). Empty for every object that has no "Activate only once each turn" mana ability —
@@ -206,6 +238,8 @@ data class GameObject(
     val activatedAbilitiesActivatedThisTurn: PersistentSet<Int> = persistentSetOf(),
     val skipsNextUntapStep: Boolean = false,
     val kickedWhenCast: Boolean = false,
+    val evokedWhenCast: Boolean = false,
+    val playGrantedTurn: Int? = null,
 ) {
     init {
         require(damageMarked >= 0) { "CR 120.3: marked damage is non-negative, was $damageMarked" }

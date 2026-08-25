@@ -1,0 +1,11 @@
+Caused by: java.lang.IllegalArgumentException: CR 208.1: creature cards, and only creature cards, have printed power/toughness (card "Clause Bear"); non-creature cards with a P/T box (e.g. Vehicles) are outside the MVP pool and unsupported
+	at dev.mtgplay.core.card.PrintedCharacteristics.<init>(PrintedCharacteristics.kt:63)
+	at dev.mtgplay.core.card.PrintedCharacteristics.<init>(PrintedCharacteristics.kt:48)
+	at dev.mtgplay.rules.W8DClausesSpecKt$clauseCard$1.<init>(W8DClausesSpec.kt:370)
+	at dev.mtgplay.rules.W8DClausesSpecKt.clauseCard(W8DClausesSpec.kt:368)
+	at dev.mtgplay.rules.W8DClausesSpecKt.<clinit>(W8DClausesSpec.kt:356)
+	... 120 more
+</failure>
+  </testcase>
+  <testcase name="CR 701.16: naming a type puts *every* matching revealed card into hand and the rest in the graveyard" classname="dev.mtgplay.rules.W8DClausesSpec" time="0.029">
+    <failure message="java.lang.NoClassDefFo

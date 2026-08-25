@@ -94,6 +94,11 @@ internal fun manaSourcesReservedBy(
                 when (component) {
                     AbilityCost.TapSelf -> true
                     AbilityCost.SacrificeSelf -> isSacrificeSource(state, source.id)
+                    // CR 701.3a: exiling the source is [SacrificeSelf]'s case exactly — tapping it for
+                    // mana first is legal (CR 602.2b pays costs after CR 602.2g's mana abilities, and
+                    // exile does not care that a permanent is tapped), but *consuming* it for mana by
+                    // sacrifice would leave nothing to exile.
+                    AbilityCost.ExileSelf -> isSacrificeSource(state, source.id)
                     is AbilityCost.Mana,
                     AbilityCost.DiscardSelf,
                     AbilityCost.ExileSelfFromGraveyard,

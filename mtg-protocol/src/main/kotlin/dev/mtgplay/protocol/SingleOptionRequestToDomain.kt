@@ -1,5 +1,6 @@
 package dev.mtgplay.protocol
 
+import dev.mtgplay.core.definition.RevealedCardFilter
 import dev.mtgplay.core.identity.CardRef
 import dev.mtgplay.core.identity.ObjectId
 import dev.mtgplay.core.identity.PlayerId
@@ -74,7 +75,27 @@ internal fun singleOptionSelectionToDomain(dto: DecisionRequestDto.SingleOptionS
                 CardRef(dto.sourceCard),
                 dto.options.mapOptions { o, c -> DecisionRequest.ChooseRevealedHandCard.Option(o, c) },
             )
+        else -> resolutionClauseToDomain(dto)
+    }
+
+/**
+ * The tail of [singleOptionSelectionToDomain]: the answers to the clauses a *resolving* object opens —
+ * a tap-or-untap choice (CR 608.2c), an optional mana payment (CR 601.3b), a graveyard exile
+ * (CR 701.3a), and a revealed-card type choice.
+ *
+ * Split out only so the dispatch stays inside detekt's complexity budget, the same shape as the splits
+ * in `PendingDecision.kt` and the CLI's menu family. These four are simply the arms that arrived last;
+ * there is no seam in the rules here. The `else` is exhaustive by construction — every other member is
+ * matched above — and fails loudly, because a request the codec silently dropped would be a decision an
+ * agent never gets to answer.
+ */
+private fun resolutionClauseToDomain(dto: DecisionRequestDto.SingleOptionSelectionDto): DecisionRequest =
+    when (dto) {
         is DecisionRequestDto.ChooseTapOrUntap -> tapOrUntapToDomain(dto)
+        is DecisionRequestDto.ChooseOptionalManaPayment -> optionalManaPaymentToDomain(dto)
+        is DecisionRequestDto.ChooseGraveyardCardToExile -> graveyardExileToDomain(dto)
+        is DecisionRequestDto.ChooseRevealedCardType -> revealedCardTypeToDomain(dto)
+        else -> error("no domain conversion for ${dto::class.simpleName}; every request must have one")
     }
 
 /**
@@ -88,6 +109,47 @@ private fun tapOrUntapToDomain(dto: DecisionRequestDto.ChooseTapOrUntap): Decisi
         CardRef(dto.card),
         ObjectId(dto.targetId),
         dto.options.map { it.toDomain() },
+    )
+
+/**
+ * An optional pay-then-draw clause's payment choice (CR 601.3b) back to the engine value. Its own
+ * function for [paymentPlanToDomain]'s reason: the family sits at detekt's length budget.
+ */
+private fun optionalManaPaymentToDomain(
+    dto: DecisionRequestDto.ChooseOptionalManaPayment,
+): DecisionRequest.ChooseOptionalManaPayment =
+    DecisionRequest.ChooseOptionalManaPayment(
+        dto.id.toDomain(),
+        CardRef(dto.sourceCard),
+        ManaCost.parse(dto.cost),
+        dto.drawCount,
+        dto.options.map { it.toOptionalManaPaymentOption() },
+    )
+
+/** A targeted player's graveyard-exile choice (CR 701.3a) back to the engine value. */
+private fun graveyardExileToDomain(
+    dto: DecisionRequestDto.ChooseGraveyardCardToExile,
+): DecisionRequest.ChooseGraveyardCardToExile =
+    DecisionRequest.ChooseGraveyardCardToExile(
+        dto.id.toDomain(),
+        PlayerId(dto.controller),
+        CardRef(dto.sourceCard),
+        dto.options.mapOptions { o, c -> DecisionRequest.ChooseGraveyardCardToExile.Option(o, c) },
+    )
+
+/**
+ * A resolution-time card-type choice (CR 609.4) back to the engine value. The types travel as
+ * [RevealedCardFilter] names and are parsed through the shared vocabulary reader, so an unknown name is
+ * a loud wire error rather than a silently dropped option.
+ */
+private fun revealedCardTypeToDomain(
+    dto: DecisionRequestDto.ChooseRevealedCardType,
+): DecisionRequest.ChooseRevealedCardType =
+    DecisionRequest.ChooseRevealedCardType(
+        dto.id.toDomain(),
+        CardRef(dto.sourceCard),
+        dto.revealCount,
+        dto.options.map { parseVocabulary<RevealedCardFilter>(it, "revealed card filter") },
     )
 
 /**
@@ -130,6 +192,6 @@ private fun libraryArrangementToDomain(
         dto.prompt,
         dto.pool.mapOptions { o, c -> DecisionRequest.ChooseLibraryArrangement.PoolCard(o, c) },
         dto.options.map {
-            DecisionRequest.ChooseLibraryArrangement.Option(it.toHand, it.toTop, it.toBottom, it.toGraveyard)
+            DecisionRequest.ChooseLibraryArrangement.Option(it.toHand, it.toTop, it.toBottom)
         },
     )

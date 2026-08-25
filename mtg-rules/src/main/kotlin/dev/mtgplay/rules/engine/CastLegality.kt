@@ -166,22 +166,20 @@ internal fun minimalSacrificeReservation(
 
 /**
  * The battlefield permanents [seat] controls that satisfy [requirement] (CR 601.2h): its own
- * permanents whose subtypes include the requirement's subtype (Mountain), in battlefield order.
- * Control is ownership in the MVP pool. The read goes through
- * [dev.mtgplay.core.card.PrintedCharacteristics.hasSubtype], so a changeling is correctly **not**
- * offered here: CR 702.73a grants creature types, and Mountain is a land type.
+ * permanents matching the requirement's filter — Fireblast's Mountains, Dread Return's creatures — in
+ * battlefield order. Control is ownership in the MVP pool.
+ *
+ * A thin alias for [sacrificeableMatching] since `W8-D` gave [SacrificeRequirement] a
+ * [dev.mtgplay.core.definition.SacrificeFilter]. It is kept as its own name rather than inlined at the
+ * two call sites because the *requirement* is what a casting permission carries, and reading a
+ * permission's option set through a function that takes a bare filter would lose the count that travels
+ * with it (see [sacrificeSatisfiable]).
  */
 internal fun sacrificeableFor(
     state: GameState,
     seat: PlayerId,
     requirement: SacrificeRequirement,
-): List<GameObject> =
-    state.sharedZones.battlefield.filter { obj ->
-        obj.owner == seat &&
-            state.definitions[obj.card]
-                ?.characteristics
-                ?.hasSubtype(requirement.subtype) == true
-    }
+): List<GameObject> = sacrificeableMatching(state, seat, requirement.filter)
 
 /**
  * Whether a non-mana [requirement] sacrifice cost can be paid: [seat] controls at least the required

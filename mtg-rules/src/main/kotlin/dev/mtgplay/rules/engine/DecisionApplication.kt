@@ -214,7 +214,7 @@ private fun applyChosenAction(
         PriorityOption.Pass -> applyPassPriority(state, request.seat)
         is PriorityOption.CastSpell ->
             beginCastGathering(state, request.seat, option.objectId, option.source, option.permission)
-        is PriorityOption.PlayLand -> executePlayLand(state, request.seat, option.objectId)
+        is PriorityOption.PlayLand -> executePlayLand(state, request.seat, option.objectId, option.source)
         is PriorityOption.PlotCard -> beginPlot(state, request.seat, option.objectId)
         is PriorityOption.ActivateAbility ->
             beginActivation(state, request.seat, option.objectId, option.scope, option.abilityIndex)

@@ -106,6 +106,19 @@ object Responders {
                 // the stack is resolving, so reaching one is a defect, not a decision.
                 is DecisionRequest.ChooseTapOrUntap ->
                     error("the pass-everything responder never resolves a tap-or-untap clause: $request")
+                // CR 601.3b: the optional pay-then-draw pause belongs to a Nihil Spellbomb this policy
+                // never played, so reaching one is a defect rather than a decision.
+                is DecisionRequest.ChooseOptionalManaPayment ->
+                    error("the pass-everything responder never plays a pay-then-draw permanent: $request")
+                // CR 701.3a: the targeted player's graveyard exile belongs to a Relic of Progenitus
+                // ability this policy never activates — and this seat may be the *opponent* of whoever
+                // did, which is exactly why it is spelled out rather than left to a catch-all.
+                is DecisionRequest.ChooseGraveyardCardToExile ->
+                    error("the pass-everything responder never activates a graveyard-exile ability: $request")
+                // CR 609.4: a resolution-time card-type choice only exists while a Winding Way this
+                // policy never cast is resolving.
+                is DecisionRequest.ChooseRevealedCardType ->
+                    error("the pass-everything responder never casts a type-choosing reveal spell: $request")
                 // CR 103.4/103.5: the passive policy keeps every hand at seven — so no bottoming ever
                 // follows — but bottoms the lowest indices if a mulligan game is ever driven this way.
                 is DecisionRequest.MulliganRequest -> keepAtSeven(request)

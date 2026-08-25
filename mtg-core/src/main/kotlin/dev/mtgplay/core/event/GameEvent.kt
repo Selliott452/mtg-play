@@ -742,6 +742,26 @@ sealed interface GameEvent {
     ) : GameEvent
 
     /**
+     * [player] exiled the top [cards] of their library **face up, playable** (CR 701.3a, CR 118.5) —
+     * Reckless Impulse's "Exile the top two cards of your library. Until the end of your next turn, you
+     * may play those cards." Added by `W8-D`. One event for the whole exile, top-first, in the shape
+     * [CardsRevealed] uses.
+     *
+     * Public information, and that is the point of recording the identities: the cards are exiled face
+     * up, so every player sees them and an opponent can play around what is coming. An exile whose cards
+     * stayed hidden would be a different event (and a different rule).
+     *
+     * Distinct from [GraveyardCardExiled] and [CardsExiledForCost] for the reason those two are distinct
+     * from each other: the zone the cards left and *why* they left it are what a replay log has to be
+     * able to tell apart, and a single "something was exiled" event would make a cost, a graveyard
+     * hate ability, and this indistinguishable.
+     */
+    data class CardsExiledFromLibrary(
+        val player: PlayerId,
+        val cards: List<CardRef>,
+    ) : GameEvent
+
+    /**
      * [player] milled [card] (CR 701.13a): the top card of their library moved to their graveyard,
      * becoming the new object [objectId] there (CR 400.7). One event per milled card, in the order
      * milled (top-first). Distinct from [CardDiscarded] on purpose — a mill is not a discard, so
