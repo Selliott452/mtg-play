@@ -42,20 +42,34 @@ import kotlinx.collections.immutable.toPersistentList
  */
 
 /**
- * The total cost [seat] pays to cast [definition] via [permission] (or normally, when it is `null`),
- * with [castObjectId] the object being cast (CR 601.2f).
+ * The total cost [seat] pays to cast [subject] with the CR 601.2b [announcements] settled so far
+ * (CR 601.2f).
  *
  * The formula, in the CR's printed order:
  *
  * 1. the alternative cost when one is used, else the printed mana cost (CR 601.2b, CR 118.9 — an
  *    alternative cost **replaces** the printed one entirely);
- * 2. **plus cost increases** — the slot exists in the formula and is deliberately empty: nothing in
- *    the pool increases a cost, and no declaration type can express one, so an increase is
- *    unrepresentable rather than approximated. Ward (CR 702.21a) is *not* an increase — it is a
- *    triggered pay-or-be-countered ability, which is why Tolarian Terror is not encodable here;
- * 3. **minus cost reductions** — the spell's own static ability ([SpellDefinition.costReduction]) plus
+ * 2. **with the announced value of X substituted in** (CR 107.3, CR 601.2b — [chosenX]), which is
+ *    where a variable cost stops being a variable. It happens *first*, because everything below
+ *    operates on a cost of real symbols: the value was announced before the total cost was determined,
+ *    exactly as CR 601.2b sequences it, and X becomes that much generic mana;
+ * 3. **plus additional costs** — the **kicker** cost when the caster announced they are paying it
+ *    (CR 702.33a, [kicked]). CR 601.2f puts additional costs in the formula ahead of reductions, and
+ *    kicker is one: "You may pay an additional [cost] as you cast this spell";
+ * 4. **plus cost increases** — the slot exists in the formula and is deliberately still empty: no
+ *    declaration type can express one, so an increase is unrepresentable rather than approximated. Ward
+ *    (CR 702.21a) is *not* an increase — it is a triggered pay-or-be-countered ability, which is why
+ *    Tolarian Terror is not encodable here. Nor is Kaervek's Torch, whose "spells that target it cost
+ *    {2} more to cast" is an increase applied to *somebody else's* spell and conditioned on that
+ *    spell's chosen targets; see the `FW-X` packet report for what it needs;
+ * 5. **minus cost reductions** — the spell's own static ability ([SpellDefinition.costReduction]) plus
  *    every battlefield reducer [seat] controls ([spellCostReductions]), summed;
- * 4. clamped so the mana component never falls below `{0}` ([reduceGeneric]).
+ * 6. clamped so the mana component never falls below `{0}` ([reduceGeneric]).
+ *
+ * **A reduction may eat into the X mana, and that is correct.** By the time step 5 runs, an announced
+ * X of 3 is indistinguishable from a printed `{3}`, so CR 118.7a confines the reduction to it exactly as
+ * it would to any other generic component. The announcement is not protected from reductions, and
+ * nothing in CR 601.2f suggests it should be.
  *
  * **Every reduction is an amount of generic mana**, so CR 118.7a confines all of them to the generic
  * component and the sum is order-independent: `max(0, generic − Σ reductions)` is integer subtraction
@@ -65,7 +79,7 @@ import kotlinx.collections.immutable.toPersistentList
  * hybrid (CR 118.7e, which would introduce a genuine new decision) reduction enters the pool; those
  * shapes are unrepresentable in [CostReduction] on purpose, and adding one must revisit this comment.
  *
- * [castObjectId] is excluded from every zone count (CR 601.2a): the card has left its source zone by
+ * [CastSubject.castObjectId] is excluded from every zone count (CR 601.2a): the card has left its source zone by
  * the time the cost is determined, so it never counts itself. For a hand cast this is invisible — a
  * hand card is in no counted zone either way — but for a graveyard cast of a spell whose reduction
  * counts the graveyard it is the whole difference, and naming it makes the gathering-time and
@@ -74,21 +88,60 @@ import kotlinx.collections.immutable.toPersistentList
 internal fun totalCost(
     state: GameState,
     seat: PlayerId,
+    subject: CastSubject,
+    announcements: CostAnnouncements = CostAnnouncements.NONE,
+): ManaCost {
+    val definition = subject.definition
+    // CR 601.2b then CR 601.2f: the announced value replaces the variable before anything is priced.
+    val base = baseCost(definition, subject.permission).substitutingX(announcements.chosenX)
+    // CR 601.2f: additional costs are added before reductions are subtracted (CR 702.33a for kicker).
+    val withAdditional = if (announcements.kicked) plusKicker(definition, base) else base
+    val reduction =
+        selfReduction(state, seat, definition, subject.castObjectId) +
+            otherObjectReduction(state, seat, definition)
+    return reduceGeneric(withAdditional, reduction)
+}
+
+/**
+ * The cost this cast starts from before any modification (CR 601.2b, CR 118.9): the permission's
+ * alternative cost when one is used, else the printed mana cost. Fails loudly for a card with neither,
+ * which enumeration must never have offered.
+ */
+internal fun baseCost(
     definition: SpellDefinition,
     permission: CastingPermission?,
-    castObjectId: ObjectId?,
+): ManaCost =
+    permission?.cost
+        ?: definition.manaCost
+        ?: error(
+            "CR 601.2f: ${definition.characteristics.name} has no mana cost and no alternative cost to " +
+                "cast it with",
+        )
+
+/**
+ * [base] plus [definition]'s kicker cost (CR 702.33a, CR 601.2f) — the two costs concatenated in
+ * printed order, the kicker's symbols last.
+ *
+ * **Concatenation, not arithmetic**, and the difference is CR 118.7's. A kicker cost is a whole mana
+ * cost with its own coloured symbols — Goblin Bushwhacker's is `{R}`, not "one more generic" — so
+ * `{R}` kicked becomes `{R}{R}` and demands two red, while summing mana values would have produced a
+ * payable-by-anything `{2}`. The one place this is observable is exactly the pool's cards: Prohibit's
+ * `{2}` kicker *is* generic and would survive either treatment, and Goblin Bushwhacker's would not.
+ *
+ * Fails loudly when the caster announced a kicker for a card that has none: the announcement is only
+ * offered for a card with the keyword (ADR-005), so reaching here without one is an engine defect.
+ */
+private fun plusKicker(
+    definition: SpellDefinition,
+    base: ManaCost,
 ): ManaCost {
-    val base =
-        permission?.cost
-            ?: definition.manaCost
+    val kicker =
+        definition.kicker
             ?: error(
-                "CR 601.2f: ${definition.characteristics.name} has no mana cost and no alternative cost to " +
-                    "cast it with",
+                "CR 702.33a: ${definition.characteristics.name} was cast kicked but prints no kicker cost; " +
+                    "the announcement must not have been enumerated (ADR-005)",
             )
-    val reduction =
-        selfReduction(state, seat, definition, castObjectId) +
-            otherObjectReduction(state, seat, definition)
-    return reduceGeneric(base, reduction)
+    return ManaCost((base.symbols + kicker.symbols).toPersistentList())
 }
 
 /**
@@ -196,6 +249,14 @@ internal fun reduceGeneric(
                 // CR 118.7a: coloured, colorless, hybrid, and Phyrexian components are untouchable.
                 is ManaSymbol.Colored, ManaSymbol.Colorless, is ManaSymbol.Hybrid, is ManaSymbol.Phyrexian ->
                     symbol
+                // CR 601.2b: X is substituted before the cost is priced, so a reduction can never meet
+                // one. Reaching here means a call site skipped `substitutingX`, which would silently
+                // under-price the spell.
+                ManaSymbol.X ->
+                    error(
+                        "CR 601.2b: the value of X must be announced and substituted before a cost is " +
+                            "reduced, but ${cost.render()} still carries {X}",
+                    )
             }
         }
     // CR 601.2f: a mana component reduced to nothing is {0}, which is a real one-symbol cost here.

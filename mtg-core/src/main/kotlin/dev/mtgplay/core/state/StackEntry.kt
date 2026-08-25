@@ -65,6 +65,25 @@ sealed interface StackEntry {
      *   everything downstream depends on it. The CR 608.2b re-check reads the *chosen mode's* target
      *   spec through it, and resolution runs the *chosen mode's* effect — so a copy of this entry with
      *   the modes dropped would fizzle-check and resolve as a different card.
+     * @property kicked whether this spell's kicker cost was paid (CR 702.33a), announced at CR 601.2b
+     *   and fixed here as the spell was put on the stack; `false` for a card without kicker and for one
+     *   whose kicker was declined. Additive, flagged core (`FW-OPTCOST`).
+     *
+     *   The **linked information** CR 702.33f makes readable -- "the spell was kicked" is a fact about
+     *   *this cast*, not about the card -- and it is on the cast record for exactly the reason
+     *   [discardedForCost] and [chosenModes] are: it is settled while casting, it can never change
+     *   afterwards, and the resolution depends on it. Prohibit reads it to decide whether it counters a
+     *   mana value of 2 or of 4; a permanent spell carries it onward to the entering object
+     *   ([GameObject.kickedWhenCast]), because the permanent is a different object (CR 400.7) and would
+     *   otherwise have no way to know.
+     * @property chosenX the value announced for the variable symbol as this spell was put on the stack
+     *   (CR 107.3, CR 601.2b); `0` for a spell whose cost carries none. Additive, flagged core (`FW-X`).
+     *
+     *   **This is what CR 202.3b means by "while a spell is on the stack".** The printed mana cost keeps
+     *   an unvalued [dev.mtgplay.core.mana.ManaSymbol.X] whose mana value is zero, which is correct for
+     *   the card in every other zone; the announced value lives here, on the one object for which the
+     *   rule says X is not zero. Keeping them apart is what stops a card in a graveyard from claiming a
+     *   mana value it only had on the stack.
      */
     data class Spell(
         val obj: GameObject,
@@ -75,7 +94,13 @@ sealed interface StackEntry {
         val discardedForCost: PersistentList<CardRef> = persistentListOf(),
         val sacrificedForCost: PersistentList<CardRef> = persistentListOf(),
         val chosenModes: PersistentList<Int> = persistentListOf(),
-    ) : StackEntry
+        val kicked: Boolean = false,
+        val chosenX: Int = 0,
+    ) : StackEntry {
+        init {
+            require(chosenX >= 0) { "CR 601.2b: an announced value of X is non-negative, was $chosenX" }
+        }
+    }
 
     /**
      * A triggered ability on the stack (CR 113.3c, CR 603.3): a fired [PendingTrigger] put on the

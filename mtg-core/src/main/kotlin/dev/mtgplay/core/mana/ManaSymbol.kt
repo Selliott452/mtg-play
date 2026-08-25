@@ -7,10 +7,16 @@ package dev.mtgplay.core.mana
  * colored {W}…{G}, generic {N}, colorless {C} (a demand for specifically colorless mana,
  * distinct from generic — CR 107.4c), two-color hybrid {G/U}, and Phyrexian {R/P}.
  *
- * **{X} is deliberately unsupported** (architect decision, P1.1): no card in the MVP pool has
- * an {X} cost, so the symbol does not exist here and [ManaCost.parse] rejects it loudly. The
- * same goes for the other shapes outside the pool: snow {S}, monocolored hybrid {2/W}, and
- * hybrid Phyrexian {G/U/P}.
+ * **{X} arrived with `FW-X`** (CR 107.3), and it is the one symbol that is not a demand for a
+ * fixed quantity of mana: it is a *variable* whose value the caster announces at CR 601.2b, before
+ * the total cost is determined. [X] therefore stands for the variable itself, never for a chosen
+ * value — a cost carrying it is not payable as it stands, and [ManaCost.substitutingX] is what turns
+ * it into the generic mana actually paid. Its [manaValue] is `0`, which is CR 202.3b read literally:
+ * "the value of X is treated as zero" everywhere except on the stack, where the announced value is
+ * recorded on the cast record rather than on the printed cost.
+ *
+ * The other shapes outside the pool remain unsupported and [ManaCost.parse] rejects them loudly:
+ * snow {S}, monocolored hybrid {2/W}, and hybrid Phyrexian {G/U/P}.
  *
  * Every symbol knows its contribution to mana value (CR 203.3) and to color (CR 202.2).
  * *Payment* semantics — which mana may actually pay a symbol, and Phyrexian life payment — are
@@ -65,6 +71,35 @@ sealed interface ManaSymbol {
         override val colors: Set<Color> get() = emptySet()
 
         override fun render(): String = "{C}"
+    }
+
+    /**
+     * The variable mana symbol `{X}` (CR 107.3): a placeholder for a value the caster announces as the
+     * spell is put on the stack (CR 601.2b), which then becomes part of the spell's total cost as that
+     * much **generic** mana. Additive, flagged core (`FW-X`).
+     *
+     * **This symbol is never paid; it is replaced.** A cost still carrying it has no expansion into
+     * payable units — "pay {X}" is not an instruction until X has a value — so the payment machinery
+     * refuses it loudly rather than guessing a value, and [ManaCost.substitutingX] is the only way
+     * through. That refusal is the structural guarantee behind the announcement: an unannounced X
+     * cannot reach a payment plan by any code path.
+     *
+     * **[manaValue] is 0, and that is CR 202.3b rather than a convenience.** "While a spell is on the
+     * stack, the value of X is the value chosen or determined for it. In every other zone, the value of
+     * X is treated as zero." The printed cost is a characteristic of the *card*, which is in some other
+     * zone whenever anything asks; the announced value belongs to the spell, and the engine records it
+     * on the cast record ([dev.mtgplay.core.state.StackEntry.Spell.chosenX]) precisely so this printed
+     * symbol never has to lie about it.
+     *
+     * It contributes **no colour** (CR 202.2): `{X}{R}` is red because of its `{R}`, and Kaervek's
+     * Torch would be red with X announced as zero.
+     */
+    data object X : ManaSymbol {
+        // CR 202.3b: zero everywhere but the stack; the stack's value lives on the cast record.
+        override val manaValue: Int get() = 0
+        override val colors: Set<Color> get() = emptySet()
+
+        override fun render(): String = "{X}"
     }
 
     /**

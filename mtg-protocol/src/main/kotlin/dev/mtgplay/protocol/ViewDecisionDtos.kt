@@ -103,6 +103,10 @@ enum class DecisionRequestKindDto {
     CHOOSE_TARGETS,
     CHOOSE_MULTIPLE_TARGETS,
     CHOOSE_PAYMENT_PLAN,
+
+    /** [dev.mtgplay.rules.DecisionRequestKind.CHOOSE_X_VALUE] — a CR 601.2b variable-cost announcement. */
+    @SerialName("choose_x_value")
+    CHOOSE_X_VALUE,
     DECLARE_ATTACKERS,
     DECLARE_BLOCKERS,
     ORDER_BLOCKERS,

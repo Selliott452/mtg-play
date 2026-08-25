@@ -67,6 +67,20 @@ internal fun beginCastGathering(
     // costs"), so it is read off the definition rather than off the permission.
     val additionalSacrifice: PersistentList<ObjectId>? =
         if (definition.additionalCost is AdditionalCost.Sacrifice) null else persistentListOf()
+    // CR 601.2b/702.33a: a kicker announcement is due only for a card printing the keyword *and* only
+    // when the kicked cost is affordable — a seat that cannot pay it has nothing to announce, and
+    // offering a yes/no whose "yes" dead-ends is the ADR-005 defect. Every other cast settles `false`.
+    val subject = CastSubject(definition, permission, cardObjectId)
+    val kicked: Boolean? =
+        if (kickerAffordable(state, caster, subject, minimalSacrificeReservation(state, caster, definition))) {
+            null
+        } else {
+            false
+        }
+    // CR 107.3b/601.2b: a value of X is announced only when the cost the cast starts from carries the
+    // variable; every other cast settles zero. The option set is derived when the request is surfaced,
+    // by which point the sibling cost selections that reserve mana sources are settled (`FW-X`).
+    val chosenX: Int? = if (announcesX(subject)) null else 0
     val gathering =
         state.copy(
             pendingCast =
@@ -81,6 +95,8 @@ internal fun beginCastGathering(
                     sacrificeCost = sacrificeCost,
                     additionalDiscard = additionalDiscard,
                     additionalSacrifice = additionalSacrifice,
+                    kicked = kicked,
+                    chosenX = chosenX,
                 ),
         )
     return pauseForNextCastDecision(gathering)

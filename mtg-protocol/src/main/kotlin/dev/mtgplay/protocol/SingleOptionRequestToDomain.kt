@@ -44,14 +44,8 @@ internal fun singleOptionSelectionToDomain(dto: DecisionRequestDto.SingleOptionS
                 CardRef(dto.card),
                 dto.options.map { it.toDomain() },
             )
-        is DecisionRequestDto.ChoosePaymentPlan ->
-            DecisionRequest.ChoosePaymentPlan(
-                dto.id.toDomain(),
-                ObjectId(dto.cardObjectId),
-                CardRef(dto.card),
-                ManaCost.parse(dto.cost),
-                dto.options.map { it.toDomain() },
-            )
+        is DecisionRequestDto.ChoosePaymentPlan -> paymentPlanToDomain(dto)
+        is DecisionRequestDto.ChooseXValue -> xValueToDomain(dto)
         is DecisionRequestDto.AssignTrampleDamage ->
             DecisionRequest.AssignTrampleDamage(
                 dto.id.toDomain(),
@@ -81,6 +75,33 @@ internal fun singleOptionSelectionToDomain(dto: DecisionRequestDto.SingleOptionS
                 dto.options.mapOptions { o, c -> DecisionRequest.ChooseRevealedHandCard.Option(o, c) },
             )
     }
+
+/**
+ * A cast's payment choice (CR 601.2g) back to the engine value. Its own function for the reason
+ * [libraryArrangementToDomain] is: the family is at detekt's length budget, and the two cost-shaped
+ * branches are the ones that grow.
+ */
+private fun paymentPlanToDomain(dto: DecisionRequestDto.ChoosePaymentPlan): DecisionRequest.ChoosePaymentPlan =
+    DecisionRequest.ChoosePaymentPlan(
+        dto.id.toDomain(),
+        ObjectId(dto.cardObjectId),
+        CardRef(dto.card),
+        ManaCost.parse(dto.cost),
+        dto.options.map { it.toDomain() },
+    )
+
+/**
+ * The CR 601.2b announcement of a variable cost (CR 107.3b) back to the engine value. The values are
+ * announceable *numbers* and travel as such; the answering index is a position in the list, which is
+ * why the list itself is on the wire rather than a count.
+ */
+private fun xValueToDomain(dto: DecisionRequestDto.ChooseXValue): DecisionRequest.ChooseXValue =
+    DecisionRequest.ChooseXValue(
+        dto.id.toDomain(),
+        ObjectId(dto.cardObjectId),
+        CardRef(dto.card),
+        dto.values,
+    )
 
 /**
  * A private look's arrangement (CR 701.14a, CR 701.17a) back to the engine value. Its own function

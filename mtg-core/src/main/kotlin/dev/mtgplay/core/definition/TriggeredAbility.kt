@@ -26,11 +26,16 @@ package dev.mtgplay.core.definition
  * narrower trigger-only spelling of [optionalCostThenDraw]'s discard mode; it is kept as-is rather than
  * migrated, because retiring it would move wire-visible state.
  *
- * **Intervening-if conditions (CR 603.4) are still not modeled**, and putting the "if" inside
- * [effect] implements only the resolution half of that rule. That gap is deliberate and separate
- * from targeting (docs/design/targeted-abilities.md §12).
+ * **Intervening-if conditions (CR 603.4) arrived with `FW-OPTCOST`** ([interveningIf]). The gap this
+ * paragraph used to record — that putting the "if" inside [effect] implements only the resolution half
+ * of the rule — is closed for the one shape the pool prints, "if it was kicked". Conditions of other
+ * shapes are [InterveningIf]'s sealed extension point and still must not be written into [effect].
  *
  * @property condition the event pattern that fires this ability (CR 603.2).
+ * @property interveningIf the CR 603.4 "intervening if" clause, or `null` for an ability with none.
+ *   Checked **twice**: the ability does not trigger at all unless it holds, and it is removed from the
+ *   stack doing nothing if it has stopped holding on resolution. Goblin Bushwhacker's "if it was
+ *   kicked". Additive, flagged core (`FW-OPTCOST`).
  * @property effect what the ability does when it resolves (CR 608.2); reuses [ResolutionEffect].
  * @property targetSpec what this ability demands as targets (CR 115); [TargetSpec.None] for an
  *   untargeted ability. Additive, flagged core (`FW-ABILTGT`, docs/design/targeted-abilities.md).
@@ -51,6 +56,7 @@ data class TriggeredAbility(
     val condition: TriggerCondition,
     val effect: ResolutionEffect,
     val zoneScope: TriggerZoneScope = TriggerZoneScope.Battlefield,
+    val interveningIf: InterveningIf? = null,
     val optionalDiscardDraw: OptionalDiscardDraw? = null,
     val targetSpec: TargetSpec = TargetSpec.None,
     override val libraryReveal: LibraryReveal? = null,

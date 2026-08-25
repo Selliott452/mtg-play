@@ -133,6 +133,34 @@ interface SpellDefinition :
     val costReduction: CostReduction? get() = null
 
     /**
+     * This spell's **kicker** cost (CR 702.33), or `null` for a card without the keyword. Additive,
+     * flagged core (`FW-OPTCOST`). Goblin Bushwhacker's `Kicker {R}`, Prohibit's `Kicker {2}`.
+     *
+     * **An *optional additional* cost, which is a shape nothing here had.** CR 702.33a: "Kicker [cost]"
+     * means "You may pay an additional [cost] as you cast this spell." [additionalCost] is the
+     * *mandatory* sibling — Grab the Prize discards whether you like it or not — and a
+     * [CastingPermission] is an *alternative*, replacing the printed cost rather than adding to it
+     * (CR 118.9). Kicker is neither: it is announced at CR 601.2b, it *adds* to the total cost at
+     * CR 601.2f, and declining it is always legal.
+     *
+     * A bare [ManaCost] rather than a wrapper type, for the reason [rebound] is a bare `Boolean`:
+     * there is exactly one thing to vary and the pool prints only mana kickers. CR 702.33d allows a
+     * non-mana kicker cost ("Kicker—Sacrifice a creature") and CR 702.33c allows multikicker; each
+     * would become its own type here rather than growing this one, and neither is printed in the
+     * gauntlet.
+     *
+     * **Whether it was paid is linked information** (CR 702.33f), recorded on the cast record as
+     * [dev.mtgplay.core.state.StackEntry.Spell.kicked] and, for a permanent, carried onto the entering
+     * object as [dev.mtgplay.core.state.GameObject.kickedWhenCast]. That is what lets Prohibit's own
+     * resolution and Goblin Bushwhacker's [InterveningIf] read it.
+     *
+     * **The announcement is only offered when the kicked cost is payable** (ADR-005): a seat that
+     * cannot afford it is never asked a question whose "yes" would dead-end mid-cast. Declining is
+     * always available, because a kicker only ever makes a cost larger.
+     */
+    val kicker: ManaCost? get() = null
+
+    /**
      * Whether this spell has **rebound** (CR 702.88a), the keyword Ephemerate prints. Additive, flagged
      * core (`FW-BLINK`, docs/design/exile-and-return.md §5).
      *

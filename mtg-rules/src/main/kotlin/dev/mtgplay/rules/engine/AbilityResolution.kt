@@ -36,7 +36,10 @@ internal fun resolveAbility(
     // not begin an orchestrated "you may" flow it would then have to unwind. Then two triggered "you may"
     // clauses are engine-orchestrated rather than plain effects: madness's reflexive cast (CR 702.35b)
     // and the optional discard-then-draw (CR 601.3b, Melded Moxite).
-    val early = fizzleTrigger(state, entry) ?: resolveOrchestratedTrigger(state, entry)
+    val early =
+        fizzleTrigger(state, entry)
+            ?: interveningIfFailure(state, entry)
+            ?: resolveOrchestratedTrigger(state, entry)
     if (early != null) return early
     val context =
         ResolutionContext(
@@ -85,11 +88,46 @@ private fun fizzleTrigger(
     if (!allTargetsIllegal(state, trigger.ability.targetSpec, entry.targets, trigger.controller, chooser)) {
         return null
     }
-    val removed = state.updateStack { it.removingAt(it.lastIndex) }
-    return grantPriorityRound(
-        removed.emit(GameEvent.AbilityFizzled(trigger.controller, trigger.sourceCard, triggered = true)),
+    return abilityLeftStackDoingNothing(
+        state,
+        GameEvent.AbilityFizzled(trigger.controller, trigger.sourceCard, triggered = true),
     )
 }
+
+/**
+ * The CR 603.4 removal of a triggered ability whose intervening-if clause is no longer true, or `null`
+ * when it still is — and for every ability that declares none, which is all but Goblin Bushwhacker's.
+ *
+ * The **second** of the two checks CR 603.4 demands; the first is in [enqueuePendingTrigger], and both
+ * ask [interveningIfHolds] so they cannot drift apart (InterveningIfCheck.kt). Ordered beside the
+ * CR 608.2b fizzle because the outcome is identical — the ability performs nothing — and, like the
+ * fizzle, it must run before any orchestrated "you may" flow it would otherwise have to unwind. It is a
+ * distinct *rule* from the fizzle though, and narrates as one.
+ */
+private fun interveningIfFailure(
+    state: GameState,
+    entry: StackEntry.Ability,
+): AdvanceResult? {
+    val trigger = entry.trigger
+    if (interveningIfHolds(state, trigger.ability, trigger.sourceId)) return null
+    return abilityLeftStackDoingNothing(
+        state,
+        GameEvent.AbilityConditionFailed(trigger.controller, trigger.sourceCard),
+    )
+}
+
+/**
+ * Removes the topmost (resolving) triggered ability from the stack having performed nothing, narrating
+ * it as [narration], and grants a fresh priority round (CR 113.7a — the ability simply ceases to exist).
+ *
+ * Shared by the CR 608.2b fizzle and the CR 603.4 intervening-if failure: the two rules differ in *why*
+ * the ability does nothing and agree exactly on *what happens next*, so the transition is written once
+ * and the difference is carried by the event.
+ */
+private fun abilityLeftStackDoingNothing(
+    state: GameState,
+    narration: GameEvent,
+): AdvanceResult = grantPriorityRound(state.updateStack { it.removingAt(it.lastIndex) }.emit(narration))
 
 /**
  * The engine-orchestrated resolution of a triggered "you may" clause, or `null` for a plain effect: a

@@ -42,8 +42,14 @@ object Responders {
                 is DecisionRequest.OrderTriggers ->
                     Decision.MultiSelect(request.id, request.options.indices.toList())
                 // CR 702.35b: a passive game may discard a madness card at cleanup; decline the reflexive cast.
+                // The kicker announcement (CR 601.2b) shares this request kind and is likewise declined,
+                // which is unreachable here because this policy never casts.
                 is DecisionRequest.ChooseYesNo ->
                     Decision.SingleSelect(request.id, DecisionRequest.ChooseYesNo.DECLINE)
+                // CR 601.2b: an X announcement only ever arises inside a cast, which this policy never
+                // begins, so reaching one fails loudly rather than guessing a value.
+                is DecisionRequest.ChooseXValue ->
+                    error("the pass-everything responder never casts, but an X announcement surfaced: $request")
                 // CR 603.3d: a passive game still fires triggers, and a targeted one must choose its
                 // target as it is put on the stack — take the first enumerated target deterministically.
                 // A targets request with no trigger placement open can only have come from a cast or an

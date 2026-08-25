@@ -132,6 +132,19 @@ import kotlinx.collections.immutable.persistentSetOf
  *   upkeep must not rebound in that same upkeep, so `mtg-rules` fires only on a strictly later turn.
  *   `null` everywhere but a rebounding exile card, and on the fresh object born of any zone move
  *   (CR 400.7); the acceptance invariant checker enforces the scope.
+ * @property kickedWhenCast whether this permanent entered the battlefield from a spell whose **kicker**
+ *   cost was paid (CR 702.33a-f). Additive, flagged core (`FW-OPTCOST`): a battlefield-only marker in
+ *   the shape [plottedTurn] and [chosenColor] already set.
+ *
+ *   **CR 702.33f is the rule that makes this necessary rather than convenient.** A permanent spell and
+ *   the permanent it becomes are different objects (CR 400.7), so nothing about the cast survives the
+ *   move on its own -- and Goblin Bushwhacker's "When this creature enters, **if it was kicked**"
+ *   is an ability of the *permanent* asking a question about the *spell*. The flag is the bridge, set as
+ *   the object enters and fixed thereafter.
+ *
+ *   `false` everywhere but the battlefield, and on the fresh object born of any later zone move
+ *   (CR 400.7) -- a kicked creature that dies and is returned comes back unkicked, because it is a new
+ *   object that was never cast at all. The acceptance invariant checker enforces the scope.
  * @property manaAbilitiesActivatedThisTurn the indices of this object's **printed** mana abilities that
  *   have been activated during the turn now in progress (CR 602.5b). Additive, flagged core
  *   (`FW-MANACOST`). Empty for every object that has no "Activate only once each turn" mana ability —
@@ -192,6 +205,7 @@ data class GameObject(
     val manaAbilitiesActivatedThisTurn: PersistentSet<Int> = persistentSetOf(),
     val activatedAbilitiesActivatedThisTurn: PersistentSet<Int> = persistentSetOf(),
     val skipsNextUntapStep: Boolean = false,
+    val kickedWhenCast: Boolean = false,
 ) {
     init {
         require(damageMarked >= 0) { "CR 120.3: marked damage is non-negative, was $damageMarked" }

@@ -206,6 +206,16 @@ enum class Invariant {
     CHOSEN_COLOUR_SCOPE,
 
     /**
+     * The was-kicked marker ([dev.mtgplay.core.state.GameObject.kickedWhenCast]) is a
+     * **battlefield-only** status (CR 702.33f). Added with `FW-OPTCOST`. The fact that a permanent's
+     * spell was kicked is fixed as it enters and read by its own abilities' intervening-if clauses; an
+     * object reborn off the battlefield carries none (CR 400.7), like tapped and the chosen colour. A
+     * kicked creature that dies and returns comes back unkicked, because it is a new object that was
+     * never cast at all — a set marker off the battlefield is a leaked status.
+     */
+    KICKED_MARKER_SCOPE,
+
+    /**
      * Every P6.2c mid-resolution pause is well-formed (CR 601.2c/601.3b/701.18). Added in P6.2c. The
      * optional cost-then-draw ([dev.mtgplay.core.state.GameState.pendingOptionalCostDraw], Highway Robbery),
      * the mandatory resolution discard ([dev.mtgplay.core.state.GameState.pendingResolutionDiscard], Faithless

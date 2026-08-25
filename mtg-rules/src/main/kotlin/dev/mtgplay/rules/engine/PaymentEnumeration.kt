@@ -125,6 +125,11 @@ internal fun enumeratePaymentPlans(
  * Expands [cost] into per-unit symbols in printed order: `{N}` becomes `N` copies of `{1}` (so
  * all expanded generic units compare equal, which is what the identical-symbol dedup rule keys
  * on) and `{0}` contributes nothing; every other symbol is its own unit.
+ *
+ * **A cost still carrying `{X}` has no expansion and fails loudly** (CR 107.3b, `FW-X`): the variable
+ * is not a demand for mana until CR 601.2b has given it a value, and this is the single choke point
+ * every payment passes through, so the refusal is what makes an unannounced X unpayable by
+ * construction rather than by discipline at four call sites.
  */
 internal fun expandToUnits(cost: ManaCost): List<ManaSymbol> =
     cost.symbols.flatMap { symbol ->
@@ -132,6 +137,16 @@ internal fun expandToUnits(cost: ManaCost): List<ManaSymbol> =
             is ManaSymbol.Generic -> List(symbol.amount) { ManaSymbol.Generic(1) }
             is ManaSymbol.Colored, ManaSymbol.Colorless, is ManaSymbol.Hybrid, is ManaSymbol.Phyrexian ->
                 listOf(symbol)
+            // CR 107.3b, CR 601.2b: the variable has no expansion until its value is announced. This is
+            // the structural guarantee behind the announcement (docs/design/mana-payment.md §12): every
+            // route into payment passes through here, so an unannounced X cannot reach a plan by any
+            // code path, and a call site that forgot `substitutingX` fails loudly instead of pricing
+            // the spell as though X were zero.
+            ManaSymbol.X ->
+                error(
+                    "CR 601.2b: the value of X must be announced before a cost is paid, but " +
+                        "${cost.render()} still carries {X}",
+                )
         }
     }
 
@@ -158,6 +173,9 @@ internal fun payableTypes(symbol: ManaSymbol): List<ManaType> =
         // CR 107.4: a hybrid symbol is payable with either of its component colors.
         is ManaSymbol.Hybrid -> listOf(manaTypeOf(symbol.first), manaTypeOf(symbol.second))
         is ManaSymbol.Phyrexian -> listOf(manaTypeOf(symbol.color))
+        // CR 107.3b: unreachable — [expandToUnits] refuses an unannounced X before any unit reaches here.
+        ManaSymbol.X ->
+            error("CR 601.2b: {X} is not a payable symbol; its announced value must be substituted first")
     }
 
 /**

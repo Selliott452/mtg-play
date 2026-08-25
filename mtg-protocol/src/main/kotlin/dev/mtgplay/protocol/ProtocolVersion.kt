@@ -415,5 +415,37 @@ package dev.mtgplay.protocol
  * filtered by hexproof or shroud, they are never re-checked for legality, and the answer records no
  * target — a peer that treats the two as interchangeable would be modelling a game these cards do not
  * describe. The absent `cardObjectId` is the visible tell.
+ *
+ * ### `7.0.0` also carries `FW-X`, `FW-OPTCOST` and `FW-ALTCOST`
+ *
+ * **Held at `7.0.0` rather than bumped to `8.0.0`**, on this file's own standard, stated in the
+ * `5.0.0` note and applied four times since: **`7.0.0` is unreleased.** The only tag is `v0.1.0`,
+ * which shipped protocol `1.0.0`, so `1.0.0` — not `7.0.0` — remains the last version any consumer can
+ * have seen, and an unshipped major absorbs further breaks from the same wave rather than inflating
+ * the major count for a version nobody could have consumed. Naming the breaks is still owed, and they
+ * are, in descending order of sharpness:
+ *
+ * 1. **A new `DecisionRequest` kind** — the sharper of the two break modes.
+ *    [DecisionRequestDto] gains [DecisionRequestDto.ChooseXValue] and [DecisionRequestKindDto] gains
+ *    `CHOOSE_X_VALUE`, whose `valueOf` mapping fails at **runtime** mid-match rather than at compile
+ *    time. It is answerable client→server too, since announcing X is a decision an agent sends an index
+ *    for. Note the payload is the announceable **values**, not a count: a peer answers with a position
+ *    in that list, and the two coincide on every ordinary board but need not in general.
+ *
+ *    Kicker deliberately adds **no** kind: it is a `ChooseYesNo`, reusing the request four flows
+ *    already share, because "you may pay an additional cost" is exactly the two-answer shape that
+ *    request exists for.
+ * 2. **Required fields on payloads a peer already decodes.** [PendingCastDto] gains `kicked` and
+ *    `chosenX` (the two CR 601.2b announcements); [GameObjectDto] gains `kickedWhenCast` (CR 702.33f's
+ *    linked information, public exactly as counters are); [CastingPermissionDto.AlternativeCost] gains
+ *    `condition` and `revealsHand`, with [CastConditionDto] a new enum. Every game object on the wire
+ *    is a [GameObjectDto], so a strict `6.0.0` codec (`ignoreUnknownKeys = false`) rejects **every
+ *    seat view** — the break shape `FW-COUNTERS` recorded, and the field is required for the same
+ *    reason: a permanent's kicked-ness changes what its own abilities do.
+ * 3. **A widened value inside an unchanged shape.** Mana costs travel as Scryfall brace strings, and
+ *    those strings may now contain `{X}` (CR 107.3). No DTO changes, but a peer parsing costs with its
+ *    own reader meets a symbol its `6.0.0` grammar rejects. No card in the gauntlet ships with an
+ *    `{X}` cost, so this one is latent rather than live — recorded because a peer that hard-codes the
+ *    symbol set will meet it the day one does.
  */
 const val PROTOCOL_VERSION: String = "8.0.0"

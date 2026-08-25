@@ -24,6 +24,7 @@ import io.kotest.core.spec.style.StringSpec
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.nulls.shouldBeNull
+import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import kotlinx.collections.immutable.persistentSetOf
@@ -229,11 +230,17 @@ class LibrarySearchCardsSpec :
             }
         }
 
-        "the two cards the packet deliberately dropped are absent rather than approximated" {
-            // Land Grant needs a conditional, reveal-your-hand alternative cost (`FW-ALTCOST`); Troll of
-            // Khazad-dûm needs a whole-block-declaration constraint (`FW-BLOCKSET`). Shipping either
-            // without its missing half would be a plausible-looking wrong card (PLAN.md §7).
-            MvpCards.definitions[CardRef("Land Grant")].shouldBeNull()
+        "CR 118.9: Land Grant, dropped by `P-SEARCH`, is encoded now that `FW-ALTCOST` exists" {
+            // The card this spec used to assert *absent*. `P-SEARCH` had its search half — one line of
+            // LibrarySearchCards.kt — and dropped the card because its alternative cost was conditional
+            // on a hidden zone and paid by revealing. Both halves landed with `FW-ALTCOST`, so the
+            // assertion inverts rather than being deleted: the reason it was absent is gone.
+            MvpCards.definitions[CardRef("Land Grant")].shouldNotBeNull()
+        }
+
+        "the sibling the packet still cannot encode is absent rather than approximated" {
+            // Troll of Khazad-dûm needs a whole-block-declaration constraint (`FW-BLOCKSET`). Shipping it
+            // without that would be a plausible-looking wrong card (PLAN.md §7).
             MvpCards.definitions[CardRef("Troll of Khazad-dûm")].shouldBeNull()
         }
     })

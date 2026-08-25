@@ -34,8 +34,11 @@ import kotlinx.collections.immutable.persistentSetOf
  * - **Kenku Artificer** needs CR 613 layer 4 (type change) and sublayer 7b (setting P/T), neither
  *   implemented, to make a noncreature artifact a 0/0 creature before its three `+1/+1` counters mean
  *   anything.
- * - **Nyxborn Hydra** ("This permanent enters with X +1/+1 counters on it") needs an `{X}` cost and
- *   bestow; the counters are the one part of it that would work.
+ * - **Nyxborn Hydra** ("This permanent enters with X +1/+1 counters on it") needs bestow
+ *   (`FW-BESTOW`) and a CR 614.1c *enters-with-counters* replacement, which is a third absent thing
+ *   this entry used to fold into the second: placing counters is not the same mechanism as entering
+ *   with them. `FW-X` since supplied the `{X}` cost, so the card is now two frameworks away rather
+ *   than three.
  * - **Writhing Chrysalis** needs a "when you cast this spell" trigger and a "whenever you sacrifice
  *   another Eldrazi" trigger; its `+1/+1` counter half and its [Keyword.REACH] half are both ready.
  */

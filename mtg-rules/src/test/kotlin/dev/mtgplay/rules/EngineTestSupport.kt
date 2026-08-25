@@ -71,6 +71,7 @@ internal fun respondTo(request: DecisionRequest): Decision =
         is DecisionRequest.ChooseTargets,
         is DecisionRequest.RangedSelection,
         is DecisionRequest.ChoosePaymentPlan,
+        is DecisionRequest.ChooseXValue,
         is DecisionRequest.OrderBlockers,
         is DecisionRequest.AssignTrampleDamage,
         is DecisionRequest.SizedSelection,

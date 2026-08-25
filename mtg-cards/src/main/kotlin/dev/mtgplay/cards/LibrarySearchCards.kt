@@ -37,20 +37,19 @@ import kotlinx.collections.immutable.persistentSetOf
  * made the CR 701.18 clause move onto the [dev.mtgplay.core.definition.ResolutionClauses] carrier; and
  * [lembas] is the first card to move a card from a graveyard back into a library.
  *
- * Two siblings from the same brief are deliberately absent rather than approximated — see the packet
- * report, and §6 of the design note, for exactly what each needs:
- * - **Land Grant** ("If you have no land cards in hand, you may reveal your hand rather than pay this
- *   spell's mana cost") is an alternative cost that is *gated on a hidden-zone condition* and whose
- *   payment is *revealing your hand*. [dev.mtgplay.core.definition.CastingPermission.AlternativeCost]
- *   carries mana plus an optional sacrifice and nothing else, and nothing anywhere conditions a casting
- *   permission on the state. Its search half is one line of this file; shipping only that would be a
- *   two-mana Lay of the Land wearing Land Grant's name, which is the plausible-looking wrong card
- *   PLAN.md §7 forbids.
+ * One sibling from the same brief is deliberately absent rather than approximated — see the packet
+ * report, and §6 of the design note, for exactly what it needs:
  * - **Troll of Khazad-dûm** ("This creature can't be blocked except by three or more creatures") is a
  *   constraint over the whole block declaration, and `DeclareBlockers` enumerates blocks pairwise;
  *   [dev.mtgplay.core.card.Evasion] has one member and it is a per-blocker predicate. Its swampcycling
  *   is exactly [LibrarySearchFilter.SWAMP_CARD], which this packet publishes, so the card is one
  *   framework away and no primitives away.
+ *
+ * **Land Grant, the other card this file used to record as absent, shipped with `FW-ALTCOST`** and
+ * lives in OptionalCostCards.kt. Its search half is exactly the one line predicted here —
+ * [LibrarySearchFilter.FOREST_CARD] to [LibrarySearchDestination.REVEALED_TO_HAND] — and what it was
+ * waiting on was both halves of its alternative cost: a state condition on a casting permission, and a
+ * cost component that reveals rather than consumes.
  */
 
 /**

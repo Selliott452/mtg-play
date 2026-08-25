@@ -222,6 +222,9 @@ class MvpCardsSpec :
             MvpCards.definitions.keys shouldBe
                 setOf(
                     CardRef("Abundant Growth"),
+                    CardRef("Goblin Bushwhacker"),
+                    CardRef("Land Grant"),
+                    CardRef("Prohibit"),
                     CardRef("Ancestral Mask"),
                     CardRef("Ancient Grudge"),
                     CardRef("Ancient Stirrings"),

@@ -1,4 +1,4 @@
-# Design note — mana payment enumeration (P2.1, amended P8.3, P-MANASICK, FW-MANA and FW-MANACOST)
+# Design note — mana payment enumeration (P2.1, amended P8.3, P-MANASICK, FW-MANA, FW-MANACOST and FW-X)
 
 The reference for the payment model built in P2.1, extended by P2.2 (real basics) and Phase 5
 (triggered mana abilities, additional/alternative costs), **reshaped in P8.3** so that one
@@ -7,7 +7,8 @@ activation of a mana ability can pay more than one cost symbol, corrected by `P-
 by `FW-MANA`** (§8) when it gained its first sources whose amount is read off the board, and
 sharpened on the reservation side by `FW-ADDSAC` (§2.3) when a cost first sacrificed a *chosen*
 permanent, and **extended on the consumption side by `FW-MANACOST`** (§11) when a mana ability first
-cost something other than tapping or sacrificing its own source. PLAN.md §7
+cost something other than tapping or sacrificing its own source, and **extended on the *cost* side by
+`FW-X`** (§12) when a spell's cost first stopped being a fixed quantity at all. PLAN.md §7
 names payment combinatorics a top risk; the mitigation is this model: **declarative plans over
 collapsed source classes**, enumerated exhaustively, chosen by index (ADR-005).
 
@@ -912,3 +913,120 @@ Basilisk Gate and Timberwatch Elf would encode as instant-speed tricks — an en
 action (ADR-005), not a cosmetic inaccuracy. It reuses the *same* window predicate a sorcery's cast
 is checked against, because CR 602.5d says the two windows are identical and one function is how they
 stay identical.
+
+## 12. Variable costs, and the bound on X (`FW-X`, `FW-OPTCOST`, `FW-ALTCOST`)
+
+The three frameworks in this packet all change *what cost a plan is enumerated against*, so they land
+here rather than in a note of their own. Two of them are small; the third asks a question this
+document has not had to answer before, and §12.2 is the packet.
+
+### 12.1 What the cost function gained
+
+`totalCost` was `(alternative-or-printed cost) − reductions`, with a documented empty slot for
+increases. It gains two inputs, both settled at CR 601.2b and both carried in one value
+(`CostAnnouncements`):
+
+- **the announced value of X** (CR 107.3), substituted into the base cost *before* anything else. A
+  cost still carrying `{X}` is refused by `expandToUnits` — the single choke point every payment
+  passes through — so "X reached payment unannounced" is unrepresentable rather than merely unlikely,
+  and a call site that forgets the substitution crashes instead of silently pricing X as zero;
+- **the kicker** (CR 702.33a), concatenated onto the cost when announced. *Concatenated*, not summed:
+  a kicker is a whole mana cost with its own coloured symbols, so Goblin Bushwhacker's `{R}` kicked is
+  `{R}{R}` and demands two red. Summing mana values would have produced a payable-by-anything `{2}`,
+  and the pool contains one card where that is observable (Bushwhacker) and one where it is not
+  (Prohibit's `{2}`).
+
+The **cost-increase slot stays empty.** Kicker is an *additional cost*, which CR 601.2f puts ahead of
+reductions in the formula; it is not an increase. Nothing here makes Kaervek's Torch encodable.
+
+A reduction may eat into the X mana, and that is correct: by the time reductions apply, an announced
+X of 3 is indistinguishable from a printed `{3}`, and CR 118.7a confines the reduction to it exactly
+as to any other generic component.
+
+### 12.2 The bound on X, which is the packet's central decision
+
+X ranges over the non-negative integers. ADR-005 answers a decision by **index into a list**, so an
+unbounded announcement is not merely a large action space — it is unrepresentable. Some bound must
+exist. The one chosen is the game's own:
+
+> **A value of X is offered exactly when the total cost it produces has at least one payment plan.**
+
+Anything narrower deletes a legal play; anything wider hands an agent an option that dead-ends when
+the plan enumeration for it comes back empty, which is the ADR-005 defect in its most expensive
+direction — an *enumerated action the rules do not permit*.
+
+**Why the bound is computed, not derived.** The tempting cheap answer is "total mana available minus
+the cost's fixed part". It is wrong in both directions on boards this engine already builds. Mana
+types do not substitute for one another (§1 clause 4), so a seat with four Forests and a `{X}{R}`
+spell can afford no X at all — indeed cannot cast it — while the arithmetic would have offered
+`0..3`, every one unpayable. And since `FW-MANACOST` an activation may *consume* pool mana as well as
+produce it, so the relation between "mana on the board" and "mana spendable on this cost" is no longer
+a subtraction. The only thing that knows whether a cost is payable is `enumeratePaymentPlans`, so that
+is what decides each candidate. One call per candidate; the answer is exact by construction rather
+than by an argument about mana.
+
+**Each candidate is tested independently, and monotonicity is deliberately not assumed.** The set
+could have been found by ascending from zero and stopping at the first unpayable value — cheaper, and
+correct if payability were monotone in the generic component. It almost certainly is. But "almost
+certainly" buys a silently *missing* legal play if it is ever false, which §2.2 records as the worse
+of the two failures, and the scan is cheap enough that the assumption need not be made at all.
+`xValueOptions` returns whatever the tests say, contiguous or not; a spec pins that the result *is*
+contiguous on real boards, so a future non-monotonicity surfaces as a failing expectation rather than
+as a vanished option.
+
+**What makes the scan finite** is `maxProducibleMana`: the pool plus, for every usable source class,
+its membership times the widest yield one activation of it could add. A seat cannot pay more mana than
+it can obtain. It is deliberately a loose upper bound — it ignores activation costs and ignores that
+types must match — because too high costs only a few doomed enumerations while too low would cut the
+scan short of a payable value.
+
+**The reservation, and why the announcement is settled last.** The candidates are priced against the
+**same** `reserved` set the eventual `ChoosePaymentPlan` will use (§2.2, §2.3). That is what makes "an
+announced value never dead-ends" structural rather than hopeful — and it is the reason the engine
+settles X *after* every sibling cost selection, rather than at CR 601.2b's printed position above the
+target stage. Announcing earlier would bound X against `minimalSacrificeReservation` while the payment
+enumeration used the exact, choice-aware one, which is precisely the enumerated-then-unpayable defect.
+
+The deviation from CR 601.2b's order is unobservable across the whole gauntlet, because nothing in the
+pool makes a target's legality depend on a kicker or on X. It becomes observable for a card printing
+"X target creatures", and such a card must move both announcements back above the target stage and
+take the weaker reservation with them. Recorded here rather than discovered later.
+
+**Kicker is bounded the same way and for the same reason**: the yes/no is surfaced only when the
+kicked cost is payable, so both answers lead somewhere. Declining is always legal, because a kicker
+only ever makes a cost larger — which is also why cast *legality* prices every spell at the cheapest
+announcement (no kicker, X = 0) and needs no search of its own.
+
+### 12.3 The measured cost, and what did not move
+
+**The three pinned budget boards are unchanged**, and structurally must be:
+`BoglesRampBudgetAcceptanceSpec` (3 / 16 / 32 / 32 / 16), `MonsterTronBudgetAcceptanceSpec`
+(1 / 3 / 7 / 7) and `CostedManaSourceAcceptanceSpec` (10 / 80 / 106) all pass **unmodified**. No card
+on any of those boards has a variable cost or a kicker, so `CostAnnouncements.NONE` prices every cast
+there exactly as before, `expandToUnits` never meets an `{X}`, and no new option appears in any
+payment request.
+
+That is worth saying explicitly because an X spell on any of those boards *would* move them: the
+announcement is an extra decision in the stream before the payment plan, and the plan it then
+enumerates is for a different cost. The three boards stay put because this packet adds no X card to
+them — not because the change is invisible.
+
+**What the bound costs at the decision point** is one `enumeratePaymentPlans` call per candidate value,
+scanned up to `maxProducibleMana`. On a five-land board that is six calls, made **once**, when the
+`ChooseXValue` request is derived. It is deliberately *not* paid at enumeration time: `castIsLegal`
+prices the spell at X = 0 only, so a variable-cost card sitting in hand costs a priority window
+nothing beyond any other card.
+
+### 12.4 A third kind of non-mana cost (`FW-ALTCOST`)
+
+`CastingPermission` carried mana, an optional sacrifice, and an exile count. Land Grant needs a
+component that consumes nothing and moves nothing: revealing your hand (CR 701.16a) *publishes*. It is
+a `Boolean` on the permission and an emitted event during payment — no selection, no pause, and it can
+never fail, because an empty hand is a legal thing to reveal.
+
+It also needs the first **state-conditional** permission. Every permission before it gated on where
+the card is and how it got there, a marker read off the object itself; this one gates on the rest of
+the game state and can flip between one priority window and the next without the card moving. The
+condition is evaluated at enumeration and the permission simply is not offered when it fails
+(ADR-005). Two gaps, not one — and they are independent fields, because a permission could be gated
+without revealing or reveal without a gate.

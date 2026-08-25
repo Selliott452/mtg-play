@@ -314,6 +314,54 @@ sealed interface DecisionRequest {
     }
 
     /**
+     * The CR 601.2b announcement of a variable cost (CR 107.3b): [seat] is casting [card] and must
+     * announce the value of X by picking one of [values] by index. Additive, flagged (`FW-X`).
+     *
+     * **[values] is the bound, and it is the framework's central decision.** X ranges over the
+     * non-negative integers, so the option set has to be cut somewhere or the enumerated action space
+     * is infinite and unrepresentable (ADR-005 answers by index into a list). The cut is the game's
+     * own: a value appears here exactly when the total cost it produces has at least one payment plan,
+     * tested value by value against the same reservation the following [ChoosePaymentPlan] will use.
+     * So announcing a value offered here can never dead-end, and no payable value is hidden. See
+     * `XCost.kt` for why the set is computed rather than derived arithmetically, and why no
+     * monotonicity is assumed.
+     *
+     * The values are the **announced numbers**, not indices into a range — index 0 is the value at
+     * `values[0]`, which is `0` on every board where a spell is castable at all. A driver must read the
+     * value rather than assume it equals the index, because a board on which some middle value is
+     * unpayable would make the two differ.
+     *
+     * Always surfaced for a spell whose cost carries the variable, even when only `0` is affordable,
+     * for the reason [ChoosePaymentPlan] is surfaced with a single plan: a uniform decision sequence
+     * keeps replay logs canonical. It is *not* a vacuous choice being forced — announcing zero is a
+     * real CR 601.2b announcement with a real consequence (CR 202.3b), unlike a target choice over an
+     * empty option list.
+     *
+     * @property cardObjectId the object being cast (still in its source zone — see
+     *   [dev.mtgplay.core.state.PendingCast]).
+     * @property card the printed identity, for display.
+     * @property values the announceable values of X in ascending order; never empty, because a cast is
+     *   only enumerated when it is payable at X = 0.
+     */
+    data class ChooseXValue(
+        override val id: DecisionRequestId,
+        val cardObjectId: ObjectId,
+        val card: CardRef,
+        val values: List<Int>,
+    ) : SingleOptionSelection {
+        override val optionCount: Int get() = values.size
+
+        init {
+            require(values.isNotEmpty()) {
+                "CR 601.2b: an X announcement is only surfaced when some value is payable (ADR-005)"
+            }
+            require(values.all { it >= 0 }) {
+                "CR 601.2b: an announced value of X is non-negative, got $values"
+            }
+        }
+    }
+
+    /**
      * The payment choice of a cast in progress (CR 601.2g–h): [seat] must pick one of
      * [options] — the enumerated distinct payment plans for the spell's cost — by index.
      *

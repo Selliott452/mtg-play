@@ -75,6 +75,7 @@ data class GameObjectDto(
     val manaAbilitiesActivatedThisTurn: List<Int>,
     val activatedAbilitiesActivatedThisTurn: List<Int> = emptyList(),
     val skipsNextUntapStep: Boolean = false,
+    val kickedWhenCast: Boolean,
 )
 
 /** [GameObject] to its wire form. */
@@ -99,6 +100,9 @@ fun GameObject.toDto(): GameObjectDto =
         manaAbilitiesActivatedThisTurn = manaAbilitiesActivatedThisTurn.sorted(),
         activatedAbilitiesActivatedThisTurn = activatedAbilitiesActivatedThisTurn.sorted(),
         skipsNextUntapStep = skipsNextUntapStep,
+        // CR 702.33f: publicly observable — everyone at the table saw the kicker paid, and the fact
+        // changes what the permanent's own abilities do, so it rides unredacted (ADR-007).
+        kickedWhenCast = kickedWhenCast,
     )
 
 /** [GameObjectDto] back to the engine value. */
@@ -121,4 +125,5 @@ fun GameObjectDto.toDomain(): GameObject =
         manaAbilitiesActivatedThisTurn = manaAbilitiesActivatedThisTurn.toPersistentSet(),
         activatedAbilitiesActivatedThisTurn = activatedAbilitiesActivatedThisTurn.toPersistentSet(),
         skipsNextUntapStep = skipsNextUntapStep,
+        kickedWhenCast = kickedWhenCast,
     )

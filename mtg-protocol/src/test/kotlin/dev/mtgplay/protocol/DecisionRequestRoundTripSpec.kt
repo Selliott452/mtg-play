@@ -266,6 +266,10 @@ private val allRequests: List<DecisionRequest> =
             ),
         ),
         DecisionRequest.ChooseYesNo(ID, "cast for madness", ObjectId(2), CardRef("Sneaky Snacker")),
+        // CR 601.2b: the values are the announceable numbers, not a count, and they need not be a
+        // contiguous run -- the fixture is deliberately gappy so a codec that serialised a size
+        // instead of the list would fail here rather than on a board nobody tests.
+        DecisionRequest.ChooseXValue(ID, ObjectId(15), CardRef("Kaervek's Torch"), listOf(0, 1, 3)),
         DecisionRequest.ChooseCardsToExile(
             ID,
             ObjectId(4),
