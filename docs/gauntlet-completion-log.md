@@ -269,6 +269,68 @@ Ten cards were deliberately **not** dispatched, because each needs a mechanic no
 touched and several are one-of-a-kind in the pool: the initiative (Avenging Hunter, Goliath Paladin),
 prototype (Boulderbranch Golem), cascade (Maelstrom Colossus), adventure/omen (Fang Dragon, Sagu
 Wildling), station (Pinnacle Kill-Ship), storm (Weather the Storm), bestow (Nyxborn Hydra), and the
-cost *increase* on Kaervek's Torch. They are triaged after the wave lands rather than raced.
+cost *increase* on Kaervek's Torch. They are triaged in `docs/gauntlet-deferred-ten.md`: nine drops and one build
+(Weather the Storm — storm needs one new fact and one new behaviour, and its copies neither target
+nor need target-copying machinery, so it is the gentlest possible first client for a spell-copying
+primitive).
 
-_(entries appended as packets report)_
+### Wave 8 results
+
+All seven packets landed and merged, each gated on a full green build.
+
+| Packet | Encoded | Dropped |
+|---|---|---|
+| W8-A Gates and utility lands | 6 | 0 |
+| W8-B mana creatures and cost reduction | 4 | 3 |
+| W8-C burn and removal | 3 | 4 |
+| W8-D card advantage and graveyard artifacts | 6 | 2 |
+| W8-E ETB creatures and tokens | 6 | 3 |
+| W8-F flashback, prevention, additional costs | 3 | 4 |
+| W8-G artifacts and awkward singles | 4 | 3 |
+
+**132 → 158 mainboard encoded; the backlog went 61 → 29.** Two decks finished: **GW Bogles is
+complete on both boards** (18/18, 8/8), the first in the gauntlet, and **UWX Familiar reached 20/20**
+on its mainboard.
+
+Quoting oracle text verbatim into every prompt was the single highest-leverage change of the
+session. Packets still corrected me — but about *engine* facts, not about what a card printed, and
+several of the corrections were worth more than the cards:
+
+- **`ColorlessArtifacts.kt` claimed "add one mana of any color" was a shape `ManaAbility` does not
+  have.** It was false and had been for two waves — a card *in that same file* declares exactly that
+  shape — and it had been blocking Bonder's Ornament on paper the whole time. Two packets found it
+  independently. The header now records the failure mode rather than the claim: each packet
+  re-diagnosed the card and nobody re-checked the previous diagnosis against the file it lived in.
+- **Sewer-veillance Cam is not modal**, and the earlier drop rested on believing it was. CR 700.2
+  needs a bulleted list after a choose-N instruction; "you may tap or untap target creature" is one
+  sentence with a conjunction. The difference is observable: a mode is chosen as the object goes on
+  the stack, so an opponent responding to a modal ability knows which mode they are answering.
+- **Devoid needs no layer-5 work** — `Keyword.DEVOID` already exists and the printed characteristics
+  read it, which is *more* CR-correct than a layer effect, since CR 702.114a makes devoid a
+  characteristic-defining ability functioning in every zone.
+- **A correction of mine was itself corrected.** I told W8-G that layer 4 was a declared-but-empty
+  slot in the layer walk. True, and it badly understates the work: `LayeredCharacteristics`, the
+  value the walk threads, carries no card types or subtypes at all, so there is nothing for a layer-4
+  effect to write to.
+- **`TriggeredAbility` never declared the library-search clause** even though `SpellDefinition` and
+  `ActivatedAbility` both did, so an ETB-searching creature was silently inexpressible. The clause
+  hook already handled it; only the declaration was missing. That is the second carrier lift this
+  session to leave one implementor behind.
+
+Two merges needed genuine composition rather than side-picking. `PlayLand.kt` was changed by two
+packets in the same places — one pausing the play for a CR 614.12 colour choice, the other letting a
+land be played from exile — and the entering object now carries both facts. And in
+`targetsRequestFor`, Standard Bearer's targeting requirement and `FW-TGTCOND`'s affordability filter
+now compose, because neither subsumes the other: offering a target that fails *either* is an
+enumerated-but-illegal action.
+
+**Six dispatchers tipped over detekt's complexity or function budgets**, all from one cause: two
+packets each added a member to the decision hierarchy, and every exhaustive dispatch over it grew by
+two. Each was split rather than suppressed, and both halves stay exhaustive so a new member still
+breaks compilation. That the budget caught all six is the budget working — a new decision member
+costs five dispatch sites, and that price should stay visible.
+
+**The remaining 29** are the deferred ten plus nineteen packets' drops, every one with a named
+framework: ward, explore, collect evidence's summed-weight selection, modal arity above one, a
+delayed CR 614 replacement scoped to a duration, equipment and energy, layer-4 type changes,
+name-keyed token identity, and the play-from-exile permission for a card that lost the race.
