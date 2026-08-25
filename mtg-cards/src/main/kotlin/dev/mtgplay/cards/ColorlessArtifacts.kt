@@ -29,14 +29,19 @@ import kotlinx.collections.immutable.persistentSetOf
  * called out in the packet report: [LibrarySearchFilter.LAND_CARD], the widest of the three land
  * filters, which Expedition Map is the first card to print.
  *
- * **Two siblings are deliberately absent, and the reason is an engine defect rather than a missing
+ * **Two siblings were deliberately absent, and the reason was an engine defect rather than a missing
  * primitive.** Bonder's Ornament ("{T}: Add one mana of any color. {4}, {T}: …") and Haunted Fengraf
  * ("{T}: Add {C}. {3}, {T}, Sacrifice this land: …") would each be the pool's first permanent that is
  * *both* a mana source *and* the source of a `{T}`-costed activated ability with a mana component.
- * `enumeratePaymentPlans` does not know which source is paying, so it offers a plan that taps the
- * permanent for mana — after which the ability's own `{T}` cost cannot be paid and the engine throws.
- * That is an enumerated-but-illegal action (ADR-005), and its fix belongs to the mana-payment
- * machinery, not to a card definition. The packet report carries the reproduction.
+ * `enumeratePaymentPlans` did not know which source was paying, so it offered a plan that tapped the
+ * permanent for mana — after which the ability's own `{T}` cost could not be paid and the engine threw.
+ * That was an enumerated-but-illegal action (ADR-005), and its fix belonged to the mana-payment
+ * machinery, not to a card definition.
+ *
+ * **`FW-MANACOST` made that fix**, and Haunted Fengraf has since landed (GraveyardHate.kt) with exactly
+ * the shape described above, driven end-to-end in the acceptance module. Bonder's Ornament is still
+ * absent, now for a different and smaller reason: "add one mana of any color" is a production shape
+ * [ManaAbility] does not have.
  *
  * Lotus Petal is absent for a different reason: its cost is `{T}` **and** sacrifice, which
  * [dev.mtgplay.core.definition.ManaAbility.viaSacrifice] cannot express — that flag means sacrifice

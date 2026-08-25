@@ -84,7 +84,7 @@ internal fun pendingLibraryLookRequest(state: GameState): DecisionRequest.Choose
         id = DecisionRequestId(pending.decider, state.player(pending.decider).decisionsAnswered),
         prompt = arrangementPrompt(look),
         pool = pool.map { DecisionRequest.ChooseLibraryArrangement.PoolCard(it.id, it.card) },
-        options = arrangementsFor(look.mode, pool.size),
+        options = arrangementsFor(look.mode, pool.size, matchingPoolIndices(state, look.mode, pool)),
     )
 }
 
@@ -100,9 +100,10 @@ internal fun applyLibraryArrangement(
     val pending = state.pendingLibraryLook ?: error("no library look is pending")
     val entry = resolvingClauseEntry(state)
     val look = lookClauseOf(state)
+    val announced = announceRevealedKeeps(state, pending.decider, look.mode, pending.poolIds, option)
     // The pending record is cleared *first*: it asserts that every pool card is still in its source zone
     // (GameState.init), and the distribution takes them out of it one intermediate state at a time.
-    val cleared = state.copy(pendingLibraryLook = null)
+    val cleared = announced.copy(pendingLibraryLook = null)
     val arranged = distributeArrangement(cleared, pending.decider, look.mode.source, pending.poolIds, option)
     return if (look.optionalShuffle) {
         val paused =

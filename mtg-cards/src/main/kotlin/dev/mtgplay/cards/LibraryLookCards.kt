@@ -23,11 +23,14 @@ import kotlinx.collections.immutable.persistentSetOf
  * [LibraryLookMode]s, both pool sources, the mandatory keep, the optional PRNG shuffle (ADR-006), and the
  * after-the-look draw — which is exactly why they are the framework's demonstration set.
  *
- * Their unencoded siblings stay unencoded, deliberately: **Winding Way** needs a resolution-time
- * choose-a-card-type mode (`FW-MODAL`, CR 700.2) before its partition is even defined, and **Lead the
- * Stampede** is a public *reveal* with a variable keep-all-matching, which wants the CR 701.16 reveal path's
- * filter fused with this framework's ordered bottom disposition. Both are named non-goals in
- * docs/design/library-look.md §12 rather than approximated.
+ * Two things this header once said are no longer true, and both were corrected by reading the oracle text.
+ * **Lead the Stampede** is not "a public *reveal* with a variable keep-all-matching": its current oracle
+ * text is a look with an *optional* keep, so it is a fifth [LibraryLookMode] on this same framework and it
+ * lives in RevealAndBottom.kt beside Ancient Stirrings and Augur of Bolas. And **Winding Way** is not
+ * blocked on `FW-MODAL`, which has landed: its "Choose creature or land" happens as the spell *resolves*,
+ * where a [dev.mtgplay.core.definition.SpellMode] is chosen at CR 601.2b during casting, so modality is the
+ * wrong shape for it rather than the missing one. It stays absent, and what it actually needs — a
+ * resolution-time card-type choice with a mandatory keep-all — is recorded in CardSelection.kt's header.
  */
 
 /** The cards Brainstorm draws before the placement (CR 120.1). */

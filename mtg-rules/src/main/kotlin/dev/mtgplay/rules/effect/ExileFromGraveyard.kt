@@ -2,6 +2,7 @@ package dev.mtgplay.rules.effect
 
 import dev.mtgplay.core.event.GameEvent
 import dev.mtgplay.core.identity.ObjectId
+import dev.mtgplay.core.identity.PlayerId
 import dev.mtgplay.core.state.GameObject
 import dev.mtgplay.core.state.GameState
 import dev.mtgplay.rules.engine.emit
@@ -55,3 +56,37 @@ fun exileCardFromGraveyard(
         .updateExile { it.adding(reborn) }
         .emit(GameEvent.GraveyardCardExiled(owner, objectId, leaving.card, exileId))
 }
+
+/**
+ * Effect primitive: **exiles [player]'s whole graveyard** (CR 701.3a, CR 404) — "Exile target player's
+ * graveyard", the published building block Bojuka Bog's enters-the-battlefield trigger composes (ADR-003).
+ * Additive, flagged (`W7-C`).
+ *
+ * **A separate primitive from [exileCardFromGraveyard], not a loop a caller writes.** The two differ in the
+ * thing that matters about a zone-wide effect: *what it names*. A card exile names one object chosen as a
+ * target (CR 115) and can therefore find it gone (CR 400.7) and legitimately do nothing; a graveyard exile
+ * names a **player** and applies to whatever is in that player's graveyard at the moment it resolves — there
+ * is no per-card target, so there is no per-card fizzle and no stale id to reconcile. Writing it as a fold
+ * at each call site would put that distinction in the callers rather than in one place, and would also fix
+ * the *order* by accident; here it is stated: bottom-up, so the relative order of the exile zone matches the
+ * order the cards were in the graveyard.
+ *
+ * An **empty graveyard is not an error** and not a special case: the fold does nothing, no event is emitted,
+ * and the state is returned unchanged. "Exile target player's graveyard" is legal against an empty one — the
+ * target is the player, who is always a legal target (CR 115.1a) — so a no-op here is the rules answer, not a
+ * swallowed failure.
+ *
+ * Each card leaves for the shared exile zone as a **new** object (CR 400.7), emitting its own
+ * [GameEvent.GraveyardCardExiled]: one event per card rather than one per zone, so a transcript records
+ * exactly which cards a graveyard exile took, and a card exiled this way is indistinguishable in the log
+ * from one exiled singly.
+ */
+fun exileGraveyard(
+    state: GameState,
+    player: PlayerId,
+): GameState =
+    state.players
+        .getValue(player)
+        .graveyard
+        .map { it.id }
+        .fold(state) { current, id -> exileCardFromGraveyard(current, id) }

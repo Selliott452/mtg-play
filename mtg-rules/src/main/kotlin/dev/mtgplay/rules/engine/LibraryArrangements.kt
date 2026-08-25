@@ -34,13 +34,24 @@ internal const val MAX_LIBRARY_ARRANGEMENTS: Int = 720
  * deterministic order docs/design/library-look.md §4.3 fixes. Each option is a total assignment of
  * `0 until poolSize` across hand, top, and bottom.
  *
+ * [matching] is the ascending list of pool indices that satisfy a *filtered* mode's keep predicate
+ * ([LibraryLookMode.RevealMatchingToHandRestToBottom]); every other mode ignores it, because their keep is
+ * unfiltered and so the pool's contents never change which arrangements are legal. It is an explicit
+ * parameter rather than a defaulted one on purpose: a filtered mode enumerated against the wrong match set
+ * is a *silently* wrong action space, which is the one failure ADR-005 cannot detect downstream.
+ *
  * @throws IllegalStateException if the space exceeds [MAX_LIBRARY_ARRANGEMENTS].
  */
 internal fun arrangementsFor(
     mode: LibraryLookMode,
     poolSize: Int,
+    matching: List<Int>,
 ): List<DecisionRequest.ChooseLibraryArrangement.Option> {
-    val budget = arrangementCount(mode, poolSize)
+    require(matching.all { it in 0 until poolSize } && matching == matching.sorted().distinct()) {
+        "CR 701.14a: the matching indices must be distinct, ascending pool positions, was $matching " +
+            "over a pool of $poolSize"
+    }
+    val budget = arrangementCount(mode, poolSize, matching.size)
     // Checked *before* enumerating, not after: the space is factorial, so a clause five cards past the
     // budget would exhaust the heap long before a count of the finished list could reject it.
     check(budget <= MAX_LIBRARY_ARRANGEMENTS) {
@@ -74,6 +85,13 @@ internal fun arrangementsFor(
             orderedSelections(indices, minOf(mode.count, poolSize)).map { placed ->
                 arrangement(toHand = indices - placed.toSet(), toTop = placed)
             }
+        // "You may reveal <up to k> matching card(s) from among them and put them into your hand. Put the
+        // rest on the bottom in any order" (Ancient Stirrings, Augur of Bolas, Lead the Stampede). The keep
+        // is optional, so the empty subset is enumerated first and declining is index 0; it is filtered, so
+        // only [matching] positions may be taken. Hand order is deliberately *not* a choice — the kept cards
+        // are listed in pool order — because two options differing only in the order cards entered a hand
+        // are indistinguishable to every rule in the game (the canonicalisation HandToTop already applies).
+        is LibraryLookMode.RevealMatchingToHandRestToBottom -> filteredArrangements(mode, indices, matching)
     }
 }
 
@@ -86,6 +104,7 @@ internal fun arrangementsFor(
 private fun arrangementCount(
     mode: LibraryLookMode,
     poolSize: Int,
+    matchingCount: Int,
 ): Long =
     when (mode) {
         // (n + 1)!: a permutation of the pool plus one divider marking the bottom/top split.
@@ -98,13 +117,15 @@ private fun arrangementCount(
             val placed = minOf(mode.count, poolSize)
             (0 until placed).fold(1L) { total, step -> saturatingTimes(total, (poolSize - step).toLong()) }
         }
+        is LibraryLookMode.RevealMatchingToHandRestToBottom ->
+            filteredArrangementCount(mode, poolSize, matchingCount)
     }
 
 /** `n!`, saturating at [Long.MAX_VALUE]; only ever compared against a budget three orders of magnitude below it. */
-private fun factorial(n: Int): Long = (2..n).fold(1L) { total, step -> saturatingTimes(total, step.toLong()) }
+internal fun factorial(n: Int): Long = (2..n).fold(1L) { total, step -> saturatingTimes(total, step.toLong()) }
 
 /** [left] * [right], clamped to [Long.MAX_VALUE] instead of wrapping. */
-private fun saturatingTimes(
+internal fun saturatingTimes(
     left: Long,
     right: Long,
 ): Long = if (right != 0L && left > Long.MAX_VALUE / right) Long.MAX_VALUE else left * right
@@ -120,10 +141,11 @@ internal fun arrangementPrompt(look: LibraryLook): String =
             "Put one looked-at card into your hand and the rest on the bottom of your library in any order"
         is LibraryLookMode.HandToTop ->
             "Put ${mode.count} card(s) from your hand on top of your library in any order"
+        is LibraryLookMode.RevealMatchingToHandRestToBottom -> filteredArrangementPrompt(mode)
     }
 
 /** One arrangement; the three lists together must cover the pool exactly once (CR 701.17a). */
-private fun arrangement(
+internal fun arrangement(
     toHand: List<Int> = emptyList(),
     toTop: List<Int> = emptyList(),
     toBottom: List<Int> = emptyList(),
@@ -135,7 +157,7 @@ private fun arrangement(
  * empty list has exactly one permutation, the empty one, which is what makes an empty pool a real (if
  * forced) decision rather than a skipped one.
  */
-private fun permutations(items: List<Int>): List<List<Int>> =
+internal fun permutations(items: List<Int>): List<List<Int>> =
     if (items.isEmpty()) {
         listOf(emptyList())
     } else {

@@ -54,9 +54,12 @@ enum class LibraryLookSource {
  * legal. One member per pattern, sealed so `mtg-rules` interprets it exhaustively; the enumeration of legal
  * arrangements per member — and the closed-form option count of each — is docs/design/library-look.md §4.2.
  *
- * A wider mode (a filter on the keep, a graveyard destination for surveil, a variable mandatory keep) is
- * the extension point, and each is a documented non-goal of the framework packet rather than a silent
- * approximation (docs/design/library-look.md §12).
+ * A wider mode is the extension point, and one of the three docs/design/library-look.md §12 named has since
+ * been taken: [RevealMatchingToHandRestToBottom] is that note's "a filter on the keep", added by the packet
+ * that encoded the cards it named. **Surveil** (CR 701.44 — a look whose rest goes to the *graveyard*)
+ * remains absent, and remains a mode question rather than a carrier question: it is this hierarchy plus a
+ * fourth destination in the arrangement, and no encoded card needs it. Each absence is documented rather
+ * than silently approximated.
  */
 sealed interface LibraryLookMode {
     /** How many cards the pool holds at most — fewer if the source zone is short (CR 701: do as much as possible). */
@@ -125,6 +128,52 @@ sealed interface LibraryLookMode {
 
         init {
             require(count >= 1) { "CR 701.14a: a hand-to-top placement places at least one card, was $count" }
+        }
+    }
+
+    /**
+     * "Look at the top [count] cards of your library. You may reveal *&lt;up to [maxToHand]&gt;* card(s)
+     * matching [toHand] from among them and put them into your hand. Put the rest on the bottom of your
+     * library in any order." Ancient Stirrings' five-deep colorless find, Augur of Bolas' three-deep
+     * instant-or-sorcery, Lead the Stampede's five-deep any-number-of-creatures.
+     *
+     * **A look with a filtered keep — the `library-look.md` §12 non-goal, filled in.** That note left "a
+     * filter on the keep" out of `FW-LIBLOOK` and named these exact cards; this is the member it pointed at.
+     * It differs from [OneToHandRestToBottom] in the two ways the oracle text does: the keep is *filtered*
+     * (only a matching card may be taken) and it is *optional* (every printed instance says "You **may**
+     * reveal"), so the empty-hand arrangement this mode's sibling refuses to enumerate is legal here and is
+     * enumerated.
+     *
+     * **The kept cards are revealed, and the rest are not** (CR 701.16a versus CR 701.14a) — the one place a
+     * clause of this framework is *partly* public. That is what the printed word "reveal" buys the opponent
+     * and it is exactly as much as it buys them: `mtg-rules` emits
+     * [dev.mtgplay.core.event.GameEvent.CardsRevealed] for the cards that go to the hand and nothing at all
+     * for the cards that go to the bottom, whose identities and order stay private to the looking player.
+     *
+     * **"Any number" is [maxToHand] `== ` [count], and that is a modelling call rather than an evasion.**
+     * The pool holds at most [count] cards, so "any number of creature cards from among them" and "up to
+     * [count] creature cards from among them" admit precisely the same set of outcomes — the enumeration is
+     * identical, which under ADR-005 means the two phrasings *are* the same decision. Encoding "any number"
+     * as its own flag would add a field no branch could ever read differently. Only the display prompt
+     * distinguishes them, and it does so off this equality.
+     *
+     * @property count how many cards to look at.
+     * @property toHand which of the looked-at cards may be revealed and kept (CR 701.16a).
+     * @property maxToHand the **maximum** number of matching cards that may be kept — one for "a colorless
+     *   card", [count] for "any number of creature cards". Keeping fewer, including none, is always legal.
+     */
+    data class RevealMatchingToHandRestToBottom(
+        override val count: Int,
+        val toHand: RevealedCardFilter,
+        val maxToHand: Int,
+    ) : LibraryLookMode {
+        override val source: LibraryLookSource get() = LibraryLookSource.TOP_OF_LIBRARY
+
+        init {
+            require(count >= 1) { "CR 701.14a: a look looks at at least one card, was $count" }
+            require(maxToHand in 1..count) {
+                "CR 701.16a: a filtered keep takes between 1 and the looked-at $count cards, was $maxToHand"
+            }
         }
     }
 }
