@@ -98,14 +98,19 @@ private fun singleOptionSelectionToDomain(dto: DecisionRequestDto.SingleOptionSe
                 dto.id.toDomain(),
                 dto.options.map { DecisionRequest.ChooseReplacement.Option(it.description) },
             )
+        is DecisionRequestDto.ChooseRevealedHandCard ->
+            DecisionRequest.ChooseRevealedHandCard(
+                dto.id.toDomain(),
+                PlayerId(dto.revealer),
+                CardRef(dto.sourceCard),
+                dto.options.mapOptions { o, c -> DecisionRequest.ChooseRevealedHandCard.Option(o, c) },
+            )
         is DecisionRequestDto.ChooseLibraryArrangement ->
             DecisionRequest.ChooseLibraryArrangement(
                 dto.id.toDomain(),
                 dto.prompt,
                 dto.pool.mapOptions { o, c -> DecisionRequest.ChooseLibraryArrangement.PoolCard(o, c) },
-                dto.options.map {
-                    DecisionRequest.ChooseLibraryArrangement.Option(it.toHand, it.toTop, it.toBottom)
-                },
+                dto.options.map { DecisionRequest.ChooseLibraryArrangement.Option(it.toHand, it.toTop, it.toBottom) },
             )
     }
 
@@ -132,6 +137,14 @@ private fun sizedSelectionToDomain(dto: DecisionRequestDto.SizedSelectionDto): D
             DecisionRequest.ChooseResolutionDiscards(
                 dto.id.toDomain(),
                 dto.options.mapOptions { o, c -> DecisionRequest.ChooseResolutionDiscards.Option(o, c) },
+                dto.count,
+            )
+        is DecisionRequestDto.ChooseOpponentDiscards ->
+            DecisionRequest.ChooseOpponentDiscards(
+                dto.id.toDomain(),
+                PlayerId(dto.controller),
+                CardRef(dto.sourceCard),
+                dto.options.mapOptions { o, c -> DecisionRequest.ChooseOpponentDiscards.Option(o, c) },
                 dto.count,
             )
         is DecisionRequestDto.ChooseCardsToExile,
@@ -197,6 +210,7 @@ private fun costSizedSelectionToDomain(dto: DecisionRequestDto.SizedSelectionDto
         is DecisionRequestDto.ChooseOptionalDiscard,
         is DecisionRequestDto.ChooseOptionalCostObject,
         is DecisionRequestDto.ChooseResolutionDiscards,
+        is DecisionRequestDto.ChooseOpponentDiscards,
         -> error("CR 601.2: non-cost sized selection routed to the cost helper: $dto")
     }
 

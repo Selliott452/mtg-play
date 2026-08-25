@@ -4,8 +4,8 @@ import dev.mtgplay.core.event.GameEvent
 import dev.mtgplay.core.identity.ObjectId
 import dev.mtgplay.core.state.GameObject
 import dev.mtgplay.core.state.GameState
+import dev.mtgplay.rules.engine.announceBattlefieldDeparture
 import dev.mtgplay.rules.engine.clearCombatReferences
-import dev.mtgplay.rules.engine.detectPutIntoGraveyardTriggers
 import dev.mtgplay.rules.engine.emit
 import dev.mtgplay.rules.engine.isIndestructible
 import dev.mtgplay.rules.engine.updateBattlefield
@@ -65,7 +65,7 @@ fun destroy(
             .updatePlayer(permanent.owner) { it.copy(graveyard = it.graveyard.adding(reborn)) }
             .emit(GameEvent.PermanentDestroyed(objectId, permanent.card, graveyardId))
     // CR 603.6b, CR 603.10: a leaves-the-battlefield trigger fires against the pre-destruction state.
-    val triggered = detectPutIntoGraveyardTriggers(moved, permanent, graveyardId)
+    val triggered = announceBattlefieldDeparture(moved, permanent, graveyardId)
     // CR 506.4: a destroyed permanent that was in combat is removed from it.
     return clearCombatReferences(triggered, setOf(objectId))
 }

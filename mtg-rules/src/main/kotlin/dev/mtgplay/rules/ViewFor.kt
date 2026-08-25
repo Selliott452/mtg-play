@@ -62,6 +62,10 @@ fun viewFor(
             pendingLibraryLook = state.pendingLibraryLook?.let { lookViewOf(state, it) },
             pendingTriggerTargets = state.pendingTriggerTargets,
             pendingCounterPayment = state.pendingCounterPayment,
+            pendingHandReveal = state.pendingHandReveal?.let { handRevealViewOf(state, it) },
+            pendingOpponentDiscard = state.pendingOpponentDiscard?.let { opponentDiscardViewOf(it) },
+            // CR 406.3: exile is a public zone, so the rebounding card and its offer are already visible.
+            pendingRebound = state.pendingRebound,
             // CR 611.2: a resolved spell's continuous effect is public information; no filtering applies.
             timedEffects = state.timedEffects,
         )
@@ -179,3 +183,46 @@ private fun revealViewOf(
         kept = reveal.keptIds.map(::resolve),
     )
 }
+
+/**
+ * Resolves a [dev.mtgplay.core.state.PendingHandReveal] into a [PendingHandRevealView], exposing the
+ * revealed hand to **all** seats (CR 701.16a: the cards are revealed, so public to both).
+ *
+ * The sibling of [revealViewOf] and the deliberate opposite of [opponentDiscardViewOf], which is the
+ * clearest way to see that ADR-007 is a rule about what is *secret* rather than a habit of redacting
+ * hands: these two functions face the same zone and disclose opposite amounts, because the cards
+ * mean opposite things. Duress's target was told to show everyone; Refurbished Familiar's was not.
+ */
+private fun handRevealViewOf(
+    state: GameState,
+    reveal: dev.mtgplay.core.state.PendingHandReveal,
+): PendingHandRevealView {
+    val hand =
+        state.players[reveal.revealer]?.hand
+            ?: error("CR 701.16a: a hand reveal names unseated revealer ${reveal.revealer}")
+    return PendingHandRevealView(
+        decider = reveal.decider,
+        revealer = reveal.revealer,
+        revealed = hand.toList(),
+        outcome = reveal.outcome,
+        sourceCard = reveal.sourceCard,
+    )
+}
+
+/**
+ * Projects a [dev.mtgplay.core.state.PendingOpponentDiscard] onto its **count-only**
+ * [PendingOpponentDiscardView] (ADR-007, CR 701.7a).
+ *
+ * Takes no [GameState] and that is the point rather than an accident: there is no zone to read, because
+ * nothing about the deciding opponent's hand may appear in any seat's view — not its contents, not its
+ * object ids. The deciding seat receives its options as its own request and nowhere else. A signature
+ * that could not reach a hand cannot leak one.
+ */
+private fun opponentDiscardViewOf(discard: dev.mtgplay.core.state.PendingOpponentDiscard): PendingOpponentDiscardView =
+    PendingOpponentDiscardView(
+        decider = discard.decider,
+        controller = discard.controller,
+        count = discard.count,
+        remainingCount = discard.remaining.size,
+        sourceCard = discard.sourceCard,
+    )

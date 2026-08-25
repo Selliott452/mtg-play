@@ -49,6 +49,18 @@ import kotlinx.collections.immutable.persistentListOf
  *   outcome names the object performing it rather than only the object performed upon — countering,
  *   whose `SpellCountered` event narrates *what* countered *what*. Distinct from [subject], which is a
  *   further object the effect acts *on*.
+ * @property linkedExiled the exile objects a **linked** ability (CR 607.2) of this ability's source put
+ *   into exile, in the order exiled; empty for every spell and for an ability with no linked partner.
+ *   Additive, flagged core (`FW-LINKEDEXILE`, docs/design/exile-and-return.md §4). The linked
+ *   information Journey to Nowhere's second ability reads ("return **the exiled card**") and Mesmeric
+ *   Fiend's ("return the exiled card to its owner's hand"), supplied from
+ *   [dev.mtgplay.core.state.PendingTrigger.linkedExiled].
+ *
+ *   Like [sacrificedForCost] this is captured rather than looked up, and for the sharper version of the
+ *   same reason: the source permanent has *already left the battlefield* when the ability that reads
+ *   this resolves, so there is nothing left to read the link off (CR 603.10). Unlike
+ *   [sacrificedForCost] it is the live [ObjectId] rather than a printed [CardRef], because the effect
+ *   must move that exact exile object and not merely name a card.
  */
 data class ResolutionContext(
     val controller: PlayerId,
@@ -58,4 +70,5 @@ data class ResolutionContext(
     val discardedForCost: PersistentList<CardRef> = persistentListOf(),
     val source: ObjectId? = null,
     val sacrificedForCost: PersistentList<CardRef> = persistentListOf(),
+    val linkedExiled: PersistentList<ObjectId> = persistentListOf(),
 )

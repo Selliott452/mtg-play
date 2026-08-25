@@ -135,6 +135,16 @@ enum class DecisionRequestKind {
 
     /** [DecisionRequest.ChooseCounterPayment] — a counter's "unless its controller pays" (CR 118.3a). */
     CHOOSE_COUNTER_PAYMENT,
+
+    /** [DecisionRequest.ChooseRevealedHandCard] — pick a card from an opponent's revealed hand (CR 701.16a). */
+    CHOOSE_REVEALED_HAND_CARD,
+
+    /**
+     * [DecisionRequest.ChooseOpponentDiscards] — an "each opponent discards a card" selection (CR 701.7a),
+     * made by an opponent of the resolving object's controller over their own hand. The kind an opposing
+     * seat may see; its **options** are never projected to anyone but the deciding seat (ADR-007).
+     */
+    CHOOSE_OPPONENT_DISCARDS,
 }
 
 /**
@@ -170,6 +180,7 @@ private fun singleOptionSelectionKind(request: DecisionRequest.SingleOptionSelec
         is DecisionRequest.ChooseReplacement -> DecisionRequestKind.CHOOSE_REPLACEMENT
         is DecisionRequest.ChooseLibraryArrangement -> DecisionRequestKind.CHOOSE_LIBRARY_ARRANGEMENT
         is DecisionRequest.ChooseCounterPayment -> DecisionRequestKind.CHOOSE_COUNTER_PAYMENT
+        is DecisionRequest.ChooseRevealedHandCard -> DecisionRequestKind.CHOOSE_REVEALED_HAND_CARD
     }
 
 /** The kind of one fixed-size subset selection (CR 514.1 / 601.2b/h / 602.2b). */
@@ -185,6 +196,7 @@ private fun sizedSelectionKind(request: DecisionRequest.SizedSelection): Decisio
         is DecisionRequest.ChooseOptionalDiscard -> DecisionRequestKind.CHOOSE_OPTIONAL_DISCARD
         is DecisionRequest.ChooseOptionalCostObject -> DecisionRequestKind.CHOOSE_OPTIONAL_COST_OBJECT
         is DecisionRequest.ChooseResolutionDiscards -> DecisionRequestKind.CHOOSE_RESOLUTION_DISCARDS
+        is DecisionRequest.ChooseOpponentDiscards -> DecisionRequestKind.CHOOSE_OPPONENT_DISCARDS
     }
 
 /** The kind of one full-ordering selection (CR 509.2 / 603.3b). */

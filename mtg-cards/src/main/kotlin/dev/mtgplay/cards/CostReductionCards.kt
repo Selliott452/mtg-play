@@ -40,9 +40,10 @@ import kotlinx.collections.immutable.persistentSetOf
  *   (CR 702.21a) — a *triggered* pay-or-be-countered ability, not a cost increase. It needs `FW-WARD`
  *   on top of the counter framework. Cryptic Serpent carries the clause here instead, which is what
  *   the design note's §0 recommended once the oracle text was re-read.
- * - **Refurbished Familiar** has affinity and an enters-the-battlefield "each opponent discards a card"
- *   — a discard the *opponent* chooses, which no decision request in this engine can surface
- *   (`FW-NONCTRLDEC`).
+ * - **Refurbished Familiar** was listed here as blocked on `FW-NONCTRLDEC` — a discard the *opponent*
+ *   chooses, which no decision request in this engine could surface. That framework has since landed
+ *   (docs/design/exile-and-return.md §6) and the card is encoded in `ExileAndReturn.kt`, reusing this
+ *   file's [affinityForArtifacts] unchanged: its cost half needed nothing further.
  * - **Deem Inferior** reduces "for each card you've drawn this turn": a **turn-scoped event count** the
  *   state does not track at all, and its effect lets the *owner* choose a library position
  *   (`FW-NONCTRLDEC`).
@@ -83,9 +84,12 @@ private val HUMAN: Subtype = Subtype("Human")
  * the stack before the cost is determined — which matters for [myrEnforcer] and [utromMonitor], which
  * are themselves artifacts: a *resolved* copy counts, the one being cast never does.
  *
- * Shared by all three of this file's affinity cards; identical text, identical declaration.
+ * Shared by all three of this file's affinity cards; identical text, identical declaration — and,
+ * since `FW-NONCTRLDEC`, by [refurbishedFamiliar] in `ExileAndReturn.kt`, which is why this is
+ * `internal` rather than `private`. One printed line gets one declaration: a second copy would be a
+ * second place for CR 702.41a to be got wrong.
  */
-private val affinityForArtifacts: CostReduction =
+internal val affinityForArtifacts: CostReduction =
     CostReduction.PerMatching(
         amountPerMatch = 1,
         scope = CountScope.BATTLEFIELD_YOU_CONTROL,

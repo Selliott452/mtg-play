@@ -209,7 +209,9 @@ private fun triggerDescription(trigger: PendingTrigger): String =
     when (val condition = trigger.ability.condition) {
         TriggerCondition.EnteredBattlefieldSelf -> "enters-the-battlefield"
         TriggerCondition.EnteredBattlefieldUntappedSelf -> "enters-the-battlefield-untapped"
-        TriggerCondition.PutIntoGraveyardFromBattlefieldSelf -> "leaves-the-battlefield"
+        TriggerCondition.PutIntoGraveyardFromBattlefieldSelf -> "put-into-graveyard-from-the-battlefield"
+        TriggerCondition.LeftBattlefieldSelf -> "leaves-the-battlefield"
+        TriggerCondition.ReboundCast -> "rebound-may-cast"
         TriggerCondition.EnchantedCreatureDealsDamage -> "enchanted-creature-deals-damage"
         is TriggerCondition.SpellCast -> "spell-cast"
         TriggerCondition.MadnessCast -> "madness-may-cast"

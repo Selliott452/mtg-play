@@ -102,4 +102,23 @@ interface SpellDefinition :
      * the reducer as an additional cost still pays the reduced cost).
      */
     val costReduction: CostReduction? get() = null
+
+    /**
+     * Whether this spell has **rebound** (CR 702.88a), the keyword Ephemerate prints. Additive, flagged
+     * core (`FW-BLINK`, docs/design/exile-and-return.md §5).
+     *
+     * A `Boolean` rather than a data class because rebound is parameterless: CR 702.88a spells it out in
+     * full as *"If this spell was cast from your hand, instead of putting it into your graveyard as it
+     * resolves, exile it and, at the beginning of your next upkeep, you may cast this card from exile
+     * without paying its mana cost"* — there is nothing for a card to vary. If a later keyword needs a
+     * parameter it becomes its own type rather than growing this one.
+     *
+     * Two halves, both owned by `mtg-rules`. The **static** half functions while the spell is on the
+     * stack and replaces the CR 608.2m graveyard move with an exile marked
+     * [dev.mtgplay.core.state.GameObject.reboundTurn] — but *only* when the spell was cast from a hand
+     * (CR 702.88a), so a rebounded Ephemerate cast the second time from exile finishes in the graveyard
+     * and does not loop. The **delayed** half fires at the beginning of the controller's next upkeep as
+     * [TriggerCondition.ReboundCast].
+     */
+    val rebound: Boolean get() = false
 }

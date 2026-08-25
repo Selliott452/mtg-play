@@ -3,6 +3,7 @@ package dev.mtgplay.rules.engine
 import dev.mtgplay.core.card.CardType
 import dev.mtgplay.core.card.Supertype
 import dev.mtgplay.core.definition.PermanentRestriction
+import dev.mtgplay.core.identity.PlayerId
 import dev.mtgplay.core.state.GameObject
 import dev.mtgplay.core.state.GameState
 
@@ -52,5 +53,48 @@ internal fun satisfiesPermanentRestriction(
         PermanentRestriction.CREATURE_POWER_2_OR_LESS ->
             isCreature && effectivePower(state, candidate.id) <= POWER_TWO_OR_LESS_LIMIT
         PermanentRestriction.ARTIFACT -> CardType.ARTIFACT in characteristics.cardTypes
+        // CR 109.5: "you" is the choosing player, so this arm is decider-relative and is answered by
+        // [satisfiesPermanentRestrictionFor] instead; reaching it here means a caller lost the chooser.
+        PermanentRestriction.CREATURE_YOU_CONTROL ->
+            error(
+                "CR 109.5: ${PermanentRestriction.CREATURE_YOU_CONTROL} is decider-relative and cannot be " +
+                    "judged without the choosing player; call satisfiesPermanentRestrictionFor",
+            )
     }
 }
+
+/**
+ * Whether [candidate] satisfies [restriction] **for the player [chooser]** (CR 115.1b, CR 109.5) — the
+ * decider-relative form, and the one every targeting caller should use.
+ *
+ * Only [PermanentRestriction.CREATURE_YOU_CONTROL] reads [chooser] today; every other restriction is a
+ * property of the board alone and delegates unchanged. Splitting it this way rather than threading
+ * `chooser` through [satisfiesPermanentRestriction] itself keeps the board-only predicate callable from
+ * the places that genuinely have no chooser, while making the one restriction that *needs* a chooser
+ * impossible to evaluate without one — the `error` arm above is what turns "a caller forgot" from a
+ * silently wrong option list into a loud failure.
+ *
+ * Control is ownership in the current pool (no control-changing effect exists), so "you control" reads
+ * [GameObject.owner]; [PermanentRestriction.CREATURE_YOU_CONTROL]'s KDoc records that this is one of the
+ * sites that must start reading a real controller the day that stops being true.
+ */
+internal fun satisfiesPermanentRestrictionFor(
+    state: GameState,
+    restriction: PermanentRestriction,
+    candidate: GameObject,
+    chooser: PlayerId,
+): Boolean =
+    when (restriction) {
+        PermanentRestriction.CREATURE_YOU_CONTROL -> {
+            val characteristics = state.definitions[candidate.card]?.characteristics
+            characteristics != null &&
+                CardType.CREATURE in characteristics.cardTypes &&
+                candidate.owner == chooser
+        }
+        PermanentRestriction.ANY_PERMANENT,
+        PermanentRestriction.CREATURE,
+        PermanentRestriction.NONLEGENDARY_CREATURE,
+        PermanentRestriction.CREATURE_POWER_2_OR_LESS,
+        PermanentRestriction.ARTIFACT,
+        -> satisfiesPermanentRestriction(state, restriction, candidate)
+    }

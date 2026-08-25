@@ -79,6 +79,7 @@ object InvariantChecker {
             addAll(checkTimedEffectSanity(state))
             addAll(checkCounterScope(residences))
             addAll(checkEntryTriggerDetection(state))
+            addAll(checkExileAndReturnState(state, residences))
             if (expectedCards != null) addAll(checkCardConservation(state, expectedCards))
         }
     }

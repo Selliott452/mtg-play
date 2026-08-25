@@ -81,6 +81,13 @@ private fun singleOptionSelectionToDto(request: DecisionRequest.SingleOptionSele
                 request.cost.render(),
                 request.options.map { it.toDto() },
             )
+        is DecisionRequest.ChooseRevealedHandCard ->
+            DecisionRequestDto.ChooseRevealedHandCard(
+                request.id.toDto(),
+                request.revealer.seat,
+                request.sourceCard.name,
+                request.options.map { cardOption(it.objectId, it.card) },
+            )
         is DecisionRequest.ChooseLibraryArrangement ->
             DecisionRequestDto.ChooseLibraryArrangement(
                 request.id.toDto(),
@@ -91,7 +98,7 @@ private fun singleOptionSelectionToDto(request: DecisionRequest.SingleOptionSele
     }
 
 /**
- * The non-cost fixed-size subset selections (CR 514.1 / 601.3b / 601.2c); the cost ones route to
+ * The non-cost fixed-size subset selections (CR 514.1 / 601.3b / 601.2c / 701.7a); the cost ones route to
  * [costSizedSelectionToDto], the mirror of [costSizedSelectionToDomain]'s split.
  */
 private fun sizedSelectionToDto(request: DecisionRequest.SizedSelection): DecisionRequestDto =
@@ -116,6 +123,14 @@ private fun sizedSelectionToDto(request: DecisionRequest.SizedSelection): Decisi
         is DecisionRequest.ChooseResolutionDiscards ->
             DecisionRequestDto.ChooseResolutionDiscards(
                 request.id.toDto(),
+                request.options.map { cardOption(it.objectId, it.card) },
+                request.count,
+            )
+        is DecisionRequest.ChooseOpponentDiscards ->
+            DecisionRequestDto.ChooseOpponentDiscards(
+                request.id.toDto(),
+                request.controller.seat,
+                request.sourceCard.name,
                 request.options.map { cardOption(it.objectId, it.card) },
                 request.count,
             )
@@ -187,6 +202,7 @@ private fun costSizedSelectionToDto(request: DecisionRequest.SizedSelection): De
         is DecisionRequest.ChooseOptionalDiscard,
         is DecisionRequest.ChooseOptionalCostObject,
         is DecisionRequest.ChooseResolutionDiscards,
+        is DecisionRequest.ChooseOpponentDiscards,
         -> error("CR 601.2: non-cost sized selection routed to the cost helper: $request")
     }
 

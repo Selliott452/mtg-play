@@ -286,4 +286,37 @@ enum class Invariant {
      * card rather than by source object or condition. See `checkEntryTriggerDetection`.
      */
     ENTRY_TRIGGER_DETECTION,
+
+    /**
+     * The CR 607.2 linked-exile record ([dev.mtgplay.core.state.GameObject.linkedExiled]) is a
+     * battlefield-only status, and every id it names is really in exile. Added with `FW-LINKEDEXILE`
+     * (docs/design/exile-and-return.md §4) — new state, new property, same packet.
+     *
+     * The scope arm is the sibling of [PLOT_MARKER_SCOPE] and [CHOSEN_COLOUR_SCOPE]: CR 400.7's rebirth
+     * must drop the record, or a Journey to Nowhere that died and came back would return the creature
+     * its *previous* incarnation exiled. The referential arm is the one with no sibling — it is what
+     * would notice a return that took the card out of exile while leaving a dangling link behind, which
+     * is the most plausible way this framework could go wrong.
+     */
+    LINKED_EXILE_SCOPE,
+
+    /**
+     * The CR 702.88a rebound marker ([dev.mtgplay.core.state.GameObject.reboundTurn]) is an exile-only
+     * status. Added with `FW-BLINK` (docs/design/exile-and-return.md §5); the exact shape of
+     * [PLOT_MARKER_SCOPE], because it is the exact same kind of thing — a card waiting face-up in exile
+     * for a later free cast.
+     */
+    REBOUND_MARKER_SCOPE,
+
+    /**
+     * An open each-opponent discard (CR 701.7a) is owned by a seat that is **not** the clause's
+     * controller, and that seat has a non-empty hand. Added with `FW-NONCTRLDEC`
+     * (docs/design/exile-and-return.md §6).
+     *
+     * The structural half of the packet's ADR-007 ruling, and the half that lives in the *state*: the
+     * engine's first decision whose decider is neither the priority holder nor the resolving object's
+     * controller. The other half — that the deciding seat's options never appear in any other seat's
+     * view — is a property of the projection, and `ViewLeakPropertySpec` pins that one.
+     */
+    HIDDEN_DECISION_OWNERSHIP,
 }

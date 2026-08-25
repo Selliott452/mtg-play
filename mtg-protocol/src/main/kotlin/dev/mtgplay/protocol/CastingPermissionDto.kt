@@ -29,7 +29,7 @@ fun SacrificeRequirementDto.toDomain(): SacrificeRequirement = SacrificeRequirem
 /**
  * Wire form of a [CastingPermission] (CR 118.9): one alternative way to cast a card. The mana cost
  * is carried as its Scryfall brace-syntax string ([ManaCost.render]/[ManaCost.parse] round-trip it
- * exactly), so no separate mana-cost DTO tree is needed. Sealed to mirror [CastingPermission]'s five
+ * exactly), so no separate mana-cost DTO tree is needed. Sealed to mirror [CastingPermission]'s six
  * members exhaustively.
  */
 @Serializable
@@ -71,6 +71,15 @@ sealed interface CastingPermissionDto {
     data class Plot(
         val plotCost: String,
     ) : CastingPermissionDto
+
+    /**
+     * Rebound (CR 702.88b): a free cast from exile offered by the delayed ability, never at a plain
+     * priority window. Carries no payload at all — the cost is fixed at `{0}` and the source at exile —
+     * so it is a `data object` and rides the wire as its bare discriminator. Added by `FW-BLINK`.
+     */
+    @Serializable
+    @SerialName("rebound")
+    data object Rebound : CastingPermissionDto
 }
 
 /** [CastingPermission] to its wire form. */
@@ -81,6 +90,7 @@ fun CastingPermission.toDto(): CastingPermissionDto =
         is CastingPermission.AlternativeCost -> CastingPermissionDto.AlternativeCost(cost.render(), sacrifice?.toDto())
         is CastingPermission.Escape -> CastingPermissionDto.Escape(cost.render(), exileOthers)
         is CastingPermission.Plot -> CastingPermissionDto.Plot(plotCost.render())
+        is CastingPermission.Rebound -> CastingPermissionDto.Rebound
     }
 
 /** [CastingPermissionDto] back to the engine value. */
@@ -92,4 +102,5 @@ fun CastingPermissionDto.toDomain(): CastingPermission =
             CastingPermission.AlternativeCost(ManaCost.parse(cost), sacrifice?.toDomain())
         is CastingPermissionDto.Escape -> CastingPermission.Escape(ManaCost.parse(cost), exileOthers)
         is CastingPermissionDto.Plot -> CastingPermission.Plot(ManaCost.parse(plotCost))
+        is CastingPermissionDto.Rebound -> CastingPermission.Rebound
     }

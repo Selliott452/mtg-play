@@ -55,7 +55,9 @@ import dev.mtgplay.core.state.Target
  * targetable by [you] — so a GW-Bogles player enchants their own hexproof creatures, but an
  * opponent's Aura cannot. [TargetSpec.TargetPermanent] (CR 115.1b) enumerates every battlefield
  * permanent satisfying its [dev.mtgplay.core.definition.PermanentRestriction]
- * ([satisfiesPermanentRestriction]) and targetable by [you], in battlefield order, and never a
+ * ([satisfiesPermanentRestrictionFor], which is decider-relative — "target creature **you control**"
+ * offers a different set in each seat's hand, CR 109.5) and targetable by [you], in battlefield order,
+ * and never a
  * player — the removal specs, and plain "target creature" (Skred, Terminate) among them. Its
  * enumeration is the *only* battlefield thing that makes a removal spell's CR 608.2b fizzle reachable,
  * because a permanent leaves the battlefield in ways a player never leaves the game.
@@ -106,7 +108,7 @@ internal fun legalTargets(
         is TargetSpec.TargetPermanent ->
             state.sharedZones.battlefield
                 .filter {
-                    satisfiesPermanentRestriction(state, spec.restriction, it) &&
+                    satisfiesPermanentRestrictionFor(state, spec.restriction, it, you) &&
                         targetableBy(state, it, you)
                 }.map { Target.Permanent(it.id) }
         is TargetSpec.Enchantable ->

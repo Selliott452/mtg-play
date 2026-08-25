@@ -5,13 +5,13 @@ import dev.mtgplay.core.state.PendingLibrarySearch
 import dev.mtgplay.core.state.PendingOptionalCostDraw
 import dev.mtgplay.core.state.PendingOptionalDiscardDraw
 import dev.mtgplay.core.state.PendingResolutionDiscard
-import dev.mtgplay.rules.PendingLibraryLookView
 import kotlinx.serialization.Serializable
 
 /*
  * Wire mirrors of the mid-resolution pending nouns a [SeatView] carries: each carries only the
  * deciding seat and small scalars; the actual card options are the deciding seat's private request,
- * so a library search exposes only that it is in progress (never the matching cards).
+ * so a library search exposes only that it is in progress (never the matching cards). The two
+ * records that are count-only to *protect* hidden information live in PendingHiddenChoiceDtos.kt.
  */
 
 /** Wire form of [PendingOptionalDiscardDraw] (CR 601.3b). */
@@ -70,25 +70,3 @@ fun PendingLibrarySearch.toDto(): PendingLibrarySearchDto = PendingLibrarySearch
 
 /** [PendingLibrarySearchDto] back to the engine value. */
 fun PendingLibrarySearchDto.toDomain(): PendingLibrarySearch = PendingLibrarySearch(PlayerId(decider))
-
-/**
- * Wire form of [PendingLibraryLookView] (CR 701.14a) — the *count-only* projection of a private look.
- * Neither the looked-at identities nor their object ids appear here or anywhere else a non-deciding seat
- * can read; they reach the deciding seat only as its own request's options
- * (docs/design/library-look.md §3).
- */
-@Serializable
-data class PendingLibraryLookViewDto(
-    val decider: Int,
-    val source: LibraryLookSourceDto,
-    val count: Int,
-    val awaitingShuffle: Boolean,
-)
-
-/** [PendingLibraryLookView] to its wire form. */
-fun PendingLibraryLookView.toDto(): PendingLibraryLookViewDto =
-    PendingLibraryLookViewDto(decider.seat, source.toDto(), count, awaitingShuffle)
-
-/** [PendingLibraryLookViewDto] back to the engine value. */
-fun PendingLibraryLookViewDto.toDomain(): PendingLibraryLookView =
-    PendingLibraryLookView(PlayerId(decider), source.toDomain(), count, awaitingShuffle)

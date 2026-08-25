@@ -4,7 +4,9 @@ import dev.mtgplay.core.identity.CardRef
 import dev.mtgplay.core.identity.ObjectId
 import dev.mtgplay.core.identity.PlayerId
 import dev.mtgplay.core.mana.Color
+import kotlinx.collections.immutable.PersistentList
 import kotlinx.collections.immutable.PersistentMap
+import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.persistentMapOf
 
 /**
@@ -79,6 +81,27 @@ import kotlinx.collections.immutable.persistentMapOf
  *   [Counter.PowerToughness] in CR 613 sublayer 7c (CR 613.4c) and [Counter.KeywordCounter] in layer
  *   6 (CR 613.1f), and annihilates opposing `+1/+1` and `-1/-1` counters as the CR 704.5q
  *   state-based action.
+ * @property linkedExiled the exile objects this permanent's own ability exiled, in the order exiled
+ *   (CR 607.2 **linked abilities**), or empty when it has exiled nothing. Additive, flagged core
+ *   (`FW-LINKEDEXILE`, docs/design/exile-and-return.md §4). Journey to Nowhere's "When this enchantment
+ *   enters, exile target creature" and its "When this enchantment leaves the battlefield, return the
+ *   exiled card" are a linked pair: the second refers to *the card the first exiled*, and nothing else.
+ *   This list is that reference, held on the object whose abilities are linked — which is CR 607.2's own
+ *   phrasing ("the second ability refers to the objects the first exiled").
+ *
+ *   A battlefield-only quantity like [tapped] and [counters]: an object off the battlefield carries
+ *   none, and the fresh object born of any zone move carries none (CR 400.7) — which is precisely
+ *   CR 607.3's answer to "what happens if the permanent leaves and returns", namely that the returning
+ *   permanent is a new object whose new first ability has exiled nothing yet. The acceptance invariant
+ *   checker enforces both the scope and that every id named here is really in exile.
+ * @property reboundTurn the turn on which rebound exiled this card as it resolved (CR 702.88a), or
+ *   `null` when it was not exiled by rebound. Additive, flagged core (`FW-BLINK`,
+ *   docs/design/exile-and-return.md §5) — the exile-only marker for Ephemerate, in the shape
+ *   [plottedTurn] already set. It records *when* because rebound's delayed ability fires at the
+ *   beginning of the controller's **next** upkeep: a spell that resolved during its controller's own
+ *   upkeep must not rebound in that same upkeep, so `mtg-rules` fires only on a strictly later turn.
+ *   `null` everywhere but a rebounding exile card, and on the fresh object born of any zone move
+ *   (CR 400.7); the acceptance invariant checker enforces the scope.
  */
 data class GameObject(
     val id: ObjectId,
@@ -92,11 +115,18 @@ data class GameObject(
     val plottedTurn: Int? = null,
     val chosenColor: Color? = null,
     val counters: PersistentMap<Counter, Int> = persistentMapOf(),
+    val linkedExiled: PersistentList<ObjectId> = persistentListOf(),
+    val reboundTurn: Int? = null,
 ) {
     init {
         require(damageMarked >= 0) { "CR 120.3: marked damage is non-negative, was $damageMarked" }
         require(attachedTo != id) { "CR 303.4: an Aura cannot be attached to itself ($id)" }
         require(plottedTurn == null || plottedTurn >= 1) { "CR 702.140: a plotted turn is a real turn number" }
+        require(reboundTurn == null || reboundTurn >= 1) { "CR 702.88a: a rebound turn is a real turn number" }
+        require(id !in linkedExiled) { "CR 607.2: a permanent cannot be its own linked exile ($id)" }
+        require(linkedExiled.distinct().size == linkedExiled.size) {
+            "CR 607.2: a linked exile record names each exiled object once, got $linkedExiled"
+        }
         require(counters.values.all { it > 0 }) {
             "CR 122.1: a counter multiset records only counters that are present; a kind with a " +
                 "non-positive count must be absent, got $counters"

@@ -25,7 +25,19 @@ internal fun singleOptionMenu(
         is DecisionRequest.ChooseReplacement -> replacementMenu(request)
         is DecisionRequest.ChooseLibraryArrangement -> libraryArrangementMenu(request)
         is DecisionRequest.ChooseCounterPayment -> counterPaymentMenu(request)
+        is DecisionRequest.ChooseRevealedHandCard -> revealedHandMenu(request)
     }
+
+/**
+ * The controller's choice from an opponent's revealed hand (CR 701.16a) — Duress, Mesmeric Fiend. The
+ * header names the revealer, because the deciding seat is choosing out of *somebody else's* hand and the
+ * menu would otherwise read as a choice from its own.
+ */
+private fun revealedHandMenu(request: DecisionRequest.ChooseRevealedHandCard): List<String> =
+    listOf(
+        "Choose a card from seat ${request.revealer.seat}'s revealed hand " +
+            "for ${request.sourceCard.name} (CR 701.16a):",
+    ) + numbered(request.options.map { it.card.name }) + SINGLE_HINT
 
 /**
  * A resolving counter's "unless its controller pays" choice (CR 118.3a). The header names the spell at

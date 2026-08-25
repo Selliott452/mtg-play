@@ -133,8 +133,12 @@ class CostReductionCardsSpec :
             myrEnforcer.characteristics.keywords.toSet() shouldBe emptySet()
         }
 
-        "the five cost cards are registered in the catalog and no other card declares a reduction" {
-            val registered = listOf(myrEnforcer, utromMonitor, thoughtcast, crypticSerpent, ofOneMind)
+        "the six cost cards are registered in the catalog and no other card declares a reduction" {
+            // Refurbished Familiar joined with `FW-NONCTRLDEC`: its affinity half was always encodable
+            // and reuses this file's `affinityForArtifacts` unchanged, so the sixth reducer is a card
+            // this packet unblocked rather than a new cost shape.
+            val registered =
+                listOf(myrEnforcer, utromMonitor, thoughtcast, crypticSerpent, ofOneMind, refurbishedFamiliar)
             registered.forEach { card ->
                 MvpCards.definitions[CardRef(card.characteristics.name)] shouldBe card
             }
@@ -154,11 +158,13 @@ class CostReductionCardsSpec :
             MvpCards.definitions[CardRef("Sunscape Familiar")].shouldBeNull()
         }
 
-        "the four other FW-COST cards stay unencoded, each on a framework this packet does not own" {
+        "the three other FW-COST cards stay unencoded, each on a framework this packet does not own" {
             // Tolarian Terror: ward {2} (CR 702.21a) — a triggered ability, `FW-WARD`.
-            // Refurbished Familiar / Deem Inferior: a decision put to a non-controller, `FW-NONCTRLDEC`.
+            // Deem Inferior: the *owner* chooses a library position, and the reduction counts cards drawn
+            //   this turn — a turn-scoped event count the state still does not track.
             // Ride's End: a cost priced off the chosen target, `FW-TGTCOND`.
-            listOf("Tolarian Terror", "Refurbished Familiar", "Deem Inferior", "Ride's End").forEach {
+            // Refurbished Familiar has left this list: `FW-NONCTRLDEC` landed and it is now encoded.
+            listOf("Tolarian Terror", "Deem Inferior", "Ride's End").forEach {
                 MvpCards.definitions[CardRef(it)].shouldBeNull()
             }
         }

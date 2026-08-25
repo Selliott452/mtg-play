@@ -54,6 +54,8 @@ class RandomRemoteAgent(
                 is DecisionRequestDto.ChooseOptionalDiscard -> request.options.size to request.count
                 is DecisionRequestDto.ChooseResolutionDiscards -> request.options.size to request.count
                 is DecisionRequestDto.ChooseOptionalCostObject -> request.options.size to 1
+                // CR 701.7a: an each-opponent discard, answered by an opponent over their own hand.
+                is DecisionRequestDto.ChooseOpponentDiscards -> request.options.size to request.count
             }
         return DecisionDto.MultiSelect(request.id, subset(optionCount, requiredCount))
     }
@@ -78,6 +80,8 @@ class RandomRemoteAgent(
             is DecisionRequestDto.ChooseReplacement -> request.options.size
             is DecisionRequestDto.ChooseLibraryArrangement -> request.options.size
             is DecisionRequestDto.ChooseCounterPayment -> request.options.size
+            // CR 701.16a: the controller's pick from an opponent's revealed hand.
+            is DecisionRequestDto.ChooseRevealedHandCard -> request.options.size
         }
 
     // The number of selectable indices of a "choose one, or opt out" request (real options + one opt-out).

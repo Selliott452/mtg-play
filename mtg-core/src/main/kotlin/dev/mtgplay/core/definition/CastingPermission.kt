@@ -144,4 +144,28 @@ sealed interface CastingPermission {
         override val cost: ManaCost = ManaCost.parse("{0}")
         override val source: CastSource = CastSource.EXILE
     }
+
+    /**
+     * Rebound (CR 702.88b): the spell was cast from its owner's hand, exiled itself instead of going to
+     * the graveyard as it resolved ([dev.mtgplay.core.state.GameObject.reboundTurn] records the turn),
+     * and its delayed ability is now offering a free cast from exile at the beginning of the
+     * controller's next upkeep. Cast **without paying its mana cost** ([cost] is `{0}`) from
+     * [CastSource.EXILE]. Ephemerate's. Additive, flagged core (`FW-BLINK`,
+     * docs/design/exile-and-return.md §5).
+     *
+     * `offeredAtPriority` is `false` for exactly madness's reason (CR 702.88b): the cast is offered only
+     * as the delayed triggered ability resolves, never at a plain priority window — a rebounding card
+     * sitting in exile is not castable on demand, and enumerating it at priority would let a seat cast
+     * it on any turn it liked.
+     *
+     * A rebound cast is a cast **from exile**, so [SpellDefinition.rebound]'s own "if this spell was cast
+     * from your hand" condition is false for it and the spell goes to the graveyard this time. That is
+     * how CR 702.88a stops the loop, and it needs no separate guard.
+     */
+    data object Rebound : CastingPermission {
+        // CR 702.88b: cast without paying its mana cost — a {0} cost yields a single empty payment plan.
+        override val cost: ManaCost = ManaCost.parse("{0}")
+        override val source: CastSource = CastSource.EXILE
+        override val offeredAtPriority: Boolean = false
+    }
 }

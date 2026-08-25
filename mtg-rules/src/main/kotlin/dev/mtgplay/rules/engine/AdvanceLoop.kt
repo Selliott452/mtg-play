@@ -143,7 +143,10 @@ internal fun beginPosition(state: GameState): AdvanceResult {
         null -> grantPriorityRound(current)
         // CR 502.4: no player receives priority during the untap step.
         TurnStep.UNTAP -> advancePastCurrentPosition(untapStepTurnBasedActions(current))
-        TurnStep.UPKEEP -> grantPriorityRound(current)
+        // CR 503.1: the upkeep has no turn-based action of its own, but "at the beginning of your
+        // upkeep" abilities trigger as it begins (CR 603.2) — rebound's delayed cast is the first
+        // (CR 702.88a). The triggers are enqueued here and placed on the stack by grantPriorityRound.
+        TurnStep.UPKEEP -> grantPriorityRound(fireReboundTriggers(current, current.turn.activePlayer))
         // CR 504.1: the active player draws, then priority is granted (CR 504.2).
         TurnStep.DRAW -> grantPriorityRound(drawStepTurnBasedAction(current))
         // CR 507: the beginning-of-combat step has no turn-based action in the MVP scope.

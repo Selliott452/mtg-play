@@ -53,5 +53,5 @@ private fun sacrificeOnePermanent(
             .updatePlayer(permanent.owner) { it.copy(graveyard = it.graveyard.adding(reborn)) }
             .emit(GameEvent.PermanentSacrificed(player, objectId, permanent.card, graveyardId))
     // CR 603.6b, CR 603.10: a leaves-the-battlefield trigger fires against the pre-sacrifice state.
-    return detectPutIntoGraveyardTriggers(moved, permanent, graveyardId)
+    return announceBattlefieldDeparture(moved, permanent, graveyardId)
 }

@@ -41,4 +41,22 @@ enum class PermanentRestriction {
     /** "Target artifact" (CR 301): any artifact on the battlefield, including an artifact land.
      * Smash to Smithereens, Ancient Grudge. */
     ARTIFACT,
+
+    /**
+     * "Target creature **you control**" (CR 115.1b, CR 109.5): a creature controlled by the player
+     * doing the choosing. Ephemerate. Additive, flagged core (`FW-BLINK`,
+     * docs/design/exile-and-return.md §2.1).
+     *
+     * The **first permanent restriction that is decider-relative** — its legal set depends on who is
+     * casting or activating, not only on the board, exactly as [TargetSpec.TargetOpponent] and
+     * [GraveyardScope.YOURS] already are for players and graveyards. CR 109.5 is explicit that "you"
+     * in an object's text means the object's controller, so the same Ephemerate offers different
+     * options in each seat's hand and the enumeration must be asked per chooser rather than cached.
+     *
+     * Control is ownership in the current pool (no control-changing effect exists), so `mtg-rules`
+     * reads [dev.mtgplay.core.state.GameObject.owner]; the day a control-changing effect lands, this
+     * is one of the sites that must start reading a real controller, and it says so here rather than
+     * leaving the equivalence to be rediscovered.
+     */
+    CREATURE_YOU_CONTROL,
 }

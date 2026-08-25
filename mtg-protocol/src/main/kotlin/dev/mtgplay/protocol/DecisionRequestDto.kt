@@ -5,7 +5,7 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 /**
- * Wire form of the full [DecisionRequest] hierarchy (ADR-004/ADR-005) — all 26 request kinds, each
+ * Wire form of the full [DecisionRequest] hierarchy (ADR-004/ADR-005) — all 30 request kinds, each
  * carrying its stable [id] and its enumerated options. The mapping to and from the engine
  * ([toDto]/[toDomain]) is exhaustive in both directions, so a new request kind is a compile-time
  * schema break (ADR-008 amendment).
@@ -303,6 +303,38 @@ sealed interface DecisionRequestDto {
         val cost: String,
         val options: List<CounterPaymentOptionDto>,
     ) : SingleOptionSelectionDto
+
+    /**
+     * Wire form of [DecisionRequest.ChooseRevealedHandCard] (CR 701.16a) — pick one card from the
+     * opponent's revealed hand. [revealer] is the opponent whose hand was revealed, never the deciding
+     * seat; the option cards are public because CR 701.16a revealed them to every player, which is why
+     * this request carries names at all. Added by `FW-HIDDENCHOICE`.
+     */
+    @Serializable
+    @SerialName("choose_revealed_hand_card")
+    data class ChooseRevealedHandCard(
+        override val id: DecisionRequestIdDto,
+        val revealer: Int,
+        val sourceCard: String,
+        val options: List<CardObjectOptionDto>,
+    ) : SingleOptionSelectionDto
+
+    /**
+     * Wire form of [DecisionRequest.ChooseOpponentDiscards] (CR 701.7a) — an "each opponent discards a
+     * card" selection made by an opponent of the resolving object's controller over their **own** hand.
+     * [controller] is carried for display only; a request reaches the deciding seat alone (ADR-007), so
+     * the options never travel to the controller, whose seat view carries the count-only
+     * [SeatViewDto.pendingOpponentDiscard] instead. Added by `FW-NONCTRLDEC`.
+     */
+    @Serializable
+    @SerialName("choose_opponent_discards")
+    data class ChooseOpponentDiscards(
+        override val id: DecisionRequestIdDto,
+        val controller: Int,
+        val sourceCard: String,
+        val options: List<CardObjectOptionDto>,
+        val count: Int,
+    ) : SizedSelectionDto
 
     /** Wire form of [DecisionRequest.ChooseMulligan] (CR 103.4). */
     @Serializable
