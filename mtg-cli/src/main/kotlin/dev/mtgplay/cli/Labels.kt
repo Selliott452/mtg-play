@@ -3,6 +3,7 @@ package dev.mtgplay.cli
 import dev.mtgplay.core.card.CardType
 import dev.mtgplay.core.card.Keyword
 import dev.mtgplay.core.card.PrintedCharacteristics
+import dev.mtgplay.core.card.Subtype
 import dev.mtgplay.core.identity.ObjectId
 import dev.mtgplay.core.state.Counter
 import dev.mtgplay.core.state.GameObject
@@ -101,7 +102,7 @@ private fun typeTag(
 }
 
 /** Whether a card is an Aura (CR 303.1a): an enchantment with the Aura subtype. */
-private fun isAura(printed: PrintedCharacteristics): Boolean = printed.subtypes.any { it.value == "Aura" }
+private fun isAura(printed: PrintedCharacteristics): Boolean = printed.hasSubtype(Subtype("Aura"))
 
 /**
  * A hand card's one-line label: its name, printed mana cost (CR 202), and a compact type line. Used

@@ -31,9 +31,11 @@ internal sealed interface StateBasedAction {
     ) : StateBasedAction
 
     /**
-     * The creature [objectId] dies (CR 704.5f/g): it is put from the battlefield into its owner's
-     * graveyard. [cause] distinguishes the two conditions — lethal marked damage (destruction) from
-     * zero-or-less toughness (not destruction) — see [CreatureDeathCause]. Added in P3.2.
+     * The creature [objectId] dies (CR 704.5f/g/h): it is put from the battlefield into its owner's
+     * graveyard. [cause] distinguishes destruction by damage — whether lethal marked damage
+     * (CR 704.5g) or any damage from a deathtouch source (CR 704.5h) — from zero-or-less toughness
+     * (CR 704.5f), which is not destruction; see [CreatureDeathCause]. Added in P3.2, widened by the
+     * keyword-tail packet.
      */
     data class CreatureDies(
         val objectId: ObjectId,
@@ -95,8 +97,13 @@ private fun counterAnnihilationActions(state: GameState): List<StateBasedAction>
     }
 
 /**
- * The creature-death state-based actions applicable to [state] (CR 704.5f, CR 704.5g), in battlefield
- * order — split out of [applicableStateBasedActions] so each check reads as one rule.
+ * The creature-death state-based actions applicable to [state] (CR 704.5f, CR 704.5g, CR 704.5h), in
+ * battlefield order — split out of [applicableStateBasedActions] so each check reads as one rule.
+ *
+ * The three are ordered by the CR's own precedence: CR 704.5f (toughness 0 or less) is not destruction
+ * and applies first; the two destruction actions apply only to a creature with toughness greater than
+ * 0, and each produces the same [CreatureDeathCause.LETHAL_DAMAGE] outcome because each is a
+ * destruction by damage — a distinction between them would be a distinction nothing in the rules reads.
  */
 private fun creatureDeathActions(state: GameState): List<StateBasedAction> =
     state.sharedZones.battlefield.mapNotNull { obj ->
@@ -104,18 +111,26 @@ private fun creatureDeathActions(state: GameState): List<StateBasedAction> =
             null
         } else {
             val toughness = effectiveToughness(state, obj.id)
+            // CR 702.12b: an indestructible permanent is not destroyed, which exempts it from both
+            // destruction actions below. The exemption is deliberately confined to them: CR 704.5f is
+            // not destruction (see [CreatureDeathCause]), and indestructible never stops it.
+            val destructible = !isIndestructible(state, obj.id)
             when {
                 // CR 704.5f: toughness 0 or less — graveyard, and it takes precedence over
-                // CR 704.5g, which only ever applies to a creature with toughness greater than 0.
+                // CR 704.5g/h, which only ever apply to a creature with toughness greater than 0.
                 toughness <= 0 ->
                     StateBasedAction.CreatureDies(obj.id, CreatureDeathCause.ZERO_OR_LESS_TOUGHNESS)
                 // CR 704.5g: toughness greater than 0 and marked damage at least equal to it —
                 // lethal damage, destroyed. (Marked damage is then necessarily positive.)
-                // CR 702.12b: an indestructible permanent is not destroyed by lethal damage, so the
-                // action does not apply to it. The exemption is deliberately confined to this branch:
-                // CR 704.5f is not destruction (see [CreatureDeathCause]), and indestructible never
-                // stops it.
-                obj.damageMarked >= toughness && !isIndestructible(state, obj.id) ->
+                obj.damageMarked >= toughness && destructible ->
+                    StateBasedAction.CreatureDies(obj.id, CreatureDeathCause.LETHAL_DAMAGE)
+                // CR 704.5h: toughness greater than 0 and damage dealt by a source with deathtouch —
+                // destroyed, *whatever* the amount. This is a genuinely separate action from
+                // CR 704.5g, not a lower threshold for it: one damage from a deathtoucher destroys a
+                // 5/5 that is four short of its lethal total, so no arithmetic on the marked-damage
+                // total above could ever express it. The condition is the fact recorded when the
+                // damage was marked (CR 702.2b), because the source may be gone by now (CR 113.7a).
+                obj.dealtDeathtouchDamage && destructible ->
                     StateBasedAction.CreatureDies(obj.id, CreatureDeathCause.LETHAL_DAMAGE)
                 else -> null
             }

@@ -8,6 +8,7 @@ import dev.mtgplay.rules.engine.changeLife
 import dev.mtgplay.rules.engine.damageIsPrevented
 import dev.mtgplay.rules.engine.emit
 import dev.mtgplay.rules.engine.markDamage
+import dev.mtgplay.rules.engine.sourceHasDeathtouch
 
 /**
  * Effect primitive: [source] deals [amount] damage to [recipient] (CR 120) — the published
@@ -91,10 +92,14 @@ private fun dealUnpreventedDamage(
                 -amount,
             )
         is Target.Permanent ->
+            // CR 702.2b / CR 704.5h: whether the source has deathtouch is decided here, while the
+            // source still exists, and latched onto the recipient — the state-based action that reads
+            // it runs later, when the source may be gone (CR 113.7a).
             markDamage(
                 state.emit(GameEvent.DamageDealt(source, recipient, amount)),
                 recipient.id,
                 amount,
+                fromDeathtouchSource = sourceHasDeathtouch(state, source),
             )
         // CR 120.3: damage is dealt to a creature, a player, a planeswalker, or a battle — never to a
         // spell on the stack and never to a card in a graveyard. No card in the pool can produce either

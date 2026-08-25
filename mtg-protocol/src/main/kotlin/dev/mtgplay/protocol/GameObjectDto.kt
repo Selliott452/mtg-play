@@ -19,6 +19,11 @@ import kotlinx.serialization.Serializable
  * @property owner the owner's seat index (CR 108.3).
  * @property tapped whether the object is tapped (CR 110.5b).
  * @property damageMarked marked damage (CR 120.3).
+ * @property dealtDeathtouchDamage whether damage from a source with deathtouch has been marked on this
+ *   object (CR 702.2, CR 704.5h); `false` for every object off the battlefield. Public information
+ *   (ADR-007) — which creature is about to die to a deathtoucher is as visible across the table as the
+ *   damage itself, and a consumer that could see the damage but not its source could not explain the
+ *   death that follows. Added by the keyword-tail packet.
  * @property summoningSick the summoning-sickness fact (CR 302.6).
  * @property attachedTo the object this Aura is attached to (CR 303.4), or `null`.
  * @property awaitingMadness the exile madness marker (CR 702.35a), or `false`.
@@ -47,6 +52,7 @@ data class GameObjectDto(
     val owner: Int,
     val tapped: Boolean,
     val damageMarked: Int,
+    val dealtDeathtouchDamage: Boolean,
     val summoningSick: Boolean,
     val attachedTo: Long?,
     val awaitingMadness: Boolean,
@@ -66,6 +72,7 @@ fun GameObject.toDto(): GameObjectDto =
         owner = owner.seat,
         tapped = tapped,
         damageMarked = damageMarked,
+        dealtDeathtouchDamage = dealtDeathtouchDamage,
         summoningSick = summoningSick,
         attachedTo = attachedTo?.value,
         awaitingMadness = awaitingMadness,
@@ -87,6 +94,7 @@ fun GameObjectDto.toDomain(): GameObject =
         owner = PlayerId(owner),
         tapped = tapped,
         damageMarked = damageMarked,
+        dealtDeathtouchDamage = dealtDeathtouchDamage,
         summoningSick = summoningSick,
         attachedTo = attachedTo?.let(::ObjectId),
         awaitingMadness = awaitingMadness,

@@ -67,8 +67,15 @@ internal fun drawStepTurnBasedAction(state: GameState): GameState = drawCard(sta
 internal fun cleanupRemoveDamageAndEndEffects(state: GameState): GameState {
     val cleared =
         state.sharedZones.battlefield
-            .map { obj -> if (obj.damageMarked != 0) obj.copy(damageMarked = 0) else obj }
-            .toPersistentList()
+            .map { obj ->
+                // CR 514.2: the deathtouch record is part of the marked damage it describes, so it is
+                // wiped in the same transition rather than outliving the damage that set it.
+                if (obj.damageMarked != 0 || obj.dealtDeathtouchDamage) {
+                    obj.copy(damageMarked = 0, dealtDeathtouchDamage = false)
+                } else {
+                    obj
+                }
+            }.toPersistentList()
     val surviving =
         state.timedEffects
             .filterNot { effect ->

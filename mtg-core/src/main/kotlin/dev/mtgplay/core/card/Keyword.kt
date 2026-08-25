@@ -14,14 +14,17 @@ package dev.mtgplay.core.card
  * (never by reading a definition directly), so Phase 4 can reroute the read without touching the
  * combat rules.
  *
- * All eleven change engine behaviour: [FLYING], [FIRST_STRIKE], and [VIGILANCE] since P3.1;
+ * All thirteen change engine behaviour: [FLYING], [FIRST_STRIKE], and [VIGILANCE] since P3.1;
  * [TRAMPLE], [HEXPROOF], and [LIFELINK] since P5.3 (the trample assignment decision, the targeting
  * restriction on enumeration, and the damage-result lifegain, respectively); [INDESTRUCTIBLE] since
  * P8.4 (the CR 704.5g lethal-damage exemption, and the CR 701.7a destroy effect since the removal
  * packet); [HASTE], [DEFENDER], and [REACH] since `FW-COUNTERS` (the summoning-sickness bypass, the
- * attack bar, and the flying-blocker permission, respectively); and [DEVOID], which alone among them
- * changes a characteristic rather than combat — it makes [PrintedCharacteristics.colors] colorless
- * (CR 105.2, CR 702.114a) instead of deriving colour from the mana cost.
+ * attack bar, and the flying-blocker permission, respectively); [DEATHTOUCH] since the keyword-tail
+ * packet (the CR 704.5h destruction state-based action and the CR 510.1c / CR 702.19b lethal-damage
+ * arithmetic); and the two that change a *characteristic* rather than combat — [DEVOID], which makes
+ * [PrintedCharacteristics.colors] colorless (CR 105.2, CR 702.114a) instead of deriving colour from
+ * the mana cost, and [CHANGELING], which makes [PrintedCharacteristics.hasSubtype] answer yes for
+ * every creature type (CR 205.3m, CR 702.73a).
  *
  * **No member is ever a bare enum entry.** A keyword joins this set with the rules effect it names,
  * honoured at every site that decides the thing it changes, and read only through the
@@ -125,4 +128,57 @@ enum class Keyword {
      * same, and `canBlock` in `mtg-rules` keeps them apart.
      */
     REACH,
+
+    /**
+     * Deathtouch (CR 702.2): "any nonzero amount of damage this deals to a creature is enough to
+     * destroy it" (CR 702.2b). Added by the keyword-tail packet, and the enum member is the smaller
+     * half of it — deathtouch is not a flag combat consults once, it is a rewrite of what the word
+     * *lethal* means, at every site that computes lethality.
+     *
+     * **Three rules sites, all reached through the one effective-keyword seam** (`hasDeathtouch` in
+     * `EffectiveCharacteristics.kt`), because the sites disagree the moment one of them re-derives it:
+     * - **CR 704.5h**, its own state-based action, distinct from the CR 704.5g lethal-damage one: a
+     *   creature dealt damage by a source with deathtouch is destroyed *whatever* its toughness and
+     *   *however* little damage it took. One damage from a deathtoucher kills a 5/5 that is nowhere
+     *   near its marked-damage threshold, so 704.5g could never express it — which is why this keyword
+     *   needed [dev.mtgplay.core.state.GameObject.dealtDeathtouchDamage] rather than an arithmetic
+     *   tweak to the existing check.
+     * - **CR 510.1c** lethal-damage assignment: a blocked attacker with deathtouch need assign only
+     *   **1** to each blocker before the rest may go elsewhere (CR 702.2b).
+     * - **CR 702.19b** trample excess, which is CR 510.1c's arithmetic seen from the other end: a
+     *   trampling deathtoucher's excess is its power minus 1 per surviving blocker, so a 4/4 with both
+     *   keywords blocked by a 5/5 assigns 1 and tramples 3 over.
+     *
+     * [INDESTRUCTIBLE] beats it (CR 702.12b): CR 704.5h destroys, and an indestructible permanent is
+     * not destroyed. Multiple instances are redundant (CR 702.2d) — free, since the keyword set is a set.
+     *
+     * Nothing in the gauntlet pool *prints* deathtouch; Toxin Analysis **grants** it until end of turn,
+     * which is why the keyword and the layer-6 grant path had to land together.
+     */
+    DEATHTOUCH,
+
+    /**
+     * Changeling (CR 702.73): "this card is every creature type" (CR 702.73a). Added by the
+     * keyword-tail packet.
+     *
+     * The second keyword after [DEVOID] that changes a **characteristic** rather than combat, and it
+     * follows [DEVOID]'s path exactly for the same reason: CR 702.73a makes changeling a
+     * characteristic-defining ability that "works everywhere, even outside the game", so it is read
+     * off the printed characteristics directly ([PrintedCharacteristics.hasSubtype]) rather than only
+     * through the battlefield layer system, and a Shapeshifter in a library or a graveyard is an Elf
+     * there too.
+     *
+     * **It is not cosmetic, and the naive implementation is silently wrong.** Every subtype predicate
+     * in the engine must answer yes for a changeling — Priest of Titania and Wellwisher count it as an
+     * Elf, Breath Weapon spares it as a Dragon, a Human cost-reduction counts it as a Human — but only
+     * for a **creature** type. CR 205.3 categorises a subtype by the word itself, and changeling grants
+     * creature types only, so a changeling is *not* a Forest for Gingerbread Cabin, *not* a Mountain
+     * for Fireblast's sacrifice cost, and *not* an Aura. [Subtype] is a value class over the printed
+     * word and carries no category, so the packet added [Subtype.isCreatureType] (CR 205.3m) and made
+     * the changeling answer conditional on it; without that gate a 5-mana Shapeshifter would quietly
+     * turn on every land-type count on the battlefield.
+     *
+     * Rooftop Percher is the pool's only changeling.
+     */
+    CHANGELING,
 }

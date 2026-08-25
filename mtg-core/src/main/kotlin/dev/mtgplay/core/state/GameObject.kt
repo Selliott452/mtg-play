@@ -38,6 +38,34 @@ import kotlinx.collections.immutable.persistentSetOf
  *   damage is set when a source deals damage to the object (CR 120.3d) and wears off as the
  *   turn's cleanup step ends (CR 514.2). Lethal-damage destruction is the CR 704.5g state-based
  *   action, which arrives in P3.2 — a creature does not die from marked damage in P3.1.
+ * @property dealtDeathtouchDamage whether damage from a source with deathtouch (CR 702.2) has been
+ *   marked on this object, which is the condition of the CR 704.5h state-based action: such a creature
+ *   is destroyed whatever its toughness and however little damage it took. Additive, flagged core (the
+ *   keyword-tail packet).
+ *
+ *   **It is a separate fact from [damageMarked] because CR 704.5h is a separate rule from CR 704.5g.**
+ *   One damage from a deathtoucher destroys a 5/5 that is four short of lethal, so no arithmetic on a
+ *   bare [damageMarked] total can express it; and [damageMarked] is an [Int] with no memory of what
+ *   dealt it, so the source characteristic has to be recorded when the damage lands or be lost.
+ *
+ *   A battlefield-only, turn-scoped quantity exactly like [damageMarked]: it is set as the damage is
+ *   marked (CR 120.3d), cleared in the same CR 514.2 cleanup transition that wipes marked damage, and
+ *   the fresh object born of any zone move carries none (CR 400.7). The acceptance invariant checker
+ *   enforces the scope, and additionally that a creature carrying it also carries positive
+ *   [damageMarked] — the flag can only ever be set alongside a real, unprevented damage event.
+ *
+ *   **Deviation from CR 704.5h's wording, recorded rather than hidden.** The rule says "since the last
+ *   time state-based actions were checked"; this flag instead persists until cleanup. The two are
+ *   observationally identical over this engine's closed list of effects, and the argument is a case
+ *   split rather than a hope: a creature carrying the flag is destroyed at the *very next* check unless
+ *   it is [dev.mtgplay.core.card.Keyword.INDESTRUCTIBLE] (CR 702.12b), in which case it is never
+ *   destroyed by it at any later check either; damage that is prevented is never dealt (CR 615.6) so
+ *   sets nothing; and nothing in the pool regenerates or otherwise survives one check to face another.
+ *   Clearing the flag on every check would instead mean writing to every battlefield object every time
+ *   any player would receive priority, which is state churn the replay fingerprint would carry for no
+ *   observable difference. The first effect that lets a creature survive a check while flagged — a
+ *   regeneration shield, a totem-armour replacement — makes the distinction real and must move the
+ *   clear into the check.
  * @property summoningSick whether this object has *not* been continuously controlled by its
  *   controller since the start of that player's most recent turn (CR 302.6). Additive, flagged
  *   core (P3.1): a creature that is summoning sick cannot be declared as an attacker (CR 508.1a).
@@ -123,6 +151,7 @@ data class GameObject(
     val owner: PlayerId,
     val tapped: Boolean = false,
     val damageMarked: Int = 0,
+    val dealtDeathtouchDamage: Boolean = false,
     val summoningSick: Boolean = true,
     val attachedTo: ObjectId? = null,
     val awaitingMadness: Boolean = false,
@@ -135,6 +164,10 @@ data class GameObject(
 ) {
     init {
         require(damageMarked >= 0) { "CR 120.3: marked damage is non-negative, was $damageMarked" }
+        require(!dealtDeathtouchDamage || damageMarked > 0) {
+            "CR 704.5h: deathtouch damage is damage, so an object flagged as having been dealt it " +
+                "always carries marked damage too (object $id has none)"
+        }
         require(manaAbilitiesActivatedThisTurn.all { it >= 0 }) {
             "CR 602.5b: a per-turn activation record indexes a printed mana ability, got " +
                 "$manaAbilitiesActivatedThisTurn"

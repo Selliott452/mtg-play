@@ -7,6 +7,7 @@ import dev.mtgplay.acceptance.playerWithZones
 import dev.mtgplay.acceptance.twoPlayerState
 import dev.mtgplay.cards.MvpCards
 import dev.mtgplay.core.card.CardType
+import dev.mtgplay.core.card.Keyword
 import dev.mtgplay.core.card.PrintedCharacteristics
 import dev.mtgplay.core.definition.AbilityCost
 import dev.mtgplay.core.definition.ActivatedAbility
@@ -24,6 +25,7 @@ import dev.mtgplay.core.random.Rng
 import dev.mtgplay.core.state.AttackerAssignment
 import dev.mtgplay.core.state.BlockAssignment
 import dev.mtgplay.core.state.CombatState
+import dev.mtgplay.core.state.Counter
 import dev.mtgplay.core.state.GameObject
 import dev.mtgplay.core.state.GameState
 import dev.mtgplay.core.state.PendingResolutionDiscard
@@ -381,6 +383,23 @@ class InvariantCheckerSpec :
             checkMarkedDamageScope(listOf(ZoneResidence(ZoneId.Battlefield, marked))).shouldBeEmpty()
         }
 
+        "CR 704.5h: a deathtouch record off the battlefield is exactly one MARKED_DAMAGE_SCOPE violation" {
+            // The record describes marked damage, so it shares its scope: an object reborn in a
+            // graveyard carries neither (CR 400.7). Two violations, one per property, is the honest
+            // count — the corrupt object really does break both.
+            val marked =
+                GameObject(ObjectId(1), CardRef("Bear"), alice, damageMarked = 2, dealtDeathtouchDamage = true)
+            checkMarkedDamageScope(listOf(ZoneResidence(ZoneId.Graveyard(alice), marked)))
+                .map { it.invariant } shouldContainExactly
+                listOf(Invariant.MARKED_DAMAGE_SCOPE, Invariant.MARKED_DAMAGE_SCOPE)
+        }
+
+        "a deathtouch record on the battlefield is within scope and clean" {
+            val marked =
+                GameObject(ObjectId(1), CardRef("Bear"), alice, damageMarked = 1, dealtDeathtouchDamage = true)
+            checkMarkedDamageScope(listOf(ZoneResidence(ZoneId.Battlefield, marked))).shouldBeEmpty()
+        }
+
         // --- COMBAT_REFERENCES_VALID -------------------------------------------------------
 
         "CR 508.1: a combat attacker not on the battlefield is one COMBAT_REFERENCES_VALID violation" {
@@ -448,6 +467,38 @@ class InvariantCheckerSpec :
         "creature lethality: sublethal marked damage on a battlefield creature is clean" {
             val bears = GameObject(ObjectId(1), CardRef("Grizzly Bears"), alice, damageMarked = 1)
             checkCreatureLethalityResolved(lethalityState(listOf(bears))).shouldBeEmpty()
+        }
+
+        "CR 704.5h: a battlefield creature carrying a deathtouch record is one CREATURE_LETHALITY_RESOLVED violation" {
+            // Grizzly Bears is 2/2 and the damage is sublethal, so CR 704.5g is clean and only
+            // CR 704.5h makes this a lingering death — which is the whole point of the separate rule.
+            val bears =
+                GameObject(
+                    ObjectId(1),
+                    CardRef("Grizzly Bears"),
+                    alice,
+                    damageMarked = 1,
+                    dealtDeathtouchDamage = true,
+                )
+            checkCreatureLethalityResolved(lethalityState(listOf(bears))).map { it.invariant } shouldContainExactly
+                listOf(Invariant.CREATURE_LETHALITY_RESOLVED)
+        }
+
+        "CR 702.12b: an indestructible creature is exempt from both destruction conditions, never a violation" {
+            // A Bridge is an indestructible *land*, so the only indestructible creature this checker can
+            // meet is a granted one — Tamiyo's Safekeeping's shape. It may sit at a pause with lethal
+            // marked damage and a deathtouch record and be entirely correct (CR 702.12b), which is why
+            // the exemption had to be stated the moment deathtouch became grantable.
+            val warded =
+                GameObject(
+                    ObjectId(1),
+                    CardRef("Grizzly Bears"),
+                    alice,
+                    damageMarked = 5,
+                    dealtDeathtouchDamage = true,
+                    counters = persistentMapOf(Counter.KeywordCounter(Keyword.INDESTRUCTIBLE) to 1),
+                )
+            checkCreatureLethalityResolved(lethalityState(listOf(warded))).shouldBeEmpty()
         }
 
         "creature lethality: a definitionless creature card is inert and never a violation" {

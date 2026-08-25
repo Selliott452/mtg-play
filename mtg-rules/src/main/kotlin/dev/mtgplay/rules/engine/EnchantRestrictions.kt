@@ -36,7 +36,7 @@ internal fun satisfiesEnchantRestriction(
     return when (restriction) {
         EnchantRestriction.CREATURE -> CardType.CREATURE in characteristics.cardTypes
         EnchantRestriction.LAND -> CardType.LAND in characteristics.cardTypes
-        EnchantRestriction.FOREST -> FOREST_SUBTYPE in characteristics.subtypes
+        EnchantRestriction.FOREST -> characteristics.hasSubtype(FOREST_SUBTYPE)
         EnchantRestriction.CREATURE_YOU_CONTROL ->
             CardType.CREATURE in characteristics.cardTypes && candidate.owner == controller
     }

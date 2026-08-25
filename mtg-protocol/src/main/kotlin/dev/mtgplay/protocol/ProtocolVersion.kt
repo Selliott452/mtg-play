@@ -336,5 +336,32 @@ package dev.mtgplay.protocol
  *
  * `FW-TRIGCOMBAT` adds nothing to the wire at all: a new [dev.mtgplay.core.definition.TriggerCondition]
  * is card-definition data, and definitions are static match configuration that never travels.
+ *
+ *
+ * ## `8.0.0` — the keyword tail: deathtouch, changeling, and a granted evasion
+ *
+ * **Call: bump to `8.0.0`,** and — unlike the several packets `7.0.0` absorbed — this one is *not*
+ * folded into the previous major, because the break is of the sharper kind and hits two independent
+ * places at once.
+ *
+ * 1. **A new required field on [GameObjectDto]**: `dealtDeathtouchDamage` (CR 704.5h). Every game
+ *    object on the wire is a [GameObjectDto], so a strict `7.0.0` codec (`ignoreUnknownKeys = false`)
+ *    rejects **every seat view**, not only boards containing a deathtoucher. That is the same break
+ *    shape `6.0.0` recorded for `linkedExiled`/`reboundTurn`, and the field is required for the same
+ *    reason: an omitted-by-default record would let an old client watch a 5/5 die to one point of
+ *    damage with nothing in the message explaining why.
+ * 2. **Two new vocabulary values, met as a runtime decode failure** rather than a field mismatch.
+ *    [dev.mtgplay.core.card.Keyword] gains `DEATHTOUCH` and `CHANGELING` and
+ *    [dev.mtgplay.core.card.Evasion] gains `BLOCKABLE_ONLY_BY_HASTE`; both ride in
+ *    [PrintedCardDto]'s printed characteristics, whose `parseVocabulary` is deliberately strict, so a
+ *    `7.0.0` peer meets the new names as an exception *mid-match* — the harsher of the two break modes
+ *    this file distinguishes, and the one `4.0.0` and `5.0.0` were bumped for.
+ *
+ * The client→server direction is **unchanged**: no [DecisionRequestDto] member, no
+ * [DecisionRequestKindDto] value and no [TargetDto] member is added. Deathtouch and the new evasion do
+ * change which options an agent is *offered* — a deathtouching trampler's `assign_trample_damage`
+ * range is larger (CR 702.2b makes 1 lethal to each blocker), and an attacker with the haste evasion
+ * yields fewer `declare_blockers` options — but an option list is a payload the wire already carries,
+ * not a new shape.
  */
-const val PROTOCOL_VERSION: String = "7.0.0"
+const val PROTOCOL_VERSION: String = "8.0.0"

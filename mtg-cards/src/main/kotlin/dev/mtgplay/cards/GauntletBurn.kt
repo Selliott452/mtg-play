@@ -14,6 +14,7 @@ import dev.mtgplay.rules.effect.dealDamage
 import dev.mtgplay.rules.effect.dealDamageToEachOpponent
 import dev.mtgplay.rules.effect.dealDamageToEachPermanent
 import dev.mtgplay.rules.effect.isCreaturePermanent
+import dev.mtgplay.rules.engine.hasSubtype
 import kotlinx.collections.immutable.persistentSetOf
 
 /*
@@ -65,17 +66,6 @@ private fun hasCardType(
         ?.characteristics
         ?.cardTypes
         ?.contains(type) == true
-
-/** Whether the battlefield object [obj] has printed creature type [subtype] (CR 205.3); inert objects have none. */
-private fun hasSubtype(
-    state: GameState,
-    obj: GameObject,
-    subtype: Subtype,
-): Boolean =
-    state.definitions[obj.card]
-        ?.characteristics
-        ?.subtypes
-        ?.contains(subtype) == true
 
 /**
  * Gut Shot — `{R/P}` Instant. "({R/P} can be paid with either {R} or 2 life.) Gut Shot deals 1 damage
@@ -176,7 +166,7 @@ val breathWeapon: SpellDefinition =
         override val resolution =
             ResolutionEffect { state, context ->
                 dealDamageToEachPermanent(state, context.damageSource(), BREATH_WEAPON_DAMAGE) { current, obj ->
-                    isCreaturePermanent(current, obj) && !hasSubtype(current, obj, DRAGON)
+                    isCreaturePermanent(current, obj) && !hasSubtype(current, obj.id, DRAGON)
                 }
             }
     }

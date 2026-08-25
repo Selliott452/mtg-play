@@ -124,6 +124,35 @@ class ReplaySpec :
             fingerprint(withAttachment(ObjectId(0))) shouldNotBe fingerprint(withAttachment(null))
         }
 
+        "CR 704.5h: two boards differing only in whether the damage came from a deathtoucher hash apart" {
+            // The amount alone cannot carry it: 1 marked damage from a deathtoucher and 1 from a Bear
+            // are the same number and different positions — one creature is about to die and the other
+            // is not. The digest covers the *cause*, which is what makes it a cause worth digesting.
+            val turn = Turn(alice, 2, TurnPhase.PRECOMBAT_MAIN, null)
+            val base = twoPlayerState(turn, playerWithZones(), playerWithZones(), nextObjectId = 100)
+
+            fun withRecord(deathtouched: Boolean) =
+                base.copy(
+                    sharedZones =
+                        SharedZones(
+                            battlefield =
+                                persistentListOf(
+                                    GameObject(
+                                        ObjectId(0),
+                                        CardRef("Grizzly Bears"),
+                                        alice,
+                                        damageMarked = 1,
+                                        dealtDeathtouchDamage = deathtouched,
+                                    ),
+                                ),
+                            stack = persistentListOf(),
+                            exile = persistentListOf(),
+                        ),
+                )
+
+            fingerprint(withRecord(true)) shouldNotBe fingerprint(withRecord(false))
+        }
+
         "the fingerprint digests the P6.2c mid-resolution pauses (cost-then-draw, resolution discard, search)" {
             val base =
                 twoPlayerState(

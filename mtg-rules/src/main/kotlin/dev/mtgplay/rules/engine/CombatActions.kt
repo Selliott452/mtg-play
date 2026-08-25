@@ -96,15 +96,24 @@ internal fun eligibleBlockPairings(
  * - **Silhana Ledgewalker's** "can't be blocked except by creatures with flying"
  *   ([Evasion.BLOCKABLE_ONLY_BY_FLYING]): the printed line says flying and only flying. Reach does
  *   not satisfy it.
+ * - **Gingerbrute's** "can't be blocked except by creatures with haste"
+ *   ([Evasion.BLOCKABLE_ONLY_BY_HASTE]), added by the keyword-tail packet: the blocker must have
+ *   [Keyword.HASTE], read through the same effective-keyword seam the attack bar uses, so a blocker
+ *   whose haste is conditional or granted counts and one whose grant has expired does not.
  *
- * Until reach existed the two demanded the same thing and shared one predicate; keeping that sharing
- * would have quietly let a reaching Wall block a Ledgewalker. Both restrictions apply
- * independently — an attacker that had both would need a blocker with flying — so each is its own
- * conjunct here rather than a branch of one "requires a flying blocker" test.
+ * Until reach existed the two flying restrictions demanded the same thing and shared one predicate;
+ * keeping that sharing would have quietly let a reaching Wall block a Ledgewalker. Every restriction
+ * applies independently — an attacker with both evasions would need a blocker with flying *and* haste
+ * — so each is its own conjunct here rather than a branch of one test.
  *
- * A third, independent restriction arrived with `FW-PROTECT`: **protection** (CR 702.16f), which is
+ * A further independent restriction arrived with `FW-PROTECT`: **protection** (CR 702.16f), which is
  * not an evasion at all but composes with them exactly as CR 509.1b says restrictions do —
  * cumulatively, each its own conjunct.
+ *
+ * **Evasions are read layered, not printed** (the keyword-tail packet). They used to be read straight
+ * off the definition registry, which was exact only while nothing granted one; Gingerbrute's `{1}`
+ * ability grants its evasion for the turn, so the read moved onto [effectiveEvasions] and a granted
+ * evasion now restricts blocks exactly as a printed one does.
  *
  * CR 509.1b also says that "if an attacking creature gains or loses an evasion ability after a legal
  * block has been declared, it doesn't affect that block". That is correct here by construction
@@ -120,8 +129,14 @@ private fun canBlock(
     // CR 702.9b: flying is beaten by flying or reach.
     val beatsFlying = blockerHasFlying || hasReach(state, blocker)
     val flyingSatisfied = Keyword.FLYING !in effectiveKeywords(state, attacker) || beatsFlying
+    val attackerEvasions = effectiveEvasions(state, attacker)
     // Silhana Ledgewalker: flying literally, reach does not help.
-    val evasionSatisfied = !printsFlyingOnlyEvasion(state, attacker) || blockerHasFlying
+    val evasionSatisfied =
+        Evasion.BLOCKABLE_ONLY_BY_FLYING !in attackerEvasions || blockerHasFlying
+    // Gingerbrute: the blocker must itself have haste (CR 702.10). Nothing here is about summoning
+    // sickness — CR 302.6 never restricted blocking — it is a plain characteristic test.
+    val hasteEvasionSatisfied =
+        Evasion.BLOCKABLE_ONLY_BY_HASTE !in attackerEvasions || hasHaste(state, blocker)
     // CR 702.16f: "Attacking creatures with protection can't be blocked by creatures that have the
     // stated quality." The direction is easy to get backwards and matters: this reads protection on
     // the **attacker** against the **blocker**'s characteristics. Protection on a blocker neither
@@ -130,20 +145,7 @@ private fun canBlock(
     // and takes nothing from it.
     val protectionSatisfied =
         !hasProtectionFrom(state, attacker, state.battlefieldObject(blocker).card)
-    return flyingSatisfied && evasionSatisfied && protectionSatisfied
-}
-
-// Whether [attacker] prints the "can't be blocked except by creatures with flying" evasion.
-private fun printsFlyingOnlyEvasion(
-    state: GameState,
-    attacker: ObjectId,
-): Boolean {
-    val evasions =
-        state.definitions[state.battlefieldObject(attacker).card]
-            ?.characteristics
-            ?.evasions
-            .orEmpty()
-    return Evasion.BLOCKABLE_ONLY_BY_FLYING in evasions
+    return flyingSatisfied && evasionSatisfied && hasteEvasionSatisfied && protectionSatisfied
 }
 
 /** The single defending player of [combat] (two-player); fails loudly on a multiplayer combat. */

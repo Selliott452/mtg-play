@@ -62,6 +62,18 @@ import dev.mtgplay.core.identity.CardRef
  * `{T}`-costed activated ability with a mana component, and payment enumeration offers a plan that
  * taps it for mana and then cannot pay its own `{T}` (see that file's header and the packet report).
  *
+ * The keyword-tail packet adds the last four gauntlet cards whose blocker was a missing keyword or a
+ * missing framework half (KeywordTailCards.kt): [toxinAnalysis], which **grants** the pool's first
+ * [dev.mtgplay.core.card.Keyword.DEATHTOUCH] (CR 702.2) and investigates for a [clueToken];
+ * [rooftopPercher], the pool's only [dev.mtgplay.core.card.Keyword.CHANGELING] (CR 702.73);
+ * [goblinTombRaider], the first **conditional** static ability (`FW-CONDSTATIC`, CR 604.3 — "as long
+ * as you control an artifact"); and [gingerbrute], whose `{1}` ability grants itself the pool's first
+ * **granted** evasion (CR 509.1b). Its [clueToken] — like [bloodToken], [robotToken],
+ * [eldraziSpawnToken], [warriorToken] and [foodToken] — is created on demand rather than being a
+ * top-level registry entry. Clockwork Percussionist was written and dropped: its dies trigger grants a
+ * *play permission* lasting "until the end of your next turn", which is neither a continuous effect
+ * nor a single-turn duration (docs/design/duration.md §12 names both exclusions).
+ *
  * The `P-MANASICK` packet adds the pool's first **creature** mana sources (ManaCreatures.kt):
  * [elvishMystic] and [fyndhornElves], the two `{T}`: Add `{G}` Elf Druids. They are the first
  * objects that make the CR 302.6 summoning-sickness restriction observable from mana payment, and
@@ -249,10 +261,12 @@ object MvpCards {
             generousEnt,
             giantsBoulder,
             gingerbreadCabin,
+            gingerbrute,
             glacialFloodplain,
             ghostlyFlicker,
             gladecoverScout,
             gnawToTheBone,
+            goblinTombRaider,
             grabThePrize,
             greatFurnace,
             grizzlyBears,
@@ -312,6 +326,7 @@ object MvpCards {
             sentinelsEyes,
             silhanaLedgewalker,
             silverbluffBridge,
+            rooftopPercher,
             skred,
             slagwoodsBridge,
             slipperyBogle,
@@ -332,6 +347,7 @@ object MvpCards {
             thoughtScour,
             thrabenCharm,
             timberwatchElf,
+            toxinAnalysis,
             twistedLandscape,
             unexpectedFangs,
             unfathomableTruths,

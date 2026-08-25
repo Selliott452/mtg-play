@@ -219,7 +219,8 @@ private fun StringBuilder.appendSeats(state: GameState) {
 }
 
 // Digests one object's residence line: its zone, id, and printed card, plus its battlefield-only
-// statuses (tapped, marked damage, summoning sickness, the Aura-attachment cause, and counters, §5).
+// statuses (tapped, marked damage and its deathtouch record, summoning sickness, the Aura-attachment
+// cause, and counters, §5) and its exile-only ones.
 private fun StringBuilder.appendResidence(residence: ZoneResidence) {
     append("|@").append(residence.zone)
     append('=').append(residence.obj.id.value)
@@ -228,7 +229,15 @@ private fun StringBuilder.appendResidence(residence: ZoneResidence) {
     // Marked damage (CR 120.3d) and summoning sickness (CR 302.6) are rules-relevant only on the
     // battlefield; off it they are meaningless bookkeeping and left out.
     if (residence.zone == ZoneId.Battlefield) {
-        if (residence.obj.damageMarked != 0) append(":dmg=").append(residence.obj.damageMarked)
+        // CR 704.5h: *which source* dealt the damage is a cause the amount cannot carry, and it decides
+        // whether the creature is destroyed at the next check — two positions differing only in whether
+        // a point of damage came from a deathtoucher are genuinely different positions. It is appended
+        // inside this branch because the two always travel together: GameObject's own construction
+        // guarantee is that the record never exists without the damage it describes.
+        if (residence.obj.damageMarked != 0) {
+            append(":dmg=").append(residence.obj.damageMarked)
+            if (residence.obj.dealtDeathtouchDamage) append(":deathtouched")
+        }
         if (residence.obj.summoningSick) append(":sick")
         // The attachment *cause* (CR 303.4), not the computed continuous-effect values it implies:
         // two states differing in continuous effects necessarily differ in which Auras are attached
@@ -251,10 +260,12 @@ private fun StringBuilder.appendResidence(residence: ZoneResidence) {
             append(":ctr=").append(tag).append('x').append(count)
         }
     }
-    // The madness marker (CR 702.35a) is an exile-only status — a card waiting on its reflexive cast.
-    if (residence.zone == ZoneId.Exile && residence.obj.awaitingMadness) append(":madness")
-    // The plotted-turn marker (CR 702.140) is an exile-only status gating the free cast.
-    if (residence.zone == ZoneId.Exile) residence.obj.plottedTurn?.let { append(":plotted=").append(it) }
+    if (residence.zone == ZoneId.Exile) {
+        // The madness marker (CR 702.35a) is an exile-only status — a card waiting on its reflexive cast.
+        if (residence.obj.awaitingMadness) append(":madness")
+        // The plotted-turn marker (CR 702.140) is an exile-only status gating the free cast.
+        residence.obj.plottedTurn?.let { append(":plotted=").append(it) }
+    }
 }
 
 // Digests the stack entries and the fired-but-unplaced triggers (CR 405.2, CR 603.3b): a spell's card
