@@ -44,11 +44,16 @@ import kotlinx.collections.immutable.persistentSetOf
  * activated ability with a mana component. `enumeratePaymentPlans` did not know which source was paying,
  * so it offered a plan that tapped the permanent for mana — after which the ability's own `{T}` could not
  * be paid and the engine threw, an enumerated-but-illegal action (ADR-005). `FW-MANA` supplied the fix
- * the diagnosis asked for and put in the mana-payment machinery where it belonged: `manaSourcesReservedBy`
- * excludes the source a sibling `TapSelf` component has spoken for (docs/design/mana-payment.md §2.2).
- * Giant's Boulder is exactly that shape and is encoded below with no card-side workaround at all. The two
- * named cards stay absent for their *other* reasons — Bonder's Ornament counts permanents by name and
- * Haunted Fengraf returns a random creature card from a graveyard to a hand — neither of which is T17.
+ * the diagnosis asked for and put it in the mana-payment machinery where it belonged:
+ * `manaSourcesReservedBy` excludes the source a sibling `TapSelf` component has spoken for
+ * (docs/design/mana-payment.md §2.2). Giant's Boulder is exactly that shape and is encoded below with no
+ * card-side workaround at all.
+ *
+ * **Both named cards have since been reached, and neither needed anything from this file.** Haunted
+ * Fengraf landed under `W7-C` (GraveyardHate.kt) with exactly the shape described above, driven
+ * end-to-end in the acceptance module — its remaining difficulty was never T17 but the seeded random
+ * return of a creature card from a graveyard. Bonder's Ornament is still absent, now for a different and
+ * smaller reason: "add one mana of any color" is a production shape [ManaAbility] does not have.
  *
  * Lotus Petal is absent for a different reason: its cost is `{T}` **and** sacrifice, which
  * [dev.mtgplay.core.definition.ManaAbility.viaSacrifice] cannot express — that flag means sacrifice

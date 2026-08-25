@@ -54,6 +54,7 @@ object CreatureType {
             Human
             Illusion
             Knight
+            Merfolk
             Monkey
             Myr
             Nightmare

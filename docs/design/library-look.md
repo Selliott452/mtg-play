@@ -598,6 +598,28 @@ has a look clause, so no existing fingerprint or coverage number moves except th
 
 ## 12. Non-goals (explicit)
 
+**Amendment (`W7-C`).** Two of these non-goals have been taken, and one was misfiled. **"A filter on the
+keep"** is now `LibraryLookMode.RevealMatchingToHandRestToBottom` — a fifth mode with a `RevealedCardFilter`
+and a `maxToHand` allowance, enumerated in `FilteredArrangements.kt`, carrying Ancient Stirrings and Augur of
+Bolas. **"Reveal any number of matching cards"** turned out to be the *same* mode rather than a second one:
+Lead the Stampede's current Scryfall oracle text is "**Look** at the top five cards of your library. You
+**may** reveal any number of creature cards from among them…", not the "Reveal the top five … Put all
+creature cards revealed this way into your hand" §9 quotes. It is a look with an optional keep, so it needed
+no reveal-path work at all, and "any number" is `maxToHand == count` because the pool holds at most `count`
+cards — the same option list, and under ADR-005 the same decision. §9's paragraph and §1.1's third bullet are
+superseded on both counts.
+
+**Winding Way is still absent, and `FW-MODAL` does not carry it.** §1.1 and §9 route it to modality; that
+framework has since landed and is the wrong shape. A `SpellMode` is chosen at CR 601.2b **while the spell is
+being cast**, whereas Winding Way's "Choose creature or land" is an instruction in its effect and is made as
+it *resolves* — a whole priority round later, and with different information. Encoding it as a mode would
+lock the choice in early, and a `SpellMode` carries a `ResolutionEffect` rather than a clause, so the reveal
+would have nowhere to hang either. What it actually needs is a **resolution-time card-type choice**: a
+`PendingRevealTypeChoice`-shaped record on `GameState`, one new `SingleOptionSelection` request over the
+card-type options, a `midTransitionPauseRequest` branch, and a mandatory keep-all-matching on `LibraryReveal`
+(its rest already goes to the graveyard, which is that clause's existing and only destination — so the
+"rest-to-bottom destination axis" the triage asked for is **not** what this card wants).
+
 Out of scope, with where each slots: **surveil** (CR 701.44 — the same shape with a graveyard destination;
 Conduit Pylons, Torch the Tower — *not* Lembas or Giant's Boulder, whose printed triggers are scry 1 and
 scry 2 respectively; verified against Scryfall oracle text by `FW-CLAUSEHOOK`); **a filter on the keep** (`RevealedCardFilter` on the look path —

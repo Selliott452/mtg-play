@@ -1,11 +1,14 @@
 package dev.mtgplay.rules.effect
 
+import dev.mtgplay.core.definition.GraveyardCardRestriction
 import dev.mtgplay.core.event.GameEvent
 import dev.mtgplay.core.identity.ObjectId
+import dev.mtgplay.core.identity.PlayerId
 import dev.mtgplay.core.state.GameObject
 import dev.mtgplay.core.state.GameState
 import dev.mtgplay.rules.engine.clearCombatReferences
 import dev.mtgplay.rules.engine.emit
+import dev.mtgplay.rules.engine.satisfiesGraveyardCardRestriction
 import dev.mtgplay.rules.engine.updateBattlefield
 import dev.mtgplay.rules.engine.updatePlayer
 
@@ -42,6 +45,51 @@ fun returnToOwnersHand(
     return allocated
         .updatePlayer(owner) { it.copy(graveyard = it.graveyard.removingAt(index), hand = it.hand.adding(reborn)) }
         .emit(GameEvent.CardReturnedToHand(owner, handId, leaving.card))
+}
+
+/**
+ * Effect primitive: returns **one card chosen at random** from [player]'s graveyard, among those matching
+ * [restriction], to their hand (CR 400.7, CR 701.15) — "Return a creature card at random from your graveyard
+ * to your hand", the published building block Haunted Fengraf's sacrifice ability composes (ADR-003).
+ * Additive, flagged (`W7-C`). Returns the successor state **and** the successor [GameState.rng].
+ *
+ * **This exists so that no card definition ever draws from the PRNG.** ADR-006 makes the match-owned
+ * [dev.mtgplay.core.random.Rng] the single channel every random outcome flows through, and CONVENTIONS.md
+ * makes randomness a *rules verb*: `mtg-cards` declares what a card does, `mtg-rules` decides it. A card
+ * definition reaching into `state.rng` itself would put a seeded draw in the wrong module — the same shape
+ * `shuffled(rng)` already refuses for a shuffle — and, worse, would make the PRNG's advance depend on card
+ * text rather than on the engine, so two cards written differently but meaning the same thing would fork a
+ * replay. The definition calls this; the draw happens here, once, and the state carries the successor
+ * generator, so a replay of the same seed and decision log reproduces the same card (ADR-006).
+ *
+ * **Random is not a decision** (CR 104.3, ADR-005). Nothing is enumerated and no seat is asked: the engine
+ * picks, which is exactly what "at random" means and is why this is a primitive rather than a pending
+ * record with an option list. An agent that could choose here would be playing a different card.
+ *
+ * The chosen card leaves the graveyard for the hand as a **new** object (CR 400.7), emitting
+ * [GameEvent.CardReturnedToHand]. A graveyard holding no matching card is **not** an error: CR 608.2's "do
+ * as much as possible" returns nothing, draws nothing from the PRNG, and leaves the state — generator
+ * included — untouched, so an empty-graveyard activation does not silently desynchronise a replay from one
+ * where the ability found a card.
+ *
+ * @param restriction which graveyard cards are eligible; Haunted Fengraf's is
+ *   [dev.mtgplay.core.definition.GraveyardCardRestriction.CREATURE].
+ */
+fun returnRandomCardFromGraveyardToHand(
+    state: GameState,
+    player: PlayerId,
+    restriction: GraveyardCardRestriction,
+): GameState {
+    val eligible =
+        state.players
+            .getValue(player)
+            .graveyard
+            .filter { satisfiesGraveyardCardRestriction(state, restriction, it) }
+    // CR 608.2: nothing eligible means nothing happens — and, deliberately, no PRNG draw, so the generator
+    // advances only when the effect actually chooses something.
+    if (eligible.isEmpty()) return state
+    val (index, nextRng) = state.rng.nextInt(eligible.size)
+    return returnToOwnersHand(state.copy(rng = nextRng), eligible[index].id)
 }
 
 /**

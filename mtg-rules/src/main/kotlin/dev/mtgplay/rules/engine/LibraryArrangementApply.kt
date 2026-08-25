@@ -1,5 +1,6 @@
 package dev.mtgplay.rules.engine
 
+import dev.mtgplay.core.definition.LibraryLookMode
 import dev.mtgplay.core.definition.LibraryLookSource
 import dev.mtgplay.core.event.GameEvent
 import dev.mtgplay.core.identity.ObjectId
@@ -51,6 +52,34 @@ internal fun distributeArrangement(
         putArrangedOnLibrary(s, player, obj, source, onTop = false)
     }
 }
+
+/**
+ * Emits the CR 701.16a reveal a **filtered** look owes for the cards it keeps — Ancient Stirrings' "You may
+ * reveal a colorless card from among them", Lead the Stampede's "any number of creature cards" — and nothing
+ * at all for any other mode, or for a filtered mode that kept nothing.
+ *
+ * **The one place this framework is partly public, and the boundary is exact.** Only the cards named by
+ * [option]`.toHand` are revealed; the cards going to the bottom of the library keep both their identities
+ * and their chosen order private (CR 701.14a), so an opponent learns *which* cards were taken and never how
+ * deep the rest were stacked. That is precisely what the printed word "reveal" buys them. The event is the
+ * *only* channel — [dev.mtgplay.core.event.GameEvent] is derived observability (ADR-006) and is not part of
+ * any seat view, and the kept cards reach the opponent's view a moment later anyway as they enter a hand,
+ * whose size is public.
+ */
+internal fun announceRevealedKeeps(
+    state: GameState,
+    decider: PlayerId,
+    mode: LibraryLookMode,
+    poolIds: List<ObjectId>,
+    option: DecisionRequest.ChooseLibraryArrangement.Option,
+): GameState =
+    if (mode !is LibraryLookMode.RevealMatchingToHandRestToBottom || option.toHand.isEmpty()) {
+        state
+    } else {
+        state.emit(
+            GameEvent.CardsRevealed(decider, option.toHand.map { poolObject(state, decider, poolIds[it]).card }),
+        )
+    }
 
 /** The pool object [id] in its source zone; fails loudly rather than guessing at a moved card. */
 internal fun poolObject(

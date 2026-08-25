@@ -26,10 +26,18 @@ import dev.mtgplay.core.identity.CardRef
  * [unfathomableTruths] (the devoid draw-three plus an Eldrazi Spawn), and [pursueThePast] (gain two,
  * loot, flash back). The `FW-LIBLOOK` packet then encodes four of that family's six dropped siblings
  * (LibraryLookCards.kt): [brainstorm], [ponder], [preordain], and [impulse], each built on the private
- * look-and-arrange clause the family was waiting on (docs/design/library-look.md). The remaining two stay
- * absent rather than approximated: Winding Way needs a resolution-time choose-a-card-type mode
- * (`FW-MODAL`), and Lead the Stampede is a public *reveal* with a variable keep-all-matching, which wants
- * the CR 701.16 reveal path rather than the CR 701.14a look path.
+ * look-and-arrange clause the family was waiting on (docs/design/library-look.md).
+ *
+ * The `W7-C` packet then adds the **filtered** look (RevealAndBottom.kt): [ancientStirrings],
+ * [augurOfBolas], and [leadTheStampede], each a "look, keep what matches, bottom the rest" clause on the
+ * one mode `FW-LIBLOOK` left open, and between them the packet's three new
+ * [dev.mtgplay.core.definition.RevealedCardFilter] members. It also adds the two graveyard lands
+ * (GraveyardHate.kt): [bojukaBog], whose enters-the-battlefield trigger exiles a target player's whole
+ * graveyard — the first encoded land with a trigger at all, and so the first card that can observe the
+ * triage's T18 played-land fix — and [hauntedFengraf], whose `{3}`, `{T}`, sacrifice ability returns a
+ * creature card chosen by the match-owned PRNG (ADR-006). Winding Way is the family's last absentee and
+ * its blocker is *not* `FW-MODAL`, which has landed: its card-type choice happens as the spell resolves,
+ * not when a modal spell's modes are chosen at CR 601.2b (CardSelection.kt records what it needs).
  * The P8.4 pool broadens the gauntlet's mana bases with eight nonbasic lands (NonbasicLands.kt): the
  * Mirrodin artifact lands [greatFurnace], [seatOfTheSynod], and [vaultOfWhispers]; the four
  * enters-tapped indestructible Bridges [drossforgeBridge], [mistvaultBridge], [silverbluffBridge], and
@@ -57,10 +65,11 @@ import dev.mtgplay.core.identity.CardRef
  * lands that are [idyllicBeachfront] plus `Supertype.SNOW`; and, in ColorlessArtifacts.kt,
  * [ichorWellspring] — an enters-**or**-dies draw, one printed ability carrying two conditions — and
  * [expeditionMap], the first client of the packet's one new primitive,
- * `LibrarySearchFilter.LAND_CARD`. Bonder's Ornament and Haunted Fengraf were written and dropped:
- * each would be the pool's first permanent that is both a mana source and the source of a
- * `{T}`-costed activated ability with a mana component, and payment enumeration offers a plan that
- * taps it for mana and then cannot pay its own `{T}` (see that file's header and the packet report).
+ * `LibrarySearchFilter.LAND_CARD`. Bonder's Ornament and Haunted Fengraf were written and dropped at the
+ * time: each would be the pool's first permanent that is both a mana source and the source of a
+ * `{T}`-costed activated ability with a mana component, and payment enumeration offered a plan that
+ * tapped it for mana and then could not pay its own `{T}`. `FW-MANACOST` fixed that, and [hauntedFengraf]
+ * has since landed (GraveyardHate.kt); Bonder's Ornament still needs "add one mana of any color".
  *
  * The keyword-tail packet adds the last four gauntlet cards whose blocker was a missing keyword or a
  * missing framework half (KeywordTailCards.kt): [toxinAnalysis], which **grants** the pool's first
@@ -181,6 +190,13 @@ import dev.mtgplay.core.identity.CardRef
  * graveyards" — both variable-count multi-target lines (`FW-MULTITGT`), and a modal card whose modes
  * cannot all be offered is an enumeration gap rather than a partial card.
  *
+ * `W7-C` re-checked Thraben Charm against its oracle text and found the count to be only *half* its
+ * blocker. Its third mode needs `TargetSpec.TargetPlayer` to gain a cardinality — it is a `data object`
+ * with `count` hard-wired to `TargetCount.ONE`, so the noun cannot be asked for more than one player — and
+ * its **second** mode ("Destroy target enchantment") needs a `PermanentRestriction` member that does not
+ * exist. The whole-graveyard exile its third mode also wants has since landed
+ * (`dev.mtgplay.rules.effect.exileGraveyard`, GraveyardHate.kt), so the exile is no longer part of the gap.
+ *
  * [definitions] is shaped for direct `MatchConfig.definitions` consumption: the engine carries
  * it into `GameState` in canonical name-sorted order regardless of this map's own order
  * (ADR-009 — definitions ride in the state; a [CardRef] without an entry is inert). The pool
@@ -221,13 +237,16 @@ object MvpCards {
             abundantGrowth,
             ancestralMask,
             ancientGrudge,
+            ancientStirrings,
             annul,
             archaeomancer,
+            augurOfBolas,
             armadilloCloak,
             ashBarrens,
             basiliskGate,
             balustradeSpy,
             bloodFountain,
+            bojukaBog,
             blueElementalBlast,
             barrelsOfBlastingJelly,
             brainstorm,
@@ -276,6 +295,7 @@ object MvpCards {
             gutShot,
             guttersnipe,
             guardianOfTheGuildpact,
+            hauntedFengraf,
             healerOfTheGlade,
             highwayRobbery,
             hillGiant,
@@ -290,6 +310,7 @@ object MvpCards {
             kruphixsInsight,
             lastBreath,
             lavaDart,
+            leadTheStampede,
             lembas,
             lifelink,
             lightningBolt,

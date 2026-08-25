@@ -40,9 +40,17 @@ import kotlinx.collections.immutable.persistentSetOf
  * The rest of the family was deliberately **not** here, because each needed a library-ordering, scry, or
  * choose-a-card-type decision the engine could not enumerate (ADR-005) — a framework change, not a card.
  * Four of the six have since landed in LibraryLookCards.kt on the `FW-LIBLOOK` framework
- * (docs/design/library-look.md): Brainstorm, Ponder, Preordain, and Impulse. Winding Way and Lead the
- * Stampede remain absent, and remain framework-blocked — on a resolution-time card-type mode (`FW-MODAL`)
- * and on a filtered variable keep from a public *reveal* respectively.
+ * (docs/design/library-look.md): Brainstorm, Ponder, Preordain, and Impulse. **Lead the Stampede** has now
+ * landed too (RevealAndBottom.kt) — on a filtered *look*, not the public reveal this paragraph once
+ * predicted, because its current oracle text reads "Look at the top five cards … You may reveal any number
+ * of creature cards from among them" rather than the printed "Reveal the top five cards".
+ *
+ * **Winding Way** is the last of the six still absent, and its blocker is narrower than "`FW-MODAL`" —
+ * modality has landed and does not carry it. "Choose creature or land" is chosen **as the spell resolves**,
+ * not at CR 601.2b when a modal spell's modes are chosen, so a [dev.mtgplay.core.definition.SpellMode]
+ * would lock the choice in a whole priority round too early. What it needs is a *resolution-time* card-type
+ * choice: a pending record, its own enumerated request, and the mandatory keep-all-matching that goes with
+ * it. That is a framework, and it is documented rather than approximated.
  */
 
 /** The cards Thought Scour's target player mills (CR 701.13a). */

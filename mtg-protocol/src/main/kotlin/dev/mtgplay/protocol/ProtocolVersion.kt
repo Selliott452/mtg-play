@@ -363,5 +363,31 @@ package dev.mtgplay.protocol
  * range is larger (CR 702.2b makes 1 lethal to each blocker), and an attacker with the haste evasion
  * yields fewer `declare_blockers` options — but an option list is a payload the wire already carries,
  * not a new shape.
+ *
+ * ### Held at `8.0.0` — `W7-C`: filtered looks and the graveyard fold
+ *
+ * **No bump, because nothing on the wire changes shape** — and the point of saying so here is that this
+ * file's standard is to name a break, which means it is also to name the *absence* of one rather than to
+ * bump reflexively. The packet adds a fifth `LibraryLookMode`, three `RevealedCardFilter` members, a
+ * whole-graveyard exile and a seeded graveyard return. Every one of those is engine-side vocabulary that a
+ * peer never sees:
+ *
+ * 1. **`LibraryLookMode` and `RevealedCardFilter` are not wire types.** Only
+ *    [dev.mtgplay.core.definition.LibraryLookSource] crosses, inside `PendingLibraryLookView` — and the new
+ *    mode's source is `TOP_OF_LIBRARY`, an existing [LibraryLookSourceDto] value. A filtered look surfaces
+ *    the *same* `choose_library_arrangement` request as a scry, with the same fields; it simply enumerates a
+ *    different set of options. Under ADR-005 that is the whole difference, and a `4.0.0`-or-later peer
+ *    decodes it without knowing the mode exists.
+ * 2. **No [DecisionRequestDto] member, no [DecisionRequestKindDto] value, no [TargetDto] member, and no
+ *    [SeatViewDto] field.** A whole-graveyard exile and a random return are *effects*, not decisions: the
+ *    first is answered by the existing `choose_targets` over a player, and the second is answered by nobody
+ *    at all (CR 104.3 — "at random" is the engine's pick, never an enumerated one).
+ * 3. **The seeded return is invisible by construction.** It advances the match PRNG, and the PRNG is not on
+ *    the wire and never has been: replay is seed-plus-decisions (ADR-006), and a seat view carries the
+ *    resulting board rather than the generator that produced it.
+ *
+ * The one genuinely new *observation* is a [dev.mtgplay.core.event.GameEvent.CardsRevealed] for a filtered
+ * look's kept cards, and the event log is not part of [SeatViewDto] at all — the same exclusion the
+ * `FW-PREVENT` note records for the damage source.
  */
 const val PROTOCOL_VERSION: String = "8.0.0"

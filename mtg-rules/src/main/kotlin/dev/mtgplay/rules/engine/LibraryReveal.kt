@@ -188,19 +188,29 @@ private fun putRevealedIntoGraveyard(
         }
     }
 
-/** Whether the revealed [obj] matches the reveal [filter] (CR 701.16) — read from its printed types. */
-private fun matchesFilter(
+/**
+ * Whether the pool card [obj] matches [filter] (CR 701.16, CR 701.14a) — read from its **printed**
+ * characteristics, because the card is in a library and the CR 613 layer system does not reach one
+ * (CR 109.3), so nothing on the battlefield can change what it matches.
+ *
+ * `internal` and shared with the private-look path (LibraryLook.kt): a filtered *look*
+ * ([dev.mtgplay.core.definition.LibraryLookMode.RevealMatchingToHandRestToBottom]) asks the same question
+ * of the same enum, and spelling the predicate twice is how two answers to "is this an instant or sorcery
+ * card?" drift apart.
+ */
+internal fun matchesFilter(
     state: GameState,
     obj: GameObject,
     filter: RevealedCardFilter,
 ): Boolean {
-    val types =
-        state.definitions[obj.card]
-            ?.characteristics
-            ?.cardTypes
-            .orEmpty()
+    val printed = state.definitions[obj.card]?.characteristics
+    val types = printed?.cardTypes.orEmpty()
     return when (filter) {
         RevealedCardFilter.PERMANENT_CARD -> types.any { it in PERMANENT_CARD_TYPES }
         RevealedCardFilter.ENCHANTMENT_CARD -> CardType.ENCHANTMENT in types
+        // CR 105.2c, CR 202.2: colour comes from the printed mana cost, so a card with none is colorless.
+        RevealedCardFilter.COLORLESS_CARD -> printed?.colors.orEmpty().isEmpty()
+        RevealedCardFilter.INSTANT_OR_SORCERY_CARD -> CardType.INSTANT in types || CardType.SORCERY in types
+        RevealedCardFilter.CREATURE_CARD -> CardType.CREATURE in types
     }
 }
