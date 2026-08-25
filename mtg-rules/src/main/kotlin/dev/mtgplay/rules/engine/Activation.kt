@@ -52,6 +52,10 @@ private fun MutableList<PriorityOption.ActivateAbility>.addAbilities(
     abilities.forEachIndexed { index, ability ->
         val offerable =
             ability.zoneScope == scope &&
+                // CR 602.5b: "Activate only once each turn" — an ability this object has already
+                // activated this turn is not activatable, so it is not enumerated (ADR-005). The record
+                // is per object, not per controller, which is CR 602.5b's own wording.
+                !(ability.oncePerTurn && index in source.activatedAbilitiesActivatedThisTurn) &&
                 // CR 602.5d: "Activate only as a sorcery" restricts the ability to a sorcery's timing
                 // window. Enumerating it outside that window would be an enumerated-but-illegal action
                 // (ADR-005), which is the whole reason `ActivatedAbility.timing` exists.
@@ -70,10 +74,15 @@ private fun MutableList<PriorityOption.ActivateAbility>.addAbilities(
 /**
  * Whether every component of [ability]'s cost is payable by [seat] for [source] right now (CR 602.2).
  *
- * The mana and chosen-sacrifice components are checked **jointly** rather than one at a time, because
- * they constrain each other: which permanent is sacrificed decides what may be tapped for the mana
- * (docs/design/mana-payment.md §2.2). [abilitySacrificeCandidates] is that joint answer, so an ability
- * carrying both defers its mana question to the sacrifice branch and the mana branch is vacuously true.
+ * The mana and chosen-object components are checked **jointly** rather than one at a time, because
+ * they constrain each other: which permanent is sacrificed or returned decides what may be tapped for
+ * the mana (docs/design/mana-payment.md §2.2). [abilitySacrificeCandidates] and
+ * [abilityReturnCandidates] are that joint answer, so an ability carrying one of them defers its mana
+ * question to that branch and the mana branch is vacuously true.
+ *
+ * No card in the gauntlet carries **both** a sacrifice and a return component; if one ever does, the
+ * two joint answers would each be reserving without seeing the other's choice, so the mana branch's
+ * short-circuit below fails loudly rather than silently over-offering.
  */
 internal fun abilityCostPayable(
     state: GameState,
@@ -81,31 +90,63 @@ internal fun abilityCostPayable(
     source: GameObject,
     scope: AbilityZoneScope,
     ability: ActivatedAbility,
+): Boolean {
+    require(sacrificeComponent(ability) == null || returnComponent(ability) == null) {
+        "CR 602.1: ${source.card.name} costs both a chosen sacrifice and a chosen return; the two " +
+            "joint payability answers each reserve without seeing the other's choice, so a cost " +
+            "carrying both needs one combined enumeration (docs/design/mana-payment.md §2.2)"
+    }
+    // CR 113.6: the only caller reaches this having already matched the ability's declared zone against
+    // the zone it found the source in, which is what lets [componentPayable] read one of them.
+    require(ability.zoneScope == scope) {
+        "CR 113.6: ${source.card.name}'s ability functions from ${ability.zoneScope}, but its " +
+            "payability was asked about $scope"
+    }
+    return ability.cost.all { component -> componentPayable(state, seat, source, ability, component) }
+}
+
+/**
+ * Whether one [component] of [ability]'s cost is payable (CR 602.2), the body of
+ * [abilityCostPayable]'s fold. Split out to keep that function inside detekt's complexity budget; the
+ * `when` is exhaustive, so a new [AbilityCost] member breaks compilation here.
+ *
+ * Reads the ability's own [ActivatedAbility.zoneScope] rather than taking the caller's zone as a
+ * parameter — [abilityCostPayable] has just required the two to agree, so there is one source of truth
+ * for the zone and one fewer argument to keep in step.
+ */
+private fun componentPayable(
+    state: GameState,
+    seat: PlayerId,
+    source: GameObject,
+    ability: ActivatedAbility,
+    component: AbilityCost,
 ): Boolean =
-    ability.cost.all { component ->
-        when (component) {
-            // The source is excluded from funding its own cost when a sibling component has claimed
-            // it (CR 602.1, triage trap T17) — otherwise legality would say yes to a plan that taps
-            // the very permanent the `{T}` component then needs untapped.
-            is AbilityCost.Mana ->
-                sacrificeComponent(ability) != null ||
-                    enumeratePaymentPlans(
-                        state,
-                        seat,
-                        component.cost,
-                        manaSourcesReservedBy(state, source, ability),
-                    ).isNotEmpty()
-            AbilityCost.TapSelf ->
-                scope == AbilityZoneScope.Battlefield &&
-                    !source.tapped &&
-                    !(isCreature(state, source) && source.summoningSick && !hasHaste(state, source.id))
-            AbilityCost.SacrificeSelf -> scope == AbilityZoneScope.Battlefield
-            AbilityCost.DiscardSelf -> scope == AbilityZoneScope.Hand
-            AbilityCost.DiscardACard -> discardableForAbility(state, seat, source, scope).isNotEmpty()
-            // CR 602.1 with CR 701.17: at least one permanent both matches the filter and leaves the
-            // sibling mana component payable once reserving it is accounted for.
-            is AbilityCost.Sacrifice -> abilitySacrificeCandidates(state, seat, source, ability).isNotEmpty()
-        }
+    when (component) {
+        // The source is excluded from funding its own cost when a sibling component has claimed
+        // it (CR 602.1, triage trap T17) — otherwise legality would say yes to a plan that taps
+        // the very permanent the `{T}` component then needs untapped.
+        is AbilityCost.Mana ->
+            sacrificeComponent(ability) != null ||
+                returnComponent(ability) != null ||
+                enumeratePaymentPlans(
+                    state,
+                    seat,
+                    component.cost,
+                    manaSourcesReservedBy(state, source, ability),
+                ).isNotEmpty()
+        AbilityCost.TapSelf ->
+            ability.zoneScope == AbilityZoneScope.Battlefield &&
+                !source.tapped &&
+                !(isCreature(state, source) && source.summoningSick && !hasHaste(state, source.id))
+        AbilityCost.SacrificeSelf -> ability.zoneScope == AbilityZoneScope.Battlefield
+        AbilityCost.DiscardSelf -> ability.zoneScope == AbilityZoneScope.Hand
+        AbilityCost.DiscardACard -> discardableForAbility(state, seat, source, ability.zoneScope).isNotEmpty()
+        // CR 602.1 with CR 701.17: at least one permanent both matches the filter and leaves the
+        // sibling mana component payable once reserving it is accounted for.
+        is AbilityCost.Sacrifice -> abilitySacrificeCandidates(state, seat, source, ability).isNotEmpty()
+        // CR 602.1 with CR 701.4a: the same joint answer, over the return cost's candidates.
+        is AbilityCost.ReturnPermanentYouControl ->
+            abilityReturnCandidates(state, seat, source, ability).isNotEmpty()
     }
 
 /** The hand cards [seat] may discard to a "discard a card" cost — every hand card but a hand source itself. */

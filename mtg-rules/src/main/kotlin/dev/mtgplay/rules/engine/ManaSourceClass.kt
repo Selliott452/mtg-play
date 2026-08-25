@@ -57,21 +57,34 @@ import dev.mtgplay.rules.decision.SourceClassKey
  *   rule [AbilityCost.SacrificeSelf] uses: only when it is itself a sacrifice-cost mana source
  *   ([sacrificeSourcesAmong]). The choice is gathered **before** the payment plan (CR 601.2b–i order),
  *   which is precisely what makes an exact reservation available here instead of a blanket one.
+ * - **[AbilityCost.ReturnPermanentYouControl]** reserves nothing about the source, for
+ *   [AbilityCost.Sacrifice]'s reason — the permanent it returns is a chosen one. What it reserves is
+ *   that chosen permanent, passed in as [chosenReturn], and it reserves it **unconditionally** rather
+ *   than only when it is a sacrifice-cost mana source. That is the one place the two chosen-object
+ *   components part company, and the difference is a zone-change rule rather than a judgement call: a
+ *   sacrificed permanent may legally be tapped for mana first (CR 601.2g precedes CR 601.2h, and
+ *   CR 701.17 does not care that it is tapped), while a permanent that has gone to its owner's hand is
+ *   a **new object** (CR 400.7) with no tapped status at all (CR 110.5) — so tapping it for mana and
+ *   then returning it is not a legal sequencing of one payment, it is paying with an object the cost
+ *   then cannot find. Reserving it is what stops that plan being enumerated (ADR-005).
  * - Nothing else reserves anything. An ability whose cost is mana alone may be paid by tapping its
  *   own source, and always could.
  *
  * Only a battlefield-scoped ability can reserve **its source**: a hand-functioning ability's source is
- * not a mana source at all. A chosen sacrifice is a battlefield permanent either way, so the scope
- * guard does not reach it.
+ * not a mana source at all. A chosen sacrifice or return is a battlefield permanent either way, so the
+ * scope guard does not reach it.
  *
  * @param chosenSacrifice the permanents already chosen for an [AbilityCost.Sacrifice] component, empty
  *   before that selection is answered (and for every ability without one).
+ * @param chosenReturn the permanents already chosen for an [AbilityCost.ReturnPermanentYouControl]
+ *   component, empty before that selection is answered (and for every ability without one).
  */
 internal fun manaSourcesReservedBy(
     state: GameState,
     source: GameObject,
     ability: ActivatedAbility,
     chosenSacrifice: List<ObjectId> = emptyList(),
+    chosenReturn: List<ObjectId> = emptyList(),
 ): Set<ObjectId> {
     val reservesSource =
         ability.zoneScope == AbilityZoneScope.Battlefield &&
@@ -83,11 +96,12 @@ internal fun manaSourcesReservedBy(
                     AbilityCost.DiscardSelf,
                     AbilityCost.DiscardACard,
                     is AbilityCost.Sacrifice,
+                    is AbilityCost.ReturnPermanentYouControl,
                     -> false
                 }
             }
     val fromSource = if (reservesSource) setOf(source.id) else emptySet()
-    return fromSource + sacrificeSourcesAmong(state, chosenSacrifice)
+    return fromSource + sacrificeSourcesAmong(state, chosenSacrifice) + chosenReturn
 }
 
 /**
@@ -202,16 +216,8 @@ internal fun productionProfile(
         abilities
             .filterIndexed { index, ability -> manaAbilityAvailable(state, obj, index, ability) }
             .flatMap { ability ->
-                // CR 605.2: an amount that evaluates to zero is dropped *before* the alternative is
-                // built, because "adds at least one mana" is an invariant of the type rather than a
-                // filter applied afterwards (a Priest of Titania with no Elf on the battlefield).
-                val count = manaAmountOf(state, obj, ability.amount)
-                if (count <= 0) {
-                    emptyList()
-                } else {
-                    ability.options.map { option ->
-                        ProductionAlternative(ability.cost, List(count) { option }, ability.oncePerTurn)
-                    }
+                producedMultisets(state, obj, ability).map { produced ->
+                    ProductionAlternative(ability.cost, produced, ability.oncePerTurn)
                 }
             }.distinct()
             .sortedWith(PRODUCTION_ALTERNATIVE_ORDER)
@@ -313,8 +319,9 @@ private const val PUT_COUNTER_RANK: Int = 3
 private const val MANA_COST_RANK_BASE: Int = 100
 
 /**
- * How many mana one activation of a [ManaAmount] on the battlefield source [obj] adds, evaluated
- * against the **current** board (CR 605.2).
+ * The multisets one activation of [ability] on the battlefield source [obj] may add, evaluated against
+ * the **current** board (CR 605.1a, CR 605.2) — one entry per alternative the activator may choose
+ * between, and **empty** when the ability would add nothing at all.
  *
  * This is the read point the whole framework is about, and the CR paragraph matters. A mana
  * ability's amount is *not* determined in advance the way a CR 601.2f cost reduction is: the
@@ -324,20 +331,37 @@ private const val MANA_COST_RANK_BASE: Int = 100
  * state rather than a snapshot. Nothing memoises it (see [layeredCharacteristics]' "computed on
  * demand, never stored" rule, for the same reason).
  *
+ * **Two shapes, not one, since `FW-TAPUNTAP`.** Three of the four [ManaAmount] members are a *count*
+ * that the ability's [ManaAbility.options] are multiplied by — one alternative per option, each a
+ * uniform multiset — while [ManaAmount.FixedMultiset] supplies its own types and yields exactly **one**
+ * alternative with no choice in it. That is the difference between Azorius Chancery's "Add {W}{U}" and
+ * a hypothetical "add one mana of white or blue", and it is why this returns multisets rather than the
+ * `Int` it used to: the count was never able to express a production whose mana differ from each other.
+ *
+ * A count that evaluates to zero yields **no** alternative (rather than an empty one), because "adds at
+ * least one mana" is an invariant of [ProductionAlternative] rather than a filter applied afterwards —
+ * a Priest of Titania with no Elf on the battlefield.
+ *
  * Exhaustive over [ManaAmount], so a new production shape breaks compilation here rather than
  * approximating.
  */
-private fun manaAmountOf(
+private fun producedMultisets(
     state: GameState,
     obj: GameObject,
-    amount: ManaAmount,
-): Int =
-    when (amount) {
-        is ManaAmount.Fixed -> amount.count
-        is ManaAmount.PerPermanent -> countMatching(state, obj.owner, amount.each)
-        is ManaAmount.Conditional ->
-            if (amount.requires.all { countMatching(state, obj.owner, it) > 0 }) amount.ifMet else amount.otherwise
-    }
+    ability: ManaAbility,
+): List<List<ManaType>> {
+    val count =
+        when (val amount = ability.amount) {
+            // CR 605.1a: the mixed production is not a count at all — it names its mana outright, so it
+            // short-circuits the option cross product with the single alternative it describes.
+            is ManaAmount.FixedMultiset -> return listOf(amount.types)
+            is ManaAmount.Fixed -> amount.count
+            is ManaAmount.PerPermanent -> countMatching(state, obj.owner, amount.each)
+            is ManaAmount.Conditional ->
+                if (amount.requires.all { countMatching(state, obj.owner, it) > 0 }) amount.ifMet else amount.otherwise
+        }
+    return if (count <= 0) emptyList() else ability.options.map { option -> List(count) { option } }
+}
 
 /**
  * How many battlefield permanents match [filter] from the point of view of the source [obj]

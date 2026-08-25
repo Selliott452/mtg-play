@@ -49,6 +49,26 @@ import kotlinx.collections.immutable.PersistentList
  *   — and re-checked on resolution (CR 608.2b). An activated ability with no legal target **cannot be
  *   activated** (CR 601.2c) and so is never enumerated, unlike a triggered ability, which is still put on
  *   the stack in that position.
+ * @property oncePerTurn whether the printed text restricts this ability to one activation each turn
+ *   (CR 602.5b) — Quirion Ranger's "Activate only once each turn". Additive, flagged core
+ *   (`FW-TAPUNTAP`). A restriction, not a cost: `mtg-rules` records the activation on the **object**
+ *   (CR 602.5b: "the restriction continues to apply to that object even if its controller changes")
+ *   in [dev.mtgplay.core.state.GameObject.activatedAbilitiesActivatedThisTurn] and stops enumerating
+ *   the ability for the rest of the turn once it is spent.
+ *
+ *   **The sibling of [ManaAbility.oncePerTurn], not a lift of it.** The restriction is the same
+ *   CR 602.5b sentence, but the *record* cannot be shared: [ManaAbility.oncePerTurn]'s record indexes
+ *   [CardDefinition.manaAbilities] and this one indexes [CardDefinition.activatedAbilities], which are
+ *   two independent lists on the same definition — index 0 names a different ability in each. Merging
+ *   them into one set would make a spent mana ability and a spent activated ability indistinguishable
+ *   on a card printing both, which is the silent kind of wrongness CONVENTIONS.md forbids. Two fields,
+ *   one rule, stated in both places.
+ *
+ *   Unlike a mana ability's, this restriction is **not** load-bearing for termination:
+ *   [ManaAbility]'s `init` demands `oncePerTurn` of any ability that neither taps nor sacrifices its
+ *   source, because a free unbounded mana ability would make payment-plan enumeration infinite. A
+ *   non-mana activated ability uses the stack and hands back priority (CR 602.2c), so nothing here has
+ *   to be bounded for the enumerator's sake and the flag is only ever the printed sentence.
  */
 data class ActivatedAbility(
     val cost: PersistentList<AbilityCost>,
@@ -57,12 +77,14 @@ data class ActivatedAbility(
     override val librarySearch: LibrarySearch? = null,
     val timing: TimingClass = TimingClass.INSTANT_SPEED,
     val targetSpec: TargetSpec = TargetSpec.None,
+    val oncePerTurn: Boolean = false,
     override val libraryReveal: LibraryReveal? = null,
     override val libraryLook: LibraryLook? = null,
     override val optionalCostThenDraw: OptionalCostThenDraw? = null,
     override val drawThenDiscard: DrawThenDiscard? = null,
     override val handRevealChoice: HandRevealChoice? = null,
     override val eachOpponentDiscards: EachOpponentDiscards? = null,
+    override val permanentSelection: PermanentSelection? = null,
 ) : ResolutionClauses {
     init {
         require(cost.isNotEmpty()) { "CR 602.1: an activated ability has a cost" }

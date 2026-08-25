@@ -92,9 +92,15 @@ private fun sizedSelectionToDomain(dto: DecisionRequestDto.SizedSelectionDto): D
         is DecisionRequestDto.ChooseSacrificesForCost,
         is DecisionRequestDto.ChooseAbilitySacrifice,
         is DecisionRequestDto.ChooseAbilityDiscard,
+        is DecisionRequestDto.ChooseAbilityReturn,
         -> costSizedSelectionToDomain(dto)
     }
 
+/**
+ * The **cast**-side cost selections (CR 601.2b/h): an additional exile, sacrifice, or discard for a
+ * spell being cast. The activation-side ones route on to [abilityCostSelectionToDomain], split by which
+ * object the request names — `cardObjectId` for a cast, `sourceObjectId` for an activation.
+ */
 private fun costSizedSelectionToDomain(dto: DecisionRequestDto.SizedSelectionDto): DecisionRequest =
     when (dto) {
         is DecisionRequestDto.ChooseCardsToExile ->
@@ -129,22 +135,10 @@ private fun costSizedSelectionToDomain(dto: DecisionRequestDto.SizedSelectionDto
                 dto.options.mapOptions { o, c -> DecisionRequest.ChooseSacrificesForCost.Option(o, c) },
                 dto.count,
             )
-        is DecisionRequestDto.ChooseAbilitySacrifice ->
-            DecisionRequest.ChooseAbilitySacrifice(
-                dto.id.toDomain(),
-                ObjectId(dto.sourceObjectId),
-                CardRef(dto.card),
-                dto.options.mapOptions { o, c -> DecisionRequest.ChooseAbilitySacrifice.Option(o, c) },
-                dto.count,
-            )
-        is DecisionRequestDto.ChooseAbilityDiscard ->
-            DecisionRequest.ChooseAbilityDiscard(
-                dto.id.toDomain(),
-                ObjectId(dto.sourceObjectId),
-                CardRef(dto.card),
-                dto.options.mapOptions { o, c -> DecisionRequest.ChooseAbilityDiscard.Option(o, c) },
-                dto.count,
-            )
+        is DecisionRequestDto.ChooseAbilitySacrifice,
+        is DecisionRequestDto.ChooseAbilityDiscard,
+        is DecisionRequestDto.ChooseAbilityReturn,
+        -> abilityCostSelectionToDomain(dto)
         is DecisionRequestDto.ChooseDiscards,
         is DecisionRequestDto.ChooseOptionalDiscard,
         is DecisionRequestDto.ChooseOptionalCostObject,
@@ -199,7 +193,10 @@ private fun mulliganRequestToDomain(dto: DecisionRequestDto.MulliganRequestDto):
 internal inline fun <T> List<CardObjectOptionDto>.mapOptions(factory: (ObjectId, CardRef) -> T): List<T> =
     map { factory(ObjectId(it.objectId), CardRef(it.card)) }
 
-/** The "pick between N and M of these, by distinct index" family (CR 601.2c, `FW-MULTITGT`). */
+/**
+ * The "pick between N and M of these, by distinct index" family — a multi-target choice (CR 601.2c,
+ * `FW-MULTITGT`) or an untargeted mid-resolution permanent selection (CR 609.4, `FW-TAPUNTAP`).
+ */
 private fun rangedSelectionToDomain(dto: DecisionRequestDto.RangedSelectionDto): DecisionRequest =
     when (dto) {
         is DecisionRequestDto.ChooseMultipleTargets ->
@@ -208,6 +205,15 @@ private fun rangedSelectionToDomain(dto: DecisionRequestDto.RangedSelectionDto):
                 ObjectId(dto.cardObjectId),
                 CardRef(dto.card),
                 dto.options.map { it.toDomain() },
+                dto.minimumCount,
+                dto.maximumCount,
+            )
+        is DecisionRequestDto.ChoosePermanentsToAffect ->
+            DecisionRequest.ChoosePermanentsToAffect(
+                dto.id.toDomain(),
+                CardRef(dto.sourceCard),
+                dto.prompt,
+                dto.options.mapOptions { o, c -> DecisionRequest.ChoosePermanentsToAffect.Option(o, c) },
                 dto.minimumCount,
                 dto.maximumCount,
             )

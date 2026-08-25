@@ -84,6 +84,54 @@ internal fun manaComponent(ability: ActivatedAbility): AbilityCost.Mana? =
 internal fun sacrificeComponent(ability: ActivatedAbility): AbilityCost.Sacrifice? =
     ability.cost.filterIsInstance<AbilityCost.Sacrifice>().singleOrNull()
 
+/** The chosen-return component of [ability], or `null` if it has none (CR 602.1). */
+internal fun returnComponent(ability: ActivatedAbility): AbilityCost.ReturnPermanentYouControl? =
+    ability.cost.filterIsInstance<AbilityCost.ReturnPermanentYouControl>().singleOrNull()
+
+/**
+ * The permanents [seat] may choose to pay [ability]'s [AbilityCost.ReturnPermanentYouControl] component
+ * — the ones matching its filter that leave the ability's mana component payable once they are
+ * reserved (CR 602.1, CR 701.4a).
+ *
+ * The sibling of [abilitySacrificeCandidates] and deliberately its shape, with **one difference that
+ * matters**: a returned permanent is reserved from the payment plan *unconditionally*, where a
+ * sacrificed one is reserved only when it produces mana **by** being sacrificed. The asymmetry is
+ * CR 601.2g/h's ordering read through the two zone changes. Tapping a land for mana and then
+ * sacrificing it is legal — CR 701.17 does not care that the permanent is tapped — but a permanent
+ * returned to its owner's hand becomes a **new object** in a zone with no tapped status at all
+ * (CR 400.7, CR 110.5), so a plan that taps a Forest for mana and then returns it would be paying with
+ * an object that no longer exists to be returned. `manaSourcesReservedBy` is where that is enforced;
+ * this function only has to ask what remains payable given it.
+ *
+ * Its two callers must agree exactly, for [abilitySacrificeCandidates]' reason: [abilityCostPayable]
+ * asks whether it is non-empty (enumeration, ADR-005) and [pendingActivationRequest] offers it as the
+ * selection's options. An ability enumerated against one candidate set and gathered against another
+ * would dead-end mid-activation.
+ *
+ * Quirion Ranger's cost is a bare return with no mana component, so every matching Forest is offered
+ * and the plan filter below is vacuous — which is the case this function is written to keep honest
+ * rather than the case that exercises it.
+ */
+internal fun abilityReturnCandidates(
+    state: GameState,
+    seat: PlayerId,
+    source: GameObject,
+    ability: ActivatedAbility,
+): List<GameObject> {
+    val filter = returnComponent(ability)?.filter ?: return emptyList()
+    val matching = matchingPermanents(state, filter, seat)
+    val mana = manaComponent(ability)
+    return matching.filter { candidate ->
+        mana == null ||
+            enumeratePaymentPlans(
+                state,
+                seat,
+                mana.cost,
+                manaSourcesReservedBy(state, source, ability, chosenReturn = listOf(candidate.id)),
+            ).isNotEmpty()
+    }
+}
+
 /**
  * The permanents [seat] may choose to pay [ability]'s [AbilityCost.Sacrifice] component — the ones that
  * match its filter **and** leave the ability's mana component payable once they are reserved.

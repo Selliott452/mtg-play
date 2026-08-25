@@ -59,6 +59,7 @@ data class TriggeredAbility(
     override val drawThenDiscard: DrawThenDiscard? = null,
     override val handRevealChoice: HandRevealChoice? = null,
     override val eachOpponentDiscards: EachOpponentDiscards? = null,
+    override val permanentSelection: PermanentSelection? = null,
 ) : ResolutionClauses {
     init {
         requireAtMostOneClause(this) { "the $condition triggered ability" }

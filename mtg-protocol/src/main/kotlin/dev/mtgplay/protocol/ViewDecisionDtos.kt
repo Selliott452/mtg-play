@@ -139,6 +139,15 @@ enum class DecisionRequestKindDto {
      * the deciding seat (ADR-007).
      */
     CHOOSE_OPPONENT_DISCARDS,
+
+    /** An activated ability's "return a permanent you control" cost (CR 602.1, CR 701.4a). */
+    CHOOSE_ABILITY_RETURN,
+
+    /**
+     * An **untargeted** mid-resolution choice of battlefield permanents (CR 609.4) — Snap, Azorius
+     * Chancery. Not a targeting request: see the `FW-TAPUNTAP` note in ProtocolVersion.kt.
+     */
+    CHOOSE_PERMANENTS_TO_AFFECT,
 }
 
 /**

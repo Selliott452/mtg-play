@@ -39,6 +39,17 @@ import kotlinx.serialization.Serializable
  *   each turn" mana ability, which is almost all of them. Public information (ADR-007) — that a Wall
  *   of Roots has already been used this turn is as visible across the table as its tapped status.
  *   Added by `FW-MANACOST`.
+ * @property activatedAbilitiesActivatedThisTurn the indices of this object's printed **non-mana**
+ *   activated abilities already activated this turn (CR 602.5b), ascending; empty for every object with
+ *   no "Activate only once each turn" activated ability. The sibling of
+ *   [manaAbilitiesActivatedThisTurn] and a separate field for the reason [GameObject] keeps two: the
+ *   two index different ability lists, so one merged array could not say which ability index 0 named.
+ *   Public information (ADR-007) — that a Quirion Ranger has already untapped this turn is as visible
+ *   across the table as its tapped status. Added by `FW-TAPUNTAP`.
+ * @property skipsNextUntapStep whether this permanent will not untap during its controller's next
+ *   untap step (CR 502.2) — Sleep of the Dead's rider; `false` for almost every object. Public
+ *   information (ADR-007): a "doesn't untap" effect resolves face-up on the stack and both players
+ *   must reason about it. Added by `FW-TAPUNTAP`.
  */
 @Serializable
 data class GameObjectDto(
@@ -56,6 +67,8 @@ data class GameObjectDto(
     val linkedExiled: List<Long>,
     val reboundTurn: Int?,
     val manaAbilitiesActivatedThisTurn: List<Int>,
+    val activatedAbilitiesActivatedThisTurn: List<Int> = emptyList(),
+    val skipsNextUntapStep: Boolean = false,
 )
 
 /** [GameObject] to its wire form. */
@@ -77,6 +90,8 @@ fun GameObject.toDto(): GameObjectDto =
         // CR 602.5b: publicly observable — every player sees that a Wall of Roots has already been
         // activated this turn, exactly as they see that it is tapped (ADR-007).
         manaAbilitiesActivatedThisTurn = manaAbilitiesActivatedThisTurn.sorted(),
+        activatedAbilitiesActivatedThisTurn = activatedAbilitiesActivatedThisTurn.sorted(),
+        skipsNextUntapStep = skipsNextUntapStep,
     )
 
 /** [GameObjectDto] back to the engine value. */
@@ -96,4 +111,6 @@ fun GameObjectDto.toDomain(): GameObject =
         linkedExiled = linkedExiled.map(::ObjectId).toPersistentList(),
         reboundTurn = reboundTurn,
         manaAbilitiesActivatedThisTurn = manaAbilitiesActivatedThisTurn.toPersistentSet(),
+        activatedAbilitiesActivatedThisTurn = activatedAbilitiesActivatedThisTurn.toPersistentSet(),
+        skipsNextUntapStep = skipsNextUntapStep,
     )

@@ -115,6 +115,20 @@ enum class DecisionRequestKind {
     /** [DecisionRequest.ChooseAbilityDiscard] — an activated ability's discard cost (CR 602.2b). */
     CHOOSE_ABILITY_DISCARD,
 
+    /**
+     * [DecisionRequest.ChooseAbilityReturn] — an activated ability's return-a-permanent cost
+     * (CR 602.1, CR 701.4a): Quirion Ranger's "Return a Forest you control to its owner's hand".
+     * Additive, flagged (`FW-TAPUNTAP`).
+     */
+    CHOOSE_ABILITY_RETURN,
+
+    /**
+     * [DecisionRequest.ChoosePermanentsToAffect] — an untargeted mid-resolution choice of battlefield
+     * permanents (CR 609.4): Snap's "Untap up to two lands", Azorius Chancery's "return a land you
+     * control to its owner's hand". Additive, flagged (`FW-TAPUNTAP`).
+     */
+    CHOOSE_PERMANENTS_TO_AFFECT,
+
     /** [DecisionRequest.ChooseColor] — an "as this enters, choose a colour" choice (CR 614.12). */
     CHOOSE_COLOR,
 
@@ -205,16 +219,21 @@ private fun sizedSelectionKind(request: DecisionRequest.SizedSelection): Decisio
         is DecisionRequest.ChooseSacrificesForCost -> DecisionRequestKind.CHOOSE_SACRIFICES_FOR_COST
         is DecisionRequest.ChooseAbilitySacrifice -> DecisionRequestKind.CHOOSE_ABILITY_SACRIFICE
         is DecisionRequest.ChooseAbilityDiscard -> DecisionRequestKind.CHOOSE_ABILITY_DISCARD
+        is DecisionRequest.ChooseAbilityReturn -> DecisionRequestKind.CHOOSE_ABILITY_RETURN
         is DecisionRequest.ChooseOptionalDiscard -> DecisionRequestKind.CHOOSE_OPTIONAL_DISCARD
         is DecisionRequest.ChooseOptionalCostObject -> DecisionRequestKind.CHOOSE_OPTIONAL_COST_OBJECT
         is DecisionRequest.ChooseResolutionDiscards -> DecisionRequestKind.CHOOSE_RESOLUTION_DISCARDS
         is DecisionRequest.ChooseOpponentDiscards -> DecisionRequestKind.CHOOSE_OPPONENT_DISCARDS
     }
 
-/** The kind of one ranged subset selection (CR 601.2c) — a multi-target choice. */
+/**
+ * The kind of one ranged subset selection — a multi-target choice (CR 601.2c) or an untargeted
+ * mid-resolution permanent selection (CR 609.4).
+ */
 private fun rangedSelectionKind(request: DecisionRequest.RangedSelection): DecisionRequestKind =
     when (request) {
         is DecisionRequest.ChooseMultipleTargets -> DecisionRequestKind.CHOOSE_MULTIPLE_TARGETS
+        is DecisionRequest.ChoosePermanentsToAffect -> DecisionRequestKind.CHOOSE_PERMANENTS_TO_AFFECT
     }
 
 /** The kind of one full-ordering selection (CR 509.2 / 603.3b). */

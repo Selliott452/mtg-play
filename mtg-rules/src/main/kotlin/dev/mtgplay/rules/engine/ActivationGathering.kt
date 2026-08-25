@@ -5,6 +5,7 @@ import dev.mtgplay.core.definition.AbilityZoneScope
 import dev.mtgplay.core.definition.ActivatedAbility
 import dev.mtgplay.core.identity.ObjectId
 import dev.mtgplay.core.identity.PlayerId
+import dev.mtgplay.core.state.GameObject
 import dev.mtgplay.core.state.GameState
 import dev.mtgplay.core.state.PendingActivation
 import dev.mtgplay.core.state.Target
@@ -65,6 +66,8 @@ internal fun beginActivation(
                     // CR 602.1: a "Sacrifice an artifact" component needs a selection; every other
                     // activation settles it empty.
                     chosenSacrifice = if (sacrificeComponent(ability) != null) null else persistentListOf(),
+                    // CR 602.1: likewise a "Return a Forest you control to its owner's hand" component.
+                    chosenReturn = if (returnComponent(ability) != null) null else persistentListOf(),
                 ),
         )
     return advanceActivationGathering(opened)
@@ -78,6 +81,7 @@ private fun advanceActivationGathering(state: GameState): AdvanceResult {
         pending.chosenTargets == null -> AdvanceResult.NeedsDecision(state, pendingActivationRequest(state))
         pending.chosenDiscard == null -> AdvanceResult.NeedsDecision(state, pendingActivationRequest(state))
         pending.chosenSacrifice == null -> AdvanceResult.NeedsDecision(state, pendingActivationRequest(state))
+        pending.chosenReturn == null -> AdvanceResult.NeedsDecision(state, pendingActivationRequest(state))
         manaComponent(ability) != null -> AdvanceResult.NeedsDecision(state, pendingActivationRequest(state))
         // No further decisions: pay the cost (with an empty plan) and put the ability on the stack.
         else -> executeActivation(state, PaymentPlan(emptyList(), emptyList()))
@@ -128,32 +132,62 @@ internal fun pendingActivationRequest(state: GameState): DecisionRequest {
                         .map { DecisionRequest.ChooseAbilitySacrifice.Option(it.id, it.card) },
                 count = 1,
             )
-        else -> {
-            val mana = manaComponent(ability) ?: error("CR 602.2g: a payment request requires a mana cost component")
-            DecisionRequest.ChoosePaymentPlan(
+        // CR 602.1 with CR 701.4a: the "Return a Forest you control" selection, offering exactly the
+        // candidates the legality check counted ([abilityReturnCandidates]).
+        pending.chosenReturn == null ->
+            DecisionRequest.ChooseAbilityReturn(
                 id = id,
-                cardObjectId = pending.sourceObjectId,
+                sourceObjectId = pending.sourceObjectId,
                 card = source.card,
-                // CR 602.2f: an activated ability's mana cost is modifiable in general, but nothing in
-                // the pool modifies one and no declaration can express it (docs/design/cost-modification.md
-                // §12) — so the determined cost *is* the printed component, and saying so here keeps the
-                // request's cost field meaning the same thing it means for a spell.
-                cost = mana.cost,
-                // Same reservation the legality check used (triage trap T17): the options offered
-                // must be exactly the ones execution can carry out (ADR-005), so the source cannot
-                // appear here as a payer for a cost that also taps or sacrifices it — nor may the
-                // permanent already chosen for a sacrifice component, when that permanent is one
-                // that produces mana *by* being sacrificed (docs/design/mana-payment.md §2.2).
                 options =
-                    enumeratePaymentPlans(
-                        state,
-                        pending.activator,
-                        mana.cost,
-                        manaSourcesReservedBy(state, source, ability, pending.chosenSacrifice.orEmpty()),
-                    ),
+                    abilityReturnCandidates(state, pending.activator, source, ability)
+                        .map { DecisionRequest.ChooseAbilityReturn.Option(it.id, it.card) },
+                count = 1,
             )
-        }
+        else -> activationPaymentRequest(state, pending, source, ability, id)
     }
+}
+
+/**
+ * The payment-plan request of an activation whose every cost selection is settled (CR 602.2f–g). Split
+ * out of [pendingActivationRequest] to keep that dispatch inside detekt's length budget.
+ */
+private fun activationPaymentRequest(
+    state: GameState,
+    pending: PendingActivation,
+    source: GameObject,
+    ability: ActivatedAbility,
+    id: DecisionRequestId,
+): DecisionRequest.ChoosePaymentPlan {
+    val mana = manaComponent(ability) ?: error("CR 602.2g: a payment request requires a mana cost component")
+    return DecisionRequest.ChoosePaymentPlan(
+        id = id,
+        cardObjectId = pending.sourceObjectId,
+        card = source.card,
+        // CR 602.2f: an activated ability's mana cost is modifiable in general, but nothing in the pool
+        // modifies one and no declaration can express it (docs/design/cost-modification.md §12) — so the
+        // determined cost *is* the printed component, and saying so here keeps the request's cost field
+        // meaning the same thing it means for a spell.
+        cost = mana.cost,
+        // Same reservation the legality check used (triage trap T17): the options offered must be
+        // exactly the ones execution can carry out (ADR-005), so the source cannot appear here as a
+        // payer for a cost that also taps or sacrifices it — nor may the permanent already chosen for a
+        // sacrifice component when that permanent produces mana *by* being sacrificed, nor the one
+        // chosen for a return component at all (docs/design/mana-payment.md §2.2, §2.4).
+        options =
+            enumeratePaymentPlans(
+                state,
+                pending.activator,
+                mana.cost,
+                manaSourcesReservedBy(
+                    state,
+                    source,
+                    ability,
+                    pending.chosenSacrifice.orEmpty(),
+                    pending.chosenReturn.orEmpty(),
+                ),
+            ),
+    )
 }
 
 /**
@@ -169,6 +203,23 @@ internal fun applyChosenAbilitySacrifice(
     require(pending.chosenSacrifice == null) { "CR 602.2b: this activation's sacrifice cost is already chosen" }
     return advanceActivationGathering(
         state.copy(pendingActivation = pending.copy(chosenSacrifice = sacrificeObjectIds.toPersistentList())),
+    )
+}
+
+/**
+ * Records the permanent chosen to pay an [AbilityCost.ReturnPermanentYouControl] component on the open
+ * activation (CR 602.1) and continues gathering. It is returned to its owner's hand only when the
+ * activation executes (CR 602.2b), atomically with everything else — nothing has left the battlefield
+ * yet, which is what lets the payment plan enumerated next reserve it.
+ */
+internal fun applyChosenAbilityReturn(
+    state: GameState,
+    returnObjectIds: List<ObjectId>,
+): AdvanceResult {
+    val pending = state.pendingActivation ?: error("no activation is gathering costs")
+    require(pending.chosenReturn == null) { "CR 602.2b: this activation's return cost is already chosen" }
+    return advanceActivationGathering(
+        state.copy(pendingActivation = pending.copy(chosenReturn = returnObjectIds.toPersistentList())),
     )
 }
 

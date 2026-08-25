@@ -37,7 +37,10 @@ fun DecisionRequest.toDto(): DecisionRequestDto =
         is DecisionRequest.MulliganRequest -> mulliganRequestToDto(this)
     }
 
-/** The ranged subset family (CR 601.2c) — a multi-target choice. */
+/**
+ * The ranged subset family — a multi-target choice (CR 601.2c) or an untargeted mid-resolution
+ * permanent selection (CR 609.4).
+ */
 private fun rangedSelectionToDto(request: DecisionRequest.RangedSelection): DecisionRequestDto =
     when (request) {
         is DecisionRequest.ChooseMultipleTargets ->
@@ -46,6 +49,15 @@ private fun rangedSelectionToDto(request: DecisionRequest.RangedSelection): Deci
                 request.cardObjectId.value,
                 request.card.name,
                 request.options.map { it.toDto() },
+                request.minimumCount,
+                request.maximumCount,
+            )
+        is DecisionRequest.ChoosePermanentsToAffect ->
+            DecisionRequestDto.ChoosePermanentsToAffect(
+                request.id.toDto(),
+                request.sourceCard.name,
+                request.prompt,
+                request.options.map { cardOption(it.objectId, it.card) },
                 request.minimumCount,
                 request.maximumCount,
             )
@@ -175,13 +187,20 @@ private fun sizedSelectionToDto(request: DecisionRequest.SizedSelection): Decisi
         is DecisionRequest.ChooseSacrificesForCost,
         is DecisionRequest.ChooseAbilitySacrifice,
         is DecisionRequest.ChooseAbilityDiscard,
+        is DecisionRequest.ChooseAbilityReturn,
         -> costSizedSelectionToDto(request)
     }
 
 /**
- * The cost-paying fixed-size subset selections (CR 601.2b/h, CR 602.1/2b) — an additional exile,
- * sacrifice, or discard for a cast, and a sacrifice or discard for an activated ability. Every one has
- * the same wire shape: the source object, its printed name, the enumerated options, and the count.
+ * The **cast**-side cost-paying fixed-size subset selections (CR 601.2b/h) — an additional exile,
+ * sacrifice, or discard for a spell being cast. Every one has the same wire shape: the object being
+ * cast, its printed name, the enumerated options, and the count.
+ *
+ * The **activation**-side ones route on to [abilityCostSelectionToDto], in its own file. The split is by
+ * which object the request names — a cast names `cardObjectId`, an activation `sourceObjectId` — which
+ * is a real distinction, though it was the function-length budget that forced the question when
+ * `FW-TAPUNTAP` added a third activation-side member. [laterSingleOptionSelectionToDto] made the same
+ * move for its own family.
  */
 private fun costSizedSelectionToDto(request: DecisionRequest.SizedSelection): DecisionRequestDto =
     when (request) {
@@ -217,22 +236,10 @@ private fun costSizedSelectionToDto(request: DecisionRequest.SizedSelection): De
                 request.options.map { cardOption(it.objectId, it.card) },
                 request.count,
             )
-        is DecisionRequest.ChooseAbilitySacrifice ->
-            DecisionRequestDto.ChooseAbilitySacrifice(
-                request.id.toDto(),
-                request.sourceObjectId.value,
-                request.card.name,
-                request.options.map { cardOption(it.objectId, it.card) },
-                request.count,
-            )
-        is DecisionRequest.ChooseAbilityDiscard ->
-            DecisionRequestDto.ChooseAbilityDiscard(
-                request.id.toDto(),
-                request.sourceObjectId.value,
-                request.card.name,
-                request.options.map { cardOption(it.objectId, it.card) },
-                request.count,
-            )
+        is DecisionRequest.ChooseAbilitySacrifice,
+        is DecisionRequest.ChooseAbilityDiscard,
+        is DecisionRequest.ChooseAbilityReturn,
+        -> abilityCostSelectionToDto(request)
         is DecisionRequest.ChooseDiscards,
         is DecisionRequest.ChooseOptionalDiscard,
         is DecisionRequest.ChooseOptionalCostObject,
@@ -284,8 +291,12 @@ private fun mulliganRequestToDto(request: DecisionRequest.MulliganRequest): Deci
             )
     }
 
-/** One card-in-a-zone option to its shared wire shape (object id plus printed name). */
-private fun cardOption(
+/**
+ * One card-in-a-zone option to its shared wire shape (object id plus printed name). `internal` rather
+ * than private since `FW-TAPUNTAP` split the activation-side cost selections into their own file, which
+ * maps the same option shape.
+ */
+internal fun cardOption(
     objectId: ObjectId,
     card: CardRef,
 ): CardObjectOptionDto = CardObjectOptionDto(objectId.value, card.name)

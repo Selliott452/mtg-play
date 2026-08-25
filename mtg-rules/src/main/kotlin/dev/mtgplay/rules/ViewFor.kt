@@ -66,6 +66,8 @@ fun viewFor(
             pendingOpponentDiscard = state.pendingOpponentDiscard?.let { opponentDiscardViewOf(it) },
             // CR 406.3: exile is a public zone, so the rebounding card and its offer are already visible.
             pendingRebound = state.pendingRebound,
+            // CR 400.2: the battlefield is public, so an untargeted selection over it hides nothing.
+            pendingPermanentSelection = state.pendingPermanentSelection,
             // CR 611.2: a resolved spell's continuous effect is public information; no filtering applies.
             timedEffects = state.timedEffects,
         )

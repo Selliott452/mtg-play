@@ -2,6 +2,7 @@ package dev.mtgplay.rules.engine
 
 import dev.mtgplay.core.event.GameEvent
 import dev.mtgplay.core.state.EffectDuration
+import dev.mtgplay.core.state.GameObject
 import dev.mtgplay.core.state.GameState
 import kotlinx.collections.immutable.toPersistentList
 
@@ -14,19 +15,39 @@ internal const val MAXIMUM_HAND_SIZE: Int = 7
  * simultaneous untap emits one [GameEvent.ObjectUntapped] per object that was tapped, in
  * battlefield order, for a deterministic log (P2.2).
  *
- * Controller is owner until control-changing effects exist (Phase 4+). Phasing (CR 502.1)
- * remains a documented gap: nothing in the MVP pool phases, and an unrepresentable status
- * cannot be silently mishandled.
+ * **A permanent marked [GameObject.skipsNextUntapStep] does not untap, and spends its marker here**
+ * (CR 502.2) — Sleep of the Dead's "It doesn't untap during its controller's next untap step".
+ * Additive (`FW-TAPUNTAP`). Three details are load-bearing and all three are the CR's:
+ * - The marker is spent **whether or not the permanent was tapped**. "Its controller's next untap step"
+ *   names a step, not an event: an untapped permanent's Sleep rider is used up by the very next untap
+ *   step doing nothing, and does not lie in wait for a later one.
+ * - It is spent only in **its controller's** untap step, which is why the clearing is scoped to the
+ *   active player exactly as the untapping is. Controller is owner until control-changing effects
+ *   exist (Phase 4+).
+ * - A skipped permanent emits **no** [GameEvent.ObjectUntapped], because it did not untap. The event
+ *   list is derived observability (ADR-006) and must not narrate a status change that never happened.
+ *
+ * Phasing (CR 502.1) remains a documented gap: nothing in the MVP pool phases, and an unrepresentable
+ * status cannot be silently mishandled.
  */
 internal fun untapStepTurnBasedActions(state: GameState): GameState {
     val active = state.turn.activePlayer
-    val untapping = state.sharedZones.battlefield.filter { it.owner == active && it.tapped }
-    val untapped =
+
+    // CR 502.2: the active player's permanents untap, except those a "doesn't untap" effect holds down.
+    fun untaps(obj: GameObject): Boolean = obj.owner == active && obj.tapped && !obj.skipsNextUntapStep
+    val untapping = state.sharedZones.battlefield.filter(::untaps)
+    val stepped =
         state.sharedZones.battlefield
-            .map { obj -> if (obj.owner == active && obj.tapped) obj.copy(tapped = false) else obj }
-            .toPersistentList()
+            .map { obj ->
+                when {
+                    untaps(obj) -> obj.copy(tapped = false)
+                    // The marker names *this* step and is spent by it, tapped or not (see the KDoc).
+                    obj.owner == active && obj.skipsNextUntapStep -> obj.copy(skipsNextUntapStep = false)
+                    else -> obj
+                }
+            }.toPersistentList()
     return untapping.fold(
-        state.copy(sharedZones = state.sharedZones.copy(battlefield = untapped)),
+        state.copy(sharedZones = state.sharedZones.copy(battlefield = stepped)),
     ) { current, obj -> current.emit(GameEvent.ObjectUntapped(obj.id, obj.card)) }
 }
 

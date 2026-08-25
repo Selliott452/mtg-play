@@ -57,6 +57,7 @@ internal fun orchestrateResolutionClauses(
     val search = clauses.librarySearch
     val handReveal = clauses.handRevealChoice
     val opponentDiscard = clauses.eachOpponentDiscards
+    val permanents = clauses.permanentSelection
     return when {
         reveal != null -> orchestrateLibraryReveal(state, entry, reveal)
         look != null -> orchestrateLibraryLook(state, entry, look)
@@ -65,6 +66,7 @@ internal fun orchestrateResolutionClauses(
         search != null -> orchestrateLibrarySearch(state, entry, search)
         handReveal != null -> orchestrateHandRevealChoice(state, entry, handReveal)
         opponentDiscard != null -> orchestrateEachOpponentDiscards(state, entry, opponentDiscard)
+        permanents != null -> orchestratePermanentSelection(state, entry, permanents)
         else -> completeClauseResolution(state, entry)
     }
 }

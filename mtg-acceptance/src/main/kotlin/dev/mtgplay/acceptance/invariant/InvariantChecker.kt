@@ -79,6 +79,10 @@ object InvariantChecker {
             addAll(checkTimedEffectSanity(state))
             addAll(checkCounterScope(residences))
             addAll(checkManaAbilityActivationScope(residences, state.definitions))
+            // CR 602.5b / CR 502.2 (`FW-TAPUNTAP`): the sibling per-turn record and the doesn't-untap
+            // marker, both battlefield-only state whose leak is silently unobservable.
+            addAll(checkActivatedAbilityActivationScope(residences, state.definitions))
+            addAll(checkSkipsNextUntapScope(residences))
             addAll(checkEntryTriggerDetection(state))
             addAll(checkExileAndReturnState(state, residences))
             if (expectedCards != null) addAll(checkCardConservation(state, expectedCards))

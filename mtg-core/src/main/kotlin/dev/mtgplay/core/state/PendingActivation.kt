@@ -37,6 +37,16 @@ import kotlinx.collections.immutable.PersistentList
  *   Gathered **before** the payment plan, which is what lets the plan enumeration reserve exactly the
  *   chosen permanent when it is a sacrifice-cost mana source and nothing otherwise
  *   (docs/design/mana-payment.md §2.2).
+ * @property chosenReturn the battlefield permanent chosen to pay a
+ *   [dev.mtgplay.core.definition.AbilityCost.ReturnPermanentYouControl] component (Quirion Ranger's
+ *   "Return a Forest you control to its owner's hand"): `null` before the selection is answered when
+ *   the cost demands one, an (empty) list once settled or when no such component applies. Additive,
+ *   flagged core (`FW-TAPUNTAP`).
+ *
+ *   Gathered **after** the sacrifice selection and **before** the payment plan, for the reason the
+ *   sacrifice is: a permanent that has been chosen to leave the battlefield must be reservable by the
+ *   plan enumeration, and a choice not yet made cannot be reserved. A returned permanent is reserved
+ *   *unconditionally*, unlike a sacrificed one — see `manaSourcesReservedBy`.
  */
 data class PendingActivation(
     val activator: PlayerId,
@@ -46,4 +56,5 @@ data class PendingActivation(
     val chosenDiscard: PersistentList<ObjectId>?,
     val chosenTargets: PersistentList<Target>? = null,
     val chosenSacrifice: PersistentList<ObjectId>? = null,
+    val chosenReturn: PersistentList<ObjectId>? = null,
 )

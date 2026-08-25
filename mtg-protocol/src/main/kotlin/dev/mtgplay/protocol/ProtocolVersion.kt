@@ -305,5 +305,31 @@ package dev.mtgplay.protocol
  * The seat view is untouched in shape but not in content: [GameObjectDto] already carries every
  * battlefield object, and objects that have spent a CR 602.5b "Activate only once each turn" mana
  * ability now report it through the existing per-object fields the view already serialises.
+ *
+ * ### Folded into `7.0.0` — `FW-TAPUNTAP`: tap, untap, and choosing your own permanents
+ *
+ * Two new request members and three new optional seat-view fields, **folded into `7.0.0` rather than
+ * bumped to `8.0.0`** on this file's established standard, stated in the `5.0.0` note and applied at
+ * every purely-additive packet since: a peer that does not know these members meets them only when a
+ * card printing them is in play, and everything else on the wire is unchanged. `7.0.0` is still
+ * unreleased when this lands, so no peer has yet pinned it.
+ *
+ * - [DecisionRequestDto.ChooseAbilityReturn] (`choose_ability_return`), a `SizedSelectionDto` in the
+ *   exact shape of `choose_ability_sacrifice`: Quirion Ranger's "Return a Forest you control to its
+ *   owner's hand" activation cost. [DecisionRequestKindDto] gains `CHOOSE_ABILITY_RETURN`.
+ * - [DecisionRequestDto.ChoosePermanentsToAffect] (`choose_permanents_to_affect`), a
+ *   `RangedSelectionDto`: Snap's "Untap up to two lands" and Azorius Chancery's "return a land you
+ *   control to its owner's hand", chosen mid-resolution and **untargeted** (CR 609.4).
+ *   [DecisionRequestKindDto] gains `CHOOSE_PERMANENTS_TO_AFFECT`.
+ * - [SeatViewDto.pendingPermanentSelection] and two new [GameObjectDto] fields —
+ *   `activatedAbilitiesActivatedThisTurn` and `skipsNextUntapStep` — all defaulted, so an older
+ *   payload still decodes. Every one is public information: the battlefield is a public zone
+ *   (CR 400.2), so a selection over it hides nothing, and a "doesn't untap" rider resolves face-up.
+ *
+ * Worth reading beside `FW-MULTITGT`'s entry: `choose_permanents_to_affect` shares
+ * `choose_multiple_targets`' ranged shape and is **not** a targeting request. Its options are not
+ * filtered by hexproof or shroud, they are never re-checked for legality, and the answer records no
+ * target — a peer that treats the two as interchangeable would be modelling a game these cards do not
+ * describe. The absent `cardObjectId` is the visible tell.
  */
 const val PROTOCOL_VERSION: String = "7.0.0"

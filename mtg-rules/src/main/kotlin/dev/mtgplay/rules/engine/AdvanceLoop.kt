@@ -113,12 +113,19 @@ internal fun beginTurn(
             .map { obj -> if (obj.owner == activePlayer && obj.summoningSick) obj.copy(summoningSick = false) else obj }
             // CR 602.5b with CR 500.1: "Activate only once each turn" resets as *each* turn begins, for
             // every object and not only the active player's — a Wall of Roots spent on your turn taps
-            // for mana again on your opponent's.
+            // for mana again on your opponent's, and a Quirion Ranger spent on yours untaps a creature
+            // again on theirs. Both records reset together; they index different ability lists
+            // (GameObject), so both have to be named.
             .map { obj ->
-                if (obj.manaAbilitiesActivatedThisTurn.isEmpty()) {
+                if (obj.manaAbilitiesActivatedThisTurn.isEmpty() &&
+                    obj.activatedAbilitiesActivatedThisTurn.isEmpty()
+                ) {
                     obj
                 } else {
-                    obj.copy(manaAbilitiesActivatedThisTurn = persistentSetOf())
+                    obj.copy(
+                        manaAbilitiesActivatedThisTurn = persistentSetOf(),
+                        activatedAbilitiesActivatedThisTurn = persistentSetOf(),
+                    )
                 }
             }.toPersistentList()
     // CR 603.2: "in a turn" resets for every player as the new turn begins, so a per-turn draw trigger

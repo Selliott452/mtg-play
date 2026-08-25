@@ -94,6 +94,8 @@ private fun applySizedSelection(
             applyChosenAbilitySacrifice(state, decision.indices.map { request.options[it].objectId })
         is DecisionRequest.ChooseAbilityDiscard ->
             applyChosenAbilityDiscard(state, decision.indices.map { request.options[it].objectId })
+        is DecisionRequest.ChooseAbilityReturn ->
+            applyChosenAbilityReturn(state, decision.indices.map { request.options[it].objectId })
         is DecisionRequest.ChooseOptionalDiscard ->
             applyOptionalDiscardChoice(state, request.options[decision.indices.single()].objectId)
         is DecisionRequest.ChooseOptionalCostObject ->
@@ -107,9 +109,10 @@ private fun applySizedSelection(
 }
 
 /**
- * Applies one ranged subset selection (CR 601.2c) — today only a multi-target choice — dispatching by
- * kind. The indices are already validated as distinct, in range, and of a size within the request's
- * bounds (ADR-004), so mapping them straight onto options is safe.
+ * Applies one ranged subset selection — a multi-target choice (CR 601.2c) or an untargeted
+ * mid-resolution permanent selection (CR 609.4) — dispatching by kind. The indices are already
+ * validated as distinct, in range, and of a size within the request's bounds (ADR-004), so mapping them
+ * straight onto options is safe.
  *
  * The chosen targets go to the same three-flow applier its single-target sibling uses
  * (`SingleOptionApplication.kt`): a cast, an activation, or a trigger placement, told apart by the open
@@ -124,6 +127,10 @@ private fun applyRangedSelection(
     return when (request) {
         is DecisionRequest.ChooseMultipleTargets ->
             applyChosenTargetList(state, decision.indices.map { request.options[it] }, request)
+        // CR 609.4: an untargeted mid-resolution selection of battlefield permanents — the same ranged
+        // shape, but the answer names permanents to act on rather than targets to record.
+        is DecisionRequest.ChoosePermanentsToAffect ->
+            applyPermanentSelection(state, decision.indices.map { request.options[it].objectId })
     }
 }
 

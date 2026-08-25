@@ -240,6 +240,32 @@ into the `reserved` set directly.
    *and* a sacrifice would enumerate plans that spend a permanent already gone. Closing it means
    moving `paySacrificeCosts` after `payCosts` and giving it the same reservation.
 
+### 2.4 Return-a-permanent costs, and the one place the reservation is *un*conditional (`FW-TAPUNTAP`)
+
+`AbilityCost.ReturnPermanentYouControl(filter)` — Quirion Ranger's "Return a Forest you control to its
+owner's hand: Untap target creature" — is §2.3's shape again with a different destination, and it
+gathers, enumerates and reserves through the same three-way discipline: `abilityReturnCandidates` is
+the joint (mana, chosen object) answer, and it is both the payability check and the selection's option
+list.
+
+**One rule differs, and the difference is a zone-change rule rather than a judgement call.** A chosen
+*sacrifice* is reserved only when it is a sacrifice-cost mana source; a chosen *return* is reserved
+**unconditionally**. Tapping a land for mana and then sacrificing it is legal Magic — CR 601.2g
+precedes CR 601.2h and CR 701.17 does not care that the permanent is tapped — but a permanent returned
+to its owner's hand becomes a **new object** (CR 400.7) in a zone with no tapped status at all
+(CR 110.5). A plan that taps a Forest for mana and then returns it is therefore not a legal sequencing
+of one payment; it is paying with an object the cost then cannot find. Reserving it is what stops that
+plan being enumerated (ADR-005).
+
+The asymmetry is invisible in the pool today — Quirion Ranger's cost is a bare return with **no** mana
+component, so nothing is competing for the Forest — which is exactly why it is written down here
+rather than left to be rediscovered by the first card that prints both.
+
+**One flag left open.** No gauntlet card carries a chosen *sacrifice* and a chosen *return* in one
+cost. If one arrives, the two joint answers would each reserve without seeing the other's choice, so
+`abilityCostPayable` **fails loudly** on the pairing rather than over-offering; the fix is the same
+joint enumeration flag 1 of §2.3 names.
+
 ## 3. Ordering, dedup, and why the enumeration is duplicate-free
 
 **Stable ordering** (ADR-005 indices; ADR-006 replay). Source classes are ordered by first
@@ -468,11 +494,17 @@ Three consequences worth stating.
 - **The alternatives are canonically ordered** lexicographically by `ManaType` ordinal, shorter
   first. On the singleton alternatives that make up almost the whole pool this is exactly the old
   WUBRG-then-colorless type order, so no ordinary board's enumeration order moved (ADR-006).
-- **A mixed multiset is expressible in the key but not yet in a definition.** Azorius Chancery's
-  "{T}: Add {W}{U}" is a legal `profile` value today; what is missing is `ManaAbility` vocabulary
-  to *declare* it, because `ManaAmount` multiplies a single chosen type. That is deliberate — the
-  key is the thing that is expensive to change, so it was made general; the definition vocabulary
-  is cheap to extend and so was kept to what a card in the pool prints.
+- **A mixed multiset is declarable since `FW-TAPUNTAP`, and the prediction held exactly.** This
+  section used to read "expressible in the key but not yet in a definition": a mixed `profile` value
+  was already legal, and what was missing was `ManaAbility` vocabulary to *declare* it, because
+  `ManaAmount` multiplies a single chosen type. `ManaAmount.FixedMultiset` is that vocabulary, and
+  adding it cost **nothing** below the definition layer — no change to `SourceClassKey`, to the
+  equivalence relation, to plan shape, to the payment search, or to the executor. It is the one
+  `ManaAmount` member that supplies its own types rather than a count, so `productionProfile` builds
+  **one** alternative from it instead of one per option: "add {W}{U}" is not "add one mana of white
+  or blue", and collapsing the two would halve the card. `ManaAbility`'s `init` requires its
+  `options` to be exactly the multiset's distinct types in WUBRG order, so the two halves of the
+  declaration cannot drift.
 
 ### 8.2 The definition vocabulary, and CR 605.2 versus CR 601.2f
 
@@ -628,9 +660,11 @@ singleton alternative and the reshape is a pure widening.
   throws rather than mispaying (§8.3). Unreachable in the gauntlet pool; the fix when it becomes
   reachable is an execution-order rule, not a change to what execution reads.
 
-- **A mixed-type multiset is not declarable.** `SourceClassKey` holds arbitrary multisets, but
-  `ManaAmount` multiplies one chosen type, so Azorius Chancery's "{T}: Add {W}{U}" needs a new
-  `ManaAmount`-sized addition in `mtg-core` and **no** change to the payment model (§8.1).
+- ~~**A mixed-type multiset is not declarable.**~~ **Closed by `FW-TAPUNTAP`** (Azorius Chancery).
+  The gap was called correctly: it needed exactly one `ManaAmount`-sized addition in `mtg-core`
+  (`ManaAmount.FixedMultiset`) and **no** change to the payment model — see §8.1. Left listed rather
+  than deleted, because a gap that was predicted and then cost what it was predicted to cost is the
+  evidence that the model's seams are where this document says they are.
 
 ## 10. Why enumeration completeness is testable
 

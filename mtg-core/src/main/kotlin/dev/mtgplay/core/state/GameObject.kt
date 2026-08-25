@@ -116,6 +116,35 @@ import kotlinx.collections.immutable.persistentSetOf
  *   means each player's turn, so a source spent on your turn is available again on your opponent's), and
  *   the fresh object born of any zone move carries none (CR 400.7). The acceptance invariant checker
  *   enforces both the scope and that every recorded index names a printed mana ability.
+ * @property activatedAbilitiesActivatedThisTurn the indices of this object's **printed** non-mana
+ *   activated abilities that have been activated during the turn now in progress (CR 602.5b). Additive,
+ *   flagged core (`FW-TAPUNTAP`). Empty for every object with no "Activate only once each turn"
+ *   activated ability — the engine records an activation only when the ability carries the restriction
+ *   — so the field stays empty on every ordinary permanent and the replay fingerprint of an ordinary
+ *   board does not move.
+ *
+ *   **The sibling of [manaAbilitiesActivatedThisTurn], and deliberately a second field rather than a
+ *   widening of it.** The rule is identical (CR 602.5b, a property of the object and not of its
+ *   controller), but the two index *different lists* on the same definition —
+ *   [dev.mtgplay.core.definition.CardDefinition.manaAbilities] and
+ *   [dev.mtgplay.core.definition.CardDefinition.activatedAbilities] — so a shared set could not say
+ *   which ability index 0 named on a card printing both. Turn-scoped and battlefield-only exactly as
+ *   its sibling is: cleared for every object as a turn begins (CR 500.1 — "each turn" means each
+ *   player's turn), and the fresh object born of any zone move carries none (CR 400.7). The acceptance
+ *   invariant checker enforces both the scope and that every recorded index names a printed activated
+ *   ability.
+ * @property skipsNextUntapStep whether this permanent does **not** untap during its controller's next
+ *   untap step (CR 302.6, CR 502.2) — Sleep of the Dead's "It doesn't untap during its controller's
+ *   next untap step". Additive, flagged core (`FW-TAPUNTAP`).
+ *
+ *   A battlefield-only marker like [tapped], and the one turn-spanning marker in this type: unlike
+ *   [manaAbilitiesActivatedThisTurn] it is **not** cleared when a turn begins, because the effect names
+ *   a specific future step rather than the current turn. It is consumed by the untap step's turn-based
+ *   action — the permanent stays as it is and the marker clears — so exactly one untap step is skipped
+ *   however many turns pass first. `false` everywhere off the battlefield, and the fresh object born of
+ *   any zone move carries none (CR 400.7), which is the rules answer as well as the state one: a
+ *   creature bounced and recast is a new object and unaffected. The acceptance invariant checker
+ *   enforces the scope.
  */
 data class GameObject(
     val id: ObjectId,
@@ -132,12 +161,18 @@ data class GameObject(
     val linkedExiled: PersistentList<ObjectId> = persistentListOf(),
     val reboundTurn: Int? = null,
     val manaAbilitiesActivatedThisTurn: PersistentSet<Int> = persistentSetOf(),
+    val activatedAbilitiesActivatedThisTurn: PersistentSet<Int> = persistentSetOf(),
+    val skipsNextUntapStep: Boolean = false,
 ) {
     init {
         require(damageMarked >= 0) { "CR 120.3: marked damage is non-negative, was $damageMarked" }
         require(manaAbilitiesActivatedThisTurn.all { it >= 0 }) {
             "CR 602.5b: a per-turn activation record indexes a printed mana ability, got " +
                 "$manaAbilitiesActivatedThisTurn"
+        }
+        require(activatedAbilitiesActivatedThisTurn.all { it >= 0 }) {
+            "CR 602.5b: a per-turn activation record indexes a printed activated ability, got " +
+                "$activatedAbilitiesActivatedThisTurn"
         }
         require(attachedTo != id) { "CR 303.4: an Aura cannot be attached to itself ($id)" }
         require(plottedTurn == null || plottedTurn >= 1) { "CR 702.140: a plotted turn is a real turn number" }

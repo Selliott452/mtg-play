@@ -70,3 +70,9 @@ fun PendingLibrarySearch.toDto(): PendingLibrarySearchDto = PendingLibrarySearch
 
 /** [PendingLibrarySearchDto] back to the engine value. */
 fun PendingLibrarySearchDto.toDomain(): PendingLibrarySearch = PendingLibrarySearch(PlayerId(decider))
+
+/*
+ * [PendingPermanentSelection]'s wire form lives in PermanentSelectionDtos.kt beside the action enum it
+ * carries, rather than here with its sibling pauses: this file is at its function budget, and the
+ * record and its enum are useless apart.
+ */
