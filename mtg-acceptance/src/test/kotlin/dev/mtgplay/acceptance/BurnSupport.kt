@@ -70,6 +70,9 @@ internal val BURN_OPPONENT: Responder =
             // policy never reaches.
             is DecisionRequest.SizedSelection ->
                 error("the burn policy pays no cost selections, but a sized-selection request surfaced: $request")
+            // CR 601.2c: the burn pool prints no multi-target line, so one surfacing is a defect.
+            is DecisionRequest.RangedSelection ->
+                error("the burn policy casts no multi-target spell, but one surfaced: $request")
             is DecisionRequest.ChooseReplacement ->
                 error("the burn policy discards no two-replacement cards, but one surfaced: $request")
             is DecisionRequest.ChooseColor ->
@@ -231,6 +234,9 @@ internal val GRIND_TO_BOLT_RANGE: Responder =
             // policy never reaches.
             is DecisionRequest.SizedSelection ->
                 error("the grind policy pays no cost selections, but a sized-selection request surfaced: $request")
+            // CR 601.2c: the grind pool prints no multi-target line, so one surfacing is a defect.
+            is DecisionRequest.RangedSelection ->
+                error("the grind policy casts no multi-target spell, but one surfaced: $request")
             is DecisionRequest.ChooseReplacement ->
                 error("the grind policy discards no two-replacement cards, but one surfaced: $request")
             is DecisionRequest.ChooseColor ->

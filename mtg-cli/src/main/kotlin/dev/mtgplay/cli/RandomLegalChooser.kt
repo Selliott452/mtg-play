@@ -33,6 +33,10 @@ class RandomLegalChooser(
             is DecisionRequest.ChooseYesNo -> single(request.id, DecisionRequest.ChooseYesNo.OPTION_COUNT)
             is DecisionRequest.ChoiceCountSelection -> single(request.id, request.choiceCount)
             is DecisionRequest.SizedSelection -> multi(request.id, subset(request.optionCount, request.requiredCount))
+            // CR 601.2c: a size drawn uniformly from the request's bounds, then that many distinct
+            // indices — distinctness being the same-object rule, guaranteed by `subset`.
+            is DecisionRequest.RangedSelection ->
+                multi(request.id, subset(request.optionCount, rangedSize(request)))
             is DecisionRequest.PermutationSelection -> multi(request.id, permutation(request.permutationSize))
             is DecisionRequest.DeclareAttackers -> multi(request.id, anySizeSubset(request.options.size))
             is DecisionRequest.DeclareBlockers -> multi(request.id, blockAssignment(request.options))
@@ -44,6 +48,13 @@ class RandomLegalChooser(
             is DecisionRequest.ChooseMulligan -> single(request.id, DecisionRequest.ChooseMulligan.OPTION_COUNT)
             is DecisionRequest.ChooseCardsToBottom -> multi(request.id, subset(request.options.size, request.count))
         }
+
+    /** A uniformly random legal answer size for a ranged selection (CR 601.2c). */
+    private fun rangedSize(request: DecisionRequest.RangedSelection): Int {
+        val (offset, next) = rng.nextInt(request.maximumCount - request.minimumCount + 1)
+        rng = next
+        return request.minimumCount + offset
+    }
 
     private fun single(
         id: DecisionRequestId,

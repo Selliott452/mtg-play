@@ -68,6 +68,7 @@ internal fun respondTo(request: DecisionRequest): Decision =
         is DecisionRequest.DeclareBlockers -> Decision.MultiSelect(request.id, emptyList())
         // This policy never casts, blocks a multi-blocker, or activates, so these never arise.
         is DecisionRequest.ChooseTargets,
+        is DecisionRequest.RangedSelection,
         is DecisionRequest.ChoosePaymentPlan,
         is DecisionRequest.OrderBlockers,
         is DecisionRequest.AssignTrampleDamage,

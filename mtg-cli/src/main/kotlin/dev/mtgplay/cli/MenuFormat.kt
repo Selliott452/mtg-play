@@ -21,6 +21,21 @@ internal const val SINGLE_HINT: String = "  Enter one number."
 internal fun sizedHint(count: Int): String =
     "  Enter exactly $count number(s), comma-separated (e.g. 1,2). [Enter] = the first $count."
 
+/**
+ * The input hint for a ranged selection of between [minimum] and [maximum] items (CR 601.2c). Spelled
+ * out rather than folded into [sizedHint] because the two say opposite things about declining: a sized
+ * cost must be paid in full, while an "up to N" target line may legitimately be answered with none.
+ */
+internal fun rangedHint(
+    minimum: Int,
+    maximum: Int,
+): String =
+    if (minimum == 0) {
+        "  Enter up to $maximum number(s), comma-separated (e.g. 1,2). [Enter] = none."
+    } else {
+        "  Enter $minimum to $maximum number(s), comma-separated (e.g. 1,2). [Enter] = the first $minimum."
+    }
+
 /** The input hint for an any-size subset selection (attackers, blockers). */
 internal const val SUBSET_HINT: String = "  Enter numbers comma-separated, or [Enter] for none."
 

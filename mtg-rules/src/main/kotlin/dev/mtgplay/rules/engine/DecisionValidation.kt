@@ -30,6 +30,18 @@ internal fun validateDecision(
                 "exactly ${request.requiredCount} option(s) must be chosen, got $chosen"
             }
         }
+        // CR 601.2c: a ranged target selection validates as a distinct in-range subset whose size lies
+        // within the request's bounds. The distinctness is not incidental — it *is* "the same target
+        // can't be chosen multiple times for any one instance of the word 'target'", which holds
+        // because `legalTargets` never offers one object twice.
+        is DecisionRequest.RangedSelection -> {
+            validateDistinctSubset(request, decision, request.optionCount, "target")
+            val chosen = decision.asMultiSelect(request).indices.size
+            require(chosen in request.minimumCount..request.maximumCount) {
+                "CR 601.2c: between ${request.minimumCount} and ${request.maximumCount} target(s) " +
+                    "must be chosen, got $chosen"
+            }
+        }
         is DecisionRequest.DeclareAttackers -> {
             // CR 508.1: any subset of the eligible attackers is a legal declaration (the empty
             // subset included); the only cross-option rule is distinctness.

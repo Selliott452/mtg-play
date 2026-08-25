@@ -22,6 +22,7 @@ import dev.mtgplay.rules.viewFor
 import io.kotest.core.spec.style.StringSpec
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldBeEmpty
+import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
@@ -48,7 +49,13 @@ import io.kotest.matchers.types.shouldBeInstanceOf
  * information too. Once a target can name a card in a zone other than the battlefield or the stack, the
  * question "may the deciding seat be told this option exists?" stops being answered by the request
  * machinery and starts being answered by the **zone** (CR 400.2). [checkTargetOptionZones] pins that
- * answer from the raw state, on every `ChooseTargets` pause, for every seat.
+ * answer from the raw state, on every target pause, for every seat.
+ *
+ * `FW-MULTITGT` widens that third half twice over, and neither widening relaxes anything. The zone check
+ * now runs on the **multi-target** request kind as well — a kind-specific guard would have skipped it
+ * silently — and [checkMultiTargetBounds] adds the ADR-005 half a multi-target option list needs and a
+ * single-target one cannot have: the offered bounds are satisfiable, and no object is offered twice, so
+ * the engine's distinct-index rule really is CR 601.2c's same-object rule.
  */
 class ViewLeakPropertySpec :
     StringSpec({
@@ -212,7 +219,18 @@ private fun checkTargetOptionZones(
     state: GameState,
     request: DecisionRequest,
 ) {
-    if (request !is DecisionRequest.ChooseTargets) return
+    // `FW-MULTITGT`: both target request kinds are checked. Leaving this as a `ChooseTargets`-only
+    // guard would have made every multi-target pause skip the ADR-007 property silently — an option
+    // list is information whatever the arity of the answer.
+    val options =
+        when (request) {
+            is DecisionRequest.ChooseTargets -> request.options
+            is DecisionRequest.ChooseMultipleTargets -> {
+                checkMultiTargetBounds(request)
+                request.options
+            }
+            else -> return
+        }
     val hiddenZoneIds =
         state.players.values
             .flatMap { it.library + it.hand }
@@ -223,7 +241,7 @@ private fun checkTargetOptionZones(
             .associateBy { it.id }
     val views = state.players.keys.map { viewFor(state, it) }
 
-    for (option in request.options) {
+    for (option in options) {
         val named =
             when (option) {
                 // Public by construction: a player, a battlefield permanent, a face-up stack object.
@@ -237,6 +255,25 @@ private fun checkTargetOptionZones(
             views.forEach { view -> view.cards.containsKey(named) shouldBe true }
         }
     }
+}
+
+/**
+ * ADR-005 on a multi-target option list (CR 601.2c), checked on every such pause of the corpus.
+ *
+ * A multi-target request is where an enumeration most easily offers an **illegal combination**, and
+ * exactly two things stop it: the bounds must be satisfiable from the options actually offered, and no
+ * object may be offered twice — because the engine enforces "the same target can't be chosen multiple
+ * times for any one instance of the word 'target'" as distinct *indices*, which is only the same rule
+ * while the option list is duplicate-free. Both are asserted here from the request itself, so a future
+ * enumeration branch that started emitting one object twice would fail the corpus rather than quietly
+ * letting an agent point two targets at one card.
+ */
+private fun checkMultiTargetBounds(request: DecisionRequest.ChooseMultipleTargets) {
+    request.options.distinct().size shouldBe request.options.size
+    (request.minimumCount >= 0).shouldBeTrue()
+    (request.minimumCount <= request.maximumCount).shouldBeTrue()
+    (request.maximumCount <= request.options.size).shouldBeTrue()
+    request.options.shouldNotBeEmpty()
 }
 
 /** The printed identity a [StackEntryView] names (CR 405): a spell's card, or an ability's source. */

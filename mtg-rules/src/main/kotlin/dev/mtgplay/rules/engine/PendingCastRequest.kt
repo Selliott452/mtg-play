@@ -30,10 +30,11 @@ internal fun pendingCastRequest(
     return when {
         // CR 601.2c: targets first.
         cast.chosenTargets == null ->
-            DecisionRequest.ChooseTargets(
+            targetRequest(
                 id = id,
                 cardObjectId = cast.cardObjectId,
                 card = card.card,
+                spec = definition.targetSpec,
                 // CR 601.2c: the card is still in its source zone while gathering, so its id excludes
                 // nothing from the stack — and naming it here is what makes this enumeration equal the
                 // one `establishTargets` recomputes once the card is on the stack under a fresh id.

@@ -184,8 +184,28 @@ package dev.mtgplay.protocol
  *    [DecisionRequestDto] member, no [DecisionRequestKindDto] member, no [TargetDto] member — so the
  *    client→server direction is untouched, the milder of the two break modes.
  *
+ * *`FW-MULTITGT`* (docs/design/multi-target.md §9). A spell or ability can now demand more than one
+ * target, which **adds a `DecisionRequest` kind** — the sharper of the two break modes, and one
+ * `4.0.0` already recorded as a major bump on its own. [DecisionRequestDto] gains
+ * [DecisionRequestDto.ChooseMultipleTargets] and [DecisionRequestKindDto] gains
+ * `CHOOSE_MULTIPLE_TARGETS`, whose `valueOf` mapping fails at **runtime** mid-match rather than at
+ * compile time, and it is answerable in the client→server direction too, since a multi-target choice
+ * is a decision an agent sends indices for.
+ *
+ * `ChooseTargets` is **deliberately left alone**, and that is the framework's central wire claim: a
+ * one-target line still surfaces the same request, answered by the same `SingleSelect`, carrying the
+ * same fields. Widening it to a ranged shape would have been a break in every existing decision log
+ * and every existing target payload for a cardinality no card printed — so the new arity is a new
+ * kind, and a `5.0.0` peer meets the old one unchanged.
+ *
+ * No [TargetDto] member and no [SeatViewDto] field are added: a multi-target choice names the same
+ * targets a single one does, and the ADR-007 answer is unchanged because the *zone* still decides
+ * visibility (the `FW-ZONETGT` ruling), not the number of objects named.
+ *
  * The version is a single major step even though several frameworks are landing in this wave for the
  * same reason `5.0.0` covered two: `5.0.0` is the last version any consumer can have seen, so one
- * bump carries every break in the wave.
+ * bump carries every break in the wave. `FW-MULTITGT` lands inside that same unreleased wave, so it
+ * is folded in rather than bumped to `7.0.0` — parallel packets in this wave may reach the same
+ * conclusion, and one shared bump is meant to carry all of them.
  */
 const val PROTOCOL_VERSION: String = "6.0.0"

@@ -1,6 +1,5 @@
 package dev.mtgplay.rules.engine
 
-import dev.mtgplay.core.definition.TargetSpec
 import dev.mtgplay.core.identity.PlayerId
 import dev.mtgplay.core.state.GameState
 import dev.mtgplay.core.state.PendingTrigger
@@ -9,7 +8,7 @@ import dev.mtgplay.core.state.Target
 import dev.mtgplay.rules.AdvanceResult
 import dev.mtgplay.rules.decision.DecisionRequest
 import dev.mtgplay.rules.decision.DecisionRequestId
-import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.toPersistentList
 
 /*
  * The CR 603.3d target choice of a triggered ability, split from TriggerPlacement.kt so each file stays
@@ -21,7 +20,7 @@ import kotlinx.collections.immutable.persistentListOf
  * neither a gathering pause (nobody holds priority *for it*) nor a mid-resolution pause (nothing is
  * resolving), and it gets its own branch in [pendingDecisionRequest].
  *
- * The request is a plain [DecisionRequest.ChooseTargets]: CR 601.2c is the rule for a cast, an
+ * The request is a plain target request: CR 601.2c is the rule for a cast, an
  * activation (via CR 602.2b) and a trigger placement (via CR 603.3d) alike, so the three share one
  * enumerated decision and drivers, the protocol, and the ADR-005 enumeration probe need no new member.
  * Which flow an answer belongs to is read from the open pending record, exactly as the yes/no and
@@ -41,7 +40,7 @@ internal fun triggerTargetPause(
     next: PendingTrigger,
 ): AdvanceResult? {
     val spec = next.ability.targetSpec
-    if (spec == TargetSpec.None || legalTargets(state, spec, controller, self = null).isEmpty()) return null
+    if (targetChoiceIsVacuous(state, spec, controller, self = null)) return null
     val paused =
         state.copy(pendingTriggerTargets = PendingTriggerTargets(controller, next.sourceId, next.sourceCard))
     return AdvanceResult.NeedsDecision(paused, pendingTriggerTargetsRequest(paused))
@@ -65,27 +64,29 @@ private fun placingTrigger(state: GameState): PendingTrigger {
 }
 
 /**
- * The [DecisionRequest.ChooseTargets] the open CR 603.3d placement is waiting on. A pure function of the
- * state (ADR-004): the deciding seat is the ability's controller — **not** necessarily the player who
- * will receive priority, exactly as for the CR 603.3b ordering choice. Only surfaced when a legal target
- * exists ([placeOrderedTriggers] places a target-less ability outright), so the request's non-empty
+ * The target request the open CR 603.3d placement is waiting on — [DecisionRequest.ChooseTargets] for a
+ * one-target ability, [DecisionRequest.ChooseMultipleTargets] for an "up to N" one. A pure function of
+ * the state (ADR-004): the deciding seat is the ability's controller — **not** necessarily the player
+ * who will receive priority, exactly as for the CR 603.3b ordering choice. Only surfaced when a legal
+ * target exists ([placeOrderedTriggers] places a target-less ability outright), so both kinds' non-empty
  * options requirement always holds.
  */
-internal fun pendingTriggerTargetsRequest(state: GameState): DecisionRequest.ChooseTargets {
+internal fun pendingTriggerTargetsRequest(state: GameState): DecisionRequest {
     val pending =
         state.pendingTriggerTargets
             ?: error("CR 603.3d: no triggered ability is choosing targets")
     val trigger = placingTrigger(state)
-    return DecisionRequest.ChooseTargets(
+    return targetRequest(
         id = DecisionRequestId(pending.controller, state.player(pending.controller).decisionsAnswered),
         cardObjectId = pending.sourceId,
         card = pending.sourceCard,
+        spec = trigger.ability.targetSpec,
         options = legalTargets(state, trigger.ability.targetSpec, pending.controller, self = null),
     )
 }
 
 /**
- * Records [target] on the triggered ability being placed (CR 603.3d), puts it on the stack, and resumes
+ * Records [targets] on the triggered ability being placed (CR 603.3d), puts it on the stack, and resumes
  * the CR 603.3b drain — which places the rest of this controller's ordered group, then the next
  * controller's, then opens the priority window. The whole placement, choice included, is one transition:
  * a pending trigger with settled targets is never a state the engine pauses in, which is why
@@ -93,13 +94,13 @@ internal fun pendingTriggerTargetsRequest(state: GameState): DecisionRequest.Cho
  */
 internal fun applyChosenTriggerTarget(
     state: GameState,
-    target: Target,
+    targets: List<Target>,
 ): AdvanceResult {
     val pending =
         state.pendingTriggerTargets
             ?: error("CR 603.3d: no triggered ability is choosing targets")
     val trigger = placingTrigger(state)
     val placed =
-        putTriggerOnStack(state.copy(pendingTriggerTargets = null), trigger, persistentListOf(target))
+        putTriggerOnStack(state.copy(pendingTriggerTargets = null), trigger, targets.toPersistentList())
     return placeOrderedTriggers(placed, pending.controller)
 }

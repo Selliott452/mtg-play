@@ -4,7 +4,6 @@ import dev.mtgplay.core.definition.AbilityCost
 import dev.mtgplay.core.definition.AbilityZoneScope
 import dev.mtgplay.core.definition.ActivatedAbility
 import dev.mtgplay.core.definition.ResolutionContext
-import dev.mtgplay.core.definition.TargetSpec
 import dev.mtgplay.core.event.GameEvent
 import dev.mtgplay.core.identity.ObjectId
 import dev.mtgplay.core.identity.PlayerId
@@ -90,26 +89,23 @@ internal fun executeActivation(
 
 /**
  * The CR 601.2c re-validation of an activation's targets (reached through CR 602.2b): the gathered
- * choices satisfy the spec and are legal right now. They were enumerated legally and nothing can have
- * changed while gathering — the whole activation is one transition — so a violation is an engine defect
- * and fails loudly (ADR-005). Emits nothing itself; the mirror of the cast pipeline's `establishTargets`.
+ * choices satisfy the spec's arity and CR 601.2c's same-object rule ([requireWellFormedTargetChoice])
+ * and are legal right now. They were enumerated legally and nothing can have changed while gathering —
+ * the whole activation is one transition — so a violation is an engine defect and fails loudly
+ * (ADR-005). Emits nothing itself; the mirror of the cast pipeline's `establishTargets`, and since
+ * `FW-MULTITGT` the two share their arity and distinctness checks rather than restating them.
  */
 private fun establishActivationTargets(
     state: GameState,
     entry: StackEntry.ActivatedAbilityOnStack,
 ) {
     val spec = entry.ability.targetSpec
-    if (spec == TargetSpec.None) {
-        require(entry.targets.isEmpty()) {
-            "CR 601.2c: ${entry.sourceCard.name}'s ability targets nothing but ${entry.targets} were chosen"
-        }
-        return
-    }
-    require(entry.targets.size == 1) {
-        "CR 601.2c: ${entry.sourceCard.name}'s ability demands exactly one target, got ${entry.targets}"
-    }
+    // CR 113.7a: an ability on the stack has no residence id, so it excludes nothing from its own
+    // enumeration — the same `self = null` the choice was enumerated with.
+    val options = legalTargets(state, spec, entry.controller, self = null)
+    requireWellFormedTargetChoice(spec, entry.targets, options.size, "${entry.sourceCard.name}'s ability")
     entry.targets.forEach { target ->
-        require(isTargetLegal(state, spec, target, entry.controller, self = null)) {
+        require(target in options) {
             "CR 601.2c: $target is not a legal target for ${entry.sourceCard.name}'s ability"
         }
     }

@@ -25,10 +25,19 @@ class RandomRemoteAgent(
 ) : RemoteAgent {
     private var rng: Rng = Rng(seed)
 
-    /** Picks a legal [DecisionDto] for [request]. Dispatch is grouped by the DTO's five families to stay flat. */
+    /** Picks a legal [DecisionDto] for [request]. Dispatch is grouped by the DTO's six families to stay flat. */
     override fun decide(request: DecisionRequestDto): DecisionDto =
         when (request) {
             is DecisionRequestDto.SizedSelectionDto -> sizedSelection(request)
+            // A ranged subset selection (CR 601.2c) — a multi-target choice: a random distinct subset
+            // whose size is drawn uniformly from the request's own bounds. Distinct indices are
+            // CR 601.2c's rule that one object cannot be chosen twice for one instance of "target".
+            is DecisionRequestDto.RangedSelectionDto -> {
+                val (optionCount, minimum, maximum) = rangedBounds(request)
+                val (offset, next) = rng.nextInt(maximum - minimum + 1)
+                rng = next
+                DecisionDto.MultiSelect(request.id, subset(optionCount, minimum + offset))
+            }
             is DecisionRequestDto.PermutationSelectionDto -> permutationSelection(request)
             is DecisionRequestDto.ChoiceCountSelectionDto -> singleSelect(request.id, choiceCount(request))
             is DecisionRequestDto.MulliganRequestDto -> mulligan(request)
@@ -164,3 +173,10 @@ class RandomRemoteAgent(
         const val MULLIGAN_INDEX: Int = 1
     }
 }
+
+/** The option count and inclusive answer-size bounds of a ranged selection (CR 601.2c). */
+private fun rangedBounds(request: DecisionRequestDto.RangedSelectionDto): Triple<Int, Int, Int> =
+    when (request) {
+        is DecisionRequestDto.ChooseMultipleTargets ->
+            Triple(request.options.size, request.minimumCount, request.maximumCount)
+    }

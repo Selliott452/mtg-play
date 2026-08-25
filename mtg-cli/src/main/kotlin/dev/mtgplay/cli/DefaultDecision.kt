@@ -15,6 +15,8 @@ import dev.mtgplay.rules.decision.PriorityOption
  *  - target / payment / colour / replacement / trample: the first option;
  *  - attackers / blockers (CR 508/509): declare none;
  *  - fixed-size selection: the first N options (the lowest-index cards, as the pass-everything policy);
+ *  - ranged (multi-target) selection: the fewest allowed — none for an "up to N" line, which is the
+ *    passive answer, and the first N for a line that demands them;
  *  - full ordering: the identity order (0,1,2,...);
  *  - "choose one or opt out": opt out (keep/find none, decline);
  *  - yes/no: decline;
@@ -30,6 +32,9 @@ fun defaultDecision(request: DecisionRequest): Decision =
         is DecisionRequest.DeclareAttackers -> Decision.MultiSelect(request.id, emptyList())
         is DecisionRequest.DeclareBlockers -> Decision.MultiSelect(request.id, emptyList())
         is DecisionRequest.SizedSelection -> Decision.MultiSelect(request.id, (0 until request.requiredCount).toList())
+        // CR 601.2c: the minimum is always legal and is the passive choice — an "up to N" target line
+        // defaults to declining, matching this file's "blank input takes the do-nothing option" rule.
+        is DecisionRequest.RangedSelection -> Decision.MultiSelect(request.id, (0 until request.minimumCount).toList())
         is DecisionRequest.PermutationSelection ->
             Decision.MultiSelect(request.id, (0 until request.permutationSize).toList())
         // The trailing opt-out index is the last legal index (CR 701.16/601.3b/701.18): keep/find none, decline.

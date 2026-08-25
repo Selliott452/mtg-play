@@ -30,6 +30,9 @@ fun parseDecision(
         is DecisionRequest.DeclareBlockers -> parseBlockSubset(request, trimmed)
         is DecisionRequest.SizedSelection ->
             parseSubset(request.id, trimmed, request.optionCount, exactly = request.requiredCount)
+        // CR 601.2c: a multi-target choice takes any distinct subset whose size is within the request's
+        // bounds. `parseSubset` already rejects a repeated number, which is the same-object rule.
+        is DecisionRequest.RangedSelection -> parseRanged(request, trimmed)
         is DecisionRequest.PermutationSelection -> parsePermutation(request.id, trimmed, request.permutationSize)
         is DecisionRequest.MulliganRequest -> parseMulligan(request, trimmed)
     }
@@ -78,4 +81,17 @@ internal fun parseIndices(input: String): List<Int>? {
     val numbers = parts.mapNotNull { it.toIntOrNull() }
     if (parts.isEmpty() || numbers.size != parts.size) return null
     return numbers.map { it - 1 }
+}
+
+/**
+ * Parses a comma-separated list of one-based numbers into a distinct in-range subset whose size lies
+ * within [request]'s bounds (CR 601.2c), or `null` to re-prompt. An empty line is a legal answer only
+ * when the request's minimum is zero — "up to two" may take none, "two target creatures" may not.
+ */
+private fun parseRanged(
+    request: DecisionRequest.RangedSelection,
+    input: String,
+): Decision.MultiSelect? {
+    val parsed = parseSubset(request.id, input, request.optionCount, exactly = null) ?: return null
+    return if (parsed.indices.size in request.minimumCount..request.maximumCount) parsed else null
 }
