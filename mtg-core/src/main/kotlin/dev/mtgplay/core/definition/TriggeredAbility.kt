@@ -26,6 +26,13 @@ package dev.mtgplay.core.definition
  * narrower trigger-only spelling of [optionalCostThenDraw]'s discard mode; it is kept as-is rather than
  * migrated, because retiring it would move wire-visible state.
  *
+ * **[librarySearch] was missing from this list until `W8-E`**, and its absence was a silent gap rather
+ * than a decision. `P-SEARCH` lifted the search clause onto [ResolutionClauses] precisely so a spell or
+ * a trigger could carry one, and [SpellDefinition] and [ActivatedAbility] both declared it — but this
+ * type never did, so it inherited the interface's `null` default and a card whose *enters-the-battlefield
+ * trigger* searches (Gatecreeper Vine, Sylvan Ranger, Civic Wayfinder) could not be written at all. The
+ * carrier had the shape; one of its three implementors had not taken it.
+ *
  * **Intervening-if conditions (CR 603.4) arrived with `FW-OPTCOST`** ([interveningIf]). The gap this
  * paragraph used to record — that putting the "if" inside [effect] implements only the resolution half
  * of the rule — is closed for the one shape the pool prints, "if it was kicked". Conditions of other
@@ -51,6 +58,10 @@ package dev.mtgplay.core.definition
  *   you do, draw two cards." Because it needs a mid-resolution yes/no and discard selection, the engine
  *   runs it instead of [effect] (they are mutually exclusive in the MVP pool); the discard routes
  *   through the CR 614/616 framework so madness intercepts it.
+ * @property librarySearch a "search your library, put one somewhere, then shuffle" part of this
+ *   ability's resolution (CR 701.18), or `null` for an ability with none. Additive, flagged core
+ *   (`W8-E`). Gatecreeper Vine's enters-the-battlefield "you may search your library for a basic land
+ *   card or a Gate card". Run **after** the ordinary [effect], pausing for the find-one choice.
  */
 data class TriggeredAbility(
     val condition: TriggerCondition,
@@ -61,6 +72,7 @@ data class TriggeredAbility(
     val targetSpec: TargetSpec = TargetSpec.None,
     override val libraryReveal: LibraryReveal? = null,
     override val libraryLook: LibraryLook? = null,
+    override val librarySearch: LibrarySearch? = null,
     override val optionalCostThenDraw: OptionalCostThenDraw? = null,
     override val drawThenDiscard: DrawThenDiscard? = null,
     override val handRevealChoice: HandRevealChoice? = null,

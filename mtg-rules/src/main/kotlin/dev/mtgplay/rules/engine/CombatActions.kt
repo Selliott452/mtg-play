@@ -229,6 +229,7 @@ private fun declareBlockersRequest(
     return DecisionRequest.DeclareBlockers(
         id = DecisionRequestId(defender, state.player(defender).decisionsAnswered),
         options = eligibleBlockPairings(state, combat),
+        minimumBlockers = publishedBlockerMinimums(state, combat),
     )
 }
 

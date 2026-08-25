@@ -261,6 +261,26 @@ import dev.mtgplay.core.identity.CardRef
  * fired no CR 603.6c leaves-the-battlefield trigger, so bouncing a [journeyToNowhere] left the creature
  * it held exiled forever. Sewer-veillance Cam and Stonehorn Dignitary stay absent — modal resolution for
  * a *triggered ability* and CR 500.6 phase-skipping are frameworks this packet does not own.
+ *
+ * The `W8-E` packet adds six cards whose printed work happens as they arrive, or from a zone the engine
+ * had never run an ability from (EtbCreatures.kt, Tokens.kt). [faerieMiscreant] carries the pool's first
+ * intervening-if whose two CR 603.4 checks can genuinely disagree
+ * ([dev.mtgplay.core.definition.InterveningIf.YouControlAnotherCreatureNamed], and with it the pool's
+ * first *name* comparison); [godPharaohsFaithful] filters the cast trigger by the cast spell's **colour**
+ * (CR 105.2); [gatecreeperVine] brings both new search axes — the "you may search" that is not CR 701.18b's
+ * fail-to-find, and the first *disjunctive* filter, "a basic land card **or** a Gate card";
+ * [brambleWurm] is the first card with an ability that functions from the **graveyard** (CR 113.6b), paid
+ * for by exiling itself; [trollOfKhazadDum] brings the first block restriction that is a property of the
+ * whole declaration rather than of a pairing (CR 509.1b, "except by three or more creatures"); and
+ * [rallyAtTheHornburg] is the first spell to create two tokens and then pump the set they joined, its
+ * [humanSoldierToken] created on demand like every other token here. Three cards were written and
+ * dropped. Clockwork Percussionist stays dropped for exactly the reason the keyword-tail packet recorded
+ * — a *play permission* lasting "until the end of your next turn" is neither a continuous effect nor a
+ * single-turn duration — and the card-advantage packet owns that framework via Reckless Impulse.
+ * Moon-Circuit Hacker needs "unless this creature entered this turn", a fact no object records, plus a
+ * *conditional* discard hanging off an optional draw; Masked Vandal needs an optional graveyard-exile
+ * cost gating a targeted effect mid-resolution, which is a clause
+ * [dev.mtgplay.core.definition.ResolutionClauses] does not have.
  */
 object MvpCards {
     /** Every defined card, keyed by its printed-name [CardRef] (CR 201). */
@@ -280,6 +300,7 @@ object MvpCards {
             azoriusChancery,
             bloodFountain,
             bojukaBog,
+            brambleWurm,
             blueElementalBlast,
             barrelsOfBlastingJelly,
             brainstorm,
@@ -306,6 +327,7 @@ object MvpCards {
             landGrant,
             prohibit,
             faerieMacabre,
+            faerieMiscreant,
             faerieSeer,
             faithlessLooting,
             fieryTemper,
@@ -314,6 +336,7 @@ object MvpCards {
             forest,
             fyndhornElves,
             galvanicBlast,
+            gatecreeperVine,
             generousEnt,
             giantsBoulder,
             gingerbreadCabin,
@@ -322,6 +345,7 @@ object MvpCards {
             ghostlyFlicker,
             gladecoverScout,
             gnawToTheBone,
+            godPharaohsFaithful,
             goblinTombRaider,
             grabThePrize,
             greatFurnace,
@@ -377,6 +401,7 @@ object MvpCards {
             pursueThePast,
             quirionRanger,
             rancor,
+            rallyAtTheHornburg,
             raze,
             reckonersBargain,
             redElementalBlast,
@@ -414,6 +439,7 @@ object MvpCards {
             thrabenCharm,
             timberwatchElf,
             toxinAnalysis,
+            trollOfKhazadDum,
             twistedLandscape,
             unexpectedFangs,
             unfathomableTruths,

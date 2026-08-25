@@ -58,4 +58,5 @@ private fun scopeName(scope: AbilityZoneScope): String =
     when (scope) {
         AbilityZoneScope.Battlefield -> "battlefield"
         AbilityZoneScope.Hand -> "hand"
+        AbilityZoneScope.Graveyard -> "graveyard"
     }

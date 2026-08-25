@@ -75,11 +75,13 @@ object CreatureType {
             Spirit
             Toy
             Treefolk
+            Troll
             Utrom
             Vampire
             Wall
             Warrior
             Wizard
+            Wurm
             Zombie
             """,
         )

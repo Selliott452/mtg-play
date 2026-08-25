@@ -20,7 +20,7 @@ enum class CastSourceDto { HAND, GRAVEYARD, EXILE }
 
 /** Wire form of [AbilityZoneScope] (CR 113.6) — a data-free sealed family, so an enum on the wire. */
 @Serializable
-enum class AbilityZoneScopeDto { BATTLEFIELD, HAND }
+enum class AbilityZoneScopeDto { BATTLEFIELD, HAND, GRAVEYARD }
 
 /** Wire form of [OptionalCostMode] (CR 601.3b) — a data-free sealed family, so an enum on the wire. */
 @Serializable
@@ -94,6 +94,7 @@ fun AbilityZoneScope.toDto(): AbilityZoneScopeDto =
     when (this) {
         AbilityZoneScope.Battlefield -> AbilityZoneScopeDto.BATTLEFIELD
         AbilityZoneScope.Hand -> AbilityZoneScopeDto.HAND
+        AbilityZoneScope.Graveyard -> AbilityZoneScopeDto.GRAVEYARD
     }
 
 /** [AbilityZoneScopeDto] back to the engine value. */
@@ -101,6 +102,7 @@ fun AbilityZoneScopeDto.toDomain(): AbilityZoneScope =
     when (this) {
         AbilityZoneScopeDto.BATTLEFIELD -> AbilityZoneScope.Battlefield
         AbilityZoneScopeDto.HAND -> AbilityZoneScope.Hand
+        AbilityZoneScopeDto.GRAVEYARD -> AbilityZoneScope.Graveyard
     }
 
 /** [OptionalCostMode] to its wire form. */

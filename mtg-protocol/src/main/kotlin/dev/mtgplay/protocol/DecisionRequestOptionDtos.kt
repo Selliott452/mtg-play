@@ -70,6 +70,26 @@ data class BlockerOptionDto(
 )
 
 /**
+ * One attacker's CR 509.1b blocker-count floor: it may be blocked by no creature at all, or by
+ * [minimum] or more, and by nothing in between. Troll of Khazad-dûm's "can't be blocked except by three
+ * or more creatures". Added by `W8-E`.
+ *
+ * Carried alongside the pairing options rather than folded into them because the restriction is a
+ * property of the whole declaration and not of any one pairing — see
+ * [dev.mtgplay.core.card.Evasion.BLOCKABLE_ONLY_BY_THREE_OR_MORE].
+ *
+ * @property attacker the declared attacker the floor applies to.
+ * @property attackerCard the attacker's printed name.
+ * @property minimum the smallest legal non-zero number of blockers; two or more.
+ */
+@Serializable
+data class BlockerMinimumDto(
+    val attacker: Long,
+    val attackerCard: String,
+    val minimum: Int,
+)
+
+/**
  * One simultaneous-trigger option to be ordered (CR 603.3b).
  *
  * @property sourceCard the printed name of the trigger's source.

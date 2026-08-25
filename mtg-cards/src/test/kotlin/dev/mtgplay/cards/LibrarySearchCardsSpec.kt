@@ -1,6 +1,7 @@
 package dev.mtgplay.cards
 
 import dev.mtgplay.core.card.CardType
+import dev.mtgplay.core.card.Evasion
 import dev.mtgplay.core.card.Keyword
 import dev.mtgplay.core.card.Subtype
 import dev.mtgplay.core.card.Supertype
@@ -238,10 +239,15 @@ class LibrarySearchCardsSpec :
             MvpCards.definitions[CardRef("Land Grant")].shouldNotBeNull()
         }
 
-        "the sibling the packet still cannot encode is absent rather than approximated" {
-            // Troll of Khazad-dûm needs a whole-block-declaration constraint (`FW-BLOCKSET`). Shipping it
-            // without that would be a plausible-looking wrong card (PLAN.md §7).
-            MvpCards.definitions[CardRef("Troll of Khazad-dûm")].shouldBeNull()
+        "CR 509.1b: Troll of Khazad-dûm, dropped by `P-SEARCH`, is encoded now the block set exists" {
+            // The card this spec used to assert *absent*. `P-SEARCH` had its swampcycling half and
+            // dropped the card because "can't be blocked except by three or more creatures" is a
+            // constraint on the whole block declaration, which nothing could express. `W8-E` added it
+            // (Evasion.BLOCKABLE_ONLY_BY_THREE_OR_MORE, published on the declare-blockers request), so
+            // the assertion inverts rather than being deleted: the reason it was absent is gone.
+            MvpCards.definitions[CardRef("Troll of Khazad-dûm")].shouldNotBeNull()
+            trollOfKhazadDum.characteristics.evasions shouldBe
+                persistentSetOf(Evasion.BLOCKABLE_ONLY_BY_THREE_OR_MORE)
         }
     })
 

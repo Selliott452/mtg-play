@@ -40,7 +40,7 @@ internal fun enqueuePendingTrigger(
     state: GameState,
     trigger: PendingTrigger,
 ): GameState =
-    if (!interveningIfHolds(state, trigger.ability, trigger.sourceId)) {
+    if (!interveningIfHolds(state, trigger.ability, trigger.sourceId, trigger.controller)) {
         state
     } else {
         state.copy(pendingTriggers = state.pendingTriggers.adding(trigger))
@@ -297,12 +297,17 @@ internal fun fireCombatDamageToPlayerTriggers(
  * Detects cast triggers (CR 603.2, CR 601.2i) when the spell [castEntry] finishes casting: each
  * battlefield permanent carrying a [TriggerCondition.SpellCast] ability whose filters match the cast
  * fires for its controller. Guttersnipe's "whenever you cast an instant or sorcery spell" and Kessig
- * Flamebreather's "whenever you cast a noncreature spell" both fire here. The three filters (P6.2a;
- * the exclusion added in P6.3):
+ * Flamebreather's "whenever you cast a noncreature spell" both fire here. The four filters (P6.2a;
+ * the exclusion added in P6.3, the colours by `W8-E`):
  * - [TriggerCondition.SpellCast.spellTypes]: the cast spell's printed card types must include one of
  *   them (empty set = any spell);
  * - [TriggerCondition.SpellCast.excludedSpellTypes]: the cast spell's printed card types must include
  *   none of them (empty set = nothing excluded) — the "noncreature spell" shape;
+ * - [TriggerCondition.SpellCast.spellColors]: the cast spell must be one of them (CR 105.2; empty set
+ *   = no colour requirement) — God-Pharaoh's Faithful's "a blue, black, or red spell". The colours are
+ *   the *cast card's* own (CR 202.2, derived from its mana cost or forced empty by devoid), not the
+ *   colours of the mana that paid for it, so a red spell cast with white mana still fires it and a
+ *   colourless artifact cast with blue mana does not.
  * - [TriggerCondition.SpellCast.controlledByYou]: the cast's controller must be the source's
  *   controller (control is ownership in the MVP pool).
  *
@@ -314,6 +319,8 @@ internal fun detectCastTriggers(
     castEntry: dev.mtgplay.core.state.StackEntry.Spell,
 ): GameState {
     val castTypes = castEntry.definition.characteristics.cardTypes
+    // CR 105.2 / CR 202.2: the cast card's own colours, empty for a colourless or devoid spell.
+    val castColors = castEntry.definition.characteristics.colors
     return state.sharedZones.battlefield.fold(state) { current, source ->
         val abilities =
             current.definitions[source.card]
@@ -324,6 +331,7 @@ internal fun detectCastTriggers(
                         condition is TriggerCondition.SpellCast &&
                         (condition.spellTypes.isEmpty() || condition.spellTypes.any { it in castTypes }) &&
                         condition.excludedSpellTypes.none { it in castTypes } &&
+                        (condition.spellColors.isEmpty() || condition.spellColors.any { it in castColors }) &&
                         (!condition.controlledByYou || source.owner == castEntry.controller)
                 }.orEmpty()
         abilities.fold(current) { inner, ability ->

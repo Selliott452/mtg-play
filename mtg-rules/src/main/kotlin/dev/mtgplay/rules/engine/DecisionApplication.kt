@@ -65,7 +65,13 @@ private fun applyChoiceCountSelection(
         is DecisionRequest.ChooseCostMode ->
             applyCostModeChoice(state, request.options.getOrNull(index))
         is DecisionRequest.ChooseFromLibrary ->
-            applyLibrarySearchChoice(state, request.options.getOrNull(index)?.objectId)
+            applyLibrarySearchChoice(
+                state,
+                request.options.getOrNull(index)?.objectId,
+                // CR 601.3b: only the "don't search" index of a "you may search" declines the search
+                // itself; every other index (a found card, or failing to find) searched and shuffles.
+                searched = index != request.declineSearchIndex,
+            )
     }
 
 /**

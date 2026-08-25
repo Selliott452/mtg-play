@@ -222,6 +222,12 @@ class MvpCardsSpec :
             MvpCards.definitions.keys shouldBe
                 setOf(
                     CardRef("Abundant Growth"),
+                    CardRef("Faerie Miscreant"),
+                    CardRef("God-Pharaoh's Faithful"),
+                    CardRef("Gatecreeper Vine"),
+                    CardRef("Bramble Wurm"),
+                    CardRef("Rally at the Hornburg"),
+                    CardRef("Troll of Khazad-dûm"),
                     CardRef("Goblin Bushwhacker"),
                     CardRef("Land Grant"),
                     CardRef("Prohibit"),

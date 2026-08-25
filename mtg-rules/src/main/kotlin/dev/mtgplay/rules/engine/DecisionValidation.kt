@@ -62,15 +62,32 @@ internal fun validateDecision(
     }
 }
 
-/** Validates a declare-blockers answer (CR 509.1): a distinct subset, no blocker chosen twice (CR 509.1a). */
+/**
+ * Validates a declare-blockers answer (CR 509.1): a distinct subset, no blocker chosen twice
+ * (CR 509.1a), and every published blocker-count floor respected (CR 509.1b).
+ *
+ * The floor is checked **here** rather than in the option list because it is not a property of any one
+ * (blocker, attacker) pairing: Troll of Khazad-dûm's "can't be blocked except by three or more
+ * creatures" makes each of the three blocks legal only in the company of the other two, so the legality
+ * only exists for the set. Zero blockers always satisfies it — CR 509.1b restricts how a creature may be
+ * blocked, never whether it must be.
+ */
 private fun validateBlockerDeclaration(
     request: DecisionRequest.DeclareBlockers,
     decision: Decision,
 ) {
     validateDistinctSubset(request, decision, request.options.size, "block")
-    val blockers = decision.asMultiSelect(request).indices.map { request.options[it].blocker }
+    val chosen = decision.asMultiSelect(request).indices.map { request.options[it] }
+    val blockers = chosen.map { it.blocker }
     require(blockers.distinct().size == blockers.size) {
         "CR 509.1a: a creature blocks at most one attacker, but a blocker was chosen twice: $blockers"
+    }
+    request.minimumBlockers.forEach { floor ->
+        val count = chosen.count { it.attacker == floor.attacker }
+        require(count == 0 || count >= floor.minimum) {
+            "CR 509.1b: ${floor.attackerCard.name} can't be blocked except by ${floor.minimum} or " +
+                "more creatures, but $count was declared"
+        }
     }
 }
 
