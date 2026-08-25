@@ -17,23 +17,20 @@ import kotlinx.collections.immutable.PersistentList
  * The [effect] reuses the [ResolutionEffect] shape: the engine hands it a [ResolutionContext] carrying
  * the ability's controller and, for a targeting ability, the targets chosen at CR 602.2b.
  *
- * **Post-resolution clauses ([ResolutionClauses]).** An activated ability carries the same four clauses a
- * spell does — [libraryReveal], [libraryLook], [optionalCostThenDraw], and [drawThenDiscard] — because
- * `FW-CLAUSEHOOK` lifted them off [SpellDefinition] onto a carrier
+ * **Post-resolution clauses ([ResolutionClauses]).** An activated ability carries the same five clauses a
+ * spell does — [libraryReveal], [libraryLook], [optionalCostThenDraw], [drawThenDiscard], and
+ * [librarySearch] — because `FW-CLAUSEHOOK` lifted them off [SpellDefinition] onto a carrier
  * (docs/design/resolution-clause-hook.md), so an activated ability that scries or loots is one clause
  * rather than a second orchestration. The clause runs **after** the ordinary [effect], and at most one may
- * be declared. [librarySearch] predates the carrier and stays a field of its own: it is a CR 701.18 search
- * of a *whole* library with a mandatory shuffle, not one of the four.
+ * be declared. [librarySearch] joined them in `P-SEARCH` (docs/design/library-search.md §2): it had been a
+ * field of this type alone, which made a searching *spell* inexpressible and ran the search instead of the
+ * ordinary effect rather than after it.
  *
  * @property cost the ability's composite activation cost (CR 602.1), in printed order; never empty.
  * @property effect what the ability does when it resolves (CR 608.2); reuses [ResolutionEffect]. A no-op for
  *   an ability whose whole effect is a [librarySearch] (Ash Barrens), which the engine orchestrates instead.
  * @property zoneScope the zone the ability functions from (CR 113.6); [AbilityZoneScope.Battlefield]
  *   for most, [AbilityZoneScope.Hand] for landcycling.
- * @property librarySearch a "search your library, put one into hand, then shuffle" part of this ability's
- *   resolution (CR 701.18), or `null` for an ability with none. Additive, flagged core (P6.2c). Ash Barrens'
- *   basic landcycling. Because it needs a mid-resolution selection and a seeded shuffle, `mtg-rules` runs it
- *   after the ordinary [effect], pausing for the find-one choice.
  * @property targetSpec what this ability demands as targets (CR 115); [TargetSpec.None] for an untargeted
  *   ability. Additive, flagged core (`FW-ABILTGT`, docs/design/targeted-abilities.md). The targets are
  *   chosen as part of activating the ability (CR 602.2b, following CR 601.2b–i) — before any cost is paid
@@ -45,7 +42,7 @@ data class ActivatedAbility(
     val cost: PersistentList<AbilityCost>,
     val effect: ResolutionEffect,
     val zoneScope: AbilityZoneScope = AbilityZoneScope.Battlefield,
-    val librarySearch: LibrarySearch? = null,
+    override val librarySearch: LibrarySearch? = null,
     val targetSpec: TargetSpec = TargetSpec.None,
     override val libraryReveal: LibraryReveal? = null,
     override val libraryLook: LibraryLook? = null,

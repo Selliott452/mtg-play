@@ -1,42 +1,149 @@
 package dev.mtgplay.core.definition
 
+import dev.mtgplay.core.card.Subtype
+import kotlinx.collections.immutable.PersistentSet
+import kotlinx.collections.immutable.persistentSetOf
+import kotlinx.collections.immutable.toPersistentSet
+
 /**
- * A "search your library for a matching card, reveal it, put it into your hand, then shuffle" effect
- * (CR 701.18) — Ash Barrens' basic landcycling "Search your library for a basic land card, reveal it, put it
- * into your hand, then shuffle." Additive, flagged core (P6.2c). Card-definition *declaration*; `mtg-rules`
- * surfaces the up-to-one selection among the matching library cards (searching your own library always
- * permits failing to find, CR 701.18b), reveals the found card (public information, CR 701.18), puts it into
- * the hand, and shuffles the library through the match PRNG (ADR-006 — the shuffle consumes seeded entropy,
- * so replay reproduces the new order).
+ * A "search your library for a matching card, put it somewhere, then shuffle" effect (CR 701.18) —
+ * Ash Barrens' basic landcycling, Contaminated Landscape's sacrifice ability, Crop Rotation. Additive,
+ * flagged core (P6.2c; the [destination] axis added by `P-SEARCH`). Card-definition *declaration*;
+ * `mtg-rules` surfaces the up-to-one selection among the matching library cards (searching your own
+ * library always permits failing to find, CR 701.18b), moves the found card to [destination], and
+ * shuffles the library through the match PRNG (ADR-006 — the shuffle consumes seeded entropy, so replay
+ * reproduces the new order).
  *
- * @property toHand which library cards the search may find and put into the hand (Ash Barrens' basic land).
+ * **A post-resolution clause since `P-SEARCH`.** This is one of the [ResolutionClauses] a resolving
+ * object may carry, not a field of [ActivatedAbility] alone. It was ability-shaped, which is why the
+ * first three clients were all activated abilities and why Crop Rotation — a *spell* that searches —
+ * could not be encoded at all. Being a clause also fixes an ordering defect the ability-only path had:
+ * the search ran **instead of** the ordinary [ActivatedAbility.effect] rather than after it, which was
+ * invisible only because every client's effect was a no-op.
+ *
+ * @property find which library cards the search may find (CR 701.18).
+ * @property destination where the found card goes (CR 701.18); [LibrarySearchDestination.REVEALED_TO_HAND]
+ *   for every cycling search.
  */
 data class LibrarySearch(
-    val toHand: LibrarySearchFilter,
+    val find: LibrarySearchFilter,
+    val destination: LibrarySearchDestination = LibrarySearchDestination.REVEALED_TO_HAND,
 )
 
 /**
- * Which cards a [LibrarySearch] may find (CR 701.18) — the pool needs "a basic land card" (Ash Barrens'
- * basic landcycling), "an Island card" (Lórien Revealed's islandcycling), and "a land card" (Expedition
- * Map). An enum so `mtg-rules` interprets it exhaustively; other predicates are the extension point.
+ * Where a [LibrarySearch] puts the card it finds (CR 701.18) — the axis that separates the cycling
+ * family ("reveal it, put it into your hand") from the ramp family ("put it onto the battlefield
+ * tapped"). Additive, flagged core (`P-SEARCH`).
+ *
+ * **The reveal is a property of the destination, not a separate flag, and the CR is why.** A search
+ * that ends in a *hidden* zone (CR 400.2 — the hand) is unverifiable unless the card is shown, so every
+ * printed one says "reveal it": Ash Barrens, Lórien Revealed, Expedition Map, Generous Ent. A search
+ * that ends on the *battlefield* is self-evidently public the moment it lands, so no printed one says
+ * "reveal" — Contaminated Landscape and Crop Rotation both omit the word. Folding the reveal into the
+ * destination therefore records a rule rather than a coincidence, and makes "put it into your hand
+ * without revealing it" unexpressible, which is correct: no card in the gauntlet prints it.
+ *
+ * An enum so `mtg-rules` interprets it exhaustively; a graveyard or exile destination, and a
+ * search of *another player's* library (CR 701.18a), are the extension points.
  */
-enum class LibrarySearchFilter {
-    /** A basic land card (CR 205.4, CR 305.6): a land card with the basic supertype (Mountain, Forest, Plains). */
-    BASIC_LAND_CARD,
+enum class LibrarySearchDestination {
+    /**
+     * "…reveal it, put it into your hand" (CR 701.16a, CR 701.18) — every cycling search, Expedition
+     * Map, Land Grant. The found card is revealed to **all** players and then joins the hidden hand.
+     */
+    REVEALED_TO_HAND,
 
     /**
-     * An Island card (CR 205.3b, CR 702.28): a card with the Island land type — the basic land Island,
-     * and equally any nonbasic land that has the type. Typecycling names a *subtype*, not the basic land
-     * (CR 702.28b), so the basic supertype is deliberately not required here.
+     * "…put that card onto the battlefield" (CR 701.18, CR 400.7) — Crop Rotation. The found card
+     * enters untapped by the CR 110.5a default, unless its own CR 614.1c "enters tapped" clause says
+     * otherwise: a Crop Rotation that finds a Bridge land still gets a tapped Bridge, because a
+     * replacement effect on the entering permanent is not overridden by the effect that moved it.
      */
-    ISLAND_CARD,
+    BATTLEFIELD,
 
     /**
-     * A **land card** (CR 205.2, CR 305): any card whose printed card types include land, basic and
-     * nonbasic alike. Expedition Map's "search your library for a land card". The widest of the three
-     * land filters: it requires neither the Basic supertype [BASIC_LAND_CARD] demands nor the land
-     * subtype [ISLAND_CARD] demands, so an artifact land and a typeless utility land are both legal
-     * finds.
+     * "…put it onto the battlefield **tapped**" (CR 701.18, CR 110.5b) — the Landscape cycle. The
+     * instruction fixes the entering permanent's status, so a land whose own clause would have let it
+     * enter untapped still arrives tapped.
      */
-    LAND_CARD,
+    BATTLEFIELD_TAPPED,
+}
+
+/**
+ * Which library cards a [LibrarySearch] may find (CR 701.18) — the noun half of "a basic land card",
+ * "an Island card", "a land card", "a basic Plains, Island, or Swamp card". Additive, flagged core
+ * (P6.2c; widened to two axes by `P-SEARCH`).
+ *
+ * **Every search in the gauntlet is a land search**, so the card type (CR 205.2, CR 305) is a constant
+ * of this shape rather than an axis: a match must be a land card. What varies is two genuinely
+ * independent things, and they are separate properties for the reason `GraveyardCardRestriction` and
+ * `GraveyardScope` are separate (docs/design/graveyard-targeting.md §4) — folding them together
+ * multiplies out into a member per pairing, which is exactly what killed the closed enum this replaced.
+ * That enum had three members for three cards; the Landscape cycle prints three *more* distinct
+ * three-type pairings, and the real cycle has ten.
+ *
+ * A data class rather than a sealed hierarchy because there is nothing left for `mtg-rules` to `when`
+ * over: the two axes are read directly and no case can fall through. A card-type axis (for a future
+ * "search your library for a creature card") is the extension point, and adding one is a property here
+ * plus the matcher line that reads it.
+ *
+ * @property basic whether the found card must have the **Basic** supertype (CR 205.4, CR 305.6) — Ash
+ *   Barrens' "a basic land card" and the Landscapes' "a basic Plains, Island, or Swamp card". `false`
+ *   for typecycling, which names a land *subtype* and never the basic land (CR 702.28b), so a nonbasic
+ *   land with the type is an equally legal find.
+ * @property landTypes the land types a match may have (CR 205.3b); a card matches when it has **at
+ *   least one** of them. Empty means no land-type requirement at all — Expedition Map's bare "a land
+ *   card". A set rather than a single type because the Landscapes name three.
+ */
+data class LibrarySearchFilter(
+    val basic: Boolean = false,
+    val landTypes: PersistentSet<Subtype> = persistentSetOf(),
+) {
+    companion object {
+        /** The Plains land type (CR 205.3b). */
+        val PLAINS: Subtype = Subtype("Plains")
+
+        /** The Island land type (CR 205.3b). */
+        val ISLAND: Subtype = Subtype("Island")
+
+        /** The Swamp land type (CR 205.3b). */
+        val SWAMP: Subtype = Subtype("Swamp")
+
+        /** The Mountain land type (CR 205.3b). */
+        val MOUNTAIN: Subtype = Subtype("Mountain")
+
+        /** The Forest land type (CR 205.3b). */
+        val FOREST: Subtype = Subtype("Forest")
+
+        /**
+         * A **land card** (CR 205.2, CR 305): the card type alone, basic and nonbasic alike. Expedition
+         * Map's and Crop Rotation's "a land card". The widest filter there is — it demands neither the
+         * Basic supertype nor any land type, so an artifact land and a typeless utility land are both
+         * legal finds.
+         */
+        val LAND_CARD: LibrarySearchFilter = LibrarySearchFilter()
+
+        /**
+         * A **basic land card** (CR 205.4, CR 305.6): a land card with the Basic supertype, whatever its
+         * land type. Ash Barrens' basic landcycling.
+         */
+        val BASIC_LAND_CARD: LibrarySearchFilter = LibrarySearchFilter(basic = true)
+
+        /** An **Island card** (CR 205.3b, CR 702.28b) — Lórien Revealed's islandcycling. */
+        val ISLAND_CARD: LibrarySearchFilter = LibrarySearchFilter(landTypes = persistentSetOf(ISLAND))
+
+        /** A **Swamp card** (CR 205.3b, CR 702.28b) — Troll of Khazad-dûm's swampcycling. */
+        val SWAMP_CARD: LibrarySearchFilter = LibrarySearchFilter(landTypes = persistentSetOf(SWAMP))
+
+        /** A **Forest card** (CR 205.3b, CR 702.28b) — Generous Ent's forestcycling, Land Grant's search. */
+        val FOREST_CARD: LibrarySearchFilter = LibrarySearchFilter(landTypes = persistentSetOf(FOREST))
+
+        /**
+         * A **basic land card of one of [types]** (CR 205.3b, CR 205.4) — the Landscape cycle's "a basic
+         * Plains, Island, or Swamp card". Both axes at once, which is the pairing the closed enum could
+         * not express without a member per cycle member.
+         */
+        fun basicOneOf(types: Set<Subtype>): LibrarySearchFilter =
+            LibrarySearchFilter(basic = true, landTypes = types.toPersistentSet())
+    }
 }

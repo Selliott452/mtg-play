@@ -14,8 +14,9 @@ import dev.mtgplay.rules.AdvanceResult
 /*
  * The post-resolution clause hook (`FW-CLAUSEHOOK`, docs/design/resolution-clause-hook.md).
  *
- * Four clause types — the CR 701.16 library reveal, the CR 701.14a private library look, the CR 601.3b
- * optional cost-then-draw, and the CR 601.2c draw-then-discard — are parts of a resolution the engine
+ * Five clause types — the CR 701.16 library reveal, the CR 701.14a private library look, the CR 601.3b
+ * optional cost-then-draw, the CR 601.2c draw-then-discard, and the CR 701.18 library search
+ * (`P-SEARCH`, docs/design/library-search.md §2) — are parts of a resolution the engine
  * *orchestrates* rather than runs as a pure effect, because each needs a mid-resolution decision. Until
  * this packet they hung off `StackEntry.Spell` alone, so an ability that resolved could carry none of
  * them: Faerie Seer's "When this creature enters, scry 2" is the same CR 701.17a clause as Preordain's,
@@ -53,11 +54,13 @@ internal fun orchestrateResolutionClauses(
     val look = clauses.libraryLook
     val costDraw = clauses.optionalCostThenDraw
     val drawDiscard = clauses.drawThenDiscard
+    val search = clauses.librarySearch
     return when {
         reveal != null -> orchestrateLibraryReveal(state, entry, reveal)
         look != null -> orchestrateLibraryLook(state, entry, look)
         costDraw != null -> orchestrateOptionalCostDraw(state, entry, costDraw)
         drawDiscard != null -> orchestrateDrawThenDiscard(state, entry, drawDiscard)
+        search != null -> orchestrateLibrarySearch(state, entry, search)
         else -> completeClauseResolution(state, entry)
     }
 }

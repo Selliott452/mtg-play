@@ -1,10 +1,7 @@
 package dev.mtgplay.rules.engine
 
-import dev.mtgplay.core.card.CardType
-import dev.mtgplay.core.card.Subtype
-import dev.mtgplay.core.card.Supertype
 import dev.mtgplay.core.definition.LibrarySearch
-import dev.mtgplay.core.definition.LibrarySearchFilter
+import dev.mtgplay.core.definition.LibrarySearchDestination
 import dev.mtgplay.core.event.GameEvent
 import dev.mtgplay.core.identity.ObjectId
 import dev.mtgplay.core.identity.PlayerId
@@ -13,34 +10,46 @@ import dev.mtgplay.core.state.GameObject
 import dev.mtgplay.core.state.GameState
 import dev.mtgplay.core.state.PendingLibrarySearch
 import dev.mtgplay.core.state.StackEntry
+import dev.mtgplay.core.state.resolutionClauses
+import dev.mtgplay.core.state.resolutionController
 import dev.mtgplay.rules.AdvanceResult
 import dev.mtgplay.rules.decision.DecisionRequest
 import dev.mtgplay.rules.decision.DecisionRequestId
 
 /*
- * The "search your library for a matching card, reveal it, put it into your hand, then shuffle" flow
- * (CR 701.18) — Ash Barrens' basic landcycling. Part of an activated ability's resolution: the ability stays
- * on top of the stack (like the library-reveal flow) so its declaration is a pure derivation of the state
- * (ADR-004). When a matching card exists the engine pauses for the find-one choice (failing to find is
- * always legal, CR 701.18b); the found card is revealed (public information) and moved to the hand, then the
- * library is shuffled through the match PRNG (ADR-006 — the shuffle consumes seeded entropy, so replay
- * reproduces the new order), and the ability ceases to exist (CR 113.7a).
+ * The "search your library for a matching card, put it somewhere, then shuffle" flow (CR 701.18) —
+ * Ash Barrens' basic landcycling, the Landscape cycle's sacrifice ability, Crop Rotation
+ * (docs/design/library-search.md).
+ *
+ * One of the five post-resolution clauses (`FW-CLAUSEHOOK`), so the resolving object stays on top of the
+ * stack while the search pauses and its declaration is a pure derivation of the state (ADR-004). When a
+ * matching card exists the engine pauses for the find-one choice (failing to find is always legal,
+ * CR 701.18b); the found card is moved to the clause's destination, the library is shuffled through the
+ * match PRNG (ADR-006 — the shuffle consumes seeded entropy, so replay reproduces the new order), and the
+ * resolving object then leaves the stack the way its own kind does (CR 608.2m / CR 113.7a).
+ *
+ * **ADR-007.** A library is a *hidden* zone (CR 400.2), so this flow's options are hidden-zone cards and
+ * the `library-look.md` §3 ruling applies rather than the `graveyard-targeting.md` §3 one: the *fact* of
+ * the search is public (`PendingLibrarySearch` carries only the decider), the *options* reach the deciding
+ * seat alone through `DecisionView.Elsewhere`, and nothing here widens `SeatView.cards`. That was already
+ * true of the search before this packet and stays true across both new destinations — a card put onto the
+ * battlefield becomes public only once it is *there*, which is after the choice was made.
  */
 
 /**
- * Runs an activated ability's library search (CR 701.18): if a matching card is in the library the engine
- * pauses for the find-one choice; otherwise nothing is found, the library is still shuffled, and the ability
- * ceases. The resolving ability [entry] stays on top of the stack during any pause.
+ * Runs a resolving object's library search (CR 701.18): if a matching card is in the library the engine
+ * pauses for the find-one choice; otherwise nothing is found, the library is still shuffled, and the
+ * resolution completes. The resolving [entry] stays on top of the stack during any pause.
  */
 internal fun orchestrateLibrarySearch(
     state: GameState,
-    entry: StackEntry.ActivatedAbilityOnStack,
+    entry: StackEntry,
     search: LibrarySearch,
 ): AdvanceResult {
-    val decider = entry.controller
-    // CR 701.18b: with no matching card there is nothing to find — the library is shuffled and the ability ends.
-    if (matchingLibraryCards(state, decider, search.toHand).isEmpty()) {
-        return completeSearch(shuffleLibrary(state, decider), entry)
+    val decider = entry.resolutionController
+    // CR 701.18b: with no matching card there is nothing to find — the library is shuffled and the resolution ends.
+    if (matchingLibraryCards(state, decider, search.find).isEmpty()) {
+        return completeClauseResolution(shuffleLibrary(state, decider), entry)
     }
     val paused = state.copy(pendingLibrarySearch = PendingLibrarySearch(decider))
     return AdvanceResult.NeedsDecision(paused, pendingLibrarySearchRequest(paused))
@@ -48,13 +57,13 @@ internal fun orchestrateLibrarySearch(
 
 /**
  * The find-one request the open [GameState.pendingLibrarySearch] is waiting on (CR 701.18): the matching
- * library cards plus a "find none". Pure per ADR-004 — the resolving ability (with its search) is the top of
- * the stack and the library is unchanged.
+ * library cards plus a "find none". Pure per ADR-004 — the resolving object (with its search clause) is the
+ * top of the stack and the library is unchanged.
  */
 internal fun pendingLibrarySearchRequest(state: GameState): DecisionRequest.ChooseFromLibrary {
     val pending = state.pendingLibrarySearch ?: error("no library search is pending")
     val search = resolvingSearch(state)
-    val matches = matchingLibraryCards(state, pending.decider, search.toHand)
+    val matches = matchingLibraryCards(state, pending.decider, search.find)
     return DecisionRequest.ChooseFromLibrary(
         id = DecisionRequestId(pending.decider, state.player(pending.decider).decisionsAnswered),
         options = matches.map { DecisionRequest.ChooseFromLibrary.Option(it.id, it.card) },
@@ -62,33 +71,46 @@ internal fun pendingLibrarySearchRequest(state: GameState): DecisionRequest.Choo
 }
 
 /**
- * Applies the find-one choice (CR 701.18): puts [foundObjectId] (or none) from the library into the
- * decider's hand as a revealed new object (CR 400.7), shuffles the library through the match PRNG (ADR-006),
- * then the resolving ability ceases to exist.
+ * Applies the find-one choice (CR 701.18): moves [foundObjectId] (or none) out of the library to the
+ * clause's destination as a new object (CR 400.7), shuffles the library through the match PRNG (ADR-006),
+ * then completes the resolution.
  */
 internal fun applyLibrarySearchChoice(
     state: GameState,
     foundObjectId: ObjectId?,
 ): AdvanceResult {
     val pending = state.pendingLibrarySearch ?: error("no library search is pending")
-    val entry =
-        state.sharedZones.stack.lastOrNull() as? StackEntry.ActivatedAbilityOnStack
-            ?: error("CR 608.1: a library search requires a resolving activated ability on top of the stack")
+    val entry = resolvingClauseEntry(state)
+    val destination = resolvingSearch(state).destination
     val cleared = state.copy(pendingLibrarySearch = null)
     val withCard =
-        if (foundObjectId == null) cleared else moveLibraryCardToHand(cleared, pending.decider, foundObjectId)
-    return completeSearch(shuffleLibrary(withCard, pending.decider), entry)
+        if (foundObjectId == null) {
+            cleared
+        } else {
+            moveFoundCard(cleared, pending.decider, foundObjectId, destination)
+        }
+    return completeClauseResolution(shuffleLibrary(withCard, pending.decider), entry)
 }
 
-/** Finishes a library search (CR 113.7a): the resolving ability leaves the stack and a fresh priority round opens. */
-private fun completeSearch(
+/**
+ * Moves the found library object [objectId] of [player] to [destination] as a **new** object
+ * (CR 400.7, CR 701.18) — exhaustive over the destination, so a new one breaks compilation here rather
+ * than silently landing in a hand.
+ */
+private fun moveFoundCard(
     state: GameState,
-    entry: StackEntry.ActivatedAbilityOnStack,
-): AdvanceResult {
-    check(state.sharedZones.stack.lastOrNull() == entry) { "CR 608.1: only the topmost stack object may resolve" }
-    val ceased = state.updateStack { it.removingAt(it.lastIndex) }
-    return grantPriorityRound(ceased.emit(GameEvent.AbilityResolved(entry.controller, entry.sourceCard)))
-}
+    player: PlayerId,
+    objectId: ObjectId,
+    destination: LibrarySearchDestination,
+): GameState =
+    when (destination) {
+        LibrarySearchDestination.REVEALED_TO_HAND ->
+            moveLibraryCardToHand(state, player, objectId)
+        LibrarySearchDestination.BATTLEFIELD ->
+            moveLibraryCardToBattlefield(state, player, objectId, forcedTapped = false)
+        LibrarySearchDestination.BATTLEFIELD_TAPPED ->
+            moveLibraryCardToBattlefield(state, player, objectId, forcedTapped = true)
+    }
 
 /**
  * Moves the library object [objectId] of [player] into their hand as a **new** object (CR 400.7, CR 701.18):
@@ -100,16 +122,62 @@ private fun moveLibraryCardToHand(
     player: PlayerId,
     objectId: ObjectId,
 ): GameState {
-    val library = state.player(player).library
-    val index = library.indexOfFirst { it.id == objectId }
-    require(index >= 0) { "CR 701.18: the found card $objectId is no longer in $player's library" }
-    val found = library[index]
-    val (newId, allocated) = state.allocateObjectId()
+    val (found, removed) = takeLibraryCard(state, player, objectId)
+    val (newId, allocated) = removed.allocateObjectId()
     val reborn = GameObject(id = newId, card = found.card, owner = found.owner)
     return allocated
         .emit(GameEvent.CardsRevealed(player, listOf(found.card)))
-        .updatePlayer(player) { it.copy(library = it.library.removingAt(index), hand = it.hand.adding(reborn)) }
+        .updatePlayer(player) { it.copy(hand = it.hand.adding(reborn)) }
         .emit(GameEvent.CardReturnedToHand(player, newId, found.card))
+}
+
+/**
+ * Puts the library object [objectId] of [player] onto the battlefield under their control as a **new**
+ * object (CR 400.7, CR 701.18) — Crop Rotation's and the Landscapes' destination. No reveal: the
+ * battlefield is a public zone (CR 400.2), which is why no such card prints the word.
+ *
+ * **The tapped status has two sources and [forcedTapped] is the stronger one.** "Put it onto the
+ * battlefield tapped" fixes the status outright (CR 110.5b); a plain "put it onto the battlefield" leaves
+ * the CR 110.5a untapped default, which the entering permanent's *own* CR 614.1c clause may still replace
+ * — Crop Rotation finding a Bridge land gets a tapped Bridge. Reading [entersTappedNow] before the object
+ * joins the battlefield is what makes a conditional clause count the *other* permanents (Gingerbread
+ * Cabin), exactly as the play-land path does.
+ *
+ * Entry and its CR 603.6a triggers go through [announceBattlefieldEntry], the single home every entry
+ * path shares (triage T18).
+ */
+private fun moveLibraryCardToBattlefield(
+    state: GameState,
+    player: PlayerId,
+    objectId: ObjectId,
+    forcedTapped: Boolean,
+): GameState {
+    val (found, removed) = takeLibraryCard(state, player, objectId)
+    val (battlefieldId, allocated) = removed.allocateObjectId()
+    val tapped = forcedTapped || entersTappedNow(allocated, player, allocated.definitions[found.card])
+    val entering = GameObject(id = battlefieldId, card = found.card, owner = found.owner, tapped = tapped)
+    val onBattlefield = allocated.updateBattlefield { it.adding(entering) }
+    return announceBattlefieldEntry(
+        onBattlefield,
+        battlefieldId,
+        GameEvent.PermanentEntered(player, objectId, found.card, battlefieldId),
+    )
+}
+
+/**
+ * Removes the found object [objectId] from [player]'s library and returns it with the resulting state
+ * (CR 701.18). Fails loudly if it is not there: the choice was enumerated off this very library moments
+ * ago, and nothing may have moved it (ADR-005).
+ */
+private fun takeLibraryCard(
+    state: GameState,
+    player: PlayerId,
+    objectId: ObjectId,
+): Pair<GameObject, GameState> {
+    val library = state.player(player).library
+    val index = library.indexOfFirst { it.id == objectId }
+    require(index >= 0) { "CR 701.18: the found card $objectId is no longer in $player's library" }
+    return library[index] to state.updatePlayer(player) { it.copy(library = it.library.removingAt(index)) }
 }
 
 /** Shuffles [player]'s library through the match PRNG (CR 701.18, ADR-006); the seeded draw makes replay reproduce. */
@@ -121,46 +189,7 @@ private fun shuffleLibrary(
     return state.copy(rng = nextRng).updatePlayer(player) { it.copy(library = shuffled) }
 }
 
-/** The library cards of [player] matching [filter] (CR 701.18), in library (top-first) order. */
-private fun matchingLibraryCards(
-    state: GameState,
-    player: PlayerId,
-    filter: LibrarySearchFilter,
-): List<GameObject> = state.player(player).library.filter { matchesSearchFilter(state, it, filter) }
-
-/** Whether the library [obj] matches the search [filter] (CR 701.18) — read from its printed characteristics. */
-private fun matchesSearchFilter(
-    state: GameState,
-    obj: GameObject,
-    filter: LibrarySearchFilter,
-): Boolean =
-    when (filter) {
-        LibrarySearchFilter.BASIC_LAND_CARD -> {
-            val characteristics = state.definitions[obj.card]?.characteristics
-            characteristics != null &&
-                CardType.LAND in characteristics.cardTypes &&
-                Supertype.BASIC in characteristics.supertypes
-        }
-        // CR 205.2, CR 305: "a land card" is the card type alone — no supertype and no subtype demanded.
-        LibrarySearchFilter.LAND_CARD ->
-            CardType.LAND in
-                state.definitions[obj.card]
-                    ?.characteristics
-                    ?.cardTypes
-                    .orEmpty()
-        // CR 205.3b, CR 702.28b: typecycling names a land *subtype*; the basic supertype is not required.
-        LibrarySearchFilter.ISLAND_CARD ->
-            ISLAND in
-                state.definitions[obj.card]
-                    ?.characteristics
-                    ?.subtypes
-                    .orEmpty()
-    }
-
-/** The Island land type (CR 205.3b) an [LibrarySearchFilter.ISLAND_CARD] search matches on. */
-private val ISLAND: Subtype = Subtype("Island")
-
-/** The library search of the resolving activated ability on top of the stack (CR 701.18); fails loudly. */
+/** The library search clause of the resolving object on top of the stack (CR 701.18); fails loudly. */
 private fun resolvingSearch(state: GameState): LibrarySearch =
-    (state.sharedZones.stack.lastOrNull() as? StackEntry.ActivatedAbilityOnStack)?.ability?.librarySearch
-        ?: error("CR 701.18: a library search requires a resolving activated ability with a search clause on the stack")
+    resolvingClauseEntry(state).resolutionClauses.librarySearch
+        ?: error("CR 701.18: a library search requires a resolving object with a search clause on the stack")

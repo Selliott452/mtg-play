@@ -56,6 +56,21 @@ interface ResolutionClauses {
      * discarded madness card is exiled instead.
      */
     val drawThenDiscard: DrawThenDiscard? get() = null
+
+    /**
+     * A "search your library for a matching card, put it somewhere, then shuffle" clause (CR 701.18),
+     * or `null` for a definition with none. Ash Barrens' basic landcycling, the Landscapes' sacrifice
+     * ability, Crop Rotation. Additive, flagged core (`P-SEARCH`).
+     *
+     * **The fifth clause, and it was the fourth-and-a-half all along.** This was a field of
+     * [ActivatedAbility] alone, with a KDoc arguing it was "not one of the four" because it searches a
+     * *whole* library and shuffles. That distinguished its contents, not its shape: it needs a
+     * mid-resolution enumerated decision that a [ResolutionEffect] cannot make (ADR-004), which is the
+     * only property [ResolutionClauses] is about. Keeping it off the carrier had two costs — a *spell*
+     * that searches (Crop Rotation, Land Grant) was inexpressible, and the ability path ran the search
+     * **instead of** the ordinary effect rather than after it. Both are fixed by moving it here.
+     */
+    val librarySearch: LibrarySearch? get() = null
 }
 
 /**
@@ -64,7 +79,7 @@ interface ResolutionClauses {
  * added here rather than at every site that asks "does this carry a clause?".
  */
 val ResolutionClauses.declaredClauses: List<Any>
-    get() = listOfNotNull(libraryReveal, libraryLook, optionalCostThenDraw, drawThenDiscard)
+    get() = listOfNotNull(libraryReveal, libraryLook, optionalCostThenDraw, drawThenDiscard, librarySearch)
 
 /**
  * Fails loudly if [clauses] declares more than one post-resolution clause (see [ResolutionClauses]).

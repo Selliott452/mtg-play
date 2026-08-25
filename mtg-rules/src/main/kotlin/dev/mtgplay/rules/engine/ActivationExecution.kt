@@ -209,12 +209,8 @@ internal fun resolveActivatedAbility(
 ): AdvanceResult {
     check(state.sharedZones.stack.lastOrNull() == entry) { "CR 608.1: only the topmost stack object may resolve" }
     // CR 608.2b precedes CR 608.2c: an ability that does not resolve must not begin any orchestration.
-    // CR 701.18: an ability whose effect is a library search (Ash Barrens' landcycling) is orchestrated —
-    // it may pause for the find-one choice and shuffles through the match PRNG — rather than run as a pure effect.
-    val early =
-        fizzleActivatedAbility(state, entry)
-            ?: entry.ability.librarySearch?.let { orchestrateLibrarySearch(state, entry, it) }
-    if (early != null) return early
+    val fizzled = fizzleActivatedAbility(state, entry)
+    if (fizzled != null) return fizzled
     val context = ResolutionContext(entry.controller, entry.targets, source = entry.sourceId)
     val resolved = entry.ability.effect.resolve(state, context)
     require(resolved.sharedZones.stack == state.sharedZones.stack) {
