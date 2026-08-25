@@ -112,7 +112,7 @@ internal fun playLandIsLegal(
 /**
  * Whether every CR 601.2 gate passes for [seat] casting the hand card [castObjectId] defined by
  * [definition] normally: timing, targets, an affordable **modified** cost, and any intrinsic
- * additional discard cost (Grab the Prize).
+ * additional discard (Grab the Prize) or sacrifice (Eviscerator's Insight) cost.
  *
  * The cost is priced by the shared [totalCost] (CR 601.2f, docs/design/cost-modification.md), not by
  * the printed cost: an affinity spell is legal to cast exactly when its *reduced* cost is payable,
@@ -120,6 +120,11 @@ internal fun playLandIsLegal(
  * the direction that silently shrinks the action space). The private `castableCost` this replaced was
  * one of four independent cost expressions that had to agree by coincidence; all four sites now call
  * [totalCost], so agreement is structural rather than a property somebody has to maintain.
+ *
+ * The sacrifice cost also narrows the payment enumeration ([minimalSacrificeReservation]): a permanent
+ * that produces mana by being *sacrificed* cannot both fund the mana and satisfy the sacrifice, so a
+ * plan spending it is not offered. Nothing else is reserved — tapping a land for mana and then
+ * sacrificing it is legal (docs/design/mana-payment.md §2.2).
  */
 private fun castIsLegal(
     state: GameState,
@@ -130,10 +135,12 @@ private fun castIsLegal(
     timingPermitsCast(state, seat, definition.timing) &&
         targetsAvailable(state, definition.targetSpec, seat, self = castObjectId) &&
         additionalDiscardSatisfiable(state, seat, definition, castObjectId, CastSource.HAND) &&
+        additionalSacrificeSatisfiable(state, seat, definition) &&
         enumeratePaymentPlans(
             state,
             seat,
             totalCost(state, seat, definition, permission = null, castObjectId = castObjectId),
+            minimalSacrificeReservation(state, seat, definition),
         ).isNotEmpty()
 
 /**

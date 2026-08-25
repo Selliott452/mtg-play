@@ -28,6 +28,15 @@ import kotlinx.collections.immutable.PersistentList
  *   Additive, flagged core (`FW-ABILTGT`, docs/design/targeted-abilities.md). Gathered **first**, before
  *   any cost selection, because CR 602.2b runs the CR 601.2b–i sequence in order. An ability with no
  *   legal target is never enumerated (CR 601.2c), so this list is never left short.
+ * @property chosenSacrifice the battlefield permanent chosen to pay a
+ *   [dev.mtgplay.core.definition.AbilityCost.Sacrifice] component (Krark-Clan Shaman's "Sacrifice an
+ *   artifact", Makeshift Munitions' "Sacrifice an artifact or creature"): `null` before the selection is
+ *   answered when the cost demands one, an (empty) list once settled or when no such component applies.
+ *   Additive, flagged core (`FW-ADDSAC`).
+ *
+ *   Gathered **before** the payment plan, which is what lets the plan enumeration reserve exactly the
+ *   chosen permanent when it is a sacrifice-cost mana source and nothing otherwise
+ *   (docs/design/mana-payment.md §2.2).
  */
 data class PendingActivation(
     val activator: PlayerId,
@@ -36,4 +45,5 @@ data class PendingActivation(
     val abilityIndex: Int,
     val chosenDiscard: PersistentList<ObjectId>?,
     val chosenTargets: PersistentList<Target>? = null,
+    val chosenSacrifice: PersistentList<ObjectId>? = null,
 )

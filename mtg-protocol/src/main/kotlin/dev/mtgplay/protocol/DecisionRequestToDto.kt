@@ -90,6 +90,10 @@ private fun singleOptionSelectionToDto(request: DecisionRequest.SingleOptionSele
             )
     }
 
+/**
+ * The non-cost fixed-size subset selections (CR 514.1 / 601.3b / 601.2c); the cost ones route to
+ * [costSizedSelectionToDto], the mirror of [costSizedSelectionToDomain]'s split.
+ */
 private fun sizedSelectionToDto(request: DecisionRequest.SizedSelection): DecisionRequestDto =
     when (request) {
         is DecisionRequest.ChooseDiscards ->
@@ -98,6 +102,39 @@ private fun sizedSelectionToDto(request: DecisionRequest.SizedSelection): Decisi
                 request.options.map { cardOption(it.objectId, it.card) },
                 request.count,
             )
+        is DecisionRequest.ChooseOptionalDiscard ->
+            DecisionRequestDto.ChooseOptionalDiscard(
+                request.id.toDto(),
+                request.options.map { cardOption(it.objectId, it.card) },
+                request.count,
+            )
+        is DecisionRequest.ChooseOptionalCostObject ->
+            DecisionRequestDto.ChooseOptionalCostObject(
+                request.id.toDto(),
+                request.options.map { cardOption(it.objectId, it.card) },
+            )
+        is DecisionRequest.ChooseResolutionDiscards ->
+            DecisionRequestDto.ChooseResolutionDiscards(
+                request.id.toDto(),
+                request.options.map { cardOption(it.objectId, it.card) },
+                request.count,
+            )
+        is DecisionRequest.ChooseCardsToExile,
+        is DecisionRequest.ChooseSacrifices,
+        is DecisionRequest.ChooseCardsToDiscardForCost,
+        is DecisionRequest.ChooseSacrificesForCost,
+        is DecisionRequest.ChooseAbilitySacrifice,
+        is DecisionRequest.ChooseAbilityDiscard,
+        -> costSizedSelectionToDto(request)
+    }
+
+/**
+ * The cost-paying fixed-size subset selections (CR 601.2b/h, CR 602.1/2b) — an additional exile,
+ * sacrifice, or discard for a cast, and a sacrifice or discard for an activated ability. Every one has
+ * the same wire shape: the source object, its printed name, the enumerated options, and the count.
+ */
+private fun costSizedSelectionToDto(request: DecisionRequest.SizedSelection): DecisionRequestDto =
+    when (request) {
         is DecisionRequest.ChooseCardsToExile ->
             DecisionRequestDto.ChooseCardsToExile(
                 request.id.toDto(),
@@ -122,6 +159,22 @@ private fun sizedSelectionToDto(request: DecisionRequest.SizedSelection): Decisi
                 request.options.map { cardOption(it.objectId, it.card) },
                 request.count,
             )
+        is DecisionRequest.ChooseSacrificesForCost ->
+            DecisionRequestDto.ChooseSacrificesForCost(
+                request.id.toDto(),
+                request.cardObjectId.value,
+                request.card.name,
+                request.options.map { cardOption(it.objectId, it.card) },
+                request.count,
+            )
+        is DecisionRequest.ChooseAbilitySacrifice ->
+            DecisionRequestDto.ChooseAbilitySacrifice(
+                request.id.toDto(),
+                request.sourceObjectId.value,
+                request.card.name,
+                request.options.map { cardOption(it.objectId, it.card) },
+                request.count,
+            )
         is DecisionRequest.ChooseAbilityDiscard ->
             DecisionRequestDto.ChooseAbilityDiscard(
                 request.id.toDto(),
@@ -130,23 +183,11 @@ private fun sizedSelectionToDto(request: DecisionRequest.SizedSelection): Decisi
                 request.options.map { cardOption(it.objectId, it.card) },
                 request.count,
             )
-        is DecisionRequest.ChooseOptionalDiscard ->
-            DecisionRequestDto.ChooseOptionalDiscard(
-                request.id.toDto(),
-                request.options.map { cardOption(it.objectId, it.card) },
-                request.count,
-            )
-        is DecisionRequest.ChooseOptionalCostObject ->
-            DecisionRequestDto.ChooseOptionalCostObject(
-                request.id.toDto(),
-                request.options.map { cardOption(it.objectId, it.card) },
-            )
-        is DecisionRequest.ChooseResolutionDiscards ->
-            DecisionRequestDto.ChooseResolutionDiscards(
-                request.id.toDto(),
-                request.options.map { cardOption(it.objectId, it.card) },
-                request.count,
-            )
+        is DecisionRequest.ChooseDiscards,
+        is DecisionRequest.ChooseOptionalDiscard,
+        is DecisionRequest.ChooseOptionalCostObject,
+        is DecisionRequest.ChooseResolutionDiscards,
+        -> error("CR 601.2: non-cost sized selection routed to the cost helper: $request")
     }
 
 private fun permutationSelectionToDto(request: DecisionRequest.PermutationSelection): DecisionRequestDto =

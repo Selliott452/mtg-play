@@ -122,5 +122,26 @@ package dev.mtgplay.protocol
  * added, so nothing fails at `valueOf` mid-match. An until-end-of-turn effect is something an agent
  * *observes*, never something it decides — which is exactly why the client→server direction is
  * untouched.
+ *
+ * *`FW-ADDSAC`* A sacrifice cost with a *chosen* permanent — "As an additional cost to cast
+ * this spell, sacrifice an artifact or creature", "{1}, Sacrifice an artifact or creature:" — is a new
+ * **decision**, and by the standard `4.0.0` set that is a major bump on its own. Two of them:
+ * [DecisionRequestDto] gains [DecisionRequestDto.ChooseSacrificesForCost] and
+ * [DecisionRequestDto.ChooseAbilitySacrifice], and [DecisionRequestKindDto] gains
+ * `CHOOSE_SACRIFICES_FOR_COST` and `CHOOSE_ABILITY_SACRIFICE`. A `5.0.0` peer meets the new
+ * `choose_sacrifices_for_cost` / `choose_ability_sacrifice` discriminators — and the new kind names in
+ * its `valueOf` mapping — as a **runtime** decode failure mid-match, the sharper of the two break modes,
+ * and it is answerable client→server too since both are decisions an agent sends indices for.
+ *
+ * There was a smaller-looking call available and it is the wrong one: reusing the existing
+ * `choose_sacrifices` for the intrinsic cost. It is a *different* cost with a different filter that can
+ * co-occur with the permission-side one on a single cast, so folding them together would make the wire
+ * ambiguous about which cost an answer paid. The recorded standard is to take the honest break rather
+ * than to argue nobody is listening.
+ *
+ * The break reaches the seat view too, though no [SeatViewDto] field is added: the gathering records it
+ * already carries gain a required field each — [PendingCastDto] gains `additionalSacrifice` and
+ * [PendingActivationDto] gains `chosenSacrifice` — which a `5.0.0` peer's strict codec rejects outright,
+ * the `4.0.0` break shape.
  */
 const val PROTOCOL_VERSION: String = "6.0.0"

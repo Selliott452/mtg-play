@@ -33,6 +33,15 @@ import kotlinx.collections.immutable.persistentListOf
  *   cost (CR 601.2b), in the order discarded; empty for a spell with no such cost. Additive, flagged
  *   core (P6.2a). The linked information Grab the Prize's resolution reads ("if the discarded card
  *   wasn't a land card"); supplied from [dev.mtgplay.core.state.StackEntry.Spell.discardedForCost].
+ * @property sacrificedForCost the printed identities of the permanents sacrificed to a sacrifice
+ *   additional cost (CR 601.2b/h), in the order sacrificed; empty for a spell with no such cost.
+ *   Additive, flagged core (`FW-ADDSAC`). The linked information Reckoner's Bargain's resolution reads
+ *   ("you gain life equal to the sacrificed permanent's mana value"); supplied from
+ *   [dev.mtgplay.core.state.StackEntry.Spell.sacrificedForCost].
+ *
+ *   It is the **printed** identity rather than the battlefield object, and that is the CR's own answer:
+ *   the permanent no longer exists when the spell resolves, so the value is read from last-known
+ *   information (CR 608.2h, CR 113.7a) — captured as the cost was paid, not looked up afterwards.
  * @property source the resolving object's **own** identity: a spell's stack-residence object id
  *   (CR 400.7), an activated or triggered ability's source object id as of activation or firing
  *   (CR 113.7c last-known information), or `null` where the engine has none to give. Additive, flagged
@@ -48,4 +57,5 @@ data class ResolutionContext(
     val subject: ObjectId? = null,
     val discardedForCost: PersistentList<CardRef> = persistentListOf(),
     val source: ObjectId? = null,
+    val sacrificedForCost: PersistentList<CardRef> = persistentListOf(),
 )

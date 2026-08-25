@@ -75,6 +75,7 @@ private fun resolveSpell(
                     targets = entry.targets,
                     discardedForCost = entry.discardedForCost,
                     source = entry.obj.id,
+                    sacrificedForCost = entry.sacrificedForCost,
                 ),
             )
         // Relaxed by `FW-COUNTER` from "the stack is unchanged" to what that assertion actually meant.

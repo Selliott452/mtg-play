@@ -24,6 +24,13 @@ import dev.mtgplay.core.state.GameState
  * from a caller-supplied `ManaCost`. Taking the permission instead of an already-priced cost is what
  * makes divergence unrepresentable here: a caller can no longer hand this the printed cost while the
  * pipeline pays a reduced one.
+ *
+ * The card's intrinsic **sacrifice** additional cost is part of "can be paid" here rather than a
+ * separate gate at each call site, because it is one of the two things (with the payment plan) that
+ * constrain each other: [minimalSacrificeReservation] is what keeps the mana enumeration from offering
+ * a plan that spends the very permanent the cost is about to consume. A permission cast pays the card's
+ * additional costs too — CR 702.34a's "and any additional costs" — so flashing back Eviscerator's
+ * Insight is gated on the sacrifice as well, through this same call.
  */
 internal fun targetsAndCostAvailable(
     state: GameState,
@@ -33,7 +40,13 @@ internal fun targetsAndCostAvailable(
     self: ObjectId?,
 ): Boolean =
     targetsAvailable(state, definition.targetSpec, seat, self) &&
-        enumeratePaymentPlans(state, seat, totalCost(state, seat, definition, permission, self)).isNotEmpty()
+        additionalSacrificeSatisfiable(state, seat, definition) &&
+        enumeratePaymentPlans(
+            state,
+            seat,
+            totalCost(state, seat, definition, permission, self),
+            minimalSacrificeReservation(state, seat, definition),
+        ).isNotEmpty()
 
 /**
  * Whether [seat] may cast the card [sourceObject] via [permission] from a priority window (CR 117.1a):
@@ -83,6 +96,57 @@ internal fun additionalDiscardSatisfiable(
     if (cost !is AdditionalCost.DiscardCards) return true
     val available = state.player(seat).hand.count { !(source == CastSource.HAND && it.id == castObjectId) }
     return available >= cost.count
+}
+
+/**
+ * Whether a card's **intrinsic** sacrifice additional cost (Eviscerator's Insight's "sacrifice an
+ * artifact or creature", Raze's "sacrifice a land" — CR 601.2b) can be paid: the caster controls at
+ * least the required count of matching permanents. Trivially true when the definition has no such cost.
+ *
+ * Unlike the discard cost next door there is nothing to exclude: the card being cast is in the hand or
+ * the graveyard, never on the battlefield.
+ */
+internal fun additionalSacrificeSatisfiable(
+    state: GameState,
+    seat: PlayerId,
+    definition: SpellDefinition,
+): Boolean {
+    val cost = definition.additionalCost
+    if (cost !is AdditionalCost.Sacrifice) return true
+    return sacrificeableMatching(state, seat, cost.filter).size >= cost.count
+}
+
+/**
+ * The mana sources a cast's sacrifice additional cost forces out of its own payment plans — the
+ * enumeration-time counterpart of the exact, choice-aware reservation
+ * [dev.mtgplay.rules.engine.pendingCastRequest] applies once the selection is answered
+ * (docs/design/mana-payment.md §2.2).
+ *
+ * Legality runs *before* the caster has chosen which permanents to sacrifice, so it must answer "is
+ * there **some** choice that leaves the cost payable". It reserves the **minimal** set any choice could
+ * force: candidates that are not sacrifice-cost mana sources are preferred, so the reservation is empty
+ * whenever enough of them exist, and only a board whose every matching permanent produces mana *by*
+ * being sacrificed reserves anything at all.
+ *
+ * Minimal rather than blunt, because over-reserving here would drop a castable spell out of the
+ * enumerated action space entirely — a silently missing legal play, which is worse than the crash the
+ * reservation exists to prevent. The greedy prefix is exact for a one-permanent cost, which is every
+ * such cost the pool prints; for a larger count on a board of nothing but sacrifice-cost mana sources
+ * it can be optimistic, and the cost payment then fails **loudly** in [sacrificePermanents] rather than
+ * producing a wrong game state.
+ */
+internal fun minimalSacrificeReservation(
+    state: GameState,
+    seat: PlayerId,
+    definition: SpellDefinition,
+): Set<ObjectId> {
+    val cost = definition.additionalCost
+    if (cost !is AdditionalCost.Sacrifice) return emptySet()
+    val cheapestFirst =
+        sacrificeableMatching(state, seat, cost.filter)
+            .sortedBy { isSacrificeSource(state, it.id) }
+            .take(cost.count)
+    return sacrificeSourcesAmong(state, cheapestFirst.map { it.id })
 }
 
 /**

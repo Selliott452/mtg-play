@@ -50,6 +50,12 @@ sealed interface StackEntry {
      *   core (P6.2a): the **linked information** the resolution reads (Grab the Prize's "if the discarded
      *   card wasn't a land card"), captured on the cast record because cost-payment results are part of
      *   the spell's record (docs/decklists.md).
+     * @property sacrificedForCost the printed identities of the permanents sacrificed to a sacrifice
+     *   additional cost (CR 601.2b/h), in the order sacrificed; empty for a spell with no such cost.
+     *   Additive, flagged core (`FW-ADDSAC`): the **linked information** the resolution reads
+     *   (Reckoner's Bargain's "the sacrificed permanent's mana value"), on the cast record for the same
+     *   reason [discardedForCost] is. The permanents are gone by the time the spell resolves, so this
+     *   *is* the last-known information the CR makes the value readable from (CR 608.2h).
      */
     data class Spell(
         val obj: GameObject,
@@ -58,6 +64,7 @@ sealed interface StackEntry {
         val definition: SpellDefinition,
         val castVia: CastingPermission? = null,
         val discardedForCost: PersistentList<CardRef> = persistentListOf(),
+        val sacrificedForCost: PersistentList<CardRef> = persistentListOf(),
     ) : StackEntry
 
     /**

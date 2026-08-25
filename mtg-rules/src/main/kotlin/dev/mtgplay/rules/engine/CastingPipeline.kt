@@ -64,7 +64,10 @@ internal fun executeCastPipeline(
     val withSacrifice = paySacrificeCosts(withAdditional, cast)
     val withDiscard = payAdditionalDiscardCost(withSacrifice, cast)
     val paid = payCosts(withDiscard, entry, totalCost, plan)
-    val complete = completeCast(paid, entry)
+    // CR 601.2h after CR 601.2g: the intrinsic sacrifice cost is paid **after** the mana, so a land
+    // tapped by the plan may be the one sacrificed (docs/design/mana-payment.md §2.2).
+    val sacrificed = payAdditionalSacrificeCost(paid, cast)
+    val complete = completeCast(sacrificed, entry)
     return priorityAfterCast(complete, cast)
 }
 
@@ -119,6 +122,18 @@ private fun proposeSpell(
                     ?.card
                     ?: error("CR 601.2b: additional-discard card $discardId is not in ${cast.caster}'s hand")
             }.toPersistentList()
+    // CR 601.2b: the printed identities of the permanents sacrificed to the intrinsic sacrifice cost,
+    // captured now (still on the battlefield, sacrificed at payment) as the resolution's linked
+    // information — Reckoner's Bargain's "the sacrificed permanent's mana value" is read from this
+    // last-known information (CR 608.2h), the permanent itself being long gone by resolution.
+    val sacrificedForCost =
+        (cast.additionalSacrifice ?: persistentListOf())
+            .map { sacrificeId ->
+                state.sharedZones.battlefield
+                    .firstOrNull { it.id == sacrificeId }
+                    ?.card
+                    ?: error("CR 601.2b: additional-sacrifice permanent $sacrificeId is not on the battlefield")
+            }.toPersistentList()
     // CR 400.7: the object on the stack is a fresh object with no zone-status memory (no madness marker).
     val entry =
         StackEntry.Spell(
@@ -128,6 +143,7 @@ private fun proposeSpell(
             definition = definition,
             castVia = cast.castingPermission,
             discardedForCost = discardedForCost,
+            sacrificedForCost = sacrificedForCost,
         )
     val proposed =
         removeFromZone(allocated, cast.caster, cast.source, cast.cardObjectId)

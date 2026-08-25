@@ -37,4 +37,31 @@ sealed interface AbilityCost {
      * madness card is exiled instead).
      */
     data object DiscardACard : AbilityCost
+
+    /**
+     * Sacrifice **one chosen permanent** matching [filter] (CR 602.1, CR 701.17) — Krark-Clan Shaman's
+     * "Sacrifice an artifact", Makeshift Munitions' "Sacrifice an artifact or creature". Additive,
+     * flagged core (`FW-ADDSAC`).
+     *
+     * The sibling of [SacrificeSelf] and a genuinely different shape: [SacrificeSelf] names its object
+     * (the source, no choice, always payable from the battlefield), while this one has a *chosen*
+     * object, so the engine surfaces an enumerated selection during activation exactly as
+     * [DiscardACard] does — the same shape [AdditionalCost.Sacrifice] takes on the cast side.
+     *
+     * **Not "sacrifice another".** Neither pool card prints the word: Krark-Clan Shaman reads
+     * "Sacrifice an artifact" and Makeshift Munitions "Sacrifice an artifact or creature". The source
+     * is excluded from its own cost by the [filter] alone — the Shaman is a Goblin Shaman, the
+     * Munitions an Enchantment, so neither matches its own filter — and encoding an `another`
+     * restriction instead would be *wrong* for a source that does match (an artifact printing
+     * "Sacrifice an artifact:" may sacrifice itself, CR 701.17). See [SacrificeFilter].
+     *
+     * **Exactly one permanent**, matching [DiscardACard]'s "exactly one card": every printed instance
+     * in the pool sacrifices one. A count is the extension point, and it belongs here rather than on
+     * [SacrificeFilter] for the reason [AdditionalCost.Sacrifice] carries its own count.
+     *
+     * @property filter which permanents may be chosen to pay it (CR 602.1).
+     */
+    data class Sacrifice(
+        val filter: SacrificeFilter,
+    ) : AbilityCost
 }

@@ -31,6 +31,12 @@ private fun sizedHeaderAndNames(request: DecisionRequest.SizedSelection): Pair<S
         is DecisionRequest.ChooseCardsToDiscardForCost ->
             "Discard exactly ${request.count} card(s) as a cost of ${request.card.name} (CR 601.2b):" to
                 request.options.map { it.card.name }
+        is DecisionRequest.ChooseSacrificesForCost ->
+            "Sacrifice exactly ${request.count} permanent(s) as a cost of ${request.card.name} (CR 601.2b):" to
+                request.options.map { it.card.name }
+        is DecisionRequest.ChooseAbilitySacrifice ->
+            "Sacrifice exactly ${request.count} permanent(s) to pay ${request.card.name}'s ability (CR 602.1):" to
+                request.options.map { it.card.name }
         is DecisionRequest.ChooseAbilityDiscard ->
             "Discard exactly ${request.count} card(s) to pay ${request.card.name}'s ability (CR 602.2b):" to
                 request.options.map { it.card.name }

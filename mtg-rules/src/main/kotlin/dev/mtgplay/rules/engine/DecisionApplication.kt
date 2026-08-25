@@ -86,6 +86,10 @@ private fun applySizedSelection(
             applyChosenSacrifices(state, decision.indices.map { request.options[it].objectId })
         is DecisionRequest.ChooseCardsToDiscardForCost ->
             applyChosenAdditionalDiscard(state, decision.indices.map { request.options[it].objectId })
+        is DecisionRequest.ChooseSacrificesForCost ->
+            applyChosenAdditionalSacrifice(state, decision.indices.map { request.options[it].objectId })
+        is DecisionRequest.ChooseAbilitySacrifice ->
+            applyChosenAbilitySacrifice(state, decision.indices.map { request.options[it].objectId })
         is DecisionRequest.ChooseAbilityDiscard ->
             applyChosenAbilityDiscard(state, decision.indices.map { request.options[it].objectId })
         is DecisionRequest.ChooseOptionalDiscard ->

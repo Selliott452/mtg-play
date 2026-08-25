@@ -43,6 +43,19 @@ import kotlinx.collections.immutable.PersistentList
  *   demands one, an (empty) list once settled or when no such cost applies. Additive, flagged core
  *   (P6.2a). The cards are discarded only when the cast executes (CR 601.2h), through the CR 614/616
  *   framework so madness intercepts them.
+ * @property additionalSacrifice the battlefield permanents chosen to satisfy an **intrinsic** sacrifice
+ *   additional cost (Eviscerator's Insight's "sacrifice an artifact or creature" — CR 601.2b): `null`
+ *   before the selection is answered when the definition demands one, an (empty) list once settled or
+ *   when no such cost applies. Additive, flagged core (`FW-ADDSAC`). Distinct from [sacrificeCost],
+ *   which is the *permission*-side cost (Fireblast's two Mountains) — a card may in principle carry
+ *   both, and they are separate selections with separate filters.
+ *
+ *   Settled **before** the payment plan is enumerated, and that ordering is load-bearing: the chosen
+ *   permanents are what the plan enumeration reserves against, so a permanent that produces mana by
+ *   being sacrificed cannot be spent and then sacrificed again
+ *   (docs/design/mana-payment.md §2.2). The permanents are sacrificed when the cast executes, *after*
+ *   the mana payment — tapping a land for mana and then sacrificing it is legal (CR 601.2g precedes
+ *   CR 601.2h), and that plan stays enumerable.
  */
 data class PendingCast(
     val caster: PlayerId,
@@ -53,4 +66,5 @@ data class PendingCast(
     val additionalExileCost: PersistentList<ObjectId>?,
     val sacrificeCost: PersistentList<ObjectId>? = null,
     val additionalDiscard: PersistentList<ObjectId>? = null,
+    val additionalSacrifice: PersistentList<ObjectId>? = null,
 )

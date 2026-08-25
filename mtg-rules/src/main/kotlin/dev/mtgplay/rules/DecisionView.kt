@@ -91,6 +91,12 @@ enum class DecisionRequestKind {
     /** [DecisionRequest.ChooseCardsToDiscardForCost] — an additional discard cost (CR 601.2b). */
     CHOOSE_CARDS_TO_DISCARD_FOR_COST,
 
+    /** [DecisionRequest.ChooseSacrificesForCost] — an intrinsic sacrifice additional cost (CR 601.2b). */
+    CHOOSE_SACRIFICES_FOR_COST,
+
+    /** [DecisionRequest.ChooseAbilitySacrifice] — an activated ability's sacrifice cost (CR 602.1). */
+    CHOOSE_ABILITY_SACRIFICE,
+
     /** [DecisionRequest.ChooseMulligan] — the keep-or-mulligan choice (CR 103.4). */
     CHOOSE_MULLIGAN,
 
@@ -173,6 +179,8 @@ private fun sizedSelectionKind(request: DecisionRequest.SizedSelection): Decisio
         is DecisionRequest.ChooseCardsToExile -> DecisionRequestKind.CHOOSE_CARDS_TO_EXILE
         is DecisionRequest.ChooseSacrifices -> DecisionRequestKind.CHOOSE_SACRIFICES
         is DecisionRequest.ChooseCardsToDiscardForCost -> DecisionRequestKind.CHOOSE_CARDS_TO_DISCARD_FOR_COST
+        is DecisionRequest.ChooseSacrificesForCost -> DecisionRequestKind.CHOOSE_SACRIFICES_FOR_COST
+        is DecisionRequest.ChooseAbilitySacrifice -> DecisionRequestKind.CHOOSE_ABILITY_SACRIFICE
         is DecisionRequest.ChooseAbilityDiscard -> DecisionRequestKind.CHOOSE_ABILITY_DISCARD
         is DecisionRequest.ChooseOptionalDiscard -> DecisionRequestKind.CHOOSE_OPTIONAL_DISCARD
         is DecisionRequest.ChooseOptionalCostObject -> DecisionRequestKind.CHOOSE_OPTIONAL_COST_OBJECT

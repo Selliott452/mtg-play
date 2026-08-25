@@ -30,7 +30,7 @@ import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 
 /**
- * The schema round-trip (ADR-008): every one of the 26 [DecisionRequest] kinds, and every
+ * The schema round-trip (ADR-008): every one of the 28 [DecisionRequest] kinds, and every
  * [Decision] shape, survives engine value -> DTO -> JSON -> DTO -> engine value unchanged, through
  * the strict [ProtocolJson] codec. The `allRequests` fixture is asserted to cover every kind, so the
  * exhaustive mapping is exercised end to end.
@@ -253,6 +253,23 @@ private val allRequests: List<DecisionRequest> =
                 DecisionRequest.ChooseSacrifices.Option(ObjectId(12), CardRef("Mountain")),
             ),
             count = 2,
+        ),
+        DecisionRequest.ChooseSacrificesForCost(
+            ID,
+            ObjectId(7),
+            CardRef("Eviscerator's Insight"),
+            listOf(
+                DecisionRequest.ChooseSacrificesForCost.Option(ObjectId(13), CardRef("Ichor Wellspring")),
+                DecisionRequest.ChooseSacrificesForCost.Option(ObjectId(14), CardRef("Gladecover Scout")),
+            ),
+            count = 1,
+        ),
+        DecisionRequest.ChooseAbilitySacrifice(
+            ID,
+            ObjectId(8),
+            CardRef("Makeshift Munitions"),
+            listOf(DecisionRequest.ChooseAbilitySacrifice.Option(ObjectId(15), CardRef("Ichor Wellspring"))),
+            count = 1,
         ),
         DecisionRequest.ChooseCardsToDiscardForCost(
             ID,

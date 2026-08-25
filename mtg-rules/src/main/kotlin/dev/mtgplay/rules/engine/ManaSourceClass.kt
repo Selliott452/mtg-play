@@ -47,27 +47,43 @@ import dev.mtgplay.rules.decision.SourceClassKey
  *   source ([isSacrificeSource]), which would consume it before the cost's own sacrifice. Tapping a
  *   permanent for mana and then sacrificing it is legal Magic (CR 701.17 does not care that the
  *   permanent is tapped), and that plan stays enumerated.
+ * - **[AbilityCost.Sacrifice]** reserves nothing *about the source* — the permanent it sacrifices is a
+ *   chosen one, which need not be the source and usually is not (Krark-Clan Shaman is no artifact).
+ *   What it reserves is the chosen permanent, passed in as [chosenSacrifice] and reserved by the same
+ *   rule [AbilityCost.SacrificeSelf] uses: only when it is itself a sacrifice-cost mana source
+ *   ([sacrificeSourcesAmong]). The choice is gathered **before** the payment plan (CR 601.2b–i order),
+ *   which is precisely what makes an exact reservation available here instead of a blanket one.
  * - Nothing else reserves anything. An ability whose cost is mana alone may be paid by tapping its
  *   own source, and always could.
  *
- * Only a battlefield-scoped ability can reserve anything: a hand-functioning ability's source is not
- * a mana source at all.
+ * Only a battlefield-scoped ability can reserve **its source**: a hand-functioning ability's source is
+ * not a mana source at all. A chosen sacrifice is a battlefield permanent either way, so the scope
+ * guard does not reach it.
+ *
+ * @param chosenSacrifice the permanents already chosen for an [AbilityCost.Sacrifice] component, empty
+ *   before that selection is answered (and for every ability without one).
  */
 internal fun manaSourcesReservedBy(
     state: GameState,
     source: GameObject,
     ability: ActivatedAbility,
+    chosenSacrifice: List<ObjectId> = emptyList(),
 ): Set<ObjectId> {
-    if (ability.zoneScope != AbilityZoneScope.Battlefield) return emptySet()
-    val reserves =
-        ability.cost.any { component ->
-            when (component) {
-                AbilityCost.TapSelf -> true
-                AbilityCost.SacrificeSelf -> isSacrificeSource(state, source.id)
-                is AbilityCost.Mana, AbilityCost.DiscardSelf, AbilityCost.DiscardACard -> false
+    val reservesSource =
+        ability.zoneScope == AbilityZoneScope.Battlefield &&
+            ability.cost.any { component ->
+                when (component) {
+                    AbilityCost.TapSelf -> true
+                    AbilityCost.SacrificeSelf -> isSacrificeSource(state, source.id)
+                    is AbilityCost.Mana,
+                    AbilityCost.DiscardSelf,
+                    AbilityCost.DiscardACard,
+                    is AbilityCost.Sacrifice,
+                    -> false
+                }
             }
-        }
-    return if (reserves) setOf(source.id) else emptySet()
+    val fromSource = if (reservesSource) setOf(source.id) else emptySet()
+    return fromSource + sacrificeSourcesAmong(state, chosenSacrifice)
 }
 
 /**

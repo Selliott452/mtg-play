@@ -577,6 +577,63 @@ sealed interface DecisionRequest {
     }
 
     /**
+     * An **intrinsic** sacrifice additional cost selection (CR 601.2b, performed at CR 601.2h): [seat]
+     * is casting [card], whose printed text is "As an additional cost to cast this spell, sacrifice a
+     * land / an artifact or creature" (Eviscerator's Insight, Reckoner's Bargain, Crop Rotation, Raze),
+     * and picks exactly [count] of [options] by index (a [Decision.MultiSelect]). Additive, flagged
+     * (`FW-ADDSAC`).
+     *
+     * The sibling of [ChooseCardsToDiscardForCost] and deliberately its shape. Distinct from
+     * [ChooseSacrifices], which is the *permission*-side sacrifice cost (Fireblast's two Mountains,
+     * Lava Dart's flashback Mountain): those two costs have different filters and a card may in
+     * principle carry both, so they are two selections rather than one widened request — the same
+     * separation [ChooseCardsToDiscardForCost] keeps from [ChooseAbilityDiscard].
+     *
+     * Surfaced only when at least [count] matching permanents are available (the cast is otherwise not
+     * enumerated, ADR-005), so a legal selection always exists, and every option is independently
+     * sacrificeable.
+     *
+     * **It is a cost.** The permanents are sacrificed inside the transition that completes the cast
+     * (CR 601.2h) — no player receives priority between this answer and the sacrifice, and it cannot be
+     * responded to. They are sacrificed *after* the mana payment, so a land answered here may still be
+     * tapped for mana by the payment plan that follows (docs/design/mana-payment.md §2.2).
+     *
+     * @property cardObjectId the object being cast (still in its source zone — see
+     *   [dev.mtgplay.core.state.PendingCast]).
+     * @property card the printed identity, for display.
+     * @property options the permanents that may be sacrificed to pay the cost, in battlefield order;
+     *   indices stable within this request (ADR-005).
+     * @property count how many must be sacrificed.
+     */
+    data class ChooseSacrificesForCost(
+        override val id: DecisionRequestId,
+        val cardObjectId: ObjectId,
+        val card: CardRef,
+        val options: List<Option>,
+        val count: Int,
+    ) : SizedSelection {
+        override val optionCount: Int get() = options.size
+        override val requiredCount: Int get() = count
+
+        init {
+            require(count in 1..options.size) {
+                "CR 601.2b: sacrifice count must be between 1 and available ${options.size}, was $count"
+            }
+        }
+
+        /**
+         * One permanent that may be sacrificed to pay the additional cost.
+         *
+         * @property objectId the battlefield object that would be sacrificed.
+         * @property card its printed identity, for display.
+         */
+        data class Option(
+            val objectId: ObjectId,
+            val card: CardRef,
+        )
+    }
+
+    /**
      * The pre-game London-mulligan decisions (CR 103.4/103.5): the keep-or-mulligan choice and the
      * put-cards-on-the-bottom choice. Grouped under one sealed sub-interface so a driver may handle
      * "a mulligan decision" as a single branch (they only occur in the pre-game phase, never during
@@ -690,6 +747,57 @@ sealed interface DecisionRequest {
          * One hand card that may be discarded to pay the ability's cost.
          *
          * @property objectId the hand object that would be discarded.
+         * @property card its printed identity, for display.
+         */
+        data class Option(
+            val objectId: ObjectId,
+            val card: CardRef,
+        )
+    }
+
+    /**
+     * A chosen-permanent sacrifice cost selection of an activated ability (CR 602.1, CR 701.17): [seat]
+     * is activating an ability of [sourceObjectId] whose cost sacrifices [count] permanents matching a
+     * filter (Krark-Clan Shaman's "Sacrifice an artifact", Makeshift Munitions' "Sacrifice an artifact
+     * or creature"), and picks exactly [count] of [options] by index (a [Decision.MultiSelect]).
+     * Additive, flagged (`FW-ADDSAC`).
+     *
+     * The sibling of [ChooseAbilityDiscard], and deliberately its shape rather than a new one: a cost
+     * with a chosen object is a fixed-size subset selection over an engine-enumerated option list,
+     * whatever the object is.
+     *
+     * Surfaced only when at least [count] candidates are available (the activation is otherwise not
+     * enumerated, ADR-005), so a legal selection always exists. Every option is *independently*
+     * completable — the option list is filtered to candidates that leave the ability's mana component
+     * payable once reserving them is accounted for (docs/design/mana-payment.md §2.2) — so no answer
+     * here can dead-end the activation.
+     *
+     * @property sourceObjectId the ability's source, for display.
+     * @property card the source's printed identity, for display.
+     * @property options the permanents that may be sacrificed to pay the cost, in battlefield order;
+     *   indices stable within this request (ADR-005).
+     * @property count how many must be sacrificed.
+     */
+    data class ChooseAbilitySacrifice(
+        override val id: DecisionRequestId,
+        val sourceObjectId: ObjectId,
+        val card: CardRef,
+        val options: List<Option>,
+        val count: Int,
+    ) : SizedSelection {
+        override val optionCount: Int get() = options.size
+        override val requiredCount: Int get() = count
+
+        init {
+            require(count in 1..options.size) {
+                "CR 602.1: sacrifice count must be between 1 and available ${options.size}, was $count"
+            }
+        }
+
+        /**
+         * One permanent that may be sacrificed to pay the ability's cost.
+         *
+         * @property objectId the battlefield object that would be sacrificed.
          * @property card its printed identity, for display.
          */
         data class Option(

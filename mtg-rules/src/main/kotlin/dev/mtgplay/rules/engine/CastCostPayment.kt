@@ -81,3 +81,29 @@ internal fun payAdditionalDiscardCost(
             ?: error("CR 601.2b: the additional discard cost of ${cast.cardObjectId} was not settled before payment")
     return toDiscard.fold(state) { current, discardId -> discardApplyingReplacements(current, cast.caster, discardId) }
 }
+
+/**
+ * Stage CR 601.2h — **intrinsic** sacrifice additional cost: sacrifices the permanents chosen for a
+ * card's own "As an additional cost to cast this spell, sacrifice …" (Eviscerator's Insight, Reckoner's
+ * Bargain) to their owners' graveyards (CR 701.17, [sacrificePermanents]). A no-op when the definition
+ * has no such cost (the settled list is empty).
+ *
+ * **Run after the mana payment**, unlike [paySacrificeCosts]. CR 601.2g (activate mana abilities)
+ * precedes CR 601.2h (pay costs), so a land tapped for mana may then be sacrificed to this cost — the
+ * plan that does so is deliberately enumerable, and paying the sacrifice first would make it throw. The
+ * one permanent that genuinely cannot do both is a sacrifice-cost mana source, and *that* one is
+ * reserved out of the payment enumeration by object (docs/design/mana-payment.md §2.2). Both payments
+ * happen inside the same atomic transition, so no player can observe the order.
+ *
+ * The permanents were chosen legally while gathering (ADR-005), so a missing one is an engine defect
+ * and [sacrificePermanents] fails loudly.
+ */
+internal fun payAdditionalSacrificeCost(
+    state: GameState,
+    cast: PendingCast,
+): GameState {
+    val toSacrifice =
+        cast.additionalSacrifice
+            ?: error("CR 601.2b: the additional sacrifice cost of ${cast.cardObjectId} was not settled before payment")
+    return sacrificePermanents(state, cast.caster, toSacrifice)
+}

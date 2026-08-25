@@ -63,7 +63,14 @@ private fun MutableList<PriorityOption.ActivateAbility>.addAbilities(
     }
 }
 
-/** Whether every component of [ability]'s cost is payable by [seat] for [source] right now (CR 602.2). */
+/**
+ * Whether every component of [ability]'s cost is payable by [seat] for [source] right now (CR 602.2).
+ *
+ * The mana and chosen-sacrifice components are checked **jointly** rather than one at a time, because
+ * they constrain each other: which permanent is sacrificed decides what may be tapped for the mana
+ * (docs/design/mana-payment.md §2.2). [abilitySacrificeCandidates] is that joint answer, so an ability
+ * carrying both defers its mana question to the sacrifice branch and the mana branch is vacuously true.
+ */
 internal fun abilityCostPayable(
     state: GameState,
     seat: PlayerId,
@@ -77,12 +84,13 @@ internal fun abilityCostPayable(
             // it (CR 602.1, triage trap T17) — otherwise legality would say yes to a plan that taps
             // the very permanent the `{T}` component then needs untapped.
             is AbilityCost.Mana ->
-                enumeratePaymentPlans(
-                    state,
-                    seat,
-                    component.cost,
-                    manaSourcesReservedBy(state, source, ability),
-                ).isNotEmpty()
+                sacrificeComponent(ability) != null ||
+                    enumeratePaymentPlans(
+                        state,
+                        seat,
+                        component.cost,
+                        manaSourcesReservedBy(state, source, ability),
+                    ).isNotEmpty()
             AbilityCost.TapSelf ->
                 scope == AbilityZoneScope.Battlefield &&
                     !source.tapped &&
@@ -90,6 +98,9 @@ internal fun abilityCostPayable(
             AbilityCost.SacrificeSelf -> scope == AbilityZoneScope.Battlefield
             AbilityCost.DiscardSelf -> scope == AbilityZoneScope.Hand
             AbilityCost.DiscardACard -> discardableForAbility(state, seat, source, scope).isNotEmpty()
+            // CR 602.1 with CR 701.17: at least one permanent both matches the filter and leaves the
+            // sibling mana component payable once reserving it is accounted for.
+            is AbilityCost.Sacrifice -> abilitySacrificeCandidates(state, seat, source, ability).isNotEmpty()
         }
     }
 
