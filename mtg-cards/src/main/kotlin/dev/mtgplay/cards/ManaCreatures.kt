@@ -40,9 +40,13 @@ import kotlinx.collections.immutable.persistentSetOf
  * `FW-COUNTERS` unblocked one of the two siblings `FW-MANA` had to leave out. [overgrownBattlement]
  * counts creatures **with defender**, and the only thing missing was the keyword: `Keyword.DEFENDER`
  * now exists with its CR 702.3b rules effect, and [PermanentFilter] grew the card-type and keyword
- * axes the count needs. Saruli Caretaker stays absent — its ability costs "{T}, Tap an untapped
- * creature you control", an activation cost shape that does not exist and that is a
- * payment-*capacity* problem rather than a production one (docs/design/mana-payment.md §9).
+ * axes the count needs.
+ *
+ * `FW-MANACOST` then unblocked the other. Saruli Caretaker's "{T}, Tap an untapped creature you
+ * control" was the activation cost shape that did not exist, and it lives in CostedManaSources.kt
+ * beside the two other cards whose mana abilities cost something — filed by the *problem* they pose
+ * (payment capacity, docs/design/mana-payment.md §11) rather than by the creature type they share
+ * with these two.
  */
 
 /**

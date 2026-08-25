@@ -13,6 +13,7 @@ import dev.mtgplay.core.definition.LibraryReveal
 import dev.mtgplay.core.definition.LibrarySearch
 import dev.mtgplay.core.definition.LibrarySearchFilter
 import dev.mtgplay.core.definition.ManaAbility
+import dev.mtgplay.core.definition.ManaAbilityCost
 import dev.mtgplay.core.definition.ResolutionEffect
 import dev.mtgplay.core.definition.RevealedCardFilter
 import dev.mtgplay.core.definition.SpellDefinition
@@ -44,7 +45,7 @@ const val MALEVOLENT_RUMBLE_REVEAL: Int = 4
 /**
  * The Eldrazi Spawn token (CR 111.4) Malevolent Rumble creates: a 0/1 colorless Eldrazi Spawn creature
  * with the mana ability "Sacrifice this token: Add {C}" — a [ManaAbility] whose activation cost is
- * sacrifice rather than tap ([ManaAbility.viaSacrifice], CR 605.1a). Being a mana ability it is carried on
+ * sacrifice rather than tap ([ManaAbilityCost.SacrificeSelf], CR 605.1a). Being a mana ability it is carried on
  * the [TokenDefinition] directly and uses no stack (CR 605.3).
  *
  * This KDoc used to add "unlike Blood's non-mana activated ability, which the token type cannot yet
@@ -65,7 +66,12 @@ val eldraziSpawnToken: TokenDefinition =
                 powerToughness = PrintedPowerToughness(power = 0, toughness = 1),
             ),
         manaAbilities =
-            persistentListOf(ManaAbility(persistentListOf(ManaType.COLORLESS), viaSacrifice = true)),
+            persistentListOf(
+                ManaAbility(
+                    persistentListOf(ManaType.COLORLESS),
+                    cost = persistentListOf(ManaAbilityCost.SacrificeSelf),
+                ),
+            ),
     )
 
 /**

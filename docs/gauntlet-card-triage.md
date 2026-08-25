@@ -372,11 +372,17 @@ most dangerous item in the whole triage.**
 > member of a class the planner counted without one. See docs/design/mana-payment.md §2.1 and
 > `ManaSourceSummoningSicknessSpec`.
 
-**T2 — Lotus Petal is not `viaSacrifice`.** `ManaAbility.viaSacrifice` means *sacrifice instead of
-tapping* (Eldrazi Spawn), and `manaSourceClasses` deliberately treats a sacrifice source as usable
-**while tapped**. Lotus Petal's cost is `{T}` **and** sacrifice. Encoding it with `viaSacrifice=true`
-gives a tapped Lotus Petal a mana ability. mana-payment.md §9 already records the shape gap
-("`isSacrificeSource` asserts the all-or-nothing shape rather than assuming it").
+**T2 — Lotus Petal is not `viaSacrifice`. (Resolved by `FW-MANACOST`.)** `ManaAbility.viaSacrifice`
+meant *sacrifice instead of tapping* (Eldrazi Spawn), and `manaSourceClasses` deliberately treats a
+sacrifice source as usable **while tapped**. Lotus Petal's cost is `{T}` **and** sacrifice, so
+encoding it with `viaSacrifice=true` gave a tapped Lotus Petal a live mana ability — the either/or
+was the defect, not the classification.
+
+`FW-MANACOST` replaced the flag with a composite `List<ManaAbilityCost>`, so `[TapSelf,
+SacrificeSelf]` is now an ordinary cost: availability demands an untapped source (CR 602.2a) and
+execution taps it and then removes it, in printed order. The shape is tested
+(`ManaAbilityCostSpec`), and the card itself is still unencoded only because nothing else about it
+was in that packet's scope.
 
 **T3 — "…the rest on the bottom of your library in any order" is a real decision.** Ponder, Impulse,
 Ancient Stirrings, Lead the Stampede, Augur of Bolas, Sea Gate Oracle, and Brainstorm ("on top of
@@ -455,7 +461,10 @@ zone in its type rather than carrying a zone field, so *no value of any `Target`
 in a hidden zone* and ADR-005's enumeration and ADR-007's filter agree by construction. Any third
 member must keep that property — a `CardInZone(id, zone)` generalisation would silently break it.
 
-**T16 — Basilisk Gate must not reuse `Magnitude.Dynamic`.** cost-modification.md §6 spells out the
+**T16 — Basilisk Gate must not reuse `Magnitude.Dynamic`.** *(`FW-MANACOST` supplied one of its three
+requirements — `ActivatedAbility.timing` now expresses "Activate only as a sorcery" per CR 602.5d — and
+left the card unencoded, because the snapshotted `X` below is untouched and `PermanentRestriction` has
+no plain-permanent member. The same `timing` field is what Timberwatch Elf needs.)* cost-modification.md §6 spells out the
 failure: a dynamic magnitude tracks the Gate count for the rest of the turn, so playing a fourth Gate
 grows an already-resolved pump. Nothing crashes, no invariant fires. Its X is **snapshotted**
 (CR 608.2h, 611.2d) — the opposite semantics to the one dynamic type the engine has.
@@ -528,9 +537,9 @@ Terror · `Mad` Mono-Red Madness · `Rly` Mono Red Rally · `Trn` Monster Tron �
 | Avenging Hunter | {4}{G} | 2 | `FW-INITIATIVE` | 'You take the initiative' is the Undercity dungeon — an entire subsystem. Looks like a 5/4 trample; is not (see traps). | Elv4 |
 | Azorius Chancery | — | 2 | `FW-MANA` `FW-RESSELECT` | `{T}: Add {W}{U}` is multi-mana production; the ETB bounce is an untargeted mid-resolution choice of a land you control. Also enters tapped. | UWX4 |
 | Balustrade Spy | {3}{B} | 2 | `FW-ABILTGT` | Targeted ETB (target player) plus a mill-until-a-land variant. The Spy Combo engine. | Spy4 |
-| Barrels of Blasting Jelly | {1} | 2 | `FW-ABILTGT` `FW-MANA` | A targeted activated ability, and a mana ability whose cost is mana with a once-per-turn restriction — `ManaAbility` has no cost field at all. | Trn2 |
+| Barrels of Blasting Jelly | {1} | 2 | ~~`FW-ABILTGT` `FW-MANA`~~ **encoded** (`FW-MANACOST`) | **The triage's shape was wrong**: Oracle is `{1}: Add one mana of any color. Activate only once each turn.` — a bare mana cost with **no `{T}`**, not the "{N}, {T}" shape it shares a row with below. A tapped Barrels still filters, and the once-each-turn clause is what bounds it. | Trn2 |
 | Basilisk Gate | — | 2 | `FW-ABILTGT` `FW-DURATION` | cost-modification.md §7 (L2): a resolution-generated until-EOT pump with a **snapshotted** magnitude, plus sorcery timing and a target on an activated ability. | Gat4 |
-| Bender's Waterskin | {3} | 2 | `FW-RULESMOD` | 'Untap this during each other player's untap step' is a CR 613.11 rules-modifying static over a turn-based action. | Jes3 |
+| Bender's Waterskin | {3} | 2 | `FW-RULESMOD` | Confirmed against Oracle by `FW-MANACOST`, and the triage is right: the `{T}: Add one mana of any color` half has been expressible since P2.1 and needs **nothing** from `FW-MANACOST` — the card is blocked entirely on "Untap this artifact during each other player's untap step", a CR 613.11 rules-modifying static over the CR 502.2 turn-based action. | Jes3 |
 | Blood Fountain | {B} | 2 | `FW-ABILTGT` `FW-ZONETGT` `FW-MULTITGT` | The Blood token is already defined; the ability targets up to two creature cards in a graveyard. | Grx2 Jnd1 |
 | Blue Elemental Blast | {U} | 2 | `FW-COUNTER` `FW-MODAL` | countering-spells.md §1.2: restricts the **target**, so it is absent from enumeration with no red object anywhere. F1.4. | Jes°3 Fae°2 Ter°2 |
 | Bojuka Bog | — | 2 | `FW-ABILTGT` | Targeted ETB (target player's graveyard) plus a graveyard-exile primitive; also enters tapped. | Trn1 |
@@ -548,7 +557,7 @@ Terror · `Mad` Mono-Red Madness · `Rly` Mono Red Rally · `Trn` Monster Tron �
 | Cleansing Wildfire | {1}{R} | 2 | `FW-NONCTRLDEC` | The *target land's controller* may search — a mid-resolution decision by someone other than the resolving controller; plus search-to-battlefield, a land target and destroy. | Jnd4 |
 | Cliffgate | — | 2 | `FW-MANA` | As Citadel Gate. | Gat4 |
 | Clockwork Percussionist | {R} | 2 | `FW-DURATION` | 'You may play it until the end of your next turn' — a duration-bounded permission to **play** (not cast) a card from exile, spanning two turns. Haste shipped with `FW-COUNTERS`; the window did not. | Rly4 |
-| Conduit Pylons | — | 2 | `FW-LIBLOOK` `FW-MANA` | Surveil 1 on ETB; `{1}, {T}: Add one mana of any colour` is a mana ability with a mana cost. | Trn2 |
+| Conduit Pylons | — | 2 | `FW-LIBLOOK` (surveil) | The mana half is **done** (`FW-MANACOST`: the free `{T}: Add {C}` beside the costed `{1}, {T}` is exactly the two-costs-one-source shape the framework was built around). What blocks it is the ETB **surveil 1** — `LibraryLookMode` has no graveyard destination, which its own KDoc records as a documented non-goal. | Trn2 |
 | Contaminated Landscape | — | 1 | `P-SEARCH` | The cost (`TapSelf`+`SacrificeSelf`) and cycling both exist; needs a `LibrarySearchFilter` for a listed basic and a battlefield-tapped destination. | UWX2 |
 | Counterspell | {U}{U} | 2 | `FW-COUNTER` | The unrestricted counter — F1.2, the reference card of the framework. | Jes4 Fae4 Ter4 |
 | Crop Rotation | {G} | 1 | `P-ADDSAC` `P-SEARCH` | `AdditionalCost.Sacrifice(land)` (reuses the existing `ChooseSacrifices` request) + search-any-land-to-battlefield. | Trn3 |
@@ -580,7 +589,7 @@ Terror · `Mad` Mono-Red Madness · `Rly` Mono Red Rally · `Trn` Monster Tron �
 | Gatecreeper Vine | {1}{G} | 1 | `P-DEFENDER` `P-SEARCH` | `Keyword.DEFENDER` (attack legality) + an optional search for a basic land or a Gate card. | Spy3 |
 | Generous Ent | {5}{G} | 1 | `P-REACH` `P-SEARCH` | Food is a `TokenDefinition` with an activated ability (the Blood-token precedent); forestcycling needs a Forest-card search filter. | Elv4 Trn2 Spy4 |
 | Ghostly Flicker | {2}{U} | 2 | `FW-BLINK` `FW-MULTITGT` | Two targets across three permanent types, exiled and returned together. | UWX1 |
-| Giant's Boulder | {1} | 2 | `FW-LIBLOOK` `FW-MANA` `FW-ABILTGT` | Scry 2, a mana ability with a mana cost, and a targeted destroy ability. | Trn4 |
+| Giant's Boulder | {1} | 2 | `FW-TGTPERM` | Scry 2 is expressible (`LibraryLookMode.Scry` on an ETB trigger) and the `{1}, {T}` mana ability is done (`FW-MANACOST`). What is left is one enum member: `PermanentRestriction` has `CREATURE`, `NONLEGENDARY_CREATURE`, `CREATURE_POWER_2_OR_LESS` and `ARTIFACT` but no plain **permanent**, so "Destroy target permanent" is unexpressible without a `Targets.kt` change. | Trn4 |
 | Gingerbread Cabin | — | 1 | `P-ETBTAPPED` `P-TRIGCOND` | Conditional enters-tapped ('unless you control three or more other Forests') and an *entered untapped* trigger condition. | Elv1 |
 | Gingerbrute | {1} | 2 | `FW-DURATION` `FW-EVASION` | An until-EOT 'can't be blocked except by creatures with haste' bought with an activated ability — a new `Evasion` member *and* a duration. Haste shipped with `FW-COUNTERS`. | Rly3 |
 | Gingerbread Cabin | — | 1 | ~~`P-ETBTAPPED` `P-TRIGCOND`~~ | **Encoded** with the T18 fix. Conditional enters-tapped (`EntersTapped.UnlessYouControl`) and an *entered untapped* trigger condition, both built. The row omitted its **Food token** — a token with a non-mana activated ability, which `TokenDefinition` has carried since P6.2c (Blood is the precedent), so it needed nothing new. | Elv1 |
@@ -658,7 +667,7 @@ Terror · `Mad` Mono-Red Madness · `Rly` Mono Red Rally · `Trn` Monster Tron �
 | Rooftop Percher | {5} | 2 | `FW-ZONETGT` `FW-MULTITGT` `FW-CHANGELING` | Up to two graveyard-card targets on an ETB, plus changeling. | Trn2 |
 | Sacred Cat | {W} | 2 | `FW-COPY` | Embalm creates a **token copy** of the card — a layer-1 copy effect plus a graveyard-scoped, sorcery-timed activation. | Gat4 |
 | Sagu Wildling | {4}{G} | 2 | `FW-ALTFACE` | Omen: the same two-face machinery as Adventure, with a shuffle rider. | Elv3 Spy4 |
-| Saruli Caretaker | {G} | 2 | `FW-MANA` | A mana ability whose cost taps *another* creature — a `SourceClassKey`/capacity change in payment enumeration (mana-payment.md §9). | Spy4 |
+| Saruli Caretaker | {G} | 2 | **encoded** (`FW-MANACOST`) | The capacity change landed: the seat's untapped creatures are a budget shared across source classes (mana-payment.md §11.3), so two Caretakers make one mana between them. | Spy4 |
 | Scour from Existence | {7} | 1 | `P-TGT` `P-EXILE` | Permanent target spec + exile primitive. The cleanest exercise of both. | Trn°2 |
 | Sea Gate Oracle | {2}{U} | 2 | `FW-LIBLOOK` | Look at the top two, one to hand, one to the bottom. | UWX2 |
 | Searing Blaze | {R}{R} | 2 | `FW-MULTITGT` `FW-LANDFALL` | Two targets with a dependency between them (the creature must be controlled by the targeted player), plus a landfall condition tracked per turn. | Mad°4 |
@@ -704,7 +713,7 @@ Terror · `Mad` Mono-Red Madness · `Rly` Mono Red Rally · `Trn` Monster Tron �
 | Vault of Whispers | — | 0 | **Tier 0** | Artifact land, `ManaAbility(BLACK)`. Shape: **Ash Barrens**. | Grx3 Jnd2 |
 | Vitu-Ghazi Inspector | {1}{G} | 2 | `FW-OPTCOST` `FW-COUNTERS` `FW-ABILTGT` | Collect evidence with linked information gating a targeted +1/+1 counter. | Elv°3 |
 | Volatile Fjord | — | 1 | `P-ETBTAPPED` | As Glacial Floodplain. | Jes2 |
-| Wall of Roots | {1}{G} | 2 | `FW-MANACOST` `FW-ONCEPERTURN` | Counters shipped (`FW-COUNTERS`; the `-0/-1` kind is expressible). What is left is **not** counters: `ManaAbility` admits only `{T}` and sacrifice costs, and 'Activate only once each turn' has no per-turn activation limiter anywhere. | Spy3 |
+| Wall of Roots | {1}{G} | 2 | **encoded** (`FW-MANACOST`) | Both halves shipped in one packet: [ManaAbilityCost.PutCounterOnSelf] for the `-0/-1` cost, and `ManaAbility.oncePerTurn` with the per-object CR 602.5b record for the restriction. `FW-ONCEPERTURN` was folded in rather than deferred, because a cost that neither taps nor removes its source is **unbounded** without it. | Spy3 |
 | Weather the Storm | {1}{G} | 2 | `FW-COPY` | Storm copies the spell once per spell cast this turn — spell copying plus a per-turn cast counter. | Jnd°3 |
 | Wellwisher | {1}{G} | 0 | **Tier 0** | `ActivatedAbility(cost=[TapSelf])`, untargeted, `gainLife` by an Elf count. Shape: **Melded Moxite**'s activated ability (`Activation.kt` already bars a summoning-sick `{T}`). | Elv1 |
 | Winding Way | {1}{G} | 1 | `P-REVEAL` | `LibraryReveal` extended with creature/land filters, an unbounded keep count, and a resolution-time filter choice (`ChooseColor` is the precedent request shape). | Elv4 Spy4 |

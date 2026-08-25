@@ -286,4 +286,17 @@ enum class Invariant {
      * card rather than by source object or condition. See `checkEntryTriggerDetection`.
      */
     ENTRY_TRIGGER_DETECTION,
+
+    /**
+     * Every per-turn mana-ability activation record is well-formed (CR 602.5b): it sits only on a
+     * battlefield object, and every index in
+     * [dev.mtgplay.core.state.GameObject.manaAbilitiesActivatedThisTurn] names a printed mana ability
+     * that actually carries the "Activate only once each turn" restriction. Added with `FW-MANACOST`.
+     *
+     * The failure it backstops is the quietest kind. A record that leaks across a zone move, or that
+     * names the wrong ability, does not throw and does not corrupt anything visible — it makes a mana
+     * source silently stop producing, which an agent experiences as a legal line that is simply not in
+     * its action space (ADR-005). See `checkManaAbilityActivationScope`.
+     */
+    MANA_ABILITY_ACTIVATION_SCOPE,
 }

@@ -7,6 +7,7 @@ import dev.mtgplay.core.card.PrintedPowerToughness
 import dev.mtgplay.core.card.Subtype
 import dev.mtgplay.core.definition.CardDefinition
 import dev.mtgplay.core.definition.ManaAbility
+import dev.mtgplay.core.definition.ManaAbilityCost
 import dev.mtgplay.core.definition.ManaAmount
 import dev.mtgplay.core.definition.PermanentFilter
 import dev.mtgplay.core.definition.ResolutionEffect
@@ -16,6 +17,7 @@ import dev.mtgplay.core.definition.TimingClass
 import dev.mtgplay.core.identity.CardRef
 import dev.mtgplay.core.mana.ManaCost
 import dev.mtgplay.core.mana.ManaType
+import dev.mtgplay.core.state.Counter
 import dev.mtgplay.core.state.Target
 import dev.mtgplay.rules.effect.loseLife
 import kotlinx.collections.immutable.PersistentSet
@@ -179,7 +181,12 @@ internal val fixtureManaSpawn =
                 powerToughness = PrintedPowerToughness(power = 0, toughness = 1),
             )
         override val manaAbilities =
-            persistentListOf(ManaAbility(persistentListOf(ManaType.COLORLESS), viaSacrifice = true))
+            persistentListOf(
+                ManaAbility(
+                    persistentListOf(ManaType.COLORLESS),
+                    cost = persistentListOf(ManaAbilityCost.SacrificeSelf),
+                ),
+            )
     }
 
 // ---- FW-MANA: board-dependent production (CR 605.2) --------------------------------------------
@@ -365,7 +372,123 @@ internal const val FIXTURE_BOLT_LIFE_LOSS: Int = 3
 /** What resolving a Fixture Comet costs its target. */
 internal const val FIXTURE_COMET_LIFE_LOSS: Int = 2
 
+// ---- FW-MANACOST: mana abilities whose cost is not just {T} (CR 605.1a, CR 602.5b) --------------
+
+/**
+ * "Fixture Filter" — a **costed** mana source: `{1}, {T}: Add one mana of any color`, the shape
+ * Conduit Pylons and Giant's Boulder print. One activation both consumes and produces, which is what
+ * makes the payment plan record *which* mana funded it and the enumerator prove an execution order
+ * exists (docs/design/mana-payment.md §11.2).
+ */
+internal val fixtureFilter =
+    object : CardDefinition {
+        override val characteristics =
+            PrintedCharacteristics(
+                name = "Fixture Filter",
+                manaCost = null,
+                supertypes = persistentSetOf(),
+                cardTypes = persistentSetOf(CardType.LAND),
+                subtypes = persistentSetOf(),
+                powerToughness = null,
+            )
+        override val manaAbilities =
+            persistentListOf(
+                ManaAbility(
+                    persistentListOf(ManaType.WHITE, ManaType.BLUE, ManaType.BLACK, ManaType.RED, ManaType.GREEN),
+                    cost =
+                        persistentListOf(
+                            ManaAbilityCost.Mana(ManaCost.parse("{1}")),
+                            ManaAbilityCost.TapSelf,
+                        ),
+                ),
+            )
+    }
+
+/**
+ * "Fixture Pylon Gate" — the **two abilities, two costs** shape Conduit Pylons prints: a free
+ * `{T}: Add {C}` beside a `{1}, {T}: Add one mana of any color`. It is the fixture that forces the
+ * activation cost into the production *alternative* rather than onto the source class
+ * ([ProductionAlternative]), because which cost applies is a per-activation choice.
+ */
+internal val fixturePylonGate =
+    object : CardDefinition {
+        override val characteristics =
+            PrintedCharacteristics(
+                name = "Fixture Pylon Gate",
+                manaCost = null,
+                supertypes = persistentSetOf(),
+                cardTypes = persistentSetOf(CardType.LAND),
+                subtypes = persistentSetOf(),
+                powerToughness = null,
+            )
+        override val manaAbilities =
+            persistentListOf(
+                ManaAbility(persistentListOf(ManaType.COLORLESS)),
+                ManaAbility(
+                    persistentListOf(ManaType.WHITE, ManaType.BLUE, ManaType.BLACK, ManaType.RED, ManaType.GREEN),
+                    cost =
+                        persistentListOf(
+                            ManaAbilityCost.Mana(ManaCost.parse("{1}")),
+                            ManaAbilityCost.TapSelf,
+                        ),
+                ),
+            )
+    }
+
+/**
+ * "Fixture Caretaker" — Saruli Caretaker's shape: `{T}, Tap an untapped creature you control: Add
+ * one mana of any color`. Its cost consumes a creature that belongs to no source class in
+ * particular, which is the cross-class capacity problem of docs/design/mana-payment.md §11.3.
+ */
+internal val fixtureCaretaker =
+    object : CardDefinition {
+        override val characteristics =
+            PrintedCharacteristics(
+                name = "Fixture Caretaker",
+                manaCost = null,
+                supertypes = persistentSetOf(),
+                cardTypes = persistentSetOf(CardType.CREATURE),
+                subtypes = persistentSetOf(),
+                powerToughness = PrintedPowerToughness(power = 0, toughness = 3),
+            )
+        override val manaAbilities =
+            persistentListOf(
+                ManaAbility(
+                    persistentListOf(ManaType.WHITE, ManaType.BLUE, ManaType.BLACK, ManaType.RED, ManaType.GREEN),
+                    cost = persistentListOf(ManaAbilityCost.TapSelf, ManaAbilityCost.TapAnotherCreature),
+                ),
+            )
+    }
+
+/**
+ * "Fixture Wall" — Wall of Roots' shape: `Put a -0/-1 counter on this creature: Add {G}. Activate
+ * only once each turn.` Its cost neither taps nor removes the source, so CR 602.5b is the only thing
+ * bounding it — and it taps for mana while tapped and while summoning sick, because the cost carries
+ * no `{T}` for CR 602.5a to restrict.
+ */
+internal val fixtureWall =
+    object : CardDefinition {
+        override val characteristics =
+            PrintedCharacteristics(
+                name = "Fixture Wall",
+                manaCost = null,
+                supertypes = persistentSetOf(),
+                cardTypes = persistentSetOf(CardType.CREATURE),
+                subtypes = persistentSetOf(),
+                powerToughness = PrintedPowerToughness(power = 0, toughness = 5),
+            )
+        override val manaAbilities =
+            persistentListOf(
+                ManaAbility(
+                    persistentListOf(ManaType.GREEN),
+                    cost = persistentListOf(ManaAbilityCost.PutCounterOnSelf(Counter.MINUS_ZERO_MINUS_ONE)),
+                    oncePerTurn = true,
+                ),
+            )
+    }
+
 /** Every fixture definition, keyed by ref — the registry fixture configs and states use. */
+
 internal val fixtureDefinitions: Map<CardRef, CardDefinition> =
     listOf(
         fixtureMountain,
@@ -380,6 +503,10 @@ internal val fixtureDefinitions: Map<CardRef, CardDefinition> =
         fixtureReactor,
         fixtureElder,
         fixtureBeacon,
+        fixtureFilter,
+        fixturePylonGate,
+        fixtureCaretaker,
+        fixtureWall,
         fixtureBolt,
         fixtureComet,
         fixtureMeditation,

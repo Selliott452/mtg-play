@@ -1,5 +1,6 @@
 package dev.mtgplay.rules
 
+import dev.mtgplay.core.definition.ManaAbilityCost
 import dev.mtgplay.core.identity.CardRef
 import dev.mtgplay.core.identity.ObjectId
 import dev.mtgplay.core.mana.Color
@@ -15,12 +16,16 @@ import dev.mtgplay.core.state.Turn
 import dev.mtgplay.core.state.TurnPhase
 import dev.mtgplay.rules.decision.ManaActivation
 import dev.mtgplay.rules.decision.PaymentPlan
+import dev.mtgplay.rules.decision.ProductionAlternative
 import dev.mtgplay.rules.decision.SymbolPayment
 import dev.mtgplay.rules.engine.activationYield
 import dev.mtgplay.rules.engine.expandToUnits
+import dev.mtgplay.rules.engine.isCreature
 import dev.mtgplay.rules.engine.manaSourceClasses
 import dev.mtgplay.rules.engine.payManaPlan
 import dev.mtgplay.rules.engine.paymentSatisfies
+import dev.mtgplay.rules.engine.sourceClassKeyOf
+import dev.mtgplay.rules.engine.untappedCreatures
 import io.kotest.assertions.withClue
 import io.kotest.matchers.ints.shouldBeGreaterThanOrEqual
 import io.kotest.matchers.shouldBe
@@ -93,7 +98,73 @@ internal fun oracleScenarios(): List<Pair<String, PaymentScenario>> =
             (rampState(Color.GREEN).withPool(ManaType.GREEN) to ManaCost.parse("{1}{G}")),
         "{G} off a fixed-mana ramp Forest" to (fixedRampState() to ManaCost.parse("{G}")),
         "{1}{G} off a fixed-mana ramp Forest" to (fixedRampState() to ManaCost.parse("{1}{G}")),
-    ) + creatureSourceScenarios() + boardDependentSourceScenarios()
+    ) + creatureSourceScenarios() + boardDependentSourceScenarios() + costedSourceScenarios()
+
+/**
+ * The `FW-MANACOST` scenarios: sources whose mana ability *costs* something, so an activation is a
+ * consumer as well as a producer. They are what re-runs the completeness oracle, the correspondence
+ * property and the bound property against a search whose legality now includes coverage-net-of-cost,
+ * an execution order, a creature budget and a self-exclusion matching (docs/design/mana-payment.md
+ * §11) — none of which the pre-packet oracle could have distinguished from a stuck enumerator.
+ *
+ * They span the four shapes that differ, and every one of them is a board a gauntlet deck can build:
+ * a costed filter that must be funded from the pool, **two** of them (the cycle the model must
+ * refuse), a source printing a free ability beside a costed one, the creature-tapping cost, and the
+ * once-each-turn counter cost.
+ */
+private fun costedSourceScenarios(): List<Pair<String, PaymentScenario>> =
+    listOf(
+        "{R} off a costed filter with a green floating" to
+            (
+                fixtureBoard(SeatSetup(battlefield = listOf("Fixture Filter"))).withPool(ManaType.GREEN) to
+                    ManaCost.parse("{R}")
+            ),
+        // The acyclicity case: two filters, empty pool, and no order in which either can go first.
+        "{R} off two costed filters on an empty pool" to
+            (
+                fixtureBoard(SeatSetup(battlefield = listOf("Fixture Filter", "Fixture Filter"))) to
+                    ManaCost.parse("{R}")
+            ),
+        // The chain: one Forest funds one filter, and the filter's output funds the other.
+        "{R}{W} off two costed filters and a Forest" to
+            (
+                fixtureBoard(
+                    SeatSetup(battlefield = listOf("Fixture Filter", "Fixture Filter", "Fixture Forest")),
+                ) to ManaCost.parse("{R}{W}")
+            ),
+        "{1}{R} off a free-and-costed source beside a Mountain" to
+            (
+                fixtureBoard(SeatSetup(battlefield = listOf("Fixture Pylon Gate", "Fixture Mountain"))) to
+                    ManaCost.parse("{1}{R}")
+            ),
+        "{W} off two Caretakers and nothing else" to
+            (
+                fixtureBoard(SeatSetup(battlefield = listOf("Fixture Caretaker", "Fixture Caretaker")))
+                    .settled() to ManaCost.parse("{W}")
+            ),
+        "{W}{W} off two Caretakers and nothing else" to
+            (
+                fixtureBoard(SeatSetup(battlefield = listOf("Fixture Caretaker", "Fixture Caretaker")))
+                    .settled() to ManaCost.parse("{W}{W}")
+            ),
+        "{W}{U} off two Caretakers and two mana Elves" to
+            (
+                fixtureBoard(
+                    SeatSetup(
+                        battlefield =
+                            listOf("Fixture Caretaker", "Fixture Caretaker", "Fixture Mana Elf", "Fixture Mana Elf"),
+                    ),
+                ).settled() to ManaCost.parse("{W}{U}")
+            ),
+        // CR 602.5a restricts {T} costs only, so a summoning-sick Wall taps for mana the turn it lands.
+        "{G} off a summoning-sick counter-cost Wall" to
+            (fixtureBoard(SeatSetup(battlefield = listOf("Fixture Wall"))) to ManaCost.parse("{G}")),
+        "{G}{G} off two counter-cost Walls" to
+            (
+                fixtureBoard(SeatSetup(battlefield = listOf("Fixture Wall", "Fixture Wall"))) to
+                    ManaCost.parse("{G}{G}")
+            ),
+    )
 
 /**
  * The `FW-MANA` scenarios: sources whose production is read off the board when the ability resolves
@@ -178,8 +249,18 @@ internal fun oraclePlans(
     val classes = manaSourceClasses(state, alice)
     val player = state.players.getValue(alice)
     val pool = player.manaPool.groupingBy { it }.eachCount()
-    val options = classes.flatMapIndexed { index, c -> c.key.profile.map { index to ManaActivation(c.key, it) } }
+    val options =
+        classes.flatMapIndexed { index, c ->
+            c.key.profile.flatMap { alternative ->
+                oracleCostAssignments(alternative).map { index to ManaActivation(c.key, alternative, it) }
+            }
+        }
     val capacity = classes.map { it.members.size }
+    // `FW-MANACOST`: a costed activation may claim another activation's cost rather than a unit of
+    // demand, so the pre-packet bound (one activation per demanded mana) no longer holds. The oracle
+    // takes the crudest sound bound instead — you cannot activate more sources than you control —
+    // which is deliberately *not* the enumerator's tighter formula.
+    val costed = classes.any { c -> c.key.profile.any { it.manaCost != null } }
     val rawPayments =
         units.map { symbol ->
             (ManaType.entries.map { SymbolPayment.WithMana(it) } + SymbolPayment.WithTwoLife)
@@ -190,8 +271,14 @@ internal fun oraclePlans(
         val lifePaid = payments.count { it == SymbolPayment.WithTwoLife } * PHYREXIAN_LIFE
         if (lifePaid > player.life) return@forEach
         val demand = payments.filterIsInstance<SymbolPayment.WithMana>().map { it.mana }
-        activationMultisets(options, capacity, demand.size).forEach { activations ->
-            if (oracleCovers(pool, activations, demand) && oracleSpendsEvery(activations, demand)) {
+        val bound = if (costed) capacity.sum() else demand.size
+        activationMultisets(options, capacity, bound).forEach { activations ->
+            val legal =
+                oracleCovers(pool, activations, demand) &&
+                    oracleSpendsEvery(activations, demand) &&
+                    oracleOrderable(pool, activations) &&
+                    oracleCreatureBudgetHolds(state, activations)
+            if (legal) {
                 found += canonicalForm(cost, PaymentPlan(activations, payments))
             }
         }
@@ -232,8 +319,15 @@ internal fun assertExecutesAsDeclared(
     plan: PaymentPlan,
 ) {
     val before = state.players.getValue(alice)
-    val produced = plan.activations.flatMap { activationYield(it.sourceClass, it.produced) }
+    val produced = plan.activations.flatMap { activationYield(it.sourceClass, it.alternative) }
     val expected = (before.manaPool.toList() + produced).groupingBy { it }.eachCount().toMutableMap()
+    // `FW-MANACOST`: an activation may spend mana as well as add it, so the declared pool nets its
+    // own cost out too. Execution reaches the pool through `resolveManaActivation`, which re-derives
+    // the source class key from live state; the expectation reaches it through `activationYield` and
+    // the plan's recorded `costPayment`. Two different routes to the same number.
+    plan.activations.flatMap { it.costPayment }.forEach { spent ->
+        expected[spent] = (expected[spent] ?: 0) - 1
+    }
     plan.payments.filterIsInstance<SymbolPayment.WithMana>().forEach { payment ->
         expected[payment.mana] = (expected[payment.mana] ?: 0) - 1
     }
@@ -373,7 +467,23 @@ private fun activationMultisets(
     return found
 }
 
-/** Whether the pool plus the activations' yields meet the demanded mana, type by type. */
+/**
+ * Every assignment of mana to [alternative]'s own activation cost the oracle will consider — the raw
+ * cartesian product over satisfying types, with no canonicalisation, which is the point: the
+ * enumerator's non-decreasing rule has to be *proved* lossless, not assumed.
+ */
+private fun oracleCostAssignments(alternative: ProductionAlternative): List<List<ManaType>> {
+    val mana = alternative.manaCost ?: return listOf(emptyList())
+    return expandToUnits(mana.cost).fold(listOf(emptyList())) { acc, symbol ->
+        val types = ManaType.entries.filter { paymentSatisfies(symbol, SymbolPayment.WithMana(it)) }
+        acc.flatMap { prefix -> types.map { prefix + it } }
+    }
+}
+
+/**
+ * Whether the pool plus the activations' yields meet the demanded mana **and** the activations' own
+ * costs, type by type.
+ */
 private fun oracleCovers(
     pool: Map<ManaType, Int>,
     activations: List<ManaActivation>,
@@ -381,34 +491,118 @@ private fun oracleCovers(
 ): Boolean {
     val available = pool.toMutableMap()
     activations.forEach { activation ->
-        activationYield(activation.sourceClass, activation.produced).forEach {
+        activationYield(activation.sourceClass, activation.alternative).forEach {
             available[it] = (available[it] ?: 0) + 1
         }
     }
-    return demand.groupingBy { it }.eachCount().all { (type, count) -> count <= (available[type] ?: 0) }
+    val required = (demand + activations.flatMap { it.costPayment }).groupingBy { it }.eachCount()
+    return required.all { (type, count) -> count <= (available[type] ?: 0) }
+}
+
+/**
+ * Whether *some* order runs [activations] without the pool ever going short (CR 601.2g), found by
+ * trying **every permutation** — deliberately a different algorithm from the enumerator's memoized
+ * subset DP, so the two can only agree by both being right (docs/design/mana-payment.md §11.2).
+ *
+ * Trivially true while no activation costs mana, which is every board before `FW-MANACOST`, so the
+ * permutation walk never runs on them.
+ */
+private fun oracleOrderable(
+    pool: Map<ManaType, Int>,
+    activations: List<ManaActivation>,
+): Boolean {
+    if (activations.none { it.costPayment.isNotEmpty() }) return true
+
+    fun walk(
+        remaining: List<ManaActivation>,
+        current: Map<ManaType, Int>,
+    ): Boolean {
+        if (remaining.isEmpty()) return true
+        return remaining.indices.any { index ->
+            val next = remaining[index]
+            val afterCost = current.toMutableMap()
+            var payable = true
+            next.costPayment.forEach { unit ->
+                val held = afterCost[unit] ?: 0
+                if (held == 0) payable = false else afterCost[unit] = held - 1
+            }
+            if (!payable) {
+                false
+            } else {
+                activationYield(next.sourceClass, next.alternative).forEach {
+                    afterCost[it] = (afterCost[it] ?: 0) + 1
+                }
+                walk(remaining.filterIndexed { at, _ -> at != index }, afterCost)
+            }
+        }
+    }
+    return walk(activations, pool)
+}
+
+/**
+ * Whether [activations] tap no more untapped creatures than [state]'s seat controls (CR 602.1) —
+ * counted here by *naming the objects*, one per source a plan taps or sacrifices plus one per
+ * "Tap an untapped creature you control" component, rather than by the enumerator's per-class prefix
+ * arithmetic.
+ */
+private fun oracleCreatureBudgetHolds(
+    state: GameState,
+    activations: List<ManaActivation>,
+): Boolean {
+    if (activations.none { ManaAbilityCost.TapAnotherCreature in it.alternative.cost }) return true
+    val budget = untappedCreatures(state, alice).size
+    val drain =
+        activations
+            .groupBy { it.sourceClass }
+            .entries
+            .sumOf { (key, uses) ->
+                val members =
+                    state.sharedZones.battlefield.filter { it.owner == alice && sourceClassKeyOf(state, it) == key }
+                uses.withIndex().sumOf { (useIndex, activation) ->
+                    val member = members.getOrNull(useIndex)
+                    val consumesSelf =
+                        ManaAbilityCost.TapSelf in activation.alternative.cost ||
+                            ManaAbilityCost.SacrificeSelf in activation.alternative.cost
+                    val untappedCreature = member != null && !member.tapped && isCreature(state, member)
+                    val self = if (consumesSelf && untappedCreature) 1 else 0
+                    val helper = if (ManaAbilityCost.TapAnotherCreature in activation.alternative.cost) 1 else 0
+                    self + helper
+                }
+            }
+    return drain <= budget
 }
 
 /**
  * Whether every activation spends at least one of its mana, found by exhaustive assignment rather
- * than by the enumerator's Hall check — the point of an oracle is to agree by a different route.
+ * than by the enumerator's Hall check or its Kuhn matching — the point of an oracle is to agree by a
+ * different route.
+ *
+ * The sinks are the demanded mana **and** each activation's own mana cost, an activation being
+ * forbidden from funding itself (docs/design/mana-payment.md §11.5). A sink is keyed by
+ * `(owner, type)`, `owner` being the activation whose cost it is or `-1` for the cost being paid.
  */
 private fun oracleSpendsEvery(
     activations: List<ManaActivation>,
     demand: List<ManaType>,
 ): Boolean {
-    val remaining = demand.groupingBy { it }.eachCount().toMutableMap()
+    val remaining = mutableMapOf<Pair<Int, ManaType>, Int>()
+    demand.forEach { type -> remaining.merge(-1 to type, 1, Int::plus) }
+    activations.forEachIndexed { owner, activation ->
+        activation.costPayment.forEach { type -> remaining.merge(owner to type, 1, Int::plus) }
+    }
 
     fun assign(index: Int): Boolean {
         if (index == activations.size) return true
         val activation = activations[index]
-        return activationYield(activation.sourceClass, activation.produced).distinct().any { type ->
-            val left = remaining[type] ?: 0
-            if (left == 0) {
+        val yields = activationYield(activation.sourceClass, activation.alternative).distinct()
+        return remaining.keys.toList().any { sink ->
+            val left = remaining[sink] ?: 0
+            if (sink.first == index || sink.second !in yields || left == 0) {
                 false
             } else {
-                remaining[type] = left - 1
+                remaining[sink] = left - 1
                 val ok = assign(index + 1)
-                remaining[type] = left
+                remaining[sink] = left
                 ok
             }
         }

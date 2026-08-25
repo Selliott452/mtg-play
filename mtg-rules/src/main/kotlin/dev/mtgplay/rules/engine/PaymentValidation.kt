@@ -3,6 +3,7 @@ package dev.mtgplay.rules.engine
 import dev.mtgplay.core.mana.ManaCost
 import dev.mtgplay.core.mana.ManaSymbol
 import dev.mtgplay.core.mana.ManaType
+import dev.mtgplay.rules.decision.ManaActivation
 import dev.mtgplay.rules.decision.PaymentPlan
 import dev.mtgplay.rules.decision.SymbolPayment
 
@@ -27,8 +28,37 @@ internal fun validatePlanShape(
         }
     }
     plan.activations.forEach { activation ->
-        require(activation.produced in activation.sourceClass.profile) {
-            "CR 605.1a: ${activation.sourceClass.card.name} cannot add ${activation.produced}"
+        require(activation.alternative in activation.sourceClass.profile) {
+            "CR 605.1a: ${activation.sourceClass.card.name} has no production alternative ${activation.alternative}"
+        }
+        validateActivationCostPayment(activation)
+    }
+}
+
+/**
+ * Validates that [activation] records exactly one mana per expanded symbol of its own ability's mana
+ * cost, each satisfying its symbol (CR 601.2g) — the `FW-MANACOST` half of the shape check, and the
+ * reason the executor may spend the recorded mana without asking anything.
+ *
+ * A free ability records nothing, which is every activation on every board before `FW-MANACOST`.
+ */
+private fun validateActivationCostPayment(activation: ManaActivation) {
+    val mana = activation.alternative.manaCost
+    if (mana == null) {
+        require(activation.costPayment.isEmpty()) {
+            "CR 601.2g: ${activation.sourceClass.card.name}'s ability is free but the plan pays " +
+                "${activation.costPayment} for it"
+        }
+        return
+    }
+    val units = expandToUnits(mana.cost)
+    require(activation.costPayment.size == units.size) {
+        "CR 601.2g: the plan pays ${activation.costPayment.size} mana toward " +
+            "${activation.sourceClass.card.name}'s ${mana.cost.render()}, which expands to ${units.size}"
+    }
+    units.zip(activation.costPayment).forEach { (symbol, paid) ->
+        require(paymentSatisfies(symbol, SymbolPayment.WithMana(paid))) {
+            "CR 601.2g: $paid does not satisfy ${symbol.render()} of ${mana.cost.render()}"
         }
     }
 }

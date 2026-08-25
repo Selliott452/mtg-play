@@ -52,6 +52,10 @@ private fun MutableList<PriorityOption.ActivateAbility>.addAbilities(
     abilities.forEachIndexed { index, ability ->
         val offerable =
             ability.zoneScope == scope &&
+                // CR 602.5d: "Activate only as a sorcery" restricts the ability to a sorcery's timing
+                // window. Enumerating it outside that window would be an enumerated-but-illegal action
+                // (ADR-005), which is the whole reason `ActivatedAbility.timing` exists.
+                timingPermitsWindow(state, seat, ability.timing) &&
                 // CR 601.2c via CR 602.2b: an ability with no legal target cannot be activated. An
                 // ability's source is a permanent or a card in hand, never a spell on the stack, so
                 // there is nothing for it to exclude from its own enumeration.

@@ -7,6 +7,7 @@ import dev.mtgplay.core.mana.ManaType
 import dev.mtgplay.core.state.Target
 import dev.mtgplay.rules.decision.Decision
 import dev.mtgplay.rules.decision.DecisionRequest
+import dev.mtgplay.rules.decision.ProductionAlternative
 import dev.mtgplay.rules.engine.enumeratePaymentPlans
 import dev.mtgplay.rules.engine.layeredCharacteristics
 import dev.mtgplay.rules.engine.productionProfile
@@ -67,13 +68,14 @@ class AuraCastingSpec :
             // One alternative per grantable colour, each adding a single mana (CR 605.1a).
             productionProfile(enchanted, enchanted.bf("Meadow")) shouldBe
                 listOf(ManaType.WHITE, ManaType.BLUE, ManaType.BLACK, ManaType.RED, ManaType.GREEN)
-                    .map { listOf(it) }
+                    .map { ProductionAlternative.tapping(it) }
             // {W} is payable now — only because of the grant.
             enumeratePaymentPlans(enchanted, alice, ManaCost.parse("{W}")).shouldNotBeEmpty()
 
             // Without the Aura the Meadow makes only {G}, so {W} is unpayable.
             val plain = auraState(listOf(bfObject(0, "Meadow")))
-            productionProfile(plain, plain.bf("Meadow")) shouldBe listOf(listOf(ManaType.GREEN))
+            productionProfile(plain, plain.bf("Meadow")) shouldBe
+                listOf(ProductionAlternative.tapping(ManaType.GREEN))
             enumeratePaymentPlans(plain, alice, ManaCost.parse("{W}")).shouldBeEmpty()
         }
 

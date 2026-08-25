@@ -34,6 +34,14 @@ import kotlinx.collections.immutable.PersistentList
  *   resolution (CR 701.18), or `null` for an ability with none. Additive, flagged core (P6.2c). Ash Barrens'
  *   basic landcycling. Because it needs a mid-resolution selection and a seeded shuffle, `mtg-rules` runs it
  *   after the ordinary [effect], pausing for the find-one choice.
+ * @property timing when this ability may be activated (CR 602.5d). [TimingClass.INSTANT_SPEED] is the
+ *   CR 602.5a default — an activated ability may be activated whenever its controller has priority — and
+ *   [TimingClass.SORCERY_SPEED] is the printed restriction "Activate only as a sorcery", which CR 602.5d
+ *   defines as "the player must follow the timing rules for casting a sorcery spell, though the ability
+ *   isn't actually a sorcery". Additive, flagged core (`FW-MANACOST`). Basilisk Gate and Timberwatch Elf
+ *   print it; without the field they would encode as instant-speed tricks, which is an
+ *   enumerated-but-illegal action (ADR-005) rather than a cosmetic inaccuracy. The window itself is the
+ *   *same* predicate a sorcery's cast is checked against, so the two can never drift apart.
  * @property targetSpec what this ability demands as targets (CR 115); [TargetSpec.None] for an untargeted
  *   ability. Additive, flagged core (`FW-ABILTGT`, docs/design/targeted-abilities.md). The targets are
  *   chosen as part of activating the ability (CR 602.2b, following CR 601.2b–i) — before any cost is paid
@@ -46,6 +54,7 @@ data class ActivatedAbility(
     val effect: ResolutionEffect,
     val zoneScope: AbilityZoneScope = AbilityZoneScope.Battlefield,
     val librarySearch: LibrarySearch? = null,
+    val timing: TimingClass = TimingClass.INSTANT_SPEED,
     val targetSpec: TargetSpec = TargetSpec.None,
     override val libraryReveal: LibraryReveal? = null,
     override val libraryLook: LibraryLook? = null,

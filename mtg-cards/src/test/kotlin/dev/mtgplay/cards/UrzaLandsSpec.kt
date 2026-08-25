@@ -4,6 +4,7 @@ import dev.mtgplay.core.card.CardType
 import dev.mtgplay.core.card.Subtype
 import dev.mtgplay.core.definition.CardDefinition
 import dev.mtgplay.core.definition.EntersTapped
+import dev.mtgplay.core.definition.ManaAbilityCost
 import dev.mtgplay.core.definition.ManaAmount
 import dev.mtgplay.core.definition.PermanentFilter
 import dev.mtgplay.core.identity.CardRef
@@ -12,6 +13,7 @@ import io.kotest.core.spec.style.StringSpec
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
+import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.persistentSetOf
 
 /**
@@ -65,7 +67,7 @@ class UrzaLandsSpec :
             lands.forEach { (definition, naming) ->
                 val ability = definition.manaAbilities.single()
                 ability.options shouldBe listOf(ManaType.COLORLESS)
-                ability.viaSacrifice shouldBe false
+                ability.cost shouldBe persistentListOf(ManaAbilityCost.TapSelf)
                 val amount = ability.amount as ManaAmount.Conditional
                 // Alone, every Urza land adds exactly one — the "instead" clause is the exception.
                 amount.otherwise shouldBe 1

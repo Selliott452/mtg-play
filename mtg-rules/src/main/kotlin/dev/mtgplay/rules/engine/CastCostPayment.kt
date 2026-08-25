@@ -36,9 +36,31 @@ internal fun payManaPlan(
     plan: PaymentPlan,
 ): GameState {
     validatePlanShape(cost, plan)
+    // CR 601.2g: the activations are a multiset, not a schedule. Since `FW-MANACOST` an activation may
+    // cost mana, so an order has to be *derived* — by the same function the enumerator used to decide
+    // the plan was feasible at all, which is what stops the two halves from disagreeing
+    // (docs/design/mana-payment.md §11.2).
+    val order =
+        manaActivationOrder(
+            state
+                .player(seat)
+                .manaPool
+                .groupingBy { it }
+                .eachCount(),
+            plan.activations,
+        )
+            ?: error(
+                "CR 601.2g: no order of ${plan.activations.size} activations pays for itself; the plan " +
+                    "was enumerated against this state, so this is an engine defect",
+            )
     val produced =
-        plan.activations.fold(state) { current, activation ->
-            resolveTapForMana(current, seat, activation.sourceClass, activation.produced)
+        order.foldIndexed(state) { position, current, activation ->
+            resolveManaActivation(
+                current,
+                seat,
+                plan.activations[activation],
+                remaining = order.drop(position + 1).map(plan.activations::get),
+            )
         }
     return plan.payments.fold(produced) { current, payment ->
         when (payment) {

@@ -25,7 +25,7 @@ internal const val LAND_PLAYS_PER_TURN: Int = 1
  * the option never dead-ends):
  * - it has a castable definition — inert cards (no definition at all) are simply absent
  *   (architect decision, P2.1);
- * - its timing class permits casting from this window (CR 117.1a, [timingPermitsCast]);
+ * - its timing class permits casting from this window (CR 117.1a, [timingPermitsWindow]);
  * - each of its required targets has at least one legal choice (CR 601.2c);
  * - at least one payment plan exists for its cost (CR 601.2g, docs/design/mana-payment.md).
  *
@@ -132,7 +132,7 @@ private fun castIsLegal(
     definition: SpellDefinition,
     castObjectId: ObjectId,
 ): Boolean =
-    timingPermitsCast(state, seat, definition.timing) &&
+    timingPermitsWindow(state, seat, definition.timing) &&
         targetsAvailable(state, definition.targetSpec, seat, self = castObjectId) &&
         additionalDiscardSatisfiable(state, seat, definition, castObjectId, CastSource.HAND) &&
         additionalSacrificeSatisfiable(state, seat, definition) &&
@@ -144,11 +144,17 @@ private fun castIsLegal(
         ).isNotEmpty()
 
 /**
- * Whether [timing] permits [seat] to cast from the current window (CR 117.1a): instant speed
+ * Whether [timing] permits [seat] to act from the current window (CR 117.1a): instant speed
  * whenever the player has priority; sorcery speed only for the active player, during a main
  * phase of their own turn, with the stack empty.
+ *
+ * Shared by casting a spell and — since `FW-MANACOST` — by activating an ability that prints
+ * "Activate only as a sorcery" ([ActivatedAbility.timing]). CR 602.5d defines that restriction as
+ * "the player must follow the timing rules for casting a sorcery spell, though the ability isn't
+ * actually a sorcery", so it is deliberately the *same* predicate rather than a parallel one: the
+ * rule says the two windows are identical, and one function is how they stay identical.
  */
-internal fun timingPermitsCast(
+internal fun timingPermitsWindow(
     state: GameState,
     seat: PlayerId,
     timing: TimingClass,

@@ -5,6 +5,7 @@ import dev.mtgplay.core.card.PrintedCharacteristics
 import dev.mtgplay.core.card.PrintedPowerToughness
 import dev.mtgplay.core.definition.CardDefinition
 import dev.mtgplay.core.definition.ManaAbility
+import dev.mtgplay.core.definition.ManaAbilityCost
 import dev.mtgplay.core.identity.CardRef
 import dev.mtgplay.core.mana.Color
 import dev.mtgplay.core.mana.ManaCost
@@ -12,6 +13,7 @@ import dev.mtgplay.core.mana.ManaType
 import dev.mtgplay.core.state.GameState
 import dev.mtgplay.rules.decision.ManaActivation
 import dev.mtgplay.rules.decision.PaymentPlan
+import dev.mtgplay.rules.decision.ProductionAlternative
 import dev.mtgplay.rules.decision.SymbolPayment
 import dev.mtgplay.rules.engine.enumeratePaymentPlans
 import dev.mtgplay.rules.engine.manaSourceClasses
@@ -54,7 +56,7 @@ class PaymentEnumerationSpec :
             val mountainClass = manaSourceClasses(state, alice).single()
             mountainClass.members shouldHaveSize 5
             plans.single().activations shouldContainExactly
-                listOf(ManaActivation(mountainClass.key, listOf(ManaType.RED)))
+                listOf(ManaActivation(mountainClass.key, ProductionAlternative.tapping(ManaType.RED)))
             plans.single().payments shouldContainExactly listOf(SymbolPayment.WithMana(ManaType.RED))
         }
 
@@ -234,9 +236,9 @@ class PaymentEnumerationSpec :
             val pylon = CardRef("Fixture Pylon")
             // Same printed card, different profile: two different classes, computed from state.
             manaSourceClasses(alone, alice).single { it.key.card == pylon }.key.profile shouldBe
-                listOf(listOf(ManaType.COLORLESS))
+                listOf(ProductionAlternative.tapping(ManaType.COLORLESS))
             manaSourceClasses(assembled, alice).single { it.key.card == pylon }.key.profile shouldBe
-                listOf(List(3) { ManaType.COLORLESS })
+                listOf(ProductionAlternative.tapping(*Array(3) { ManaType.COLORLESS }))
         }
 
         "CR 605.2: two conditional lands with different amounts pay a cost neither could alone" {
@@ -252,7 +254,8 @@ class PaymentEnumerationSpec :
             val state = stateWith(SeatSetup(battlefield = listOf("Fixture Elder", "Fixture Elder"))).settled()
             val plans = enumeratePaymentPlans(state, alice, ManaCost.parse("{G}{G}"))
             plans.any { it.activations.size == 1 } shouldBe true
-            manaSourceClasses(state, alice).single().key.profile shouldBe listOf(List(2) { ManaType.GREEN })
+            manaSourceClasses(state, alice).single().key.profile shouldBe
+                listOf(ProductionAlternative.tapping(*Array(2) { ManaType.GREEN }))
         }
 
         "CR 605.2: a count that reads the whole battlefield includes permanents the caster does not control" {
@@ -401,5 +404,10 @@ private val fixtureKinSpawn: CardDefinition =
                 powerToughness = PrintedPowerToughness(power = 0, toughness = 1),
             )
         override val manaAbilities =
-            persistentListOf(ManaAbility(persistentListOf(ManaType.COLORLESS), viaSacrifice = true))
+            persistentListOf(
+                ManaAbility(
+                    persistentListOf(ManaType.COLORLESS),
+                    cost = persistentListOf(ManaAbilityCost.SacrificeSelf),
+                ),
+            )
     }
