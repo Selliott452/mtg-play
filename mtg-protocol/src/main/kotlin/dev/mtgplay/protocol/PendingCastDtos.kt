@@ -25,6 +25,7 @@ data class PendingCastDto(
     val additionalExileCost: List<Long>?,
     val sacrificeCost: List<Long>?,
     val additionalDiscard: List<Long>?,
+    val additionalSacrifice: List<Long>?,
 )
 
 /** [PendingCast] to its wire form. */
@@ -38,6 +39,7 @@ fun PendingCast.toDto(): PendingCastDto =
         additionalExileCost = additionalExileCost?.map(ObjectId::value),
         sacrificeCost = sacrificeCost?.map(ObjectId::value),
         additionalDiscard = additionalDiscard?.map(ObjectId::value),
+        additionalSacrifice = additionalSacrifice?.map(ObjectId::value),
     )
 
 /** [PendingCastDto] back to the engine value. */
@@ -51,6 +53,7 @@ fun PendingCastDto.toDomain(): PendingCast =
         additionalExileCost = additionalExileCost?.map(::ObjectId)?.toPersistentList(),
         sacrificeCost = sacrificeCost?.map(::ObjectId)?.toPersistentList(),
         additionalDiscard = additionalDiscard?.map(::ObjectId)?.toPersistentList(),
+        additionalSacrifice = additionalSacrifice?.map(::ObjectId)?.toPersistentList(),
     )
 
 /** Wire form of [PendingActivation] (CR 602.2). */
@@ -62,6 +65,7 @@ data class PendingActivationDto(
     val abilityIndex: Int,
     val chosenDiscard: List<Long>?,
     val chosenTargets: List<TargetDto>?,
+    val chosenSacrifice: List<Long>?,
 )
 
 /** [PendingActivation] to its wire form. */
@@ -73,6 +77,7 @@ fun PendingActivation.toDto(): PendingActivationDto =
         abilityIndex = abilityIndex,
         chosenDiscard = chosenDiscard?.map(ObjectId::value),
         chosenTargets = chosenTargets?.map { it.toDto() },
+        chosenSacrifice = chosenSacrifice?.map(ObjectId::value),
     )
 
 /** [PendingActivationDto] back to the engine value. */
@@ -84,6 +89,7 @@ fun PendingActivationDto.toDomain(): PendingActivation =
         abilityIndex = abilityIndex,
         chosenDiscard = chosenDiscard?.map(::ObjectId)?.toPersistentList(),
         chosenTargets = chosenTargets?.map { it.toDomain() }?.toPersistentList(),
+        chosenSacrifice = chosenSacrifice?.map(::ObjectId)?.toPersistentList(),
     )
 
 /** Wire form of [PendingPlot] (CR 702.140) — the fact and the plotting seat; the card stays in hand. */

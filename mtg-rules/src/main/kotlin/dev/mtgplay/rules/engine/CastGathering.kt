@@ -64,6 +64,11 @@ internal fun beginCastGathering(
     // An additional discard cost (Grab the Prize) needs a selection; every other cast settles empty.
     val additionalDiscard: PersistentList<ObjectId>? =
         if (definition.additionalCost is AdditionalCost.DiscardCards) null else persistentListOf()
+    // An intrinsic sacrifice additional cost (Eviscerator's Insight) needs a selection; every other
+    // cast settles empty. It applies to a permission cast too (CR 702.34a's "and any additional
+    // costs"), so it is read off the definition rather than off the permission.
+    val additionalSacrifice: PersistentList<ObjectId>? =
+        if (definition.additionalCost is AdditionalCost.Sacrifice) null else persistentListOf()
     val gathering =
         state.copy(
             pendingCast =
@@ -76,6 +81,7 @@ internal fun beginCastGathering(
                     additionalExileCost,
                     sacrificeCost,
                     additionalDiscard,
+                    additionalSacrifice,
                 ),
         )
     return pauseForNextCastDecision(gathering)
@@ -147,6 +153,23 @@ internal fun applyChosenAdditionalDiscard(
     require(cast.additionalDiscard == null) { "CR 601.2b: this cast's additional discard cost is already chosen" }
     return pauseForNextCastDecision(
         state.copy(pendingCast = cast.copy(additionalDiscard = discardObjectIds.toPersistentList())),
+    )
+}
+
+/**
+ * Records the permanents chosen to pay an intrinsic sacrifice additional cost (Eviscerator's Insight —
+ * CR 601.2b) on the open [PendingCast] and suspends for the payment choice. They are sacrificed only
+ * when the cast executes, and **after** the mana payment (CR 601.2g precedes CR 601.2h), so a land
+ * answered here is still available to the payment plan that is enumerated next.
+ */
+internal fun applyChosenAdditionalSacrifice(
+    state: GameState,
+    sacrificeObjectIds: List<ObjectId>,
+): AdvanceResult {
+    val cast = state.pendingCast ?: error("no cast is gathering decisions")
+    require(cast.additionalSacrifice == null) { "CR 601.2b: this cast's additional sacrifice cost is already chosen" }
+    return pauseForNextCastDecision(
+        state.copy(pendingCast = cast.copy(additionalSacrifice = sacrificeObjectIds.toPersistentList())),
     )
 }
 

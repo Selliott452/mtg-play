@@ -181,6 +181,28 @@ sealed interface DecisionRequestDto {
         val count: Int,
     ) : SizedSelectionDto
 
+    /** Wire form of [DecisionRequest.ChooseSacrificesForCost] (CR 601.2b) — `FW-ADDSAC`. */
+    @Serializable
+    @SerialName("choose_sacrifices_for_cost")
+    data class ChooseSacrificesForCost(
+        override val id: DecisionRequestIdDto,
+        val cardObjectId: Long,
+        val card: String,
+        val options: List<CardObjectOptionDto>,
+        val count: Int,
+    ) : SizedSelectionDto
+
+    /** Wire form of [DecisionRequest.ChooseAbilitySacrifice] (CR 602.1) — `FW-ADDSAC`. */
+    @Serializable
+    @SerialName("choose_ability_sacrifice")
+    data class ChooseAbilitySacrifice(
+        override val id: DecisionRequestIdDto,
+        val sourceObjectId: Long,
+        val card: String,
+        val options: List<CardObjectOptionDto>,
+        val count: Int,
+    ) : SizedSelectionDto
+
     /** Wire form of [DecisionRequest.ChooseAbilityDiscard] (CR 602.2b). */
     @Serializable
     @SerialName("choose_ability_discard")

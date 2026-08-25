@@ -29,10 +29,6 @@ import kotlinx.collections.immutable.toPersistentList
  * atomically in the transition that receives the last choice.
  */
 
-/** The mana cost component of [ability], or `null` if it has none. */
-private fun manaComponent(ability: ActivatedAbility): AbilityCost.Mana? =
-    ability.cost.filterIsInstance<AbilityCost.Mana>().singleOrNull()
-
 /** Whether [ability]'s cost includes a "discard a card" component. */
 private fun hasDiscardACard(ability: ActivatedAbility): Boolean = ability.cost.any { it == AbilityCost.DiscardACard }
 
@@ -61,6 +57,9 @@ internal fun beginActivation(
                     chosenDiscard = if (hasDiscardACard(ability)) null else persistentListOf(),
                     // CR 601.2c: an untargeted ability settles its (empty) target list immediately.
                     chosenTargets = if (ability.targetSpec == TargetSpec.None) persistentListOf() else null,
+                    // CR 602.1: a "Sacrifice an artifact" component needs a selection; every other
+                    // activation settles it empty.
+                    chosenSacrifice = if (sacrificeComponent(ability) != null) null else persistentListOf(),
                 ),
         )
     return advanceActivationGathering(opened)
@@ -73,6 +72,7 @@ private fun advanceActivationGathering(state: GameState): AdvanceResult {
     return when {
         pending.chosenTargets == null -> AdvanceResult.NeedsDecision(state, pendingActivationRequest(state))
         pending.chosenDiscard == null -> AdvanceResult.NeedsDecision(state, pendingActivationRequest(state))
+        pending.chosenSacrifice == null -> AdvanceResult.NeedsDecision(state, pendingActivationRequest(state))
         manaComponent(ability) != null -> AdvanceResult.NeedsDecision(state, pendingActivationRequest(state))
         // No further decisions: pay the cost (with an empty plan) and put the ability on the stack.
         else -> executeActivation(state, PaymentPlan(emptyList(), emptyList()))
@@ -109,6 +109,19 @@ internal fun pendingActivationRequest(state: GameState): DecisionRequest {
                         .map { DecisionRequest.ChooseAbilityDiscard.Option(it.id, it.card) },
                 count = 1,
             )
+        // CR 602.1 with CR 701.17: the "Sacrifice an artifact" selection, offering exactly the
+        // candidates the legality check counted ([abilitySacrificeCandidates]) — an option that left
+        // the sibling mana component unpayable would dead-end the activation (ADR-005).
+        pending.chosenSacrifice == null ->
+            DecisionRequest.ChooseAbilitySacrifice(
+                id = id,
+                sourceObjectId = pending.sourceObjectId,
+                card = source.card,
+                options =
+                    abilitySacrificeCandidates(state, pending.activator, source, ability)
+                        .map { DecisionRequest.ChooseAbilitySacrifice.Option(it.id, it.card) },
+                count = 1,
+            )
         else -> {
             val mana = manaComponent(ability) ?: error("CR 602.2g: a payment request requires a mana cost component")
             DecisionRequest.ChoosePaymentPlan(
@@ -117,17 +130,35 @@ internal fun pendingActivationRequest(state: GameState): DecisionRequest {
                 card = source.card,
                 // Same reservation the legality check used (triage trap T17): the options offered
                 // must be exactly the ones execution can carry out (ADR-005), so the source cannot
-                // appear here as a payer for a cost that also taps or sacrifices it.
+                // appear here as a payer for a cost that also taps or sacrifices it — nor may the
+                // permanent already chosen for a sacrifice component, when that permanent is one
+                // that produces mana *by* being sacrificed (docs/design/mana-payment.md §2.2).
                 options =
                     enumeratePaymentPlans(
                         state,
                         pending.activator,
                         mana.cost,
-                        manaSourcesReservedBy(state, source, ability),
+                        manaSourcesReservedBy(state, source, ability, pending.chosenSacrifice.orEmpty()),
                     ),
             )
         }
     }
+}
+
+/**
+ * Records the permanent chosen to pay an [AbilityCost.Sacrifice] component on the open activation
+ * (CR 602.1) and continues gathering. It is sacrificed only when the activation executes
+ * (CR 602.2b), atomically with everything else — nothing has left the battlefield yet.
+ */
+internal fun applyChosenAbilitySacrifice(
+    state: GameState,
+    sacrificeObjectIds: List<ObjectId>,
+): AdvanceResult {
+    val pending = state.pendingActivation ?: error("no activation is gathering costs")
+    require(pending.chosenSacrifice == null) { "CR 602.2b: this activation's sacrifice cost is already chosen" }
+    return advanceActivationGathering(
+        state.copy(pendingActivation = pending.copy(chosenSacrifice = sacrificeObjectIds.toPersistentList())),
+    )
 }
 
 /** Records the chosen "discard a card" cost card on the open activation and continues gathering. */

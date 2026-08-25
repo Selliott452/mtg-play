@@ -45,6 +45,8 @@ internal fun pendingCastRequest(
         cast.sacrificeCost == null -> chooseSacrificesRequest(state, cast, card.card, id)
         // CR 601.2b: then any additional discard cost selection (Grab the Prize).
         cast.additionalDiscard == null -> chooseDiscardForCostRequest(state, cast, definition, card.card, id)
+        // CR 601.2b: then any intrinsic sacrifice additional cost selection (Eviscerator's Insight).
+        cast.additionalSacrifice == null -> chooseSacrificeForCostRequest(state, cast, definition, card.card, id)
         // CR 601.2g: finally the payment plan for the (possibly alternative) mana cost.
         else -> {
             val cost =
@@ -55,7 +57,18 @@ internal fun pendingCastRequest(
                 id = id,
                 cardObjectId = cast.cardObjectId,
                 card = card.card,
-                options = enumeratePaymentPlans(state, cast.caster, cost),
+                // A permanent already chosen for the sacrifice additional cost is excluded from
+                // funding the mana **only** when it produces mana by being sacrificed — spending it
+                // would consume it before the cost's own sacrifice. Tapping a chosen land for mana
+                // and then sacrificing it is legal and stays enumerated
+                // (docs/design/mana-payment.md §2.2).
+                options =
+                    enumeratePaymentPlans(
+                        state,
+                        cast.caster,
+                        cost,
+                        sacrificeSourcesAmong(state, cast.additionalSacrifice.orEmpty()),
+                    ),
             )
         }
     }
@@ -99,6 +112,30 @@ private fun chooseSacrificesRequest(
             sacrificeableFor(state, cast.caster, requirement)
                 .map { DecisionRequest.ChooseSacrifices.Option(it.id, it.card) },
         count = requirement.count,
+    )
+}
+
+// CR 601.2b: every matching permanent the caster controls is an additional-sacrifice-cost option
+// (Eviscerator's Insight's "an artifact or creature", Raze's "a land"). The card being cast is in the
+// hand or the graveyard, never on the battlefield, so it excludes nothing from its own option list.
+private fun chooseSacrificeForCostRequest(
+    state: GameState,
+    cast: PendingCast,
+    definition: dev.mtgplay.core.definition.SpellDefinition,
+    card: CardRef,
+    id: DecisionRequestId,
+): DecisionRequest.ChooseSacrificesForCost {
+    val additional =
+        definition.additionalCost as? AdditionalCost.Sacrifice
+            ?: error("CR 601.2b: an additional sacrifice cost requires a sacrifice additional cost")
+    return DecisionRequest.ChooseSacrificesForCost(
+        id = id,
+        cardObjectId = cast.cardObjectId,
+        card = card,
+        options =
+            sacrificeableMatching(state, cast.caster, additional.filter)
+                .map { DecisionRequest.ChooseSacrificesForCost.Option(it.id, it.card) },
+        count = additional.count,
     )
 }
 

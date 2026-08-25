@@ -10,6 +10,7 @@ import dev.mtgplay.core.identity.ObjectId
 import dev.mtgplay.core.identity.PlayerId
 import dev.mtgplay.core.state.GameObject
 import dev.mtgplay.core.state.GameState
+import dev.mtgplay.core.state.PendingActivation
 import dev.mtgplay.core.state.StackEntry
 import dev.mtgplay.rules.AdvanceResult
 import dev.mtgplay.rules.decision.PaymentPlan
@@ -78,7 +79,7 @@ internal fun executeActivation(
         )
     val cleared = state.copy(pendingActivation = null)
     establishActivationTargets(cleared, entry)
-    val paid = payAbilityCost(cleared, source, ability, plan, pending.chosenDiscard.orEmpty())
+    val paid = payAbilityCost(cleared, source, ability, plan, pending)
     val onStack =
         paid
             .updateStack { it.adding(entry) }
@@ -136,17 +137,27 @@ private fun fizzleActivatedAbility(
 
 /**
  * Pays every component of [ability]'s cost in order (CR 602.2b): mana, tap/sacrifice/discard self, and a
- * chosen discard. The payer is the source's controller — ownership in the MVP pool — so no separate
- * activator parameter is needed. [chosenDiscard] is the card(s) chosen for a "discard a card" component.
+ * chosen discard, and a chosen sacrifice. The payer is the source's controller — ownership in the MVP
+ * pool — so no separate activator parameter is needed. [pending] supplies the objects chosen while
+ * gathering: its `chosenDiscard` for a "discard a card" component and its `chosenSacrifice` for an
+ * [AbilityCost.Sacrifice] component.
+ *
+ * **Components are paid in printed order, so the mana precedes the sacrifice** on every ability in the
+ * pool ("{1}, Sacrifice an artifact or creature: …"). That ordering is what makes tapping a permanent
+ * for mana and then sacrificing it work; the enumeration reserved exactly the chosen permanents that
+ * could *not* survive being paid with (docs/design/mana-payment.md §2.2), so nothing reaches this point
+ * that the fold cannot carry out.
  */
 private fun payAbilityCost(
     state: GameState,
     source: GameObject,
     ability: ActivatedAbility,
     plan: PaymentPlan,
-    chosenDiscard: List<ObjectId>,
+    pending: PendingActivation,
 ): GameState {
     val payer = source.owner
+    val chosenDiscard = pending.chosenDiscard.orEmpty()
+    val chosenSacrifice = pending.chosenSacrifice.orEmpty()
     return ability.cost.fold(state) { current, component ->
         when (component) {
             is AbilityCost.Mana -> payManaPlan(current, payer, component.cost, plan)
@@ -155,6 +166,8 @@ private fun payAbilityCost(
             AbilityCost.DiscardSelf -> discardApplyingReplacements(current, payer, source.id)
             AbilityCost.DiscardACard ->
                 chosenDiscard.fold(current) { s, id -> discardApplyingReplacements(s, payer, id) }
+            // CR 701.17: the permanents chosen while gathering, sacrificed to their owner's graveyard.
+            is AbilityCost.Sacrifice -> sacrificePermanents(current, payer, chosenSacrifice)
         }
     }
 }

@@ -1,9 +1,11 @@
 package dev.mtgplay.rules.effect
 
+import dev.mtgplay.core.card.Keyword
 import dev.mtgplay.core.state.GameObject
 import dev.mtgplay.core.state.GameState
 import dev.mtgplay.core.state.Target
 import dev.mtgplay.rules.engine.isCreature
+import dev.mtgplay.rules.engine.layeredCharacteristics
 
 /**
  * Effect primitive: a source deals [amount] damage to **each** battlefield permanent the [affected]
@@ -50,3 +52,19 @@ fun isCreaturePermanent(
     state: GameState,
     obj: GameObject,
 ): Boolean = isCreature(state, obj)
+
+/**
+ * Whether the battlefield object [obj] has flying right now (CR 702.9) — the published read a sweeper
+ * that spares or targets fliers needs (Krark-Clan Shaman's "each creature **without flying**"). It is
+ * the *effective* keyword set, so a layer-6 grant counts and a printed keyword lost to one does not,
+ * which is the same answer the combat engine's blocking restrictions read. An object with no definition
+ * in the registry is inert and has no keywords.
+ *
+ * Published beside [isCreaturePermanent] and for the same reason: `mtg-rules` names no specific card
+ * (PLAN.md §3), so "without flying" stays card-definition data — the rules module supplies only the one
+ * judgement the predicate cannot make for itself.
+ */
+fun hasFlyingPermanent(
+    state: GameState,
+    obj: GameObject,
+): Boolean = Keyword.FLYING in layeredCharacteristics(state, obj.id).keywords

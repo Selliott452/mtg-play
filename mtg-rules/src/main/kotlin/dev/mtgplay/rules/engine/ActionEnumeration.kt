@@ -113,7 +113,12 @@ internal fun playLandIsLegal(
 /**
  * Whether every CR 601.2 gate passes for [seat] casting the hand card [castObjectId] defined by
  * [definition] normally: timing, targets, an affordable printed cost, and any intrinsic additional
- * discard cost (Grab the Prize).
+ * discard (Grab the Prize) or sacrifice (Eviscerator's Insight) cost.
+ *
+ * The sacrifice cost also narrows the payment enumeration ([minimalSacrificeReservation]): a permanent
+ * that produces mana by being *sacrificed* cannot both fund the mana and satisfy the sacrifice, so a
+ * plan spending it is not offered. Nothing else is reserved — tapping a land for mana and then
+ * sacrificing it is legal (docs/design/mana-payment.md §2.2).
  */
 private fun castIsLegal(
     state: GameState,
@@ -124,7 +129,13 @@ private fun castIsLegal(
     timingPermitsCast(state, seat, definition.timing) &&
         targetsAvailable(state, definition.targetSpec, seat, self = castObjectId) &&
         additionalDiscardSatisfiable(state, seat, definition, castObjectId, CastSource.HAND) &&
-        enumeratePaymentPlans(state, seat, castableCost(definition)).isNotEmpty()
+        additionalSacrificeSatisfiable(state, seat, definition) &&
+        enumeratePaymentPlans(
+            state,
+            seat,
+            castableCost(definition),
+            minimalSacrificeReservation(state, seat, definition),
+        ).isNotEmpty()
 
 /** The cost enumeration prices (CR 601.2f); loud on a castable definition with no mana cost. */
 private fun castableCost(definition: SpellDefinition): ManaCost =

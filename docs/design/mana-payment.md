@@ -3,8 +3,10 @@
 The reference for the payment model built in P2.1, extended by P2.2 (real basics) and Phase 5
 (triggered mana abilities, additional/alternative costs), **reshaped in P8.3** so that one
 activation of a mana ability can pay more than one cost symbol, corrected by `P-MANASICK`
-(§2.1) when the pool gained its first creature mana source, and **extended on the production side
-by `FW-MANA`** (§8) when it gained its first sources whose amount is read off the board. PLAN.md §7
+(§2.1) when the pool gained its first creature mana source, **extended on the production side
+by `FW-MANA`** (§8) when it gained its first sources whose amount is read off the board, and
+sharpened on the reservation side by `FW-ADDSAC` (§2.3) when a cost first sacrificed a *chosen*
+permanent. PLAN.md §7
 names payment combinatorics a top risk; the mitigation is this model: **declarative plans over
 collapsed source classes**, enumerated exhaustively, chosen by index (ADR-005).
 
@@ -150,11 +152,11 @@ missing* legal plan, which is the worse of the two:
 - **A mana-only cost reserves nothing.** An ability whose cost is just `{1}` may be paid by tapping
   its own source, and always could.
 
-Two notes on scope. The same shape does *not* affect a **spell's** cost: a cast's sacrifice
-additional cost (Fireblast's two Mountains) is paid after CR 601.2g, and sacrificing an
-already-tapped Mountain is legal, so no plan is offered that execution cannot carry out. And the
-reservation is a property of the *cost*, not of the source class, so — like usability — it stays out
-of the equivalence relation.
+Two notes on scope. The reservation is a property of the *cost*, not of the source class, so — like
+usability — it stays out of the equivalence relation. And a **spell's** cost was originally recorded
+here as unaffected, on the grounds that a cast's sacrifice cost is paid after CR 601.2g and
+sacrificing an already-tapped Mountain is legal; `FW-ADDSAC` (§2.3) found that half-right and
+sharpened it.
 
 **Equivalence relation.** Two usable battlefield objects controlled by the caster are
 payment-equivalent iff they have the same printed card (`CardRef`) **and** the same
@@ -179,6 +181,59 @@ assembled forms a distinct class from one without, automatically, because the pr
 from state and the profile is what the key hashes on — and two Towers in the same state are still
 payment-equivalent to each other, which is the whole point. The relation is now three packets old
 and has survived every one of them; that is evidence it is the right cut.
+
+### 2.3 Sacrifice costs with a *chosen* permanent (`FW-ADDSAC`)
+
+`FW-ADDSAC` added two costs whose sacrificed permanent is **chosen** rather than named:
+`AdditionalCost.Sacrifice(count, filter)` on a spell (CR 601.2b, paid at CR 601.2h) and
+`AbilityCost.Sacrifice(filter)` inside an activated ability's composite cost (CR 602.1). Both raise
+§2.2's question again, and the answer §2.2 gave for a spell — "reserves nothing" — turned out to be
+right for the wrong reason and wrong in one case.
+
+**The ordering had to move first.** `executeCastPipeline` paid every non-mana cost *before* the mana
+plan, which was unobservable while the only such costs were escape's exile and Fireblast's
+permission sacrifice (both on `{0}` casts). For Eviscerator's Insight — `{1}{B}` **and** sacrifice an
+artifact or creature — it is not: the CR runs CR 601.2g (activate mana abilities) before CR 601.2h
+(pay costs), so tapping an artifact land for the `{B}` and *then* sacrificing it is legal. The
+intrinsic sacrifice is therefore paid **after** `payCosts`. The permission-side sacrifice was left
+where it was; see the flag at the end of this section.
+
+**What is reserved is one object, exactly.** A chosen permanent is excluded from funding its own
+cost's mana **iff it is a sacrifice-cost mana source** (`isSacrificeSource` — an Eldrazi Spawn's
+"Sacrifice this token: Add {C}"), because producing mana from it consumes it before the cost's own
+sacrifice can. A tap-for-mana permanent reserves nothing: that is the legal play above, and deleting
+it would be the silently-missing-plan failure §2.2 exists to prevent. This is the `SacrificeSelf`
+rule of §2.2 applied to the chosen object instead of the source.
+
+**Why an exact reservation is available at all** is the gathering order. CR 601.2b–i, which CR 602.2b
+defers to wholesale, settles cost selections *before* the payment plan, so by the time
+`enumeratePaymentPlans` runs, the chosen permanents are known: `sacrificeSourcesAmong` turns them
+into the `reserved` set directly.
+
+**Legality runs earlier than the choice**, and needs the other half:
+
+- For a **spell**, `minimalSacrificeReservation` answers "is there *some* choice that leaves the cost
+  payable" by reserving the minimal set any choice could force — candidates that are not
+  sacrifice-cost mana sources first, so the reservation is empty whenever enough of them exist. This
+  is exact for a one-permanent cost, which is every such cost the pool prints.
+- For an **ability**, the mana and sacrifice components are checked *jointly*:
+  `abilitySacrificeCandidates` keeps a candidate only if a plan exists with that candidate reserved,
+  and the same function supplies the selection's options. One derivation, two callers — the
+  discipline §2.1 established for `manaSourceUsable`, for the same reason: an ability enumerated
+  against one candidate set and gathered against another dead-ends mid-activation.
+
+**Two flags left open.**
+
+1. `AdditionalCost.Sacrifice.count > 1` on a board whose every matching permanent is a sacrifice-cost
+   mana source can make `minimalSacrificeReservation` optimistic (the greedy prefix is not a
+   sufficient search over subsets). No pool card prints such a count; if one arrives, the payment
+   fails **loudly** in `sacrificePermanents` rather than producing a wrong state, and the fix is a
+   joint (selection, plan) enumeration.
+2. The **permission**-side `SacrificeRequirement` (Fireblast, Lava Dart) is still paid before the
+   mana plan and reserves nothing. That is under-reserving, not over-reserving, and it is currently
+   unobservable because both pool cards have `{0}` mana costs — but a permission with a non-zero cost
+   *and* a sacrifice would enumerate plans that spend a permanent already gone. Closing it means
+   moving `paySacrificeCosts` after `payCosts` and giving it the same reservation.
 
 ## 3. Ordering, dedup, and why the enumeration is duplicate-free
 
