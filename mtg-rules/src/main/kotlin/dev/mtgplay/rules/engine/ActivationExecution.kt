@@ -101,8 +101,10 @@ private fun establishActivationTargets(
 ) {
     val spec = entry.ability.targetSpec
     // CR 113.7a: an ability on the stack has no residence id, so it excludes nothing from its own
-    // enumeration — the same `self = null` the choice was enumerated with.
-    val options = legalTargets(state, spec, entry.controller, self = null)
+    // enumeration; CR 113.7b/c: its *source* is what protection reads (CR 702.16b), by the last known
+    // information the entry captured — the same [Chooser.Ability] the choice was enumerated with, which
+    // is what makes this re-validation ask the identical question.
+    val options = legalTargets(state, spec, entry.controller, Chooser.Ability(entry.sourceCard))
     requireWellFormedTargetChoice(spec, entry.targets, options.size, "${entry.sourceCard.name}'s ability")
     entry.targets.forEach { target ->
         require(target in options) {
@@ -122,7 +124,10 @@ private fun fizzleActivatedAbility(
     entry: StackEntry.ActivatedAbilityOnStack,
 ): AdvanceResult? {
     // CR 113.7a: an ability on the stack is not a card and has no residence id, so it excludes nothing.
-    if (!allTargetsIllegal(state, entry.ability.targetSpec, entry.targets, entry.controller, self = null)) {
+    // CR 113.7c: its source's characteristics are last known information — which is exactly the case
+    // here, since an ability whose cost sacrificed its own source is still on the stack.
+    val chooser = Chooser.Ability(entry.sourceCard)
+    if (!allTargetsIllegal(state, entry.ability.targetSpec, entry.targets, entry.controller, chooser)) {
         return null
     }
     val removed = state.updateStack { it.removingAt(it.lastIndex) }

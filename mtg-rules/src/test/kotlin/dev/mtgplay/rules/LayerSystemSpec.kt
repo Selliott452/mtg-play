@@ -6,6 +6,7 @@ import dev.mtgplay.core.definition.TargetSpec
 import dev.mtgplay.core.identity.ObjectId
 import dev.mtgplay.core.state.Target
 import dev.mtgplay.rules.engine.ActiveEffect
+import dev.mtgplay.rules.engine.Chooser
 import dev.mtgplay.rules.engine.CreatureDeathCause
 import dev.mtgplay.rules.engine.Layer
 import dev.mtgplay.rules.engine.LayeredCharacteristics
@@ -169,30 +170,30 @@ class LayerSystemSpec :
         "CR 303.4a: enchant creature — only creatures are legal targets, both directions" {
             val state = auraState(listOf(bfObject(0, "Ent"), bfObject(1, "Meadow")))
             val spec = TargetSpec.Enchantable(EnchantRestriction.CREATURE)
-            legalTargets(state, spec, alice, self = null) shouldContainExactly listOf(Target.Permanent(ObjectId(0)))
-            isTargetLegal(state, spec, Target.Permanent(ObjectId(1)), alice, self = null) shouldBe false
+            legalTargets(state, spec, alice, Chooser.Nobody) shouldContainExactly listOf(Target.Permanent(ObjectId(0)))
+            isTargetLegal(state, spec, Target.Permanent(ObjectId(1)), alice, Chooser.Nobody) shouldBe false
         }
 
         "CR 303.4a: enchant land — only lands are legal targets, both directions" {
             val state = auraState(listOf(bfObject(0, "Ent"), bfObject(1, "Meadow")))
             val spec = TargetSpec.Enchantable(EnchantRestriction.LAND)
-            legalTargets(state, spec, alice, self = null) shouldContainExactly listOf(Target.Permanent(ObjectId(1)))
-            isTargetLegal(state, spec, Target.Permanent(ObjectId(0)), alice, self = null) shouldBe false
+            legalTargets(state, spec, alice, Chooser.Nobody) shouldContainExactly listOf(Target.Permanent(ObjectId(1)))
+            isTargetLegal(state, spec, Target.Permanent(ObjectId(0)), alice, Chooser.Nobody) shouldBe false
         }
 
         "CR 303.4a and CR 205.3: enchant Forest — only a Forest-subtype land is legal" {
             val state = auraState(listOf(bfObject(0, "Meadow"), bfObject(1, "Thicket")))
             val spec = TargetSpec.Enchantable(EnchantRestriction.FOREST)
-            legalTargets(state, spec, alice, self = null) shouldContainExactly listOf(Target.Permanent(ObjectId(1)))
-            isTargetLegal(state, spec, Target.Permanent(ObjectId(0)), alice, self = null) shouldBe false
+            legalTargets(state, spec, alice, Chooser.Nobody) shouldContainExactly listOf(Target.Permanent(ObjectId(1)))
+            isTargetLegal(state, spec, Target.Permanent(ObjectId(0)), alice, Chooser.Nobody) shouldBe false
         }
 
         "CR 303.4a: enchant creature you control — control is ownership (§4), both directions" {
             // Ent owned by alice, Toad owned by bob.
             val state = auraState(listOf(bfObject(0, "Ent", owner = alice), bfObject(1, "Toad", owner = bob)))
             val spec = TargetSpec.Enchantable(EnchantRestriction.CREATURE_YOU_CONTROL)
-            legalTargets(state, spec, alice, self = null) shouldContainExactly listOf(Target.Permanent(ObjectId(0)))
-            legalTargets(state, spec, bob, self = null) shouldContainExactly listOf(Target.Permanent(ObjectId(1)))
+            legalTargets(state, spec, alice, Chooser.Nobody) shouldContainExactly listOf(Target.Permanent(ObjectId(0)))
+            legalTargets(state, spec, bob, Chooser.Nobody) shouldContainExactly listOf(Target.Permanent(ObjectId(1)))
         }
 
         "CR 613 §1: an effect that classifies into no implemented layer fails loudly (unimplemented kind)" {

@@ -25,6 +25,7 @@ import dev.mtgplay.core.state.Target
 import dev.mtgplay.core.state.Turn
 import dev.mtgplay.core.state.TurnPhase
 import dev.mtgplay.rules.effect.exileGraveyard
+import dev.mtgplay.rules.engine.Chooser
 import dev.mtgplay.rules.engine.allTargetsIllegal
 import dev.mtgplay.rules.engine.legalTargets
 import dev.mtgplay.rules.engine.targetChoiceBounds
@@ -78,15 +79,15 @@ class UnboundedTargetsSpec :
 
         "CR 115.1a: the count does not change what 'target player' enumerates, only how many are named" {
             val state = wideBoard()
-            legalTargets(state, anyPlayers, alice, self = null) shouldContainExactly
-                legalTargets(state, onePlayer, alice, self = null)
+            legalTargets(state, anyPlayers, alice, Chooser.Nobody) shouldContainExactly
+                legalTargets(state, onePlayer, alice, Chooser.Nobody)
         }
 
         "CR 115.1a: 'target player' offers the chooser as well as the opponent, unlike 'target opponent'" {
             val state = wideBoard()
-            legalTargets(state, anyPlayers, alice, self = null) shouldContainExactly
+            legalTargets(state, anyPlayers, alice, Chooser.Nobody) shouldContainExactly
                 listOf(Target.Player(alice), Target.Player(bob))
-            legalTargets(state, TargetSpec.TargetOpponent, alice, self = null) shouldContainExactly
+            legalTargets(state, TargetSpec.TargetOpponent, alice, Chooser.Nobody) shouldContainExactly
                 listOf(Target.Player(bob))
         }
 
@@ -99,33 +100,33 @@ class UnboundedTargetsSpec :
 
         "CR 601.2c: an unbounded count is always satisfiable, so it never gates castability" {
             // Minimum zero: the mode is offered whatever the board holds. Contrast Exactly(2) below.
-            targetsAvailable(wideBoard(), anyPlayers, alice, self = null) shouldBe true
+            targetsAvailable(wideBoard(), anyPlayers, alice, Chooser.Nobody) shouldBe true
         }
 
         "CR 608.2b: an unbounded line that named no target resolves; it has no illegal target" {
-            allTargetsIllegal(wideBoard(), anyPlayers, emptyList(), alice, self = null) shouldBe false
+            allTargetsIllegal(wideBoard(), anyPlayers, emptyList(), alice, Chooser.Nobody) shouldBe false
         }
 
         "CR 601.2c: a choice with options is never vacuous, however unbounded its count" {
-            targetChoiceIsVacuous(wideBoard(), anyPlayers, alice, self = null) shouldBe false
+            targetChoiceIsVacuous(wideBoard(), anyPlayers, alice, Chooser.Nobody) shouldBe false
         }
 
         // ---- the enchantment restriction -----------------------------------------------------------
 
         "CR 303: 'target enchantment' offers either seat's enchantments and no other permanent" {
-            legalTargets(wideBoard(), enchantments, alice, self = null) shouldContainExactly
+            legalTargets(wideBoard(), enchantments, alice, Chooser.Nobody) shouldContainExactly
                 listOf(Target.Permanent(ALICE_AURA), Target.Permanent(BOB_ENCHANTMENT))
         }
 
         "CR 303.4: an Aura is an enchantment, so it is a legal target of 'destroy target enchantment'" {
-            val options = legalTargets(wideBoard(), enchantments, bob, self = null)
+            val options = legalTargets(wideBoard(), enchantments, bob, Chooser.Nobody)
             options.map { (it as Target.Permanent).id } shouldContainExactly listOf(ALICE_AURA, BOB_ENCHANTMENT)
         }
 
         // ---- the disjunctive, control-restricted restriction ----------------------------------------
 
         "CR 205.2b: 'artifacts, creatures, and/or lands you control' admits all three types, disjunctively" {
-            legalTargets(wideBoard(), blinkable, alice, self = null) shouldContainExactly
+            legalTargets(wideBoard(), blinkable, alice, Chooser.Nobody) shouldContainExactly
                 listOf(
                     Target.Permanent(ALICE_ARTIFACT),
                     Target.Permanent(ALICE_BEAR),
@@ -135,18 +136,22 @@ class UnboundedTargetsSpec :
         }
 
         "CR 303: the disjunction excludes enchantments, so a permanent you control may still be illegal" {
-            val offered = legalTargets(wideBoard(), blinkable, alice, self = null).map { (it as Target.Permanent).id }
+            val offered =
+                legalTargets(wideBoard(), blinkable, alice, Chooser.Nobody)
+                    .map { (it as Target.Permanent).id }
             // ALICE_AURA is a permanent alice controls and is deliberately not offered.
             offered.contains(ALICE_AURA) shouldBe false
         }
 
         "CR 109.5: the restriction is decider-relative — one battlefield, two different option lists" {
-            legalTargets(wideBoard(), blinkable, bob, self = null) shouldContainExactly
+            legalTargets(wideBoard(), blinkable, bob, Chooser.Nobody) shouldContainExactly
                 listOf(Target.Permanent(BOB_BEAR))
         }
 
         "CR 702.11: hexproof never narrows a 'you control' line — your own hexproof creature is offered" {
-            val offered = legalTargets(wideBoard(), blinkable, alice, self = null).map { (it as Target.Permanent).id }
+            val offered =
+                legalTargets(wideBoard(), blinkable, alice, Chooser.Nobody)
+                    .map { (it as Target.Permanent).id }
             offered.contains(ALICE_HEXPROOF_BEAR) shouldBe true
         }
 
@@ -154,9 +159,9 @@ class UnboundedTargetsSpec :
 
         "CR 601.2c: 'two target permanents' is uncastable when the board offers only one" {
             val state = oneBlinkableBoard()
-            targetsAvailable(state, twoBlinkable, alice, self = null) shouldBe false
+            targetsAvailable(state, twoBlinkable, alice, Chooser.Nobody) shouldBe false
             // The same board satisfies the one-target form, so this is the count and not the noun.
-            targetsAvailable(state, blinkable, alice, self = null) shouldBe true
+            targetsAvailable(state, blinkable, alice, Chooser.Nobody) shouldBe true
         }
 
         "CR 601.2c: an exact count of two demands two and clamps to no fewer" {
@@ -168,13 +173,13 @@ class UnboundedTargetsSpec :
         "CR 608.2b: a two-target line whose targets are *both* gone fizzles; one survivor resolves it" {
             val state = wideBoard()
             val gone = Target.Permanent(ObjectId(999))
-            allTargetsIllegal(state, twoBlinkable, listOf(gone, gone), alice, self = null) shouldBe true
+            allTargetsIllegal(state, twoBlinkable, listOf(gone, gone), alice, Chooser.Nobody) shouldBe true
             allTargetsIllegal(
                 state,
                 twoBlinkable,
                 listOf(gone, Target.Permanent(ALICE_BEAR)),
                 alice,
-                self = null,
+                Chooser.Nobody,
             ) shouldBe false
         }
 

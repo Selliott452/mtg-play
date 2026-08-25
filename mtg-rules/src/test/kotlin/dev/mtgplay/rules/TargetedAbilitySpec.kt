@@ -30,6 +30,7 @@ import dev.mtgplay.rules.decision.Decision
 import dev.mtgplay.rules.decision.DecisionRequest
 import dev.mtgplay.rules.decision.PriorityOption
 import dev.mtgplay.rules.effect.dealDamage
+import dev.mtgplay.rules.engine.Chooser
 import dev.mtgplay.rules.engine.legalTargets
 import dev.mtgplay.rules.engine.priorityTo
 import dev.mtgplay.rules.engine.resolveTopOfStack
@@ -58,13 +59,13 @@ class TargetedAbilitySpec :
 
         "CR 115.1a/102.1: TargetSpec.TargetOpponent enumerates every player but the decider, and no permanent" {
             val state = targetingState(battlefield = listOf(alice to "Bear"))
-            legalTargets(state, TargetSpec.TargetOpponent, alice, self = null) shouldContainExactly
+            legalTargets(state, TargetSpec.TargetOpponent, alice, Chooser.Nobody) shouldContainExactly
                 listOf(Target.Player(bob))
             // Decider-relative: the same board gives the other seat the opposite enumeration.
-            legalTargets(state, TargetSpec.TargetOpponent, bob, self = null) shouldContainExactly
+            legalTargets(state, TargetSpec.TargetOpponent, bob, Chooser.Nobody) shouldContainExactly
                 listOf(Target.Player(alice))
             // Narrower than AnyTarget, which offers both players and the creature.
-            legalTargets(state, TargetSpec.AnyTarget, alice, self = null) shouldHaveSize 3
+            legalTargets(state, TargetSpec.AnyTarget, alice, Chooser.Nobody) shouldHaveSize 3
         }
 
         "CR 603.3d: a triggered ability chooses its targets as it is put on the stack, not when it resolves" {

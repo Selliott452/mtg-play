@@ -67,6 +67,9 @@ internal fun satisfiesPermanentRestriction(
         PermanentRestriction.ARTIFACT -> CardType.ARTIFACT in characteristics.cardTypes
         // CR 303: an Aura is an enchantment, so every Aura in the pool qualifies.
         PermanentRestriction.ENCHANTMENT -> CardType.ENCHANTMENT in characteristics.cardTypes
+        // CR 305: any land. An artifact land satisfies this *and* [ARTIFACT] — a permanent has every
+        // card type printed on it (CR 205.1a) — which is why this is a card-type test, not an exclusion.
+        PermanentRestriction.LAND -> CardType.LAND in characteristics.cardTypes
         PermanentRestriction.RED_PERMANENT,
         PermanentRestriction.BLUE_PERMANENT,
         -> satisfiesColourRestriction(restriction, characteristics)
@@ -103,6 +106,10 @@ private fun satisfiesColourRestriction(
  * ownership in the current pool — nothing in the gauntlet changes control of a permanent
  * (docs/design/layer-system.md §4) — and these are the arms that must start reading a real controller
  * the day one does.
+ *
+ * Takes the whole [characteristics] rather than a pre-computed creature flag because
+ * [PermanentRestriction.ARTIFACT_CREATURE_OR_LAND_YOU_CONTROL] is a **union** over three card types
+ * (CR 205.1a) rather than a question about one.
  */
 private fun satisfiesControlRestriction(
     restriction: PermanentRestriction,
@@ -110,14 +117,16 @@ private fun satisfiesControlRestriction(
     candidate: GameObject,
     you: PlayerId,
     isCreature: Boolean,
-): Boolean =
-    when (restriction) {
-        PermanentRestriction.PERMANENT_YOU_CONTROL -> candidate.owner == you
-        PermanentRestriction.CREATURE_YOU_CONTROL -> isCreature && candidate.owner == you
+): Boolean {
+    val yours = candidate.owner == you
+    return when (restriction) {
+        PermanentRestriction.PERMANENT_YOU_CONTROL -> yours
+        PermanentRestriction.CREATURE_YOU_CONTROL -> isCreature && yours
         PermanentRestriction.CREATURE_AN_OPPONENT_CONTROLS -> isCreature && candidate.owner != you
         // CR 205.2b: a permanent may have several card types, so "and/or" is a disjunction over them —
         // one match is enough, and an artifact land satisfies it twice over.
         PermanentRestriction.ARTIFACT_CREATURE_OR_LAND_YOU_CONTROL ->
-            candidate.owner == you && characteristics.cardTypes.any { it in BLINKABLE_TYPES }
+            yours && characteristics.cardTypes.any { it in BLINKABLE_TYPES }
         else -> error("CR 109.5: $restriction is not a control restriction")
     }
+}

@@ -58,8 +58,11 @@ private fun MutableList<PriorityOption.ActivateAbility>.addAbilities(
                 timingPermitsWindow(state, seat, ability.timing) &&
                 // CR 601.2c via CR 602.2b: an ability with no legal target cannot be activated. An
                 // ability's source is a permanent or a card in hand, never a spell on the stack, so
-                // there is nothing for it to exclude from its own enumeration.
-                targetsAvailable(state, ability.targetSpec, seat, self = null) &&
+                // there is nothing for it to exclude from its own enumeration — but CR 702.16b needs
+                // that source's characteristics, and this is where a missed protection check would
+                // become a phantom *action* rather than merely a phantom target
+                // (docs/design/protection.md §6, row 3).
+                targetsAvailable(state, ability.targetSpec, seat, Chooser.Ability(source.card)) &&
                 abilityCostPayable(state, seat, source, scope, ability)
         if (offerable) {
             add(PriorityOption.ActivateAbility(source.id, source.card, index, scope))

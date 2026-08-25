@@ -139,7 +139,7 @@ private fun castIsLegal(
         // CR 601.2b–c: a modal card is castable when *some* mode's targets exist, not when the card's
         // do — it has none of its own (`FW-MODAL`, SpellModes.kt). For a non-modal card this is
         // exactly `targetsAvailable`, so there is one question here rather than two.
-        someModeIsCastable(state, definition, seat, self = castObjectId) &&
+        someModeIsCastable(state, definition, seat, Chooser.Spell(castObjectId)) &&
         additionalDiscardSatisfiable(state, seat, definition, castObjectId, CastSource.HAND) &&
         additionalSacrificeSatisfiable(state, seat, definition) &&
         enumeratePaymentPlans(
@@ -191,14 +191,17 @@ internal fun timingPermitsWindow(
  * with N above one it is the CR 601.2c rule in full: "two target creatures" is not castable with one
  * creature on the battlefield.
  *
- * [self] is the object that would be doing the choosing, excluded from its own enumeration; `null` where
- * the caller has none. It never changes the answer at *enumeration* time — the card is still in its
- * source zone and so is not on the stack — but naming it keeps every call site honest about the identity
- * whose absence CR 601.2c's re-validation later depends on.
+ * [chooser] is the object that would be doing the choosing — [Chooser.Spell] for a cast, and since
+ * `P-ABILSOURCE` [Chooser.Ability] for an activation. Its exclusion never changes the answer at
+ * *enumeration* time (the card is still in its source zone and so is not on the stack), but naming it
+ * keeps every call site honest about the identity whose absence CR 601.2c's re-validation later depends
+ * on — and its **source** half does change the answer, because a spell or ability whose only candidate
+ * has protection from it (CR 702.16b) has no legal target and must not be enumerated at all
+ * (docs/design/protection.md §6, row 3).
  */
 internal fun targetsAvailable(
     state: GameState,
     spec: TargetSpec,
     seat: PlayerId,
-    self: ObjectId?,
-): Boolean = legalTargets(state, spec, seat, self = self).size >= spec.count.minimum
+    chooser: Chooser,
+): Boolean = legalTargets(state, spec, seat, chooser).size >= spec.count.minimum

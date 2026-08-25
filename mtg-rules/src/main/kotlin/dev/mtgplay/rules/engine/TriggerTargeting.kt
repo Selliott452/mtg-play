@@ -40,7 +40,10 @@ internal fun triggerTargetPause(
     next: PendingTrigger,
 ): AdvanceResult? {
     val spec = next.ability.targetSpec
-    if (targetChoiceIsVacuous(state, spec, controller, self = null)) return null
+    // CR 113.7b: the trigger's source, carried on the pending trigger as last known information — the
+    // source may already have left the battlefield by the time its own leave-the-battlefield trigger
+    // chooses targets. CR 702.16b tests a protected object against exactly these characteristics.
+    if (targetChoiceIsVacuous(state, spec, controller, Chooser.Ability(next.sourceCard))) return null
     val paused =
         state.copy(pendingTriggerTargets = PendingTriggerTargets(controller, next.sourceId, next.sourceCard))
     return AdvanceResult.NeedsDecision(paused, pendingTriggerTargetsRequest(paused))
@@ -81,7 +84,15 @@ internal fun pendingTriggerTargetsRequest(state: GameState): DecisionRequest {
         cardObjectId = pending.sourceId,
         card = pending.sourceCard,
         spec = trigger.ability.targetSpec,
-        options = legalTargets(state, trigger.ability.targetSpec, pending.controller, self = null),
+        // CR 113.7b/702.16b: enumerated against the trigger's source, the same one [triggerTargetPause]
+        // asked the vacuity question with.
+        options =
+            legalTargets(
+                state,
+                trigger.ability.targetSpec,
+                pending.controller,
+                Chooser.Ability(pending.sourceCard),
+            ),
     )
 }
 

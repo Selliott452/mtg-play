@@ -49,6 +49,13 @@ enum class PermanentRestriction {
     ARTIFACT,
 
     /**
+     * "Target land" (CR 115.1b, CR 305). Raze's destroy line. An artifact land satisfies this *and*
+     * [ARTIFACT] — a permanent has every card type printed on it (CR 205.1a) — so this is a card-type
+     * test rather than an exclusion.
+     */
+    LAND,
+
+    /**
      * "Target enchantment" (CR 303): any enchantment on the battlefield, Auras included. Thraben Charm's
      * "Destroy target enchantment" mode. Additive, flagged core.
      *

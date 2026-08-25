@@ -45,6 +45,11 @@ internal fun beginActivation(
     abilityIndex: Int,
 ): AdvanceResult {
     val ability = abilityAt(state, seat, sourceObjectId, scope, abilityIndex)
+    // CR 113.7b: the ability's source, whose characteristics CR 702.16b tests against a protected
+    // object. Read before any cost is paid, so a self-sacrificing cost cannot take it away first.
+    val source =
+        activationSource(state, seat, scope, sourceObjectId)
+            ?: error("CR 602.2: the activation source $sourceObjectId is not in its zone $scope")
     val opened =
         state.copy(
             pendingActivation =
@@ -57,7 +62,7 @@ internal fun beginActivation(
                     // CR 601.2c: an untargeted ability — and an "up to N" one with nothing legal to
                     // point at — settles its (empty) target list immediately.
                     chosenTargets =
-                        if (targetChoiceIsVacuous(state, ability.targetSpec, seat, self = null)) {
+                        if (targetChoiceIsVacuous(state, ability.targetSpec, seat, Chooser.Ability(source.card))) {
                             persistentListOf()
                         } else {
                             null
@@ -103,7 +108,9 @@ internal fun pendingActivationRequest(state: GameState): DecisionRequest {
                 cardObjectId = pending.sourceObjectId,
                 card = source.card,
                 spec = ability.targetSpec,
-                options = legalTargets(state, ability.targetSpec, pending.activator, self = null),
+                // CR 113.7b/702.16b: enumerated against the ability's *source*, so the options offered
+                // are the ones execution will re-validate against (ADR-005).
+                options = legalTargets(state, ability.targetSpec, pending.activator, Chooser.Ability(source.card)),
             )
         pending.chosenDiscard == null ->
             DecisionRequest.ChooseAbilityDiscard(

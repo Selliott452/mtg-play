@@ -2,6 +2,7 @@ package dev.mtgplay.rules
 
 import dev.mtgplay.core.definition.TargetSpec
 import dev.mtgplay.core.state.Target
+import dev.mtgplay.rules.engine.Chooser
 import dev.mtgplay.rules.engine.legalTargets
 import io.kotest.core.spec.style.StringSpec
 import io.kotest.matchers.collections.shouldContainExactly
@@ -24,7 +25,7 @@ class TargetPlayerSpec :
             )
 
         "CR 115.1a: target player enumerates exactly the players, in turn order" {
-            legalTargets(board(), TargetSpec.TargetPlayer(), alice, self = null) shouldContainExactly
+            legalTargets(board(), TargetSpec.TargetPlayer(), alice, Chooser.Nobody) shouldContainExactly
                 listOf(Target.Player(alice), Target.Player(bob))
         }
 
@@ -32,17 +33,17 @@ class TargetPlayerSpec :
             val state = board()
             val ogre = Target.Permanent(state.creatureOf("Ogre", alice).id)
             val bear = Target.Permanent(state.creatureOf("Bear", bob).id)
-            val playerTargets = legalTargets(state, TargetSpec.TargetPlayer(), alice, self = null)
+            val playerTargets = legalTargets(state, TargetSpec.TargetPlayer(), alice, Chooser.Nobody)
             playerTargets shouldNotContain ogre
             playerTargets shouldNotContain bear
             // The same board under CR 115.4 does offer them — the two specs are genuinely different.
-            legalTargets(state, TargetSpec.AnyTarget, alice, self = null) shouldContainExactly
+            legalTargets(state, TargetSpec.AnyTarget, alice, Chooser.Nobody) shouldContainExactly
                 listOf(Target.Player(alice), Target.Player(bob), ogre, bear)
         }
 
         "CR 115.1a: a player may target themself — both seats see the same two choices" {
             val state = board()
-            legalTargets(state, TargetSpec.TargetPlayer(), bob, self = null) shouldContainExactly
-                legalTargets(state, TargetSpec.TargetPlayer(), alice, self = null)
+            legalTargets(state, TargetSpec.TargetPlayer(), bob, Chooser.Nobody) shouldContainExactly
+                legalTargets(state, TargetSpec.TargetPlayer(), alice, Chooser.Nobody)
         }
     })

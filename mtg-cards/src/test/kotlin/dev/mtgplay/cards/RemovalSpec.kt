@@ -123,10 +123,12 @@ class RemovalSpec :
                     .getValue(CardRef(name))
                     .characteristics.name shouldBe name
             }
-            // Raze and Cryoshatter are deliberately unencoded — each needs a framework, not a
-            // primitive (see Removal.kt's file comment and the packet report).
-            listOf("Raze", "Cryoshatter").forEach { name ->
-                (CardRef(name) in MvpCards.definitions) shouldBe false
-            }
+            // Raze landed with `P-ABILSOURCE`, in LandDestruction.kt rather than here: its target
+            // noun is a land (CR 305), so it belongs to the gauntlet's land destruction family.
+            (CardRef("Raze") in MvpCards.definitions) shouldBe true
+            // Cryoshatter is still deliberately unencoded — it needs trigger conditions for a
+            // permanent becoming tapped or being dealt damage, which nothing in the engine watches
+            // for; a framework, not a primitive (see Removal.kt's file comment).
+            (CardRef("Cryoshatter") in MvpCards.definitions) shouldBe false
         }
     })

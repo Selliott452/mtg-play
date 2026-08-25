@@ -70,6 +70,7 @@ object CreatureType {
             Shapeshifter
             Soldier
             Spawn
+            Spirit
             Toy
             Treefolk
             Utrom

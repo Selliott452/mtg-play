@@ -37,10 +37,12 @@ internal fun targetsAndCostAvailable(
     seat: PlayerId,
     definition: SpellDefinition,
     permission: CastingPermission?,
-    self: ObjectId?,
+    self: ObjectId,
 ): Boolean =
     // CR 601.2b–c: "its targets are available" means *some mode's* targets for a modal card (`FW-MODAL`).
-    someModeIsCastable(state, definition, seat, self) &&
+    // The card is always a real object here — every caller names one — so it is a [Chooser.Spell] and
+    // CR 702.16b has a source to test (CR 113.7c: a spell is its own source).
+    someModeIsCastable(state, definition, seat, Chooser.Spell(self)) &&
         additionalSacrificeSatisfiable(state, seat, definition) &&
         enumeratePaymentPlans(
             state,

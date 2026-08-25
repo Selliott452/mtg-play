@@ -78,7 +78,11 @@ private fun fizzleTrigger(
 ): AdvanceResult? {
     val trigger = entry.trigger
     // CR 113.7a: an ability on the stack is not a card and has no residence id, so it excludes nothing.
-    if (!allTargetsIllegal(state, trigger.ability.targetSpec, entry.targets, trigger.controller, self = null)) {
+    // CR 113.7b/c: its source, by last known information, is what CR 702.16b tests a protected target
+    // against — the same [Chooser.Ability] `TriggerTargeting.kt` enumerated the CR 603.3d choice with,
+    // which is what keeps this re-check from drifting from that choice (ADR-005).
+    val chooser = Chooser.Ability(trigger.sourceCard)
+    if (!allTargetsIllegal(state, trigger.ability.targetSpec, entry.targets, trigger.controller, chooser)) {
         return null
     }
     val removed = state.updateStack { it.removingAt(it.lastIndex) }
