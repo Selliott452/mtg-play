@@ -89,6 +89,7 @@ private fun targetPlayerLosesLife(amount: Int): ResolutionEffect =
             // P2.x pool); a permanent target reaching here is an engine defect, not a silent case.
             is Target.Permanent -> error("fixture $target unexpectedly targeted a permanent")
             is Target.SpellOnStack -> error("fixture $target unexpectedly targeted a spell on the stack")
+            is Target.CardInGraveyard -> error("fixture $target unexpectedly targeted a graveyard card")
         }
     }
 

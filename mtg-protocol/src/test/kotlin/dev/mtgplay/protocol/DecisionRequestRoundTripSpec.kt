@@ -198,6 +198,7 @@ private val allRequests: List<DecisionRequest> =
                 Target.Player(PlayerId(1)),
                 Target.Permanent(ObjectId(9)),
                 Target.SpellOnStack(ObjectId(11)),
+                Target.CardInGraveyard(ObjectId(13)),
             ),
         ),
         richPaymentWindow,

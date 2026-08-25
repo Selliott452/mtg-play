@@ -180,5 +180,6 @@ internal fun targetsAvailable(
         is TargetSpec.TargetPermanent,
         is TargetSpec.Enchantable,
         is TargetSpec.SpellOnStack,
+        is TargetSpec.CardInGraveyard,
         -> legalTargets(state, spec, seat, self = self).isNotEmpty()
     }

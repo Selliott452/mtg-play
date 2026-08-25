@@ -193,6 +193,7 @@ private fun auraAttachmentTargetOf(entry: StackEntry.Spell): ObjectId? =
         TargetSpec.TargetOpponent,
         is TargetSpec.TargetPermanent,
         is TargetSpec.SpellOnStack,
+        is TargetSpec.CardInGraveyard,
         -> null
         is TargetSpec.Enchantable ->
             (entry.targets.singleOrNull() as? Target.Permanent)?.id

@@ -69,7 +69,10 @@ import dev.mtgplay.core.state.Turn
  *   other seat receives [DecisionView.Elsewhere], which structurally carries no request and therefore no
  *   options. The library-search case is left excluded on purpose — its options are pre-filtered by the
  *   engine, so characteristics add nothing to that choice, and the found card becomes public and
- *   hand-resident in the same transition.
+ *   hand-resident in the same transition. `FW-ZONETGT` added **no second exception** and needed none: a
+ *   `ChooseTargets` request whose options are cards in a graveyard names only cards the zone rule above
+ *   has already disclosed to *both* seats (CR 400.2, CR 404), so the key set still depends on the zones
+ *   alone. See [pendingTriggerTargets] for the full ruling and the property that keeps it true.
  * @property players every seat's public standing plus the hidden-zone filtering, in turn order
  *   (CR 101.4) — [viewer]'s own hand in full, an opponent's hand as a count only (see [PlayerView]).
  * @property battlefield the shared battlefield (CR 403); fully public — every permanent, with its
@@ -135,10 +138,20 @@ import dev.mtgplay.core.state.Turn
  * @property pendingTriggerTargets a triggered ability choosing its targets as it is put on the stack
  *   (CR 603.3d), or `null`; public — it names only the ability's controller and the source's
  *   last-known id and printed identity, all of which [pendingTriggers] already discloses. The choice
- *   itself is public (CR 601.2c), and its options are battlefield objects and players, so no hidden
- *   information crosses the boundary. **The moment `Target` gains a member naming a card in a hidden
- *   or semi-hidden zone (`FW-ZONETGT`, a graveyard or library card), this ruling must be revisited
- *   together with [cards].**
+ *   itself is public (CR 601.2c), and its options are battlefield objects, players, spells on the stack,
+ *   and cards in graveyards, so no hidden information crosses the boundary.
+ *
+ *   **The `FW-ZONETGT` revisit this KDoc reserved has happened** (docs/design/graveyard-targeting.md §3),
+ *   and its answer is that nothing here changes and [cards] is untouched. A graveyard is a **public**
+ *   zone (CR 400.2) whose contents [PlayerView.graveyard] already carries for both seats and
+ *   `visibleCardRefs` already feeds into [cards], so an option naming a graveyard card discloses nothing
+ *   a seat could not already read off this view. What makes that durable rather than circumstantial is
+ *   that the new member is [dev.mtgplay.core.state.Target.CardInGraveyard] — it names its zone in its
+ *   type, and there is deliberately no zone-parameterised member — so *no value of any `Target` member
+ *   can name a card in a hidden zone*. A future "target card in a library" would be a **new** member and
+ *   would break every `when` in the codebase, this file's included, which is the review moment this
+ *   reservation was really asking for. Both halves are pinned together by
+ *   `ViewLeakPropertySpec.checkTargetOptionZones`.
  */
 data class SeatView(
     val viewer: PlayerId,

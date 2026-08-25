@@ -1,6 +1,7 @@
 package dev.mtgplay.rules.engine
 
 import dev.mtgplay.core.card.Keyword
+import dev.mtgplay.core.definition.GraveyardScope
 import dev.mtgplay.core.definition.TargetSpec
 import dev.mtgplay.core.identity.ObjectId
 import dev.mtgplay.core.identity.PlayerId
@@ -65,8 +66,19 @@ import dev.mtgplay.core.state.Target
  * [self], in stack order from the bottom up; an *ability* on the stack is never offered, because it is
  * not a card and carries no object id to name it by (CR 113.7a). It is the only spec drawing on a zone
  * that churns several times within one priority round, which is why its CR 608.2b fizzle is the most
- * reachable of all. [TargetSpec.None] enumerates nothing: an untargeted spell or ability never surfaces
- * a target decision.
+ * reachable of all. [TargetSpec.CardInGraveyard] (CR 115.1, CR 404) enumerates every card in the
+ * graveyards its [dev.mtgplay.core.definition.GraveyardScope] admits — [you]'s alone for "your
+ * graveyard", both seats' for "a graveyard" — that satisfies its
+ * [dev.mtgplay.core.definition.GraveyardCardRestriction] ([satisfiesGraveyardCardRestriction]), in turn
+ * order of graveyard and graveyard order within each, and never a permanent, a spell, or a player.
+ * Hexproof is not consulted: it is a quality of a permanent (CR 702.11), and nothing in the pool makes a
+ * graveyard card untargetable. It is the second decider-relative spec after [TargetSpec.TargetOpponent]
+ * and the first whose *objects* depend on who is choosing — which is why the same [you] must be passed
+ * at the CR 608.2b re-check as at the CR 601.2c/603.3d choice. **Every option it names is public
+ * information** (CR 400.2 — a graveyard is a public zone), so ADR-005's option list and ADR-007's
+ * per-seat filter agree here with no filtering rule; the structural reason they cannot drift is on
+ * [Target.CardInGraveyard]. [TargetSpec.None] enumerates nothing: an untargeted spell or ability never
+ * surfaces a target decision.
  */
 internal fun legalTargets(
     state: GameState,
@@ -115,6 +127,33 @@ internal fun legalTargets(
                 .filterIsInstance<StackEntry.Spell>()
                 .filter { it.obj.id != self && satisfiesSpellRestriction(state, spec.restriction, it) }
                 .map { Target.SpellOnStack(it.obj.id) }
+        // CR 115.1/404: every card in an admitted graveyard satisfying the restriction, in turn order of
+        // graveyard and then graveyard order within each; no permanent, no spell, no player.
+        is TargetSpec.CardInGraveyard ->
+            graveyardsInScope(state, spec.scope, you)
+                .flatMap { seat -> state.players.getValue(seat).graveyard }
+                .filter { satisfiesGraveyardCardRestriction(state, spec.restriction, it) }
+                .map { Target.CardInGraveyard(it.id) }
+    }
+
+/**
+ * The seats whose graveyards a [TargetSpec.CardInGraveyard] draws from (CR 404), in turn order so the
+ * enumeration is deterministic (ADR-005): the deciding player alone for [GraveyardScope.YOURS] ("from
+ * your graveyard"), every player for [GraveyardScope.ANY] ("from a graveyard").
+ *
+ * [you] is the deciding player at *every* site that reaches here — the caster at CR 601.2c, the
+ * ability's controller at CR 603.3d, and the same controller again at the CR 608.2b re-check — which is
+ * what stops a "your graveyard" spell from being cast against one graveyard and re-checked against
+ * another.
+ */
+private fun graveyardsInScope(
+    state: GameState,
+    scope: GraveyardScope,
+    you: PlayerId,
+): List<PlayerId> =
+    when (scope) {
+        GraveyardScope.YOURS -> state.players.keys.filter { it == you }
+        GraveyardScope.ANY -> state.players.keys.toList()
     }
 
 /**

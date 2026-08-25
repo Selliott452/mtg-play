@@ -24,6 +24,13 @@ import dev.mtgplay.rules.decision.DecisionRequest
  *
  * The one entry that does *not* come from a zone is the viewer's own privately looked-at cards
  * ([privateArrangementCardRefs]) — the `FW-LIBLOOK` exception documented on [SeatView.cards].
+ *
+ * **`FW-ZONETGT` deliberately added nothing here** (docs/design/graveyard-targeting.md §3). Targets can
+ * now name cards in a graveyard, but the `view.players { graveyard }` clause above already contributes
+ * **both** seats' graveyards, so every such option is describable to every seat with no new clause — the
+ * opposite of `FW-LIBLOOK`, whose pool was a *library*. That "both seats" is load-bearing rather than
+ * incidental: narrowing it to the viewer's own graveyard would leave a seat holding a target option it
+ * could not name. `ViewLeakPropertySpec.checkTargetOptionZones` fails if it ever does.
  */
 internal fun visibleCardRefs(view: SeatView): Set<CardRef> =
     buildSet {

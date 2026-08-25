@@ -7,6 +7,7 @@ import dev.mtgplay.core.identity.CardRef
 import dev.mtgplay.core.identity.PlayerId
 import dev.mtgplay.core.state.GameState
 import dev.mtgplay.core.state.StackEntry
+import dev.mtgplay.core.state.Target
 import dev.mtgplay.protocol.ServerMessage
 import dev.mtgplay.protocol.decodeServerMessage
 import dev.mtgplay.protocol.encode
@@ -21,6 +22,7 @@ import dev.mtgplay.rules.viewFor
 import io.kotest.core.spec.style.StringSpec
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldBeEmpty
+import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 
@@ -41,6 +43,12 @@ import io.kotest.matchers.types.shouldBeInstanceOf
  * the complementary **completeness** half: the table must describe every card the view itself names
  * (tokens included, CR 111) and nothing else. Both halves are computed from the view's own public
  * lists, independently of the production collector.
+ *
+ * `FW-ZONETGT` adds a third half, and it is where ADR-005 and ADR-007 have to agree: an *option list* is
+ * information too. Once a target can name a card in a zone other than the battlefield or the stack, the
+ * question "may the deciding seat be told this option exists?" stops being answered by the request
+ * machinery and starts being answered by the **zone** (CR 400.2). [checkTargetOptionZones] pins that
+ * answer from the raw state, on every `ChooseTargets` pause, for every seat.
  */
 class ViewLeakPropertySpec :
     StringSpec({
@@ -136,6 +144,8 @@ private fun checkPause(
     }
     // The deciding seat's request rides inside its own view as a ToDecide, which was round-tripped above.
     (viewFor(state, request.seat).pendingDecision as DecisionView.ToDecide).request shouldBe request
+    // ADR-005 + ADR-007: every target the seat is offered lives in a zone it may see (FW-ZONETGT).
+    checkTargetOptionZones(state, request)
     return PauseScan(bytesScanned = bytes, tokensDescribed = tokens)
 }
 
@@ -176,6 +186,57 @@ private fun checkCardTable(
         card.isToken shouldBe (definition is TokenDefinition)
     }
     return view.cards.count { it.value.isToken }
+}
+
+/**
+ * The ADR-005/ADR-007 agreement on a target option list (`FW-ZONETGT`,
+ * docs/design/graveyard-targeting.md §3), pinned as **two halves that fail together**.
+ *
+ * *Half one — no option names a hidden-zone object.* CR 400.2 makes a library and a hand hidden zones,
+ * so an option naming a card in either would hand the deciding seat information the CR never gave it,
+ * and the byte-scan above would not catch it: the seat is *allowed* to know its own hand, and an
+ * opponent's library card would arrive as an id rather than as a quoted name. This is checked over the
+ * raw state's zone contents, not over the [dev.mtgplay.core.state.Target] subtype, so it stays a true
+ * property if a future member is ever added.
+ *
+ * *Half two — every option's identity is already in both seats' card tables.* Half one is only safe
+ * because the graveyard is public and `visibleCardRefs` feeds **both** seats' graveyards into
+ * [SeatView.cards]. If that ever narrowed — to the viewer's own graveyard, say — half one would still
+ * pass while a seat received an option it could not name. So the non-deciding seat is checked too, and
+ * it is the load-bearing one.
+ *
+ * Options that name a player, a battlefield permanent, or a spell on the stack are public by
+ * construction (CR 400.2, CR 405) and contribute nothing to either half.
+ */
+private fun checkTargetOptionZones(
+    state: GameState,
+    request: DecisionRequest,
+) {
+    if (request !is DecisionRequest.ChooseTargets) return
+    val hiddenZoneIds =
+        state.players.values
+            .flatMap { it.library + it.hand }
+            .mapTo(mutableSetOf()) { it.id }
+    val graveyardObjects =
+        state.players.values
+            .flatMap { it.graveyard }
+            .associateBy { it.id }
+    val views = state.players.keys.map { viewFor(state, it) }
+
+    for (option in request.options) {
+        val named =
+            when (option) {
+                // Public by construction: a player, a battlefield permanent, a face-up stack object.
+                is Target.Player, is Target.Permanent, is Target.SpellOnStack -> null
+                is Target.CardInGraveyard -> {
+                    hiddenZoneIds.contains(option.id) shouldBe false
+                    graveyardObjects[option.id].shouldNotBeNull().card
+                }
+            }
+        if (named != null && state.definitions.containsKey(named)) {
+            views.forEach { view -> view.cards.containsKey(named) shouldBe true }
+        }
+    }
 }
 
 /** The printed identity a [StackEntryView] names (CR 405): a spell's card, or an ability's source. */

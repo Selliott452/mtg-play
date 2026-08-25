@@ -31,6 +31,7 @@ private fun targetPlayerLosesLife(amount: Int): ResolutionEffect =
             is Target.Player -> loseLife(state, target.id, amount)
             is Target.Permanent -> error("fixture unexpectedly targeted a permanent: $target")
             is Target.SpellOnStack -> error("fixture unexpectedly targeted a spell on the stack: $target")
+            is Target.CardInGraveyard -> error("fixture unexpectedly targeted a graveyard card: $target")
         }
     }
 
