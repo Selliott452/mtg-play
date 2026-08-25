@@ -41,9 +41,9 @@ package dev.mtgplay.protocol
  * time, so an old peer meets it as a decode exception mid-match. That is the sharper of the two break
  * modes and a strictly larger break than `3.0.0`'s, so the major bump is not a judgement call.
  *
- * **5.0.0** covers two frameworks that landed in the same wave; neither shipped
+ * **5.0.0** covers three frameworks that landed in the same wave; none shipped
  * separately, so `4.0.0` is the last version any consumer can have seen and one major
- * bump carries both breaks.
+ * bump carries all three breaks.
  *
  * *`FW-COUNTER`* (docs/design/countering-spells.md §10). Spells on the stack can now be
  * targeted and countered, which breaks the wire in **both** directions and in **three** ways, any one of
@@ -73,5 +73,20 @@ package dev.mtgplay.protocol
  *
  * No `DecisionRequest` kind is added: multi-mana production is a change to what an existing option
  * *says*, not a new decision, which is the whole point of the P8.3 plan shape holding.
+ *
+ * *`FW-ZONETGT`* (docs/design/graveyard-targeting.md §8). Cards in a graveyard can now be targeted, so
+ * [TargetDto] gains [TargetDto.CardInGraveyardTarget]. That is the same break shape `FW-COUNTER` records
+ * as its first point — targets travel server→client inside [DecisionRequestDto.ChooseTargets] and
+ * [StackEntryViewDto], and a `4.0.0` peer meets the new `card_in_graveyard_target` discriminator as a
+ * **runtime** decode failure — and on its own it would be a major bump on the standard the last three
+ * versions set. It is folded into `5.0.0` rather than bumped to `6.0.0` because the premise the `5.0.0`
+ * note already states still holds: this framework lands in the same unreleased wave, so `4.0.0` remains
+ * the last version any consumer can have seen, and inflating the major count for a version nobody could
+ * have consumed would describe a break that never existed.
+ *
+ * No `DecisionRequest` kind is added and no [SeatViewDto] field: a graveyard-card target is answered
+ * through the existing `ChooseTargets` request, and the ADR-007 ruling is deliberately that **no** new
+ * per-seat filtering is needed, because a graveyard is a public zone (CR 400.2) whose contents
+ * [SeatViewDto] already carries for both seats.
  */
 const val PROTOCOL_VERSION: String = "5.0.0"

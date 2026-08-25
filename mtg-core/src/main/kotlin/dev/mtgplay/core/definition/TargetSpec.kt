@@ -114,4 +114,34 @@ sealed interface TargetSpec {
     data class SpellOnStack(
         val restriction: SpellRestriction,
     ) : TargetSpec
+
+    /**
+     * "Target &lt;kind of&gt; card from your/a graveyard" (CR 115.1, CR 404): one target that must be a
+     * **card in a graveyard** satisfying [restriction], drawn from the graveyards [scope] admits.
+     * Additive, flagged core (`FW-ZONETGT`, docs/design/graveyard-targeting.md §4) — Archaeomancer's
+     * enters-the-battlefield trigger and Pulse of Murasa.
+     *
+     * The first spec whose legal set is drawn from a zone that is neither the battlefield nor the stack,
+     * and the first whose enumeration is **decider-relative for an object** ([GraveyardScope.YOURS]
+     * offers only the deciding player's own graveyard — [TargetOpponent] is decider-relative but offers
+     * only players).
+     *
+     * A graveyard card is a card, not a permanent and not a spell, so nothing about it is targetable
+     * through [TargetPermanent] or [SpellOnStack]: hexproof (CR 702.11) is a quality of a permanent and
+     * is never consulted, and the CR 613 layer system does not reach a graveyard (CR 109.3), so
+     * [restriction] reads printed types and always will.
+     *
+     * **Its CR 608.2b fizzle is reachable**, and by a route the battlefield specs do not have: anything
+     * that moves the chosen card out of the graveyard rebirths it under a fresh id (CR 400.7), so a
+     * second effect returning or exiling it first makes the stale
+     * [dev.mtgplay.core.state.Target.CardInGraveyard] name nothing — no new code, the same mechanism
+     * that fizzles a stale [SpellOnStack].
+     *
+     * @property restriction which graveyard cards are legal choices (CR 115.1).
+     * @property scope whose graveyards are searched for them (CR 404).
+     */
+    data class CardInGraveyard(
+        val restriction: GraveyardCardRestriction,
+        val scope: GraveyardScope,
+    ) : TargetSpec
 }

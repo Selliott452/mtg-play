@@ -51,9 +51,11 @@ fun dealDamage(
                 amount,
             )
         // CR 120.3: damage is dealt to a creature, a player, a planeswalker, or a battle — never to a
-        // spell on the stack. No card in the pool can produce this pairing, so it fails loudly rather
-        // than guessing (CONVENTIONS.md: never silently approximate).
+        // spell on the stack and never to a card in a graveyard. No card in the pool can produce either
+        // pairing, so both fail loudly rather than guessing (CONVENTIONS.md: never silently approximate).
         is Target.SpellOnStack ->
             error("CR 120.3: damage cannot be dealt to a spell on the stack, got $recipient")
+        is Target.CardInGraveyard ->
+            error("CR 120.3: damage cannot be dealt to a card in a graveyard, got $recipient")
     }
 }

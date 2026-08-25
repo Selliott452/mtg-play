@@ -196,6 +196,7 @@ private fun establishTargets(
         is TargetSpec.TargetPermanent,
         is TargetSpec.Enchantable,
         is TargetSpec.SpellOnStack,
+        is TargetSpec.CardInGraveyard,
         -> {
             require(entry.targets.size == 1) {
                 "CR 601.2c: ${entry.obj.card.name} demands exactly one target, got ${entry.targets}"

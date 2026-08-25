@@ -8,10 +8,14 @@ import kotlinx.serialization.Serializable
 
 /**
  * Wire form of one [Target] (CR 115.1): a targeted player (seat index), a battlefield permanent
- * (object id), or a spell on the stack (object id). Sealed to mirror [Target] exhaustively.
+ * (object id), a spell on the stack (object id), or a card in a graveyard (object id). Sealed to mirror
+ * [Target] exhaustively.
  *
- * The two object-id members are deliberately distinct wire kinds rather than one `object_target`: they
- * name ids in different zones, and a peer rendering a target must know which zone to look in.
+ * The three object-id members are deliberately distinct wire kinds rather than one `object_target`: they
+ * name ids in different zones, and a peer rendering a target must know which zone to look in. The split
+ * also carries the ADR-007 fact on [Target.CardInGraveyard] onto the wire — a peer can tell a
+ * public-zone referent from any future hidden-zone one by the discriminator alone, rather than by
+ * looking the id up.
  */
 @Serializable
 sealed interface TargetDto {
@@ -35,6 +39,13 @@ sealed interface TargetDto {
     data class SpellOnStackTarget(
         val objectId: Long,
     ) : TargetDto
+
+    /** A targeted card in a graveyard (CR 115.1, CR 404), by its graveyard-residence object id. */
+    @Serializable
+    @SerialName("card_in_graveyard_target")
+    data class CardInGraveyardTarget(
+        val objectId: Long,
+    ) : TargetDto
 }
 
 /** [Target] to its wire form. */
@@ -43,6 +54,7 @@ fun Target.toDto(): TargetDto =
         is Target.Player -> TargetDto.PlayerTarget(id.seat)
         is Target.Permanent -> TargetDto.PermanentTarget(id.value)
         is Target.SpellOnStack -> TargetDto.SpellOnStackTarget(id.value)
+        is Target.CardInGraveyard -> TargetDto.CardInGraveyardTarget(id.value)
     }
 
 /** [TargetDto] back to the engine value. */
@@ -51,4 +63,5 @@ fun TargetDto.toDomain(): Target =
         is TargetDto.PlayerTarget -> Target.Player(PlayerId(seat))
         is TargetDto.PermanentTarget -> Target.Permanent(ObjectId(objectId))
         is TargetDto.SpellOnStackTarget -> Target.SpellOnStack(ObjectId(objectId))
+        is TargetDto.CardInGraveyardTarget -> Target.CardInGraveyard(ObjectId(objectId))
     }

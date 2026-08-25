@@ -205,6 +205,7 @@ private fun burnFixture(
                     is Target.Player -> loseLife(state, target.id, 4)
                     is Target.Permanent -> error("fixture unexpectedly targeted a permanent: $target")
                     is Target.SpellOnStack -> error("fixture unexpectedly targeted a spell: $target")
+                    is Target.CardInGraveyard -> error("fixture unexpectedly targeted a graveyard card: $target")
                 }
             }
         override val castingPermissions = permissions

@@ -233,7 +233,7 @@ that completes the most still-blocked cards given everything above it.
 | 4 | `FW-LIBLOOK` — scry / surveil / look-at-top-N + ordering | 701.17/701.44. **Not in the brief.** | 13 | 9 | 8 |
 | 5 | `FW-DURATION` — until-EOT and delayed effects | 611.2, explicit timestamps. **Not in the brief.** | 13 | 3 | 7 |
 | 6 | `FW-COST` — dynamic cost modification | 601.2f; cost-modification.md (brief's F3) | 11 | 6 | 7 |
-| 7 | `FW-ZONETGT` — targets outside the battlefield | 115.1; shares the `Target` extension with F1. **Not in the brief.** | 9 | 2 | 7 |
+| 7 | ~~`FW-ZONETGT`~~ — targets outside the battlefield | 115.1; shared the `Target` extension with F1. **Landed** (graveyard-targeting.md); shipped Archaeomancer and Pulse of Murasa. The other seven rows are blocked on `FW-MULTITGT`, `FW-MODAL`, the additional-cost shape, or T18 — not on this. Every card in the family targets a **graveyard**; none targets a library or hand. | 9 | 2 | 7 |
 | 8 | `FW-MULTITGT` — more than one target / "up to N" | 601.2c. **Not in the brief.** | 9 | 1 | 5 |
 | 9 | `FW-MODAL` — modal spells | 700.2 / 601.2b; countering-spells.md §8 | 9 | **0** | 5 |
 | 10 | `FW-COUNTERS` — counters on permanents and players | 122, layer 7d. **Not in the brief.** | 8 | 1 | 7 |
@@ -443,10 +443,17 @@ interaction between a negative static modifier and the CR 704.5f zero-toughness 
 a creature pumped in response makes the spell fizzle. Reading printed power is the obvious wrong
 answer and it looks right on a board with no Auras.
 
-**T15 — `Target` has exactly two members.** Every "target card in a graveyard" card (nine of them)
-needs the same sealed-`Target` extension, the same protocol/CLI/fingerprint/invariant ripple, and the
-same `legalTargets` branch that `Target.SpellOnStack` needs for F1 (countering-spells.md §10). Build
-the extension once, with both members in mind, or pay the ~10-file mechanical cost twice.
+**T15 — `Target` has exactly two members. (Resolved.)** Every "target card in a graveyard" card (nine
+of them) needs the same sealed-`Target` extension, the same protocol/CLI/fingerprint/invariant ripple,
+and the same `legalTargets` branch that `Target.SpellOnStack` needs for F1 (countering-spells.md §10).
+Build the extension once, with both members in mind, or pay the ~10-file mechanical cost twice.
+
+`FW-COUNTER` added `Target.SpellOnStack` and `FW-ZONETGT` added `Target.CardInGraveyard`; the cost was
+in fact paid twice, ten sites each time, and the trap's advice was right. What the second pass added
+that the first could not is the **ADR-007 ruling** (graveyard-targeting.md §3): the member names its
+zone in its type rather than carrying a zone field, so *no value of any `Target` member can name a card
+in a hidden zone* and ADR-005's enumeration and ADR-007's filter agree by construction. Any third
+member must keep that property — a `CardInZone(id, zone)` generalisation would silently break it.
 
 **T16 — Basilisk Gate must not reuse `Magnitude.Dynamic`.** cost-modification.md §6 spells out the
 failure: a dynamic magnitude tracks the Gate count for the rest of the turn, so playing a fourth Gate
@@ -479,7 +486,9 @@ from `returnToBattlefieldTapped`, but **not** from `executePlayLand` — a land 
 (CR 305.1), and takes its own transition. No gauntlet land encoded so far has an ETB trigger, so the
 gap is currently unreachable and completely silent: the land arrives, nothing fires, and no invariant
 notices. **Bojuka Bog**, **Mortuary Mire**, **Azorius Chancery**, **Conduit Pylons**, and **Gingerbread
-Cabin** each make it reachable, and each would look perfectly encoded while doing nothing. Whichever
+Cabin** each make it reachable, and each would look perfectly encoded while doing nothing. `FW-ZONETGT`
+**dropped Mortuary Mire for exactly this reason** (graveyard-targeting.md §6) rather than shipping a land
+whose trigger never fires; the gap is still open. Whichever
 lands first must add the detector call to the play-land special action (CR 603.6a applies to a land
 exactly as it does to a resolving permanent) and check that the fired trigger reaches the stack at the
 priority grant `executePlayLand` already performs.
@@ -499,7 +508,7 @@ Terror · `Mad` Mono-Red Madness · `Rly` Mono Red Rally · `Trn` Monster Tron �
 | Ancient Grudge | {1}{R} | 1 | `P-TGT` `P-DESTROY` | Flashback already exists; needs a `TargetSpec` for an artifact permanent and the CR 701.7 destroy primitive. | Jnd°1 Trn°1 |
 | Ancient Stirrings | {G} | 2 | `FW-LIBLOOK` | Look at the top five, reveal a colourless card, rest to the **bottom in any order** — an ordering decision the engine has no request for. | Trn4 |
 | Annul | {U} | 2 | `FW-COUNTER` | `SpellRestriction.OfAnyCardType({ARTIFACT,ENCHANTMENT})` — countering-spells.md F1.2. | Fae°4 Ter°2 |
-| Archaeomancer | {2}{U}{U} | 2 | `FW-ABILTGT` `FW-ZONETGT` | A targeted ETB trigger whose target is a card in a graveyard. | Jes2 UWX3 |
+| Archaeomancer | {2}{U}{U} | **shipped** | — | `FW-ZONETGT` landed it: `TargetSpec.CardInGraveyard(INSTANT_OR_SORCERY, YOURS)` on the ETB trigger, composed with the existing `returnToOwnersHand`. | Jes2 UWX3 |
 | Augur of Bolas | {1}{U} | 2 | `FW-LIBLOOK` | Untargeted ETB, but look-at-top-three with the rest to the bottom in any order. | Jes4 |
 | Avenging Hunter | {4}{G} | 2 | `FW-INITIATIVE` | 'You take the initiative' is the Undercity dungeon — an entire subsystem. Looks like a 5/4 trample; is not (see traps). | Elv4 |
 | Azorius Chancery | — | 2 | `FW-MANA` `FW-RESSELECT` | `{T}: Add {W}{U}` is multi-mana production; the ETB bounce is an untargeted mid-resolution choice of a land you control. Also enters tapped. | UWX4 |
@@ -532,7 +541,7 @@ Terror · `Mad` Mono-Red Madness · `Rly` Mono Red Rally · `Trn` Monster Tron �
 | Cryptic Serpent | {5}{U}{U} | 2 | `FW-COST` | cost-modification.md C5: the clean representative of the graveyard-count reduction (Tolarian Terror is not — it has ward). | Ter4 |
 | Deem Inferior | {3}{U} | 2 | `FW-COST` `FW-NONCTRLDEC` | A cost reduction counting cards drawn this turn, and the *owner* chooses where in their library it goes. | Ter3 |
 | Dispel | {U} | 2 | `FW-COUNTER` | `SpellRestriction.OfCardType(INSTANT)` — F1.2. | Jes2 Fae2 Ter2 |
-| Dread Return | {2}{B}{B} | 2 | `FW-ZONETGT` | Targets a creature card in your graveyard; the flashback cost sacrifices three creatures (a card-type `SacrificeRequirement`). | Spy2 |
+| Dread Return | {2}{B}{B} | 2 | ~~`FW-ZONETGT`~~ additional-cost shape | **Correction:** `FW-ZONETGT` has landed and does *not* unblock this. The blocker is the flashback cost: `SacrificeRequirement(count, subtype)` predicates on a printed **subtype**, and "sacrifice three creatures" needs a **card-type** predicate. It also needs a return-to-battlefield-**untapped** primitive; the existing one enters tapped by contract. graveyard-targeting.md §6. | Spy2 |
 | Drossforge Bridge | — | 1 | `P-ETBTAPPED` `P-INDESTRUCTIBLE` | `{T}: Add {B} or {R}` already works; needs the enters-tapped replacement and `Keyword.INDESTRUCTIBLE` (only observable against P-DESTROY). | Grx4 Jnd4 |
 | Duress | {B} | 2 | `FW-HIDDENCHOICE` | Reveal an opponent's hand and choose from it — an ADR-007 per-seat-filter question, not merely a discard. | Jnd°3 |
 | Dust to Dust | {1}{W}{W} | 2 | `FW-MULTITGT` | 'Exile two target artifacts' — two distinct targets of the same spec. Also needs the exile primitive. | Gat°3 Jes°3 UWX°3 |
@@ -616,7 +625,7 @@ Terror · `Mad` Mono-Red Madness · `Rly` Mono Red Rally · `Trn` Monster Tron �
 | Priest of Titania | {1}{G} | 2 | `FW-MANA` | 'Add {G} for each Elf on the battlefield' — variable-amount production; also needs the summoning-sickness gate. | Elv4 |
 | Prismatic Strands | {2}{W} | 2 | `FW-PREVENT` | protection.md §7: **not protection**. A global, symmetric, turn-duration prevention shield keyed on a colour chosen on resolution, plus a tap-a-white-creature flashback cost. | Gat4 |
 | Prohibit | {1}{U} | 2 | `FW-COUNTER` `FW-OPTCOST` | countering-spells.md F1.6: kicker (CR 702.33) is the expensive half; mana value is read from the **printed** cost. | UWX2 |
-| Pulse of Murasa | {2}{G} | 2 | `FW-ZONETGT` | Targets a creature or land card in *a* graveyard (either player's). | Jnd1 |
+| Pulse of Murasa | {2}{G} | **shipped** | — | `FW-ZONETGT` landed it: `TargetSpec.CardInGraveyard(CREATURE_OR_LAND, ANY)` — the first card to target an opponent's object outside the battlefield. | Jnd1 |
 | Pursue the Past | {R}{W} | 0 | **Tier 0** | `gainLife` + `OptionalCostThenDraw(2, [DiscardCard])` + `Flashback`. Shape: **Highway Robbery** with a flashback instead of a plot. | Gat4 |
 | Pyroblast | {R} | 2 | `FW-COUNTER` `FW-MODAL` | As Hydroblast — the enumeration-completeness card. F1.5. | Grx°4 Bog°3 Mad°4 |
 | Quirion Ranger | {G} | 2 | `FW-ABILTGT` `FW-ABILCOST2` | A target, an activation cost that returns a permanent you control to hand, and a once-per-turn restriction. | Elv4 Spy1 |

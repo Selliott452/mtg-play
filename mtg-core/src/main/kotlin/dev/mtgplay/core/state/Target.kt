@@ -20,13 +20,21 @@ import dev.mtgplay.core.identity.PlayerId
  *
  * **The hierarchy is one member per *kind of thing*, not one per zone.** [SpellOnStack] is the third
  * kind (`FW-COUNTER`, docs/design/countering-spells.md §4): an object on the stack, which is neither a
- * player nor a permanent. Every member names its referent by an id that is fresh for its **current
- * residence** (CR 400.7), which is what makes a stale target match nothing rather than following a card
- * into its next zone. A member for a card in another zone (`FW-ZONETGT` — "target card in a graveyard",
- * "target creature card in your graveyard") slots in the same way and reuses the same freshness rule;
- * what it additionally owes, and [SpellOnStack] does not, is the ADR-007 ruling `SeatView`'s KDoc
- * already reserves — a library or hand card's identity is not public, so an option list naming one is
- * per-seat information in a way a stack object never is.
+ * player nor a permanent. [CardInGraveyard] is the fourth (`FW-ZONETGT`). Every member names its
+ * referent by an id that is fresh for its **current residence** (CR 400.7), which is what makes a stale
+ * target match nothing rather than following a card into its next zone.
+ *
+ * **The ADR-007 ruling this hierarchy carries (`FW-ZONETGT`).** Visibility is decided by the *zone*, not
+ * by the fact of targeting: CR 400.2 makes the graveyard a **public** zone and the library and hand
+ * **hidden** ones. So a member naming a graveyard card discloses nothing, and a member naming a library
+ * or hand card would be per-seat information in a way no member here has ever been. That distinction is
+ * kept **structural rather than reviewed**: [CardInGraveyard] names its zone in its type, and there is
+ * deliberately no zone-parameterised `CardInZone(id, zone)` member that could carry a public and a
+ * hidden referent in one shape. The consequence is a guarantee the view layer can rely on — *no value of
+ * any member of this hierarchy can name a card in a hidden zone* — so ADR-005's enumeration and
+ * ADR-007's filter agree by construction. A future "target card in a library" is a **new member**, and
+ * adding one breaks every `when` in the codebase, view-side ones included; that break is the review
+ * moment ADR-007 wants, and it is not skippable.
  */
 sealed interface Target {
     /** A player (CR 115.1a): a targeted player, or a player dealt damage (CR 120.3a). */
@@ -62,6 +70,31 @@ sealed interface Target {
      * distinct from [ObjectId]; until such a card exists the mistake is unrepresentable.
      */
     data class SpellOnStack(
+        val id: ObjectId,
+    ) : Target
+
+    /**
+     * A card in a **graveyard** (CR 115.1, CR 404), by its current **graveyard residence** id.
+     * Additive, flagged core (`FW-ZONETGT`, docs/design/graveyard-targeting.md): what Archaeomancer's
+     * trigger and Pulse of Murasa target.
+     *
+     * The id is the one the [GameObject] in a player's [PlayerState.graveyard] carries, minted as the
+     * card arrived there (CR 400.7) and dying with that residence — returning it to a hand or to the
+     * battlefield rebirths it under a *different* id. So a target naming a card that has already left
+     * the graveyard matches nothing in any zone, and the CR 608.2b re-check fizzles whatever was
+     * pointing at it through the enumeration that already exists, exactly as it does for
+     * [SpellOnStack]. Which graveyard the card is in is not recorded: an object id is unique across the
+     * game, so the id alone identifies it, and both graveyards are public.
+     *
+     * **This member is safe to enumerate to either seat, and that is a property of the zone.** A
+     * graveyard is public (CR 400.2), and `visibleCardRefs` already feeds *both* seats' graveyards into
+     * `SeatView.cards`, so an option list naming one of these cards tells a seat nothing it could not
+     * read off its own view. The `SeatView.pendingTriggerTargets` KDoc reserved a revisit for the
+     * arrival of this member; the revisit is this paragraph, and its answer is that no filtering rule is
+     * added, because the type cannot name a hidden-zone card at all. See the hierarchy KDoc above for
+     * why that is structural.
+     */
+    data class CardInGraveyard(
         val id: ObjectId,
     ) : Target
 }

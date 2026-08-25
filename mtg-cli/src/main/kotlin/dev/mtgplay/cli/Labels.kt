@@ -113,10 +113,13 @@ fun handCardLabel(
 }
 
 /**
- * A target's label (CR 115.1): a player by name, a battlefield permanent by name and id, or a spell on
- * the stack by name and id (CR 111.1). A spell whose stack entry has already gone is still labelled,
- * opaquely — a stale target is exactly what the CR 608.2b re-check is about to fizzle, and hiding it
- * would hide the reason.
+ * A target's label (CR 115.1): a player by name, a battlefield permanent by name and id, a spell on the
+ * stack by name and id (CR 111.1), or a graveyard card by name and id (CR 404). An object whose zone
+ * residence has already gone is still labelled, opaquely — a stale target is exactly what the CR 608.2b
+ * re-check is about to fizzle, and hiding it would hide the reason.
+ *
+ * A graveyard card is looked up across **both** graveyards, and naming it costs the viewer nothing: a
+ * graveyard is a public zone (CR 400.2), which is the ADR-007 ruling on [Target.CardInGraveyard].
  */
 fun targetLabel(
     view: MatchView,
@@ -136,5 +139,11 @@ fun targetLabel(
                     .filterIsInstance<StackEntry.Spell>()
                     .firstOrNull { it.obj.id == target.id }
             if (spell != null) "${spell.obj.card.name}#${target.id.value}" else "spell#${target.id.value}"
+        }
+        is Target.CardInGraveyard -> {
+            val card =
+                view.state.players.values
+                    .firstNotNullOfOrNull { player -> player.graveyard.firstOrNull { it.id == target.id } }
+            if (card != null) "${card.card.name}#${target.id.value}" else "card#${target.id.value}"
         }
     }

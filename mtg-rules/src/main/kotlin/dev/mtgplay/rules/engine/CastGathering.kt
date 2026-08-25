@@ -46,13 +46,15 @@ internal fun beginCastGathering(
         when (definition.targetSpec) {
             TargetSpec.None -> persistentListOf()
             // Every other spec — an Aura (CR 601.2c), any-target, target-player, target-opponent,
-            // target-permanent, and a spell on the stack — needs a target choice before payment.
+            // target-permanent, a spell on the stack, and a card in a graveyard — needs a target choice
+            // before payment.
             TargetSpec.AnyTarget,
             TargetSpec.TargetPlayer,
             TargetSpec.TargetOpponent,
             is TargetSpec.TargetPermanent,
             is TargetSpec.Enchantable,
             is TargetSpec.SpellOnStack,
+            is TargetSpec.CardInGraveyard,
             -> null
         }
     // An additional "exile N others" cost (escape) needs a selection; every other cast settles it empty.
