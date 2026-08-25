@@ -23,6 +23,17 @@ fun DecisionRequestDto.toDomain(): DecisionRequest =
             DecisionRequest.ChooseYesNo(id.toDomain(), prompt, ObjectId(cardObjectId), CardRef(card))
         is DecisionRequestDto.SingleOptionSelectionDto -> singleOptionSelectionToDomain(this)
         is DecisionRequestDto.SizedSelectionDto -> sizedSelectionToDomain(this)
+        // CR 601.2c: the ranged subset family has one member, so it maps inline rather than through a
+        // one-branch helper.
+        is DecisionRequestDto.ChooseMultipleTargets ->
+            DecisionRequest.ChooseMultipleTargets(
+                id.toDomain(),
+                ObjectId(cardObjectId),
+                CardRef(card),
+                options.map { it.toDomain() },
+                minimumCount,
+                maximumCount,
+            )
         is DecisionRequestDto.PermutationSelectionDto -> permutationSelectionToDomain(this)
         is DecisionRequestDto.ChoiceCountSelectionDto -> choiceCountSelectionToDomain(this)
         is DecisionRequestDto.MulliganRequestDto -> mulliganRequestToDomain(this)

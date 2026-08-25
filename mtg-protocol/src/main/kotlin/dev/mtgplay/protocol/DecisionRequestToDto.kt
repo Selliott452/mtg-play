@@ -6,7 +6,7 @@ import dev.mtgplay.rules.decision.DecisionRequest
 
 /*
  * Engine -> DTO half of the exhaustive [DecisionRequest] mapping (ADR-008 amendment). Dispatch is
- * grouped by the five sealed families so every `when` stays flat and a new request kind breaks
+ * grouped by the six sealed families so every `when` stays flat and a new request kind breaks
  * compilation. The DTO -> engine half is in DecisionRequestToDomain.kt.
  */
 
@@ -31,9 +31,24 @@ fun DecisionRequest.toDto(): DecisionRequestDto =
             DecisionRequestDto.ChooseYesNo(id.toDto(), prompt, cardObjectId.value, card.name)
         is DecisionRequest.SingleOptionSelection -> singleOptionSelectionToDto(this)
         is DecisionRequest.SizedSelection -> sizedSelectionToDto(this)
+        is DecisionRequest.RangedSelection -> rangedSelectionToDto(this)
         is DecisionRequest.PermutationSelection -> permutationSelectionToDto(this)
         is DecisionRequest.ChoiceCountSelection -> choiceCountSelectionToDto(this)
         is DecisionRequest.MulliganRequest -> mulliganRequestToDto(this)
+    }
+
+/** The ranged subset family (CR 601.2c) — a multi-target choice. */
+private fun rangedSelectionToDto(request: DecisionRequest.RangedSelection): DecisionRequestDto =
+    when (request) {
+        is DecisionRequest.ChooseMultipleTargets ->
+            DecisionRequestDto.ChooseMultipleTargets(
+                request.id.toDto(),
+                request.cardObjectId.value,
+                request.card.name,
+                request.options.map { it.toDto() },
+                request.minimumCount,
+                request.maximumCount,
+            )
     }
 
 /** The "pick exactly one of these options" family (CR 601.2c/601.2g/702.19e/614.12/616.1/701.17a). */

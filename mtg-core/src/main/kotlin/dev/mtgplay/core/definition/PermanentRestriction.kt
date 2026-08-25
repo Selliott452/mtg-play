@@ -14,6 +14,12 @@ package dev.mtgplay.core.definition
  * definition is data (ADR-003), the enumerator and the CR 608.2b re-check must agree by
  * construction, and a new restriction must break the rules-side `when` rather than slip through.
  * Members exist only where a card in the pool prints them.
+ *
+ * **Two members are decider-relative** ([PERMANENT_YOU_CONTROL], [CREATURE_AN_OPPONENT_CONTROLS]), and
+ * that is why `satisfiesPermanentRestriction` takes the deciding player. Before them every member here
+ * was a pure question about the object; these two are questions about the object *and* who is asking,
+ * so the same battlefield offers different option lists to the two seats — the shape
+ * [TargetSpec.TargetOpponent] and [GraveyardScope.YOURS] already had, arriving on the battlefield.
  */
 enum class PermanentRestriction {
     /** "Target permanent" (CR 115.1b): any permanent on the battlefield. Scour from Existence. */
@@ -41,4 +47,32 @@ enum class PermanentRestriction {
     /** "Target artifact" (CR 301): any artifact on the battlefield, including an artifact land.
      * Smash to Smithereens, Ancient Grudge. */
     ARTIFACT,
+
+    /**
+     * "Target permanent you control" (CR 115.1b, CR 108.4). Tamiyo's Safekeeping. The first restriction
+     * whose answer depends on **who is choosing**: the same board offers each seat only its own
+     * permanents, so the deciding player is an input to `satisfiesPermanentRestriction` rather than a
+     * property of the object.
+     *
+     * Control is read as ownership, the MVP pool's standing simplification (docs/design/layer-system.md
+     * §4) — no card in the gauntlet changes control of a permanent, so the two coincide, and the
+     * distinction becomes real the moment one does (CR 108.4 owner vs CR 109.4 controller).
+     *
+     * Hexproof (CR 702.11) never subtracts from this set: a permanent you control is targetable by you
+     * whatever keywords it has, which is exactly what makes this the restriction a protective trick
+     * prints.
+     */
+    PERMANENT_YOU_CONTROL,
+
+    /**
+     * "Target creature an opponent controls" (CR 115.1b, CR 102.1). Brinebarrow Intruder's
+     * enters-the-battlefield trigger. The mirror of [PERMANENT_YOU_CONTROL] and decider-relative for
+     * the same reason, narrowed to creatures (CR 302).
+     *
+     * Unlike [PERMANENT_YOU_CONTROL] this set **is** narrowed by hexproof, and not by this restriction:
+     * the enumeration's own `targetableBy` gate already removes an opponent's hexproof creature from
+     * anything the deciding player points at (CR 702.11), so a Slippery Bogle is not offered here and
+     * this member does not need to say so.
+     */
+    CREATURE_AN_OPPONENT_CONTROLS,
 }

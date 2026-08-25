@@ -162,13 +162,22 @@ internal fun timingPermitsCast(
     }
 
 /**
- * Whether every target [spec] requires has at least one legal choice for caster or activator [seat]
- * (CR 601.2c): a spell or ability that cannot be fully targeted cannot legally be cast or activated, so
- * it is excluded from enumeration (ADR-005) rather than allowed to dead-end mid-pipeline. An Aura whose
- * enchant restriction matches no battlefield object (CR 303.4a) is likewise uncastable, as is a removal
- * spell whose [TargetSpec.TargetPermanent] restriction matches nothing on the battlefield — Terminate is
- * simply not an option with no creature in play — and a counter with no legal spell on the stack, which
- * is the first spec whose answer changes several times inside one priority round.
+ * Whether every target [spec] requires can be chosen by caster or activator [seat] (CR 601.2c): a spell
+ * or ability that cannot be fully targeted cannot legally be cast or activated, so it is excluded from
+ * enumeration (ADR-005) rather than allowed to dead-end mid-pipeline. An Aura whose enchant restriction
+ * matches no battlefield object (CR 303.4a) is uncastable, as is a removal spell whose
+ * [TargetSpec.TargetPermanent] restriction matches nothing on the battlefield — Terminate is simply not
+ * an option with no creature in play — and a counter with no legal spell on the stack, which is the
+ * first spec whose answer changes several times inside one priority round.
+ *
+ * **The test is the spec's minimum, not "at least one"** (`FW-MULTITGT`), and the generalisation
+ * replaced a `when` that asked every targeting member the same question. For an "exactly one" spec the
+ * two are identical, which is why every card that predates this framework behaves unchanged. For
+ * [dev.mtgplay.core.definition.TargetCount.UpTo] the minimum is zero, so Faerie Macabre's ability is
+ * activatable with two empty graveyards and Blood Fountain's with an empty one — a card that says "up
+ * to" may take none, and refusing to enumerate it would delete a legal play. For an "exactly N" spec
+ * with N above one it is the CR 601.2c rule in full: "two target creatures" is not castable with one
+ * creature on the battlefield.
  *
  * [self] is the object that would be doing the choosing, excluded from its own enumeration; `null` where
  * the caller has none. It never changes the answer at *enumeration* time — the card is still in its
@@ -180,15 +189,4 @@ internal fun targetsAvailable(
     spec: TargetSpec,
     seat: PlayerId,
     self: ObjectId?,
-): Boolean =
-    when (spec) {
-        TargetSpec.None -> true
-        TargetSpec.AnyTarget,
-        TargetSpec.TargetPlayer,
-        TargetSpec.TargetOpponent,
-        is TargetSpec.TargetPermanent,
-        is TargetSpec.Enchantable,
-        is TargetSpec.SpellOnStack,
-        is TargetSpec.CardInGraveyard,
-        -> legalTargets(state, spec, seat, self = self).isNotEmpty()
-    }
+): Boolean = legalTargets(state, spec, seat, self = self).size >= spec.count.minimum

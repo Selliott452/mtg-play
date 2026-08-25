@@ -49,6 +49,31 @@ private fun sizedHeaderAndNames(request: DecisionRequest.SizedSelection): Pair<S
                 request.options.map { it.card.name }
     }
 
+/**
+ * A ranged subset selection (CR 601.2c): a multi-target choice. The header states the printed
+ * cardinality — "up to two", "two" — because that is the part of the line neither an agent nor a human
+ * can infer from the option list, and the hint states the bound actually enforced, which may be smaller
+ * when the board offers fewer options than the card asks for.
+ */
+internal fun rangedSelectionMenu(
+    view: MatchView,
+    request: DecisionRequest.RangedSelection,
+): List<String> =
+    when (request) {
+        is DecisionRequest.ChooseMultipleTargets ->
+            listOf("Choose ${targetCountPhrase(request)} for ${request.card.name} (CR 601.2c):") +
+                numbered(request.options.map { targetLabel(view, it) }) +
+                rangedHint(request.minimumCount, request.maximumCount)
+    }
+
+/** How a multi-target request's cardinality reads in its header ("up to 2 target(s)"). */
+private fun targetCountPhrase(request: DecisionRequest.ChooseMultipleTargets): String =
+    if (request.minimumCount == 0) {
+        "up to ${request.maximumCount} target(s)"
+    } else {
+        "${request.minimumCount} to ${request.maximumCount} target(s)"
+    }
+
 /** A full ordering (CR 509.2 blocker order / CR 603.3b trigger order). */
 internal fun permutationMenu(
     view: MatchView,

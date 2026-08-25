@@ -207,6 +207,16 @@ private val allRequests: List<DecisionRequest> =
                 Target.CardInGraveyard(ObjectId(13)),
             ),
         ),
+        // CR 601.2c (`FW-MULTITGT`): the ranged target request. Its bounds and its cross-zone option
+        // list both travel on the wire, so both are in the fixture.
+        DecisionRequest.ChooseMultipleTargets(
+            ID,
+            ObjectId(2),
+            CardRef("Faerie Macabre"),
+            listOf(Target.CardInGraveyard(ObjectId(13)), Target.CardInGraveyard(ObjectId(14))),
+            minimumCount = 0,
+            maximumCount = 2,
+        ),
         richPaymentWindow,
         richCounterPaymentWindow,
         DecisionRequest.DeclareAttackers(

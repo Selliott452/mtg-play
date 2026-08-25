@@ -58,8 +58,14 @@ enum class DecisionRequestKind {
     /** [DecisionRequest.ChooseDiscards] — the cleanup discard (CR 514.1). */
     CHOOSE_DISCARDS,
 
-    /** [DecisionRequest.ChooseTargets] — a cast's target choice (CR 601.2c). */
+    /** [DecisionRequest.ChooseTargets] — a one-target choice (CR 601.2c). */
     CHOOSE_TARGETS,
+
+    /**
+     * [DecisionRequest.ChooseMultipleTargets] — a multi-target choice (CR 601.2c): "up to two target
+     * cards from graveyards", "two target creatures". Additive, flagged (`FW-MULTITGT`).
+     */
+    CHOOSE_MULTIPLE_TARGETS,
 
     /** [DecisionRequest.ChoosePaymentPlan] — a cast's payment choice (CR 601.2g). */
     CHOOSE_PAYMENT_PLAN,
@@ -142,10 +148,11 @@ enum class DecisionRequestKind {
  * new [DecisionRequest] kind forces a classification here or in one of the family helpers below.
  *
  * Dispatch is grouped by [DecisionRequest]'s sealed sub-interfaces (mirroring the engine's own
- * decision-application idiom), keeping this top-level `when` flat: the five families
- * ([DecisionRequest.SizedSelection], [DecisionRequest.PermutationSelection],
- * [DecisionRequest.ChoiceCountSelection], [DecisionRequest.SingleOptionSelection],
- * [DecisionRequest.MulliganRequest]) delegate to a helper, and the standalone leaves map directly.
+ * decision-application idiom), keeping this top-level `when` flat: the six families
+ * ([DecisionRequest.SizedSelection], [DecisionRequest.RangedSelection],
+ * [DecisionRequest.PermutationSelection], [DecisionRequest.ChoiceCountSelection],
+ * [DecisionRequest.SingleOptionSelection], [DecisionRequest.MulliganRequest]) delegate to a helper, and
+ * the standalone leaves map directly.
  */
 fun kindOf(request: DecisionRequest): DecisionRequestKind =
     when (request) {
@@ -155,6 +162,7 @@ fun kindOf(request: DecisionRequest): DecisionRequestKind =
         is DecisionRequest.ChooseYesNo -> DecisionRequestKind.CHOOSE_YES_NO
         is DecisionRequest.SingleOptionSelection -> singleOptionSelectionKind(request)
         is DecisionRequest.SizedSelection -> sizedSelectionKind(request)
+        is DecisionRequest.RangedSelection -> rangedSelectionKind(request)
         is DecisionRequest.PermutationSelection -> permutationSelectionKind(request)
         is DecisionRequest.ChoiceCountSelection -> choiceCountSelectionKind(request)
         is DecisionRequest.MulliganRequest -> mulliganRequestKind(request)
@@ -185,6 +193,12 @@ private fun sizedSelectionKind(request: DecisionRequest.SizedSelection): Decisio
         is DecisionRequest.ChooseOptionalDiscard -> DecisionRequestKind.CHOOSE_OPTIONAL_DISCARD
         is DecisionRequest.ChooseOptionalCostObject -> DecisionRequestKind.CHOOSE_OPTIONAL_COST_OBJECT
         is DecisionRequest.ChooseResolutionDiscards -> DecisionRequestKind.CHOOSE_RESOLUTION_DISCARDS
+    }
+
+/** The kind of one ranged subset selection (CR 601.2c) — a multi-target choice. */
+private fun rangedSelectionKind(request: DecisionRequest.RangedSelection): DecisionRequestKind =
+    when (request) {
+        is DecisionRequest.ChooseMultipleTargets -> DecisionRequestKind.CHOOSE_MULTIPLE_TARGETS
     }
 
 /** The kind of one full-ordering selection (CR 509.2 / 603.3b). */

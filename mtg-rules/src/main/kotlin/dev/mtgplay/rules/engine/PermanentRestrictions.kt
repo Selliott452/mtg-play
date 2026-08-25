@@ -3,6 +3,7 @@ package dev.mtgplay.rules.engine
 import dev.mtgplay.core.card.CardType
 import dev.mtgplay.core.card.Supertype
 import dev.mtgplay.core.definition.PermanentRestriction
+import dev.mtgplay.core.identity.PlayerId
 import dev.mtgplay.core.state.GameObject
 import dev.mtgplay.core.state.GameState
 
@@ -27,17 +28,27 @@ import dev.mtgplay.core.state.GameState
 private const val POWER_TWO_OR_LESS_LIMIT: Int = 2
 
 /**
- * Whether the battlefield object [candidate] satisfies [restriction] (CR 115.1b). Exhaustive over
- * [PermanentRestriction] so a new restriction breaks compilation rather than being silently ignored.
+ * Whether the battlefield object [candidate] satisfies [restriction] (CR 115.1b) for the deciding
+ * player [you]. Exhaustive over [PermanentRestriction] so a new restriction breaks compilation rather
+ * than being silently ignored.
  *
  * An object with no definition is inert — it satisfies nothing, not even
  * [PermanentRestriction.ANY_PERMANENT], because the engine cannot know what it is (the same answer
  * [isCreature] and [satisfiesEnchantRestriction] give).
+ *
+ * [you] is the caster, activator, or ability controller — the player CR 601.2c/602.2b/603.3d hands the
+ * choice to, and the same player again at the CR 608.2b re-check, which is what stops a "permanent you
+ * control" spell from being cast against one seat's board and re-checked against the other's. Most
+ * restrictions ignore it; [PermanentRestriction.PERMANENT_YOU_CONTROL] and
+ * [PermanentRestriction.CREATURE_AN_OPPONENT_CONTROLS] are the two that read it, and they are the
+ * reason it is a parameter at all. It is the same parameter [satisfiesEnchantRestriction] already
+ * takes, for the same reason.
  */
 internal fun satisfiesPermanentRestriction(
     state: GameState,
     restriction: PermanentRestriction,
     candidate: GameObject,
+    you: PlayerId,
 ): Boolean {
     val characteristics = state.definitions[candidate.card]?.characteristics ?: return false
     val isCreature = CardType.CREATURE in characteristics.cardTypes
@@ -52,5 +63,10 @@ internal fun satisfiesPermanentRestriction(
         PermanentRestriction.CREATURE_POWER_2_OR_LESS ->
             isCreature && effectivePower(state, candidate.id) <= POWER_TWO_OR_LESS_LIMIT
         PermanentRestriction.ARTIFACT -> CardType.ARTIFACT in characteristics.cardTypes
+        // CR 108.4: control is ownership in the MVP pool — nothing in the gauntlet changes control of a
+        // permanent (docs/design/layer-system.md §4).
+        PermanentRestriction.PERMANENT_YOU_CONTROL -> candidate.owner == you
+        // CR 102.1: "an opponent" is any player who is not the one choosing.
+        PermanentRestriction.CREATURE_AN_OPPONENT_CONTROLS -> isCreature && candidate.owner != you
     }
 }

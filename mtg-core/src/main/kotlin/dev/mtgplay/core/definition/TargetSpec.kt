@@ -13,10 +13,32 @@ package dev.mtgplay.core.definition
  * The spec is *object-kind agnostic*: the same value describes what a spell targets at CR 601.2c,
  * what an activated ability targets at CR 602.2b, and what a triggered ability targets as it is
  * put on the stack at CR 603.3d (docs/design/targeted-abilities.md).
+ *
+ * **A spec is a noun and a count, and the two are orthogonal** (`FW-MULTITGT`,
+ * docs/design/multi-target.md §2). Every member says *what kind of thing* it may point at through its
+ * own restriction, and *how many* through [count]. Splitting them is what keeps "up to two target
+ * cards from graveyards" from being a new member beside "target card from a graveyard": the two are
+ * one noun with two cardinalities, and a member per pairing is the combinatorial shape a closed
+ * restriction enum exists to avoid.
+ *
+ * [count] is **abstract and not defaulted**, deliberately. A property default on this interface would
+ * let a future member silently inherit "exactly one" — the quiet outcome the no-`else`-branch rule
+ * exists to prevent — so every member below states its cardinality out loud, and a new one does not
+ * compile until it does.
  */
 sealed interface TargetSpec {
-    /** The spell or ability targets nothing; no `ChooseTargets` decision is surfaced. */
-    data object None : TargetSpec
+    /**
+     * How many targets this instance of the word "target" demands (CR 115.1, CR 601.2c). Read by the
+     * castability gate (`targetsAvailable`), by the decision the engine surfaces, by the CR 601.2c
+     * re-validation, and by the CR 608.2b fizzle verdict — one value, four consumers, so a card's
+     * printed cardinality cannot mean one thing at cast time and another at resolution.
+     */
+    val count: TargetCount
+
+    /** The spell or ability targets nothing; no target decision is surfaced. */
+    data object None : TargetSpec {
+        override val count: TargetCount get() = TargetCount.NONE
+    }
 
     /**
      * "Target opponent" (CR 115.1a, CR 102.1): exactly one target, which must be a player other than
@@ -31,7 +53,9 @@ sealed interface TargetSpec {
      * reach the CR 608.2b fizzle — the reachability note `Targets.kt` already records for the
      * players-only enumeration.
      */
-    data object TargetOpponent : TargetSpec
+    data object TargetOpponent : TargetSpec {
+        override val count: TargetCount get() = TargetCount.ONE
+    }
 
     /**
      * "Any target" (CR 115.4): one target that may be a creature, player, planeswalker, or
@@ -39,7 +63,9 @@ sealed interface TargetSpec {
      * engine can enumerate are players; the spec itself already covers the wider set, so
      * Phase 3 extends the *enumeration*, not this type.
      */
-    data object AnyTarget : TargetSpec
+    data object AnyTarget : TargetSpec {
+        override val count: TargetCount get() = TargetCount.ONE
+    }
 
     /**
      * "Target player" (CR 115.1a): one target that must be a player, never an object. Additive,
@@ -47,7 +73,9 @@ sealed interface TargetSpec {
      * client. Narrower than [AnyTarget] on purpose — a creature is not a legal choice — so it is
      * its own member rather than a reuse of the any-target enumeration.
      */
-    data object TargetPlayer : TargetSpec
+    data object TargetPlayer : TargetSpec {
+        override val count: TargetCount get() = TargetCount.ONE
+    }
 
     /**
      * "Target &lt;permanent&gt;" (CR 115.1b): one target that must be a battlefield permanent
@@ -73,10 +101,17 @@ sealed interface TargetSpec {
      * whose target has already died fizzles at the CR 608.2b re-check — the reachable fizzle
      * `Targets.kt` documents.
      *
+     * **"Two target creatures" is this member with [count]** (`FW-MULTITGT`): the noun does not change
+     * when the cardinality does, which is the whole point of the split. No gauntlet card prints it yet,
+     * so nothing constructs this member with a [count] other than [TargetCount.ONE] — the capability is
+     * here because the model, not the card list, is what has to be general.
+     *
      * @property restriction which permanents are legal choices (CR 115.1b).
+     * @property count how many are demanded (CR 601.2c); "target creature" is [TargetCount.ONE].
      */
     data class TargetPermanent(
         val restriction: PermanentRestriction,
+        override val count: TargetCount = TargetCount.ONE,
     ) : TargetSpec
 
     /**
@@ -86,11 +121,18 @@ sealed interface TargetSpec {
      * (CR 303.4f); the engine enumerates the legal choices from [restriction] (ADR-005) and
      * re-checks the target on resolution (CR 608.2b), fizzling if it is gone or illegal.
      *
+     * Its [count] is [TargetCount.ONE] and is **not** a constructor parameter: an Aura is attached to
+     * exactly one object (CR 303.4f), so a second enchant target has nowhere to attach to and "up to
+     * one" would leave an Aura on the battlefield attached to nothing, which CR 704.5m immediately puts
+     * into a graveyard. That is a fixed property of the shape, not a card's printed choice.
+     *
      * @property restriction which objects the Aura may enchant (CR 303.4a).
      */
     data class Enchantable(
         val restriction: EnchantRestriction,
-    ) : TargetSpec
+    ) : TargetSpec {
+        override val count: TargetCount get() = TargetCount.ONE
+    }
 
     /**
      * "Counter target &lt;kind of&gt; spell" (CR 115.1, CR 111.1): one target that must be a **spell on
@@ -113,7 +155,11 @@ sealed interface TargetSpec {
      */
     data class SpellOnStack(
         val restriction: SpellRestriction,
-    ) : TargetSpec
+    ) : TargetSpec {
+        // Every counter in the pool counters one spell; a multi-spell counter would make this a
+        // constructor parameter, exactly as it is on [TargetPermanent] and [CardInGraveyard].
+        override val count: TargetCount get() = TargetCount.ONE
+    }
 
     /**
      * "Target &lt;kind of&gt; card from your/a graveyard" (CR 115.1, CR 404): one target that must be a
@@ -137,11 +183,20 @@ sealed interface TargetSpec {
      * [dev.mtgplay.core.state.Target.CardInGraveyard] name nothing — no new code, the same mechanism
      * that fizzles a stale [SpellOnStack].
      *
+     * **The family's cardinality lives in [count]** (`FW-MULTITGT`, docs/design/multi-target.md).
+     * Faerie Macabre's and Rooftop Percher's "up to two target cards from graveyards" and Blood
+     * Fountain's "up to two target creature cards from your graveyard" are this member with
+     * [TargetCount.UpTo]`(2)` — the same noun the single-target family already used, with a different
+     * count. `FW-ZONETGT` recorded them as blocked on precisely this.
+     *
      * @property restriction which graveyard cards are legal choices (CR 115.1).
      * @property scope whose graveyards are searched for them (CR 404).
+     * @property count how many are demanded (CR 601.2c); "target … card" is [TargetCount.ONE] and "up
+     *   to two target … cards" is [TargetCount.UpTo]`(2)`.
      */
     data class CardInGraveyard(
         val restriction: GraveyardCardRestriction,
         val scope: GraveyardScope,
+        override val count: TargetCount = TargetCount.ONE,
     ) : TargetSpec
 }

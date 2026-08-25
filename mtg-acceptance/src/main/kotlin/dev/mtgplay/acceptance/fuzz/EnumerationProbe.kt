@@ -111,6 +111,10 @@ object EnumerationProbe {
             // that includes each option in turn (discards, exile, sacrifice, ability discard).
             is DecisionRequest.SizedSelection ->
                 sizedSelectionIncludingEach(request.id, request.optionCount, request.requiredCount, "sized-including")
+            // CR 601.2c: a multi-target choice. Every distinct subset within the request's bounds is
+            // legal, and the probe covers the three edges that actually break: the smallest allowed
+            // selection, the largest, and each option carried inside a smallest-viable one.
+            is DecisionRequest.RangedSelection -> rangedSelectionCandidates(request)
             is DecisionRequest.DeclareAttackers ->
                 // Declaring nothing is always legal (CR 508.8); each eligible attacker is legal as a
                 // singleton (any subset is a legal declaration, CR 508.1a).
@@ -182,6 +186,28 @@ object EnumerationProbe {
             is DecisionRequest.ChooseCardsToBottom ->
                 sizedSelectionIncludingEach(request.id, request.options.size, request.count, "bottom-including")
         }
+
+    /**
+     * The probe candidates for a ranged subset selection (CR 601.2c): the minimum-size selection, the
+     * maximum-size one, and one minimum-viable selection carrying each option in turn. Every candidate
+     * has distinct indices, which is CR 601.2c's same-object rule — a probe that offered a repeated
+     * index would be asserting the engine accepts an illegal combination, which is the one thing a
+     * multi-target enumeration must never do.
+     */
+    private fun rangedSelectionCandidates(request: DecisionRequest.RangedSelection): List<ProbeCandidate> {
+        val id = request.id
+        val carrying = maxOf(request.minimumCount, 1)
+        val includingEach =
+            (0 until request.optionCount).map { index ->
+                val selection = (listOf(index) + (0 until request.optionCount).filter { it != index }).take(carrying)
+                ProbeCandidate("target-including[$index]", Decision.MultiSelect(id, selection))
+            }
+        val edges =
+            listOf(request.minimumCount, request.maximumCount).distinct().map { size ->
+                ProbeCandidate("target-size[$size]", Decision.MultiSelect(id, (0 until size).toList()))
+            }
+        return edges + includingEach
+    }
 
     /** One single-select probe per option index, labelled `[prefix][i]`. */
     private fun singleSelectPerOption(

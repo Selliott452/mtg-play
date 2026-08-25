@@ -3,7 +3,6 @@ package dev.mtgplay.rules.engine
 import dev.mtgplay.core.definition.AbilityCost
 import dev.mtgplay.core.definition.AbilityZoneScope
 import dev.mtgplay.core.definition.ActivatedAbility
-import dev.mtgplay.core.definition.TargetSpec
 import dev.mtgplay.core.identity.ObjectId
 import dev.mtgplay.core.identity.PlayerId
 import dev.mtgplay.core.state.GameState
@@ -55,8 +54,14 @@ internal fun beginActivation(
                     source = scope,
                     abilityIndex = abilityIndex,
                     chosenDiscard = if (hasDiscardACard(ability)) null else persistentListOf(),
-                    // CR 601.2c: an untargeted ability settles its (empty) target list immediately.
-                    chosenTargets = if (ability.targetSpec == TargetSpec.None) persistentListOf() else null,
+                    // CR 601.2c: an untargeted ability — and an "up to N" one with nothing legal to
+                    // point at — settles its (empty) target list immediately.
+                    chosenTargets =
+                        if (targetChoiceIsVacuous(state, ability.targetSpec, seat, self = null)) {
+                            persistentListOf()
+                        } else {
+                            null
+                        },
                     // CR 602.1: a "Sacrifice an artifact" component needs a selection; every other
                     // activation settles it empty.
                     chosenSacrifice = if (sacrificeComponent(ability) != null) null else persistentListOf(),
@@ -93,10 +98,11 @@ internal fun pendingActivationRequest(state: GameState): DecisionRequest {
     val id = DecisionRequestId(pending.activator, state.player(pending.activator).decisionsAnswered)
     return when {
         pending.chosenTargets == null ->
-            DecisionRequest.ChooseTargets(
+            targetRequest(
                 id = id,
                 cardObjectId = pending.sourceObjectId,
                 card = source.card,
+                spec = ability.targetSpec,
                 options = legalTargets(state, ability.targetSpec, pending.activator, self = null),
             )
         pending.chosenDiscard == null ->
@@ -179,17 +185,17 @@ internal fun applyChosenAbilityDiscard(
 }
 
 /**
- * Records the chosen [target] on the open activation (CR 602.2b, following CR 601.2c) and continues
- * gathering. Every targeted ability in the pool chooses exactly one target, matching the single-select
- * shape of [DecisionRequest.ChooseTargets]; "up to N" and multi-target arrive with `FW-MULTITGT`.
+ * Records the chosen [targets] on the open activation (CR 602.2b, following CR 601.2c) and continues
+ * gathering. A list since `FW-MULTITGT`: Faerie Macabre's and Blood Fountain's "up to two" abilities
+ * settle here with nought, one, or two, and every earlier targeted ability with exactly one.
  */
 internal fun applyChosenActivationTarget(
     state: GameState,
-    target: Target,
+    targets: List<Target>,
 ): AdvanceResult {
     val pending = state.pendingActivation ?: error("no activation is gathering costs")
     require(pending.chosenTargets == null) { "CR 601.2c: this activation's targets are already chosen" }
     return advanceActivationGathering(
-        state.copy(pendingActivation = pending.copy(chosenTargets = persistentListOf(target))),
+        state.copy(pendingActivation = pending.copy(chosenTargets = targets.toPersistentList())),
     )
 }

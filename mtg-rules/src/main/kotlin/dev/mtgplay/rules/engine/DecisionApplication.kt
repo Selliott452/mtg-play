@@ -36,6 +36,8 @@ internal fun applyDecision(
         is DecisionRequest.ChooseYesNo -> applyChosenYesNo(answered, request, decision)
         // CR 514.1 / 601.2b/h / 602.2b: the fixed-size subset selections dispatch by kind.
         is DecisionRequest.SizedSelection -> applySizedSelection(answered, request, decision)
+        // CR 601.2c: the ranged subset selections — a multi-target choice — dispatch by kind.
+        is DecisionRequest.RangedSelection -> applyRangedSelection(answered, request, decision)
         is DecisionRequest.ChoiceCountSelection -> {
             check(decision is Decision.SingleSelect) { "unreachable: decision shape was validated against the request" }
             // CR 701.16/601.3b/701.18: dispatch by kind; the trailing opt-out index means keep/decline/find none.
@@ -98,6 +100,27 @@ private fun applySizedSelection(
             applyOptionalCostObject(state, request.options[decision.indices.single()].objectId)
         is DecisionRequest.ChooseResolutionDiscards ->
             applyResolutionDiscards(state, decision.indices.map { request.options[it].objectId })
+    }
+}
+
+/**
+ * Applies one ranged subset selection (CR 601.2c) — today only a multi-target choice — dispatching by
+ * kind. The indices are already validated as distinct, in range, and of a size within the request's
+ * bounds (ADR-004), so mapping them straight onto options is safe.
+ *
+ * The chosen targets go to the same three-flow applier its single-target sibling uses
+ * (`SingleOptionApplication.kt`): a cast, an activation, or a trigger placement, told apart by the open
+ * pending record. The two request kinds differ only in how an agent *says* which targets it picked.
+ */
+private fun applyRangedSelection(
+    state: GameState,
+    request: DecisionRequest.RangedSelection,
+    decision: Decision,
+): AdvanceResult {
+    check(decision is Decision.MultiSelect) { "unreachable: decision shape was validated against the request" }
+    return when (request) {
+        is DecisionRequest.ChooseMultipleTargets ->
+            applyChosenTargetList(state, decision.indices.map { request.options[it] }, request)
     }
 }
 

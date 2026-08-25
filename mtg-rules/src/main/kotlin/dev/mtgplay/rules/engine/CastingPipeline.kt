@@ -2,7 +2,6 @@ package dev.mtgplay.rules.engine
 
 import dev.mtgplay.core.definition.CastingPermission
 import dev.mtgplay.core.definition.SpellDefinition
-import dev.mtgplay.core.definition.TargetSpec
 import dev.mtgplay.core.event.GameEvent
 import dev.mtgplay.core.identity.ObjectId
 import dev.mtgplay.core.mana.ManaCost
@@ -194,42 +193,38 @@ private fun chooseModes(state: GameState): GameState = state
  * Stage CR 601.2c — targets: re-validates that the gathered choices satisfy the spec and are
  * legal right now, failing loudly on any mismatch (they were enumerated legally and nothing
  * can have changed while gathering — a violation is an engine defect, ADR-005). Emits
- * [GameEvent.TargetsChosen] for a spell that targets.
+ * [GameEvent.TargetsChosen] for a spell that chose at least one target.
+ *
+ * Three checks, and since `FW-MULTITGT` the first two are shared with the activation pipeline
+ * ([requireWellFormedTargetChoice]): the **arity** lies within the spec's [TargetCount] clamped to what
+ * the board offers, the choice obeys **CR 601.2c's same-object rule**, and each chosen target is still
+ * legal. The `when` this replaced asked every targeting member for "exactly one"; a spell that targets
+ * nothing and one whose controller declined both of its optional targets now travel the same path and
+ * differ only in the count their spec carries.
  */
 private fun establishTargets(
     state: GameState,
     entry: StackEntry.Spell,
-): GameState =
-    when (val spec = entry.definition.targetSpec) {
-        TargetSpec.None -> {
-            require(entry.targets.isEmpty()) {
-                "CR 601.2c: ${entry.obj.card.name} targets nothing but ${entry.targets} were chosen"
-            }
-            state
-        }
-        // Every targeting spec in the pool demands exactly one legal target (CR 303.4a for an Aura).
-        TargetSpec.AnyTarget,
-        TargetSpec.TargetPlayer,
-        TargetSpec.TargetOpponent,
-        is TargetSpec.TargetPermanent,
-        is TargetSpec.Enchantable,
-        is TargetSpec.SpellOnStack,
-        is TargetSpec.CardInGraveyard,
-        -> {
-            require(entry.targets.size == 1) {
-                "CR 601.2c: ${entry.obj.card.name} demands exactly one target, got ${entry.targets}"
-            }
-            entry.targets.forEach { target ->
-                // CR 601.2a ran before this stage, so the spell is already on the stack under
-                // `entry.obj.id`; naming it here keeps this re-validation's enumeration equal to the
-                // gathering-time one, in which the card was still in hand.
-                require(isTargetLegal(state, spec, target, entry.controller, self = entry.obj.id)) {
-                    "CR 601.2c: $target is not a legal target for ${entry.obj.card.name}"
-                }
-            }
-            state.emit(GameEvent.TargetsChosen(entry.controller, entry.obj.id, entry.targets))
+): GameState {
+    val spec = entry.definition.targetSpec
+    // CR 601.2a ran before this stage, so the spell is already on the stack under `entry.obj.id`;
+    // naming it here keeps this re-validation's enumeration equal to the gathering-time one, in which
+    // the card was still in its source zone.
+    val options = legalTargets(state, spec, entry.controller, self = entry.obj.id)
+    requireWellFormedTargetChoice(spec, entry.targets, options.size, entry.obj.card.name)
+    entry.targets.forEach { target ->
+        require(target in options) {
+            "CR 601.2c: $target is not a legal target for ${entry.obj.card.name}"
         }
     }
+    // A spell that announced no targets — one that targets nothing, or an "up to N" whose controller
+    // declined them all — has no target choice to narrate.
+    return if (entry.targets.isEmpty()) {
+        state
+    } else {
+        state.emit(GameEvent.TargetsChosen(entry.controller, entry.obj.id, entry.targets))
+    }
+}
 
 /**
  * Stage CR 601.2f — cost determination: the mana cost the payment plan pays, after cost modification

@@ -36,4 +36,30 @@ enum class GraveyardCardRestriction {
      * than one.
      */
     CREATURE_OR_LAND,
+
+    /**
+     * "Target card" with no noun at all (CR 115.1, CR 404): **any** card in a graveyard, whatever its
+     * types. Faerie Macabre's "Exile up to two target cards from graveyards", Rooftop Percher's.
+     * Additive, flagged core (`FW-MULTITGT`).
+     *
+     * `FW-ZONETGT` recorded this member as deliberately absent because "no shipped card prints it";
+     * Faerie Macabre prints it, so it exists now. It is the widest restriction in the enum and it is
+     * still a restriction rather than an absence — the enumeration reads it through the same
+     * `satisfiesGraveyardCardRestriction` `when` as the two nouns, so the "no filter" case cannot drift
+     * from the filtered ones. It is the graveyard sibling of [PermanentRestriction.ANY_PERMANENT], and
+     * like it, it is satisfied by an object the engine has a definition for and by nothing else: an
+     * inert card is not a legal target, because the engine cannot know what it is.
+     */
+    ANY_CARD,
+
+    /**
+     * "Target creature card" (CR 302, CR 205.2): a card whose printed types include creature. Blood
+     * Fountain's "Return up to two target creature cards from your graveyard to your hand". Additive,
+     * flagged core (`FW-MULTITGT`).
+     *
+     * Narrower than [CREATURE_OR_LAND] on purpose and not a reuse of it: a land card in the graveyard
+     * is a legal Pulse of Murasa target and an illegal Blood Fountain one, so folding the two together
+     * would silently widen a printed line.
+     */
+    CREATURE,
 }

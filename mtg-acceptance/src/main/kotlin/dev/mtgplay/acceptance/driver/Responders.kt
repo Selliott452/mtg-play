@@ -54,6 +54,15 @@ object Responders {
                     } else {
                         error("the pass-everything responder never casts, but a targets request surfaced: $request")
                     }
+                // CR 601.2c: the multi-target sibling of the above, reachable by the same route — a
+                // passive game's own trigger with an "up to N" target line. Take every option the
+                // request allows, deterministically: the identity prefix is distinct by construction.
+                is DecisionRequest.RangedSelection ->
+                    if (state.pendingTriggerTargets != null) {
+                        Decision.MultiSelect(request.id, (0 until request.maximumCount).toList())
+                    } else {
+                        error("the pass-everything responder never casts, but a targets request surfaced: $request")
+                    }
                 is DecisionRequest.ChoosePaymentPlan ->
                     error("the pass-everything responder never casts, but a payment request surfaced: $request")
                 is DecisionRequest.OrderBlockers ->

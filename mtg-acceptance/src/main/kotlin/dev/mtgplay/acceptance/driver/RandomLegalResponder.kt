@@ -53,6 +53,16 @@ class RandomLegalResponder(
             // replacement ordering (CR 616.1), a library arrangement (CR 701.17a) — is a uniform pick over
             // the engine-enumerated options, each of which is independently legal (ADR-005).
             is DecisionRequest.SingleOptionSelection -> randomSingleSelect(request.id, request.optionCount)
+            // CR 601.2c: a multi-target choice is a random distinct subset whose size is drawn
+            // uniformly from the request's own bounds — so an "up to two" spell genuinely explores
+            // taking none, one, and two. Distinct indices are the same-object rule (CR 601.2c), and
+            // `randomSubset` guarantees them, so this responder cannot produce an illegal combination.
+            is DecisionRequest.RangedSelection -> {
+                val (size, afterSize) = rng.nextInt(request.maximumCount - request.minimumCount + 1)
+                val (indices, next) = randomSubset(request.optionCount, request.minimumCount + size, afterSize)
+                rng = next
+                Decision.MultiSelect(request.id, indices)
+            }
             // CR 508.1: attack with a random subset of the eligible attackers (each independently
             // in or out) — the empty subset is legal, so the responder may declare no attackers.
             is DecisionRequest.DeclareAttackers -> {

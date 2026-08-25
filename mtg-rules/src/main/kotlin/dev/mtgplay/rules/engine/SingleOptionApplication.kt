@@ -1,6 +1,7 @@
 package dev.mtgplay.rules.engine
 
 import dev.mtgplay.core.state.GameState
+import dev.mtgplay.core.state.Target
 import dev.mtgplay.rules.AdvanceResult
 import dev.mtgplay.rules.decision.Decision
 import dev.mtgplay.rules.decision.DecisionRequest
@@ -49,23 +50,36 @@ internal fun applySingleOptionSelection(
 }
 
 /**
- * Applies a chosen target (CR 601.2c). One request serves three flows — a cast (CR 601.2c), an
- * activation (CR 602.2b), and a triggered ability being put on the stack (CR 603.3d) — and the open
- * pending record says which.
+ * Applies a chosen target (CR 601.2c), the single-target shape.
  */
 private fun applyChosenTargets(
     state: GameState,
     request: DecisionRequest.ChooseTargets,
     decision: Decision.SingleSelect,
-): AdvanceResult {
-    val target = request.options[decision.index]
-    return when {
-        state.pendingCast != null -> applyChosenTarget(state, target)
-        state.pendingActivation != null -> applyChosenActivationTarget(state, target)
-        state.pendingTriggerTargets != null -> applyChosenTriggerTarget(state, target)
+): AdvanceResult = applyChosenTargetList(state, listOf(request.options[decision.index]), request)
+
+/**
+ * Records [targets] on whichever flow is choosing them (CR 601.2c). One choice serves three flows — a
+ * cast (CR 601.2c), an activation (CR 602.2b), and a triggered ability being put on the stack
+ * (CR 603.3d) — and the open pending record says which.
+ *
+ * Shared by both target request kinds (`FW-MULTITGT`): [DecisionRequest.ChooseTargets] arrives here with
+ * a one-element list and [DecisionRequest.ChooseMultipleTargets] with between its minimum and its
+ * maximum. Routing them through one function is what keeps the two shapes from diverging on *where* a
+ * chosen target is recorded — the only thing that legitimately differs between them is how the agent
+ * expressed the choice. [request] appears only in the failure message.
+ */
+internal fun applyChosenTargetList(
+    state: GameState,
+    targets: List<Target>,
+    request: DecisionRequest,
+): AdvanceResult =
+    when {
+        state.pendingCast != null -> applyChosenTarget(state, targets)
+        state.pendingActivation != null -> applyChosenActivationTarget(state, targets)
+        state.pendingTriggerTargets != null -> applyChosenTriggerTarget(state, targets)
         else -> error("a target was chosen with no cast, activation, or trigger placement awaiting one: $request")
     }
-}
 
 /**
  * Applies a chosen payment plan: it settles a cast (CR 601.2g), the plot special action (CR 702.140), or

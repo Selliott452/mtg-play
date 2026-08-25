@@ -4,7 +4,6 @@ import dev.mtgplay.core.definition.AdditionalCost
 import dev.mtgplay.core.definition.CastSource
 import dev.mtgplay.core.definition.CastingPermission
 import dev.mtgplay.core.definition.SpellDefinition
-import dev.mtgplay.core.definition.TargetSpec
 import dev.mtgplay.core.identity.CardRef
 import dev.mtgplay.core.identity.ObjectId
 import dev.mtgplay.core.identity.PlayerId
@@ -42,20 +41,16 @@ internal fun beginCastGathering(
         objectInZone(state, caster, source, cardObjectId)
             ?: error("CR 601.2: object $cardObjectId is not in $caster's $source zone")
     val definition = spellDefinitionOf(state, card.card)
+    // A spell that targets nothing, and an "up to N" spell with nothing legal to point at, settle
+    // straight to an empty list; every other spec needs a target choice before payment (CR 601.2c).
+    // The `when` this replaced asked seven members the same question; `targetChoiceIsVacuous` asks it
+    // once, in the file that owns target legality, so the cast, activation, and trigger paths cannot
+    // disagree about when a target choice exists (`FW-MULTITGT`).
     val chosenTargets: PersistentList<Target>? =
-        when (definition.targetSpec) {
-            TargetSpec.None -> persistentListOf()
-            // Every other spec — an Aura (CR 601.2c), any-target, target-player, target-opponent,
-            // target-permanent, a spell on the stack, and a card in a graveyard — needs a target choice
-            // before payment.
-            TargetSpec.AnyTarget,
-            TargetSpec.TargetPlayer,
-            TargetSpec.TargetOpponent,
-            is TargetSpec.TargetPermanent,
-            is TargetSpec.Enchantable,
-            is TargetSpec.SpellOnStack,
-            is TargetSpec.CardInGraveyard,
-            -> null
+        if (targetChoiceIsVacuous(state, definition.targetSpec, caster, self = cardObjectId)) {
+            persistentListOf()
+        } else {
+            null
         }
     // An additional "exile N others" cost (escape) needs a selection; every other cast settles it empty.
     val additionalExileCost: PersistentList<ObjectId>? =
@@ -96,17 +91,19 @@ internal fun pauseForNextCastDecision(state: GameState): AdvanceResult {
 }
 
 /**
- * Records the chosen target on the open [PendingCast] (CR 601.2c) and suspends for the payment
- * choice.
+ * Records the chosen [targets] on the open [PendingCast] (CR 601.2c) and suspends for the payment
+ * choice. A list rather than a single value since `FW-MULTITGT`: "up to two target cards from
+ * graveyards" settles here with nought, one, or two, and [PendingCast.chosenTargets] was already a list
+ * because a `null` — "not yet chosen" — has to be distinguishable from a deliberate empty choice.
  */
 internal fun applyChosenTarget(
     state: GameState,
-    target: Target,
+    targets: List<Target>,
 ): AdvanceResult {
     val cast = state.pendingCast ?: error("no cast is gathering decisions")
     require(cast.chosenTargets == null) { "CR 601.2c: this cast's targets are already chosen" }
     return pauseForNextCastDecision(
-        state.copy(pendingCast = cast.copy(chosenTargets = persistentListOf(target))),
+        state.copy(pendingCast = cast.copy(chosenTargets = targets.toPersistentList())),
     )
 }
 

@@ -39,5 +39,10 @@ internal fun satisfiesGraveyardCardRestriction(
             CardType.INSTANT in cardTypes || CardType.SORCERY in cardTypes
         GraveyardCardRestriction.CREATURE_OR_LAND ->
             CardType.CREATURE in cardTypes || CardType.LAND in cardTypes
+        GraveyardCardRestriction.CREATURE -> CardType.CREATURE in cardTypes
+        // CR 115.1: "target card" names no type, so every defined card in an admitted graveyard
+        // qualifies. The `?: return false` above still excludes an inert card — an object the engine
+        // has no definition for is not a thing it can know is a card (the P2.1 ruling).
+        GraveyardCardRestriction.ANY_CARD -> true
     }
 }

@@ -5,17 +5,17 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 /**
- * Wire form of the full [DecisionRequest] hierarchy (ADR-004/ADR-005) — all 26 request kinds, each
+ * Wire form of the full [DecisionRequest] hierarchy (ADR-004/ADR-005) — all 27 request kinds, each
  * carrying its stable [id] and its enumerated options. The mapping to and from the engine
  * ([toDto]/[toDomain]) is exhaustive in both directions, so a new request kind is a compile-time
  * schema break (ADR-008 amendment).
  *
- * The five family sub-interfaces mirror [DecisionRequest]'s own
- * ([DecisionRequest.SizedSelection]/[DecisionRequest.PermutationSelection]/
- * [DecisionRequest.ChoiceCountSelection]/[DecisionRequest.SingleOptionSelection]/
- * [DecisionRequest.MulliganRequest]), which lets the mapping dispatch by family and keeps every `when`
- * flat. They are wire-invisible: serialization keys off each leaf's `@SerialName`, so grouping leaves
- * under a family changes no encoded payload.
+ * The six family sub-interfaces mirror [DecisionRequest]'s own
+ * ([DecisionRequest.SizedSelection], [DecisionRequest.RangedSelection],
+ * [DecisionRequest.PermutationSelection], [DecisionRequest.ChoiceCountSelection],
+ * [DecisionRequest.SingleOptionSelection], [DecisionRequest.MulliganRequest]), which lets the
+ * mapping dispatch by family and keeps every `when` flat. They are wire-invisible: serialization
+ * keys off each leaf's `@SerialName`, so grouping leaves under a family changes no encoded payload.
  */
 @Serializable
 sealed interface DecisionRequestDto {
@@ -25,6 +25,10 @@ sealed interface DecisionRequestDto {
     /** A fixed-size subset selection (CR 514.1 / 601.2b/h / 602.2b). */
     @Serializable
     sealed interface SizedSelectionDto : DecisionRequestDto
+
+    /** A ranged subset selection (CR 601.2c) — a multi-target choice. */
+    @Serializable
+    sealed interface RangedSelectionDto : DecisionRequestDto
 
     /** A full-ordering selection (CR 509.2 / 603.3b). */
     @Serializable
@@ -59,6 +63,25 @@ sealed interface DecisionRequestDto {
         val card: String,
         val options: List<TargetDto>,
     ) : SingleOptionSelectionDto
+
+    /**
+     * Wire form of [DecisionRequest.ChooseMultipleTargets] — a multi-target choice (CR 601.2c):
+     * "up to two target cards from graveyards", "two target creatures". Additive (`FW-MULTITGT`).
+     *
+     * [minimumCount] and [maximumCount] bound how many of [options] the answer names by distinct index;
+     * the distinctness is CR 601.2c's same-object rule and the peer must honour it, since the engine
+     * rejects a repeated index rather than silently deduplicating.
+     */
+    @Serializable
+    @SerialName("choose_multiple_targets")
+    data class ChooseMultipleTargets(
+        override val id: DecisionRequestIdDto,
+        val cardObjectId: Long,
+        val card: String,
+        val options: List<TargetDto>,
+        val minimumCount: Int,
+        val maximumCount: Int,
+    ) : RangedSelectionDto
 
     /**
      * Wire form of [DecisionRequest.ChoosePaymentPlan] — a cast's payment choice (CR 601.2g).

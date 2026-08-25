@@ -2,6 +2,7 @@ package dev.mtgplay.rules.engine
 
 import dev.mtgplay.core.card.Keyword
 import dev.mtgplay.core.definition.GraveyardScope
+import dev.mtgplay.core.definition.TargetCount
 import dev.mtgplay.core.definition.TargetSpec
 import dev.mtgplay.core.identity.ObjectId
 import dev.mtgplay.core.identity.PlayerId
@@ -79,6 +80,26 @@ import dev.mtgplay.core.state.Target
  * per-seat filter agree here with no filtering rule; the structural reason they cannot drift is on
  * [Target.CardInGraveyard]. [TargetSpec.None] enumerates nothing: an untargeted spell or ability never
  * surfaces a target decision.
+ *
+ * Two [dev.mtgplay.core.definition.PermanentRestriction] members make [TargetSpec.TargetPermanent]
+ * decider-relative as well (`FW-MULTITGT`): `PERMANENT_YOU_CONTROL` offers only [you]'s own permanents
+ * (Tamiyo's Safekeeping) and `CREATURE_AN_OPPONENT_CONTROLS` only the other seat's creatures
+ * (Brinebarrow Intruder), the latter further narrowed by the hexproof gate below.
+ *
+ * **The result is the *pool* of legal choices, never the choice itself, and it is count-independent**
+ * (`FW-MULTITGT`, docs/design/multi-target.md §3). "Up to two target cards from graveyards" and "target
+ * card from a graveyard" enumerate the same list; how many of it may be taken is [TargetSpec.count]'s
+ * business, read by [targetChoiceBounds] and by the request the engine surfaces. That separation is
+ * what makes the CR 601.2c same-object rule a property of the *answer* rather than of the enumeration.
+ *
+ * **Every option is distinct, and multi-target correctness rests on it.** Each member of the returned
+ * list names one game object (or one player) by an id unique across the game (CR 400.7), and every
+ * branch below maps over a zone whose objects are distinct — the two graveyards
+ * [TargetSpec.CardInGraveyard] draws from under [GraveyardScope.ANY] are disjoint for the same reason.
+ * That is what lets "the same object can't be chosen twice for any one instance of the word 'target'"
+ * (CR 601.2c) be enforced as *distinct indices* on the answer: distinct indices into a duplicate-free
+ * list are distinct objects. `MultiTargetSpec` pins the invariant directly rather than leaving it here
+ * as a comment.
  */
 internal fun legalTargets(
     state: GameState,
@@ -106,7 +127,7 @@ internal fun legalTargets(
         is TargetSpec.TargetPermanent ->
             state.sharedZones.battlefield
                 .filter {
-                    satisfiesPermanentRestriction(state, spec.restriction, it) &&
+                    satisfiesPermanentRestriction(state, spec.restriction, it, you) &&
                         targetableBy(state, it, you)
                 }.map { Target.Permanent(it.id) }
         is TargetSpec.Enchantable ->
@@ -213,6 +234,14 @@ internal fun isTargetLegal(
  * choice at CR 603.3d — is vacuously all-illegal here, which is exactly the right answer: it was put on
  * the stack and now does nothing.
  *
+ * **An "up to N" object that chose zero targets is the opposite case, and the two are told apart by
+ * [TargetSpec.count]** (`FW-MULTITGT`). Rooftop Percher's controller may decline both of its targets;
+ * the ability then has no illegal target, resolves, and still gains 3 life. Faerie Macabre exiling
+ * nothing from two empty graveyards is the same shape. So an empty target list means "does not resolve"
+ * only when the spec's [TargetCount.minimum] is above zero — a *required* instance of the word "target"
+ * that could not be filled. Without the count these two are indistinguishable, and reading them the
+ * same way silently deletes the non-targeting half of every "up to" card in the pool.
+ *
  * [self] is the resolving object's own id where it has one (a spell), or `null` for an ability
  * (CR 113.7a); it keeps the re-check's enumeration identical to the one the choice was made from.
  */
@@ -222,4 +251,90 @@ internal fun allTargetsIllegal(
     targets: List<Target>,
     controller: PlayerId,
     self: ObjectId?,
-): Boolean = spec != TargetSpec.None && targets.none { isTargetLegal(state, spec, it, controller, self) }
+): Boolean =
+    when {
+        // An object that targets nothing has nothing to re-check (this also covers TargetSpec.None,
+        // whose count is zero).
+        spec.count.maximum == 0 -> false
+        // CR 601.2c/603.3d: a required instance of the word "target" that was never filled. The
+        // "up to N" case reaches here with minimum 0 and resolves, doing what it can.
+        targets.isEmpty() -> spec.count.minimum > 0
+        else -> targets.none { isTargetLegal(state, spec, it, controller, self) }
+    }
+
+/**
+ * The bounds a target choice for [spec] must satisfy given [optionCount] legal options (CR 601.2c) — the
+ * one place the printed cardinality is reconciled with what the board actually offers
+ * (`FW-MULTITGT`, docs/design/multi-target.md §4).
+ *
+ * The maximum is clamped to [optionCount]: "up to two target cards" with one card in the graveyards
+ * offers a choice of nought or one, not a demand for two that cannot be met. The minimum is **not**
+ * clamped — a spec demanding more targets than the board holds is not castable at all
+ * ([targetsAvailable] rejects it before any request is built), so a minimum above [optionCount] here is
+ * an engine defect rather than a rules case, and the [require] says so.
+ */
+internal fun targetChoiceBounds(
+    spec: TargetSpec,
+    optionCount: Int,
+): IntRange {
+    require(spec.count.minimum <= optionCount) {
+        "CR 601.2c: $spec demands at least ${spec.count.minimum} target(s) but only $optionCount " +
+            "legal option(s) exist; such an object is never enumerated as castable or activatable"
+    }
+    return spec.count.minimum..minOf(spec.count.maximum, optionCount)
+}
+
+/**
+ * Whether the open choice for [spec] is **vacuous** — settled without asking anybody (ADR-004).
+ *
+ * True in exactly two cases, and they are genuinely different rules:
+ * - the object targets nothing at all ([TargetSpec.None], count zero), so CR 601.2c has no stage; and
+ * - the enumeration is empty. For a required instance that is CR 603.3d's mandatory triggered ability
+ *   with no legal target, which goes on the stack target-less and does nothing (a cast or activation
+ *   never reaches here, since [targetsAvailable] excluded it). For an "up to N" instance it is Faerie
+ *   Macabre with two empty graveyards: legal, castable, and with nothing whatever to decide.
+ *
+ * Surfacing a request with an empty option list instead would be the alternative, and it is refused for
+ * the reason `DecisionRequest.ChooseTargets` already refuses it: an option list an agent cannot pick
+ * from is not a decision, and ADR-005's completeness property is about choices that exist.
+ */
+internal fun targetChoiceIsVacuous(
+    state: GameState,
+    spec: TargetSpec,
+    you: PlayerId,
+    self: ObjectId?,
+): Boolean = spec.count.maximum == 0 || legalTargets(state, spec, you, self).isEmpty()
+
+/**
+ * Fails loudly unless [targets] is a well-formed choice for [spec] (CR 601.2c) — the arity and
+ * same-object half of the re-validation both the cast pipeline and the activation pipeline run, beside
+ * the per-target legality check they each already do.
+ *
+ * Two rules, and the second is the one a multi-target enumeration most easily gets wrong:
+ * 1. **Arity.** The number chosen lies within [TargetSpec.count], with the maximum clamped by how many
+ *    options the board offered ([targetChoiceBounds]).
+ * 2. **CR 601.2c's same-object rule** — "the same target can't be chosen multiple times for any one
+ *    instance of the word 'target'". Enforced here on the *recorded* targets, as well as at
+ *    `validateDecision` on the answer's indices, and the redundancy is the point: index distinctness
+ *    proves object distinctness only while the option list is duplicate-free, so this check holds even
+ *    if a future enumeration branch ever offers one object twice.
+ *
+ * Reaching a violation is an engine defect, not a rules corner: the choice came from an enumeration and
+ * was validated on the way in (ADR-005), and nothing can change between gathering and execution — the
+ * whole activation is one transition, and a cast's own stages cannot add or remove a target.
+ */
+internal fun requireWellFormedTargetChoice(
+    spec: TargetSpec,
+    targets: List<Target>,
+    optionCount: Int,
+    describe: String,
+) {
+    val bounds = targetChoiceBounds(spec, optionCount)
+    require(targets.size in bounds) {
+        "CR 601.2c: $describe demands ${bounds.first}..${bounds.last} target(s), got ${targets.size}: $targets"
+    }
+    require(targets.distinct().size == targets.size) {
+        "CR 601.2c: the same target can't be chosen twice for one instance of the word 'target', " +
+            "but $describe chose $targets"
+    }
+}

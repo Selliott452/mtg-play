@@ -130,6 +130,17 @@ import dev.mtgplay.core.identity.CardRef
  * it into `GameState` in canonical name-sorted order regardless of this map's own order
  * (ADR-009 — definitions ride in the state; a [CardRef] without an entry is inert). The pool
  * grows card by card through Phase 6; each addition is a definition file plus one entry here.
+ *
+ * The `FW-MULTITGT` packet adds the pool's first **multi-target** cards (MultiTargets.kt):
+ * [faerieMacabre], whose hand-scoped "Discard this card:" ability exiles up to two target cards from
+ * graveyards, and [bloodFountain], whose sacrifice ability returns up to two target creature cards from
+ * its controller's graveyard. Both are cards `FW-ZONETGT` recorded as blocked on a target *count*
+ * (docs/design/multi-target.md). It also adds the two control-restricted targeting cards
+ * (ControlledTargets.kt) that the two new [dev.mtgplay.core.definition.PermanentRestriction] members
+ * land with no further framework work: [tamiyosSafekeeping] ("target permanent you control" gains
+ * hexproof and indestructible) and [brinebarrowIntruder] (flash, and "target creature an opponent
+ * controls" gets -2/-0). Rooftop Percher and Call Damage Control stay absent — changeling and modality
+ * are frameworks this packet does not own.
  */
 object MvpCards {
     /** Every defined card, keyed by its printed-name [CardRef] (CR 201). */
@@ -142,8 +153,10 @@ object MvpCards {
             archaeomancer,
             armadilloCloak,
             ashBarrens,
+            bloodFountain,
             brainstorm,
             breathWeapon,
+            brinebarrowIntruder,
             cartoucheOfSolidarity,
             castDown,
             counterspell,
@@ -156,6 +169,7 @@ object MvpCards {
             etherealArmor,
             evisceratorsInsight,
             expeditionMap,
+            faerieMacabre,
             faerieSeer,
             faithlessLooting,
             fieryTemper,
@@ -229,6 +243,7 @@ object MvpCards {
             spiritLink,
             standingTroops,
             swamp,
+            tamiyosSafekeeping,
             terminate,
             thoughtcast,
             thoughtScour,

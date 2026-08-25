@@ -42,6 +42,36 @@ sealed interface DecisionRequest {
     }
 
     /**
+     * A [Decision.MultiSelect] request asking for a distinct subset of its options whose size lies in a
+     * **range** rather than at a point — the shape "up to two target cards from graveyards" and "two
+     * target creatures" share (CR 601.2c). Additive, flagged (`FW-MULTITGT`,
+     * docs/design/multi-target.md §4). [optionCount] is the number of options, [minimumCount] the
+     * fewest that must be chosen, and [maximumCount] the most that may be.
+     *
+     * The sibling of [SizedSelection] and a genuinely different shape rather than a generalisation of
+     * it: a sized selection pays a *cost*, and a cost is paid in full or not at all, so widening it to
+     * a range would make "discard two cards" answerable with one. This family is the other case — the
+     * answer's size is itself part of the choice — and keeping the two apart is what stops a driver
+     * from under-paying a cost by treating it as optional. `minimumCount == maximumCount` is a legal
+     * value here ("two target creatures"); it still is not a [SizedSelection], because the rules that
+     * produced it and the rules that re-check it are CR 601.2c's, not CR 601.2b's.
+     *
+     * Grouping it lets drivers, the CLI, and the enumeration probe handle "a ranged selection"
+     * uniformly, exactly as the four sibling groupings do for their own shapes. Its options are never
+     * empty: a choice with nothing to choose from is settled without a request (`targetChoiceIsVacuous`).
+     */
+    sealed interface RangedSelection : DecisionRequest {
+        /** How many options this selection offers; always at least one. */
+        val optionCount: Int
+
+        /** The fewest options that must be chosen; may be zero ("up to N"). */
+        val minimumCount: Int
+
+        /** The most options that may be chosen; never more than [optionCount]. */
+        val maximumCount: Int
+    }
+
+    /**
      * A [Decision.MultiSelect] request answered with a **permutation** of all of its options — a full
      * ordering (CR 509.2 blocker order, CR 603.3b trigger order). Grouping them lets drivers and the
      * probe handle "an ordering" uniformly. [permutationSize] is how many options the answer permutes.
@@ -144,8 +174,11 @@ sealed interface DecisionRequest {
      * Surfaced only for a spell that targets, and only when at least one legal target exists
      * (a cast with none is excluded from enumeration, so this request is never empty).
      *
-     * Single-select because every targeted spell in the P2.1–P2.2 pool chooses exactly one
-     * target; multi-target specs arrive as a sibling shape when a card needs them.
+     * Single-select because the spec demands **exactly one** target
+     * ([dev.mtgplay.core.definition.TargetCount.Exactly]`(1)`), which is every targeting line in the
+     * pool but the "up to two" family. That sibling shape arrived with `FW-MULTITGT` and is
+     * [ChooseMultipleTargets]; which of the two a spec surfaces is decided in one place
+     * (`TargetRequests.kt`), from the spec's count.
      *
      * @property cardObjectId the hand object being cast (still in hand — see
      *   [dev.mtgplay.core.state.PendingCast]).
@@ -163,6 +196,58 @@ sealed interface DecisionRequest {
         init {
             require(options.isNotEmpty()) {
                 "CR 601.2c: a targets request is only surfaced when a legal target exists (ADR-005)"
+            }
+        }
+    }
+
+    /**
+     * The target choice of a spell, activation, or trigger placement whose spec demands a **number** of
+     * targets rather than one (CR 601.2c): [seat] picks between [minimumCount] and [maximumCount] of
+     * [options] by distinct index (a [Decision.MultiSelect]). Additive, flagged (`FW-MULTITGT`,
+     * docs/design/multi-target.md §4) — Faerie Macabre's and Blood Fountain's "up to two".
+     *
+     * **The distinct-index requirement *is* CR 601.2c's same-object rule** — "the same target can't be
+     * chosen multiple times for any one instance of the word 'target'". It reduces to distinctness of
+     * indices only because `legalTargets` never offers one object twice (`Targets.kt`), so this is the
+     * cheap half of a rule whose expensive half is that enumeration invariant. The recorded targets are
+     * re-checked for it again at CR 601.2c execution, on the objects rather than the indices.
+     *
+     * [minimumCount] is the spec's printed minimum — zero for "up to N" — and [maximumCount] is its
+     * printed maximum **clamped to what the board offers**: "up to two" with one legal card is a real
+     * choice between none and that card, never a demand for a second that does not exist.
+     *
+     * Serves the same three flows [ChooseTargets] does — a cast (CR 601.2c), an activation (CR 602.2b)
+     * and a trigger placement (CR 603.3d) — and which one an answer belongs to is read from the open
+     * pending record, exactly as for its single-target sibling.
+     *
+     * @property cardObjectId the object choosing targets: the card being cast (still in its source
+     *   zone), the ability's source permanent, or the trigger's source.
+     * @property card the printed identity, for display.
+     * @property options the legal targets, in deterministic enumeration order; never empty.
+     * @property minimumCount the fewest that must be chosen (CR 601.2c).
+     * @property maximumCount the most that may be chosen (CR 115.1), clamped to [options]`.size`.
+     */
+    data class ChooseMultipleTargets(
+        override val id: DecisionRequestId,
+        val cardObjectId: ObjectId,
+        val card: CardRef,
+        val options: List<Target>,
+        override val minimumCount: Int,
+        override val maximumCount: Int,
+    ) : RangedSelection {
+        override val optionCount: Int get() = options.size
+
+        init {
+            require(options.isNotEmpty()) {
+                "CR 601.2c: a targets request is only surfaced when a legal target exists (ADR-005)"
+            }
+            require(minimumCount in 0..maximumCount) {
+                "CR 601.2c: a target count range runs from a non-negative minimum up to its maximum, " +
+                    "got $minimumCount..$maximumCount"
+            }
+            require(maximumCount <= options.size) {
+                "CR 601.2c: at most ${options.size} distinct target(s) can be chosen from " +
+                    "${options.size} option(s), but the request allows $maximumCount"
             }
         }
     }

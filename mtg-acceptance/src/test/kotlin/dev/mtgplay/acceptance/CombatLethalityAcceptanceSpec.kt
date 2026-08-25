@@ -114,6 +114,9 @@ private val ALL_OUT_ATTACK: Responder =
                 error("the all-out-attack policy casts no madness cards, but a yes/no request surfaced: $request")
             is DecisionRequest.SizedSelection ->
                 error("the all-out-attack policy pays no cost selections, but one surfaced: $request")
+            // CR 601.2c: this creatureless-hand scenario reaches no target choice of either arity.
+            is DecisionRequest.RangedSelection ->
+                error("the all-out-attack policy casts no multi-target spell, but one surfaced: $request")
             is DecisionRequest.ChooseReplacement ->
                 error("the all-out-attack policy discards no two-replacement cards, but one surfaced: $request")
             is DecisionRequest.ChooseColor ->

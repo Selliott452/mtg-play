@@ -603,6 +603,28 @@ sealed interface GameEvent {
     ) : GameEvent
 
     /**
+     * A card was **exiled from a graveyard** by an effect (CR 701.3a): [objectId] ([card]), which was in
+     * [owner]'s graveyard, is now the exile object [exileObjectId] (CR 400.7). Faerie Macabre's
+     * "Exile up to two target cards from graveyards". Additive, flagged (`FW-MULTITGT`).
+     *
+     * The fourth distinct exile in this log, and it is separate from the other three for the reason each
+     * of those is separate from the rest: it names the *zone the card left*. [PermanentExiled] is a
+     * battlefield departure, [CardExiledByMadness] replaces a discard,
+     * [SpellExiledInsteadOfGraveyard] replaces a leave-the-stack move, and [CardsExiledForCost] is
+     * escape paying a **cost** from a graveyard rather than an effect resolving. Folding this one into
+     * [CardsExiledForCost] would make a replay log unable to distinguish a cost from a spell's effect,
+     * which is exactly the distinction CR 601.2h draws.
+     *
+     * One event per card exiled, in the order the effect names them.
+     */
+    data class GraveyardCardExiled(
+        val owner: PlayerId,
+        val objectId: ObjectId,
+        val card: CardRef,
+        val exileObjectId: ObjectId,
+    ) : GameEvent
+
+    /**
      * [player] milled [card] (CR 701.13a): the top card of their library moved to their graveyard,
      * becoming the new object [objectId] there (CR 400.7). One event per milled card, in the order
      * milled (top-first). Distinct from [CardDiscarded] on purpose — a mill is not a discard, so
