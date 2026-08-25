@@ -4,14 +4,21 @@ import dev.mtgplay.core.card.CardType
 import dev.mtgplay.core.card.Keyword
 import dev.mtgplay.core.card.Subtype
 import dev.mtgplay.core.card.Supertype
+import dev.mtgplay.core.definition.AbilityCost
 import dev.mtgplay.core.definition.CardDefinition
 import dev.mtgplay.core.definition.EntersTapped
 import dev.mtgplay.core.definition.ManaAbility
+import dev.mtgplay.core.definition.PermanentRestriction
 import dev.mtgplay.core.definition.SpellDefinition
+import dev.mtgplay.core.definition.TargetSpec
+import dev.mtgplay.core.definition.TimingClass
+import dev.mtgplay.core.identity.CardRef
+import dev.mtgplay.core.mana.ManaCost
 import dev.mtgplay.core.mana.ManaType
 import io.kotest.core.spec.style.StringSpec
 import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.collections.shouldBeEmpty
+import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldNotBeInstanceOf
@@ -105,9 +112,56 @@ class NonbasicLandsSpec :
                 definition.choosesColorAsItEnters.shouldBeFalse()
             }
         }
+
+        "CR 205.3i: Basilisk Gate is an untyped-supertype Land — Gate that enters untapped" {
+            with(basiliskGate.characteristics) {
+                name shouldBe "Basilisk Gate"
+                // CR 305.2: a land has no mana cost.
+                manaCost.shouldBeNull()
+                supertypes shouldBe persistentSetOf<Supertype>()
+                cardTypes shouldBe persistentSetOf(CardType.LAND)
+                subtypes shouldBe persistentSetOf(Subtype("Gate"))
+                powerToughness.shouldBeNull()
+                keywords.shouldBeEmpty()
+            }
+            // Unlike the Bridges, it prints no enters-tapped clause (CR 614.1c).
+            basiliskGate.entersTapped shouldBe EntersTapped.Never
+            // A land is played, never cast (CR 305.1) — so it is a plain CardDefinition.
+            basiliskGate.shouldNotBeInstanceOf<SpellDefinition>()
+        }
+
+        "CR 605.1a: Basilisk Gate's mana ability is the bare {T}: Add {C}" {
+            basiliskGate.manaAbilities shouldBe
+                persistentListOf(ManaAbility(persistentListOf(ManaType.COLORLESS)))
+        }
+
+        "CR 602.5d: the pump ability costs {2} and {T} and is activatable only as a sorcery" {
+            val ability = basiliskGate.activatedAbilities.single()
+            ability.cost shouldBe
+                persistentListOf(AbilityCost.Mana(ManaCost.parse("{2}")), AbilityCost.TapSelf)
+            // "Activate only as a sorcery" — the field `FW-MANACOST` added and this card is named for.
+            // Without it the Gate would be an instant-speed combat trick it is deliberately not.
+            ability.timing shouldBe TimingClass.SORCERY_SPEED
+            // "Target creature" carries no control clause, so it may pump an opponent's creature.
+            ability.targetSpec shouldBe TargetSpec.TargetPermanent(PermanentRestriction.CREATURE)
+        }
+
+        "trap T17: Basilisk Gate is a mana source whose own ability also demands it untapped" {
+            // The other half of the shape that used to crash payment enumeration; the reservation in
+            // `manaSourcesReservedBy` is what makes this encodable (mana-payment.md §2.2).
+            basiliskGate.manaAbilities.shouldNotBeEmpty()
+            basiliskGate.activatedAbilities
+                .single()
+                .cost
+                .contains(AbilityCost.TapSelf) shouldBe true
+        }
+
+        "Basilisk Gate is registered under its printed name (CR 201)" {
+            MvpCards.definitions[CardRef("Basilisk Gate")] shouldBe basiliskGate
+        }
     })
 
-/** Every land this packet encodes. */
+/** Every land the P8.4 packet encodes; Basilisk Gate is checked separately, having real rules text. */
 private val packetLands: List<CardDefinition> =
     listOf(
         greatFurnace,

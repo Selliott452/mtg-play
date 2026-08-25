@@ -210,8 +210,8 @@ private fun auraAttachmentTargetOf(entry: StackEntry.Spell): ObjectId? =
     when (effectiveTargetSpec(entry.definition, entry.chosenModes)) {
         TargetSpec.None,
         TargetSpec.AnyTarget,
-        TargetSpec.TargetPlayer,
         TargetSpec.TargetOpponent,
+        is TargetSpec.TargetPlayer,
         is TargetSpec.TargetPermanent,
         is TargetSpec.SpellOnStack,
         is TargetSpec.CardInGraveyard,

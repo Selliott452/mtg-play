@@ -74,7 +74,7 @@ class CardSelectionSpec :
         }
 
         "CR 115.1a: only Thought Scour targets, and it targets a player — the rest target nothing" {
-            thoughtScour.targetSpec shouldBe TargetSpec.TargetPlayer
+            thoughtScour.targetSpec shouldBe TargetSpec.TargetPlayer()
             listOf(mentalNote, lorienRevealed, unfathomableTruths, pursueThePast).forEach {
                 it.targetSpec shouldBe TargetSpec.None
             }

@@ -87,7 +87,7 @@ val thoughtScour: SpellDefinition =
                 powerToughness = null,
             )
         override val timing = TimingClass.INSTANT_SPEED
-        override val targetSpec = TargetSpec.TargetPlayer
+        override val targetSpec = TargetSpec.TargetPlayer()
         override val resolution =
             ResolutionEffect { state, context ->
                 val target =

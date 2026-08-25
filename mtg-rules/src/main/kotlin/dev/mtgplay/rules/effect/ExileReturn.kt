@@ -129,7 +129,41 @@ fun returnExiledToOwnersHand(
 fun flickerPermanent(
     state: GameState,
     objectId: ObjectId,
+): GameState = flickerPermanents(state, listOf(objectId))
+
+/**
+ * Effect primitive: flickers **every** permanent in [objectIds] — exiling all of them first, then
+ * returning all of them (CR 701.3a then CR 400.7) — the published building block Ghostly Flicker's
+ * "Exile two target artifacts, creatures, and/or lands you control, **then** return those cards to the
+ * battlefield" composes (ADR-003). [flickerPermanent] is this with one id.
+ *
+ * **The two halves are not interleaved, and the printed "then" is why.** Folding [flickerPermanent] over
+ * the list would exile-and-return the first permanent completely before touching the second, which is a
+ * different sequence of game events from the one the card describes: there would be a moment at which
+ * one of the two is back on the battlefield and the other has not left it. Nothing in the current pool
+ * can act inside a resolution, so no *player* can see the difference — but the engine can, because a
+ * leaves-the-battlefield trigger is matched against the state just before its permanent left (CR 603.10),
+ * so a departure trigger that counted permanents would count a different board under each ordering.
+ * Writing the faithful sequence costs one `fold` and removes the question.
+ *
+ * Everything observable about each returning permanent is CR 400.7's and is documented on
+ * [flickerPermanent]: a new object, no counters, no marked damage, untapped, summoning sick, stripped of
+ * its Auras, and with its enters-the-battlefield abilities re-fired (CR 603.6a). The returns happen in
+ * [objectIds] order, so the re-fired triggers go on the stack in that order and their controller orders
+ * them at CR 603.3b as they would any simultaneous batch.
+ *
+ * **An empty list is a correct input**, not a defect: an "up to N" line may name no target and still
+ * resolve (CR 608.2b). Every id present must be on the battlefield, for [exilePermanent]'s reason — the
+ * CR 608.2b re-check has confirmed the targets before this is reached (ADR-005).
+ */
+fun flickerPermanents(
+    state: GameState,
+    objectIds: List<ObjectId>,
 ): GameState {
-    val exiled = exilePermanentReturningId(state, objectId)
-    return returnExiledToBattlefield(exiled.state, exiled.exileId)
+    val exiled =
+        objectIds.fold(state to emptyList<ObjectId>()) { (current, ids), objectId ->
+            val step = exilePermanentReturningId(current, objectId)
+            step.state to (ids + step.exileId)
+        }
+    return exiled.second.fold(exiled.first, ::returnExiledToBattlefield)
 }

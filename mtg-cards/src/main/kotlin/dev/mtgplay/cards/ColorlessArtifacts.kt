@@ -4,8 +4,13 @@ import dev.mtgplay.core.card.CardType
 import dev.mtgplay.core.card.PrintedCharacteristics
 import dev.mtgplay.core.definition.AbilityCost
 import dev.mtgplay.core.definition.ActivatedAbility
+import dev.mtgplay.core.definition.LibraryLook
+import dev.mtgplay.core.definition.LibraryLookMode
 import dev.mtgplay.core.definition.LibrarySearch
 import dev.mtgplay.core.definition.LibrarySearchFilter
+import dev.mtgplay.core.definition.ManaAbility
+import dev.mtgplay.core.definition.ManaAbilityCost
+import dev.mtgplay.core.definition.PermanentRestriction
 import dev.mtgplay.core.definition.ResolutionEffect
 import dev.mtgplay.core.definition.SpellDefinition
 import dev.mtgplay.core.definition.TargetSpec
@@ -13,6 +18,9 @@ import dev.mtgplay.core.definition.TimingClass
 import dev.mtgplay.core.definition.TriggerCondition
 import dev.mtgplay.core.definition.TriggeredAbility
 import dev.mtgplay.core.mana.ManaCost
+import dev.mtgplay.core.mana.ManaType
+import dev.mtgplay.core.state.Target
+import dev.mtgplay.rules.effect.destroy
 import dev.mtgplay.rules.effect.drawCards
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.persistentSetOf
@@ -29,14 +37,18 @@ import kotlinx.collections.immutable.persistentSetOf
  * called out in the packet report: [LibrarySearchFilter.LAND_CARD], the widest of the three land
  * filters, which Expedition Map is the first card to print.
  *
- * **Two siblings are deliberately absent, and the reason is an engine defect rather than a missing
- * primitive.** Bonder's Ornament ("{T}: Add one mana of any color. {4}, {T}: …") and Haunted Fengraf
- * ("{T}: Add {C}. {3}, {T}, Sacrifice this land: …") would each be the pool's first permanent that is
- * *both* a mana source *and* the source of a `{T}`-costed activated ability with a mana component.
- * `enumeratePaymentPlans` does not know which source is paying, so it offers a plan that taps the
- * permanent for mana — after which the ability's own `{T}` cost cannot be paid and the engine throws.
- * That is an enumerated-but-illegal action (ADR-005), and its fix belongs to the mana-payment
- * machinery, not to a card definition. The packet report carries the reproduction.
+ * **That engine defect — trap T17 — has since been fixed, and [giantsBoulder] is this file's proof.**
+ * The paragraph here used to record two absences: Bonder's Ornament ("{T}: Add one mana of any color.
+ * {4}, {T}: …") and Haunted Fengraf ("{T}: Add {C}. {3}, {T}, Sacrifice this land: …"), each of which
+ * would be the pool's first permanent that is *both* a mana source *and* the source of a `{T}`-costed
+ * activated ability with a mana component. `enumeratePaymentPlans` did not know which source was paying,
+ * so it offered a plan that tapped the permanent for mana — after which the ability's own `{T}` could not
+ * be paid and the engine threw, an enumerated-but-illegal action (ADR-005). `FW-MANA` supplied the fix
+ * the diagnosis asked for and put in the mana-payment machinery where it belonged: `manaSourcesReservedBy`
+ * excludes the source a sibling `TapSelf` component has spoken for (docs/design/mana-payment.md §2.2).
+ * Giant's Boulder is exactly that shape and is encoded below with no card-side workaround at all. The two
+ * named cards stay absent for their *other* reasons — Bonder's Ornament counts permanents by name and
+ * Haunted Fengraf returns a random creature card from a graveyard to a hand — neither of which is T17.
  *
  * Lotus Petal is absent for a different reason: its cost is `{T}` **and** sacrifice, which
  * [dev.mtgplay.core.definition.ManaAbility.viaSacrifice] cannot express — that flag means sacrifice
@@ -150,6 +162,110 @@ val expeditionMap: SpellDefinition =
                         ),
                     effect = ResolutionEffect { state, _ -> state },
                     librarySearch = LibrarySearch(LibrarySearchFilter.LAND_CARD),
+                ),
+            )
+    }
+
+/** How deep Giant's Boulder's enters-the-battlefield trigger scries (CR 701.17a). */
+const val GIANTS_BOULDER_SCRY: Int = 2
+
+/** The five colours an "add one mana of any color" ability offers, in WUBRG order (CR 105.1). */
+private val GIANTS_BOULDER_COLORS =
+    persistentListOf(ManaType.WHITE, ManaType.BLUE, ManaType.BLACK, ManaType.RED, ManaType.GREEN)
+
+/**
+ * Giant's Boulder — `{1}` Artifact. "When this artifact enters, scry 2. `{1}`, `{T}`: Add one mana of any
+ * color. `{7}`, `{T}`, Sacrifice this artifact: Destroy target permanent."
+ *
+ * The card three consecutive packets recorded as blocked, each on a different thing, and every one of
+ * them has since landed — so it is encoded here with **no new primitive of its own**. That history is
+ * worth keeping because two of the three diagnoses were wrong in the triage and right in the design notes:
+ *
+ * - `FW-CLAUSEHOOK` filed it as needing "a target permanent restriction". It did not:
+ *   [PermanentRestriction.ANY_PERMANENT] had already shipped with Scour from Existence, and "destroy
+ *   target permanent" was expressible the whole time. It also noted, correctly, that this is a **scry**
+ *   card and not the surveil card it is sometimes filed as — the oracle text says scry 2, and
+ *   [LibraryLookMode.Scry] is what it declares.
+ * - `FW-MANA`/`FW-MANACOST` was the real blocker for the middle ability, and [ManaAbility]'s own KDoc
+ *   names "Giant's Boulder's `{1}, {T}`" as one of the four costs that made [ManaAbilityCost] necessary.
+ * - **Trap T17** was the real blocker for the last one, and it is the file header's subject.
+ *
+ * **All three abilities live on one permanent, and that is the whole difficulty.** The middle one is a
+ * mana ability with a *mana component* in its cost, so the Boulder is a consumer as well as a producer
+ * (docs/design/mana-payment.md §11) — two Boulders must not fund each other's `{1}` out of nothing. The
+ * last one is an ordinary CR 602 activated ability that also needs the Boulder untapped, so the T17
+ * reservation keeps the Boulder out of the payment plans offered for its own `{7}`. Neither is anything
+ * this definition says; both are properties of costs the engine already reads.
+ *
+ * **`{7}` is not a typo and the ability is not dead text.** Monster Tron casts this on turn one for the
+ * scry and the fixing, and reaches seven mana often enough that an unconditional "destroy target
+ * permanent" on a card already on the battlefield is a real late-game mode — which is why the artifact
+ * is a Tron staple rather than a scry cantrip. [PermanentRestriction.ANY_PERMANENT] is the widest
+ * targeting line in the pool: a land, an enchantment, or an indestructible Bridge are all legal choices,
+ * and the Bridge simply survives (CR 702.12b).
+ *
+ * The scry rides on the enters trigger as a [LibraryLook] clause, byte-for-byte Faerie Seer's, and the
+ * trigger's own [ResolutionEffect] is the no-op — everything the ability does is the clause, which the
+ * engine runs after the effect (docs/design/resolution-clause-hook.md).
+ */
+val giantsBoulder: SpellDefinition =
+    object : SpellDefinition {
+        override val characteristics =
+            PrintedCharacteristics(
+                name = "Giant's Boulder",
+                manaCost = ManaCost.parse("{1}"),
+                supertypes = persistentSetOf(),
+                cardTypes = persistentSetOf(CardType.ARTIFACT),
+                subtypes = persistentSetOf(),
+                powerToughness = null,
+            )
+
+        override val timing = TimingClass.SORCERY_SPEED
+        override val targetSpec = TargetSpec.None
+        override val resolution = entersTheBattlefield
+
+        // CR 603.6a: "When this artifact enters, scry 2." The scry is the clause; the effect is empty.
+        override val triggeredAbilities =
+            persistentListOf(
+                TriggeredAbility(
+                    condition = TriggerCondition.EnteredBattlefieldSelf,
+                    effect = entersTheBattlefield,
+                    libraryLook = LibraryLook(mode = LibraryLookMode.Scry(GIANTS_BOULDER_SCRY)),
+                ),
+            )
+
+        // CR 605.1a: a mana ability whose cost is "{1}, {T}" — the shape `FW-MANACOST` built for.
+        override val manaAbilities =
+            persistentListOf(
+                ManaAbility(
+                    options = GIANTS_BOULDER_COLORS,
+                    cost =
+                        persistentListOf(
+                            ManaAbilityCost.Mana(ManaCost.parse("{1}")),
+                            ManaAbilityCost.TapSelf,
+                        ),
+                ),
+            )
+
+        override val activatedAbilities =
+            persistentListOf(
+                ActivatedAbility(
+                    // CR 602.1: printed order — mana, then the tap, then the sacrifice.
+                    cost =
+                        persistentListOf(
+                            AbilityCost.Mana(ManaCost.parse("{7}")),
+                            AbilityCost.TapSelf,
+                            AbilityCost.SacrificeSelf,
+                        ),
+                    targetSpec = TargetSpec.TargetPermanent(PermanentRestriction.ANY_PERMANENT),
+                    effect =
+                        ResolutionEffect { state, context ->
+                            val target = context.targets.single()
+                            check(target is Target.Permanent) {
+                                "CR 115.1b: Giant's Boulder targets a permanent, got $target"
+                            }
+                            destroy(state, target.id)
+                        },
                 ),
             )
     }

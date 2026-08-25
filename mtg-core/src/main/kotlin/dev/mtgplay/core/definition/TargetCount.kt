@@ -5,11 +5,12 @@ package dev.mtgplay.core.definition
  * half of a targeting line, separated from [TargetSpec]'s *noun* half. Additive, flagged core
  * (`FW-MULTITGT`, docs/design/multi-target.md §2).
  *
- * Magic prints exactly two shapes and this hierarchy has exactly two members: a fixed demand ("target
- * creature", "two target creatures") and a bounded optional one ("up to two target cards", "up to one
- * target creature"). Both collapse to the pair [minimum]/[maximum], which is what every rules-side
+ * Magic prints three shapes and this hierarchy has three members: a fixed demand ("target creature",
+ * "two target creatures"), a bounded optional one ("up to two target cards", "up to one target
+ * creature"), and an **unbounded** optional one ("any number of target players' graveyards", [AnyNumber],
+ * added for Thraben Charm). All collapse to the pair [minimum]/[maximum], which is what every rules-side
  * consumer actually reads — but they are kept as distinct members rather than as a raw `IntRange`
- * because the two carry different *rules* consequences that a range would flatten:
+ * because they carry different *rules* consequences that a range would flatten:
  *
  * - [minimum] is the CR 601.2c castability gate. A spell whose targets cannot all be chosen cannot be
  *   cast at all, so "two target creatures" is simply not an option with one creature on the
@@ -74,6 +75,28 @@ sealed interface TargetCount {
 
         override val minimum: Int get() = 0
         override val maximum: Int get() = limit
+    }
+
+    /**
+     * "Exile **any number of** target players' graveyards" (CR 115.1): between zero targets and every
+     * legal one, with **no printed bound at all**. Thraben Charm's third mode is the pool's first client.
+     *
+     * The third shape Magic prints, and it is genuinely not [UpTo] with a number filled in. "Up to two"
+     * names a limit the *card* imposes; "any number" imposes none, so the only thing that ever bounds the
+     * choice is how many legal targets the board offers. Writing it as `UpTo(2)` would be correct only
+     * for a two-player game and would silently become a wrong card in any other — a printed limit
+     * invented by the engine, which is precisely the plausible-looking approximation CONVENTIONS.md
+     * forbids.
+     *
+     * [maximum] is therefore [Int.MAX_VALUE], and that is safe rather than reckless because it is never
+     * read raw: `targetChoiceBounds` clamps the maximum to the number of options actually enumerated
+     * (docs/design/multi-target.md §4), so the surfaced decision offers exactly "any subset of the legal
+     * targets" and nothing wider. [minimum] is zero, which puts this member on [UpTo]'s side of the
+     * CR 608.2b divider: an object that chose no targets because it was allowed to still resolves.
+     */
+    data object AnyNumber : TargetCount {
+        override val minimum: Int get() = 0
+        override val maximum: Int get() = Int.MAX_VALUE
     }
 
     companion object {
