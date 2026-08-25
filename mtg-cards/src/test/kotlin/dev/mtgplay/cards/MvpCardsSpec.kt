@@ -295,6 +295,7 @@ class MvpCardsSpec :
                     CardRef("Swamp"),
                     CardRef("Terminate"),
                     CardRef("Thought Scour"),
+                    CardRef("Timberwatch Elf"),
                     CardRef("Unfathomable Truths"),
                     CardRef("Union of the Third Path"),
                     CardRef("Urza's Mine"),

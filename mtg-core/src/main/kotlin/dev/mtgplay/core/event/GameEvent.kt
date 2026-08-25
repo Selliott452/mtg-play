@@ -626,4 +626,22 @@ sealed interface GameEvent {
         val winner: PlayerId,
         val loser: PlayerId,
     ) : GameEvent
+
+    /**
+     * A resolving spell or ability created a continuous effect with a duration (CR 611.2): [sourceCard]'s
+     * resolution modified [affected] until the effect expires. Added with `FW-DURATION`
+     * (docs/design/duration.md).
+     *
+     * The modifiers are reported as the **already-snapshotted** integers the effect stores (CR 608.2h,
+     * CR 611.2d), which is what makes the log readable: "+3/+3" is what the pump actually is for the rest
+     * of the turn, not a formula whose value a reader would have to recompute. No event narrates the
+     * CR 514.2 wear-off — like the untap step's status change it is silent bookkeeping, and the acceptance
+     * invariant confirms no effect survives its turn.
+     */
+    data class ContinuousEffectCreated(
+        val sourceCard: CardRef,
+        val affected: ObjectId,
+        val powerMod: Int,
+        val toughnessMod: Int,
+    ) : GameEvent
 }

@@ -196,6 +196,7 @@ object MvpCards {
             swamp,
             terminate,
             thoughtScour,
+            timberwatchElf,
             unfathomableTruths,
             unionOfTheThirdPath,
             urzasMine,

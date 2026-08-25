@@ -230,4 +230,23 @@ enum class Invariant {
      * pending trigger that genuinely targets, and no cast or activation gathering coexists.
      */
     ABILITY_TARGET_SANITY,
+
+    /**
+     * Every running resolution-generated continuous effect is well-formed (CR 611.2, CR 514.2,
+     * CR 613.7d). Added with `FW-DURATION` (docs/design/duration.md §8). Three properties of
+     * [dev.mtgplay.core.state.GameState.timedEffects]: an
+     * [dev.mtgplay.core.state.EffectDuration.UntilEndOfTurn] effect exists **only during the turn it
+     * was created on** — the whole duration contract, and the one failure a duration bug takes; every
+     * timestamp is below the object-id allocation counter and timestamps strictly increase in store
+     * order (the append-only, single-sequence property CR 613.7's within-layer sort rests on); and
+     * every stored effect grants a keyword or modifies power or toughness, the CR 613 loud gate
+     * restated as a state property.
+     *
+     * Deliberately **not** checked: that the affected object still exists. A CR 611.2 effect does not
+     * end when its object leaves the battlefield — it applies to nothing for the rest of its duration,
+     * and the object that returns is a different one (CR 400.7) — so this is the one place where the
+     * dangling-reference intolerance of [ATTACHMENT_INTEGRITY] would be wrong. No game-over exemption
+     * is needed either: none of the three properties depends on state-based-action quiescence.
+     */
+    TIMED_EFFECT_SANITY,
 }

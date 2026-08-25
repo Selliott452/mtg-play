@@ -12,11 +12,14 @@ import dev.mtgplay.core.definition.OptionalCostMode
 import dev.mtgplay.core.event.GameEvent
 import dev.mtgplay.core.identity.CardRef
 import dev.mtgplay.core.identity.ObjectId
+import dev.mtgplay.core.state.ContinuousModification
+import dev.mtgplay.core.state.EffectDuration
 import dev.mtgplay.core.state.GameObject
 import dev.mtgplay.core.state.PendingLibrarySearch
 import dev.mtgplay.core.state.PendingOptionalCostDraw
 import dev.mtgplay.core.state.PendingResolutionDiscard
 import dev.mtgplay.core.state.SharedZones
+import dev.mtgplay.core.state.TimedContinuousEffect
 import dev.mtgplay.core.state.Turn
 import dev.mtgplay.core.state.TurnPhase
 import dev.mtgplay.rules.MatchConfig
@@ -142,5 +145,45 @@ class ReplaySpec :
                 fingerprint(base.copy(pendingResolutionDiscard = PendingResolutionDiscard(alice, 1)))
             // Library search (Ash Barrens): present vs absent.
             fingerprint(base.copy(pendingLibrarySearch = PendingLibrarySearch(alice))) shouldNotBe fingerprint(base)
+        }
+
+        "CR 611.2: the fingerprint digests a running until-end-of-turn effect, snapshotted size included" {
+            val base =
+                twoPlayerState(
+                    turn = Turn(alice, 2, TurnPhase.PRECOMBAT_MAIN, null),
+                    aliceState = playerWithZones(library = mountains(0L..5L, alice)),
+                    bobState = playerWithZones(library = mountains(10L..15L, bob)),
+                    nextObjectId = 100,
+                )
+
+            fun pumped(
+                amount: Int,
+                affected: Long = 0,
+            ) = base.copy(
+                timedEffects =
+                    persistentListOf(
+                        TimedContinuousEffect(
+                            affected = ObjectId(affected),
+                            modification = ContinuousModification(powerMod = amount, toughnessMod = amount),
+                            duration = EffectDuration.UntilEndOfTurn,
+                            timestamp = 50,
+                            createdOnTurn = 2,
+                            source = ObjectId(7),
+                            sourceCard = CardRef("Timberwatch Elf"),
+                        ),
+                    ),
+            )
+
+            // A timed effect is the first cause with no residence line, so without its own token two
+            // states differing only in whether a pump resolved would hash alike (docs/design/duration.md
+            // §7).
+            fingerprint(pumped(2)) shouldNotBe fingerprint(base)
+            // The snapshotted size is part of the cause once frozen — nothing else in the digest
+            // determines it — so two differently-sized pumps must not collide.
+            fingerprint(pumped(3)) shouldNotBe fingerprint(pumped(2))
+            // As must two identical pumps on different objects.
+            fingerprint(pumped(2, affected = 1)) shouldNotBe fingerprint(pumped(2))
+            // And the digest stays a pure function of the state.
+            fingerprint(pumped(2)) shouldBe fingerprint(pumped(2))
         }
     })

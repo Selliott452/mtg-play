@@ -49,6 +49,12 @@ internal data class OracleCharacteristics(
  * so an Aura whose `attachedTo` names this battlefield object is by construction active. Deliberately
  * independent of the layer engine: it walks attachment and sums/unions itself, referencing no CR 613
  * classification code.
+ *
+ * `FW-DURATION` adds the second generator (CR 611.2, docs/design/duration.md §5.2): the running
+ * [dev.mtgplay.core.state.GameState.timedEffects] naming [id]. The oracle's independence rule is
+ * kept — it reads the store's already-snapshotted integers and still references no classification
+ * code — and the two generators are summed the same way, which is the property the engine must also
+ * have.
  */
 internal fun oracleCharacteristics(
     state: GameState,
@@ -79,6 +85,19 @@ internal fun oracleCharacteristics(
                 toughness = currentToughness + evaluateMagnitudeNaively(effect.toughnessMod, state, aura.id)
             }
         }
+    }
+
+    // CR 611.2: the running resolution-generated effects naming this object. Their modifiers were
+    // snapshotted at creation (CR 608.2h, CR 611.2d), so the oracle adds the stored integers with no
+    // evaluation at all — which is exactly the semantics the engine must have
+    // (docs/design/duration.md §3). An effect whose object has left the battlefield names a different
+    // id and is skipped by this filter, never by a special case.
+    for (effect in state.timedEffects.filter { it.affected == id }) {
+        keywords = keywords + effect.modification.grantedKeywords
+        val currentPower = power
+        if (currentPower != null) power = currentPower + effect.modification.powerMod
+        val currentToughness = toughness
+        if (currentToughness != null) toughness = currentToughness + effect.modification.toughnessMod
     }
     return OracleCharacteristics(power, toughness, keywords, manaAbilities)
 }

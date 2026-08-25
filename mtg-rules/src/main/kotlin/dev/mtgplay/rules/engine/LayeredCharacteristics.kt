@@ -2,6 +2,7 @@ package dev.mtgplay.rules.engine
 
 import dev.mtgplay.core.card.Keyword
 import dev.mtgplay.core.definition.AffectedSet
+import dev.mtgplay.core.definition.Magnitude
 import dev.mtgplay.core.definition.ManaAbility
 import dev.mtgplay.core.identity.ObjectId
 import dev.mtgplay.core.state.GameObject
@@ -81,13 +82,31 @@ fun layeredPower(
         ?: error("CR 208.1: object $id has no power; only creatures have printed power/toughness")
 
 /**
- * Every active continuous effect whose affected object is [affectedId] (CR 611.2), gathered from the
- * battlefield's attached-and-active Aura statics (docs/design/layer-system.md §3). An effect is
- * active only while its source is on the battlefield with its affected set non-empty — for an Aura,
- * while it is attached to a battlefield object; an Aura attached to nothing on the battlefield is
- * pending the CR 704.5m fall-off and contributes nothing.
+ * Every active continuous effect whose affected object is [affectedId], from **both** generators
+ * (docs/design/duration.md §5.2) — this is the effect-collection step docs/design/layer-system.md §2
+ * reserved as the duration hook, and taking it is the whole of the layer engine's change.
+ *
+ * 1. **Static abilities of battlefield permanents** (CR 604.3, CR 611.2): an Aura's "enchanted X
+ *    gets/has …", active only while its source is on the battlefield with its affected set
+ *    non-empty. An Aura attached to nothing on the battlefield is pending the CR 704.5m fall-off and
+ *    contributes nothing.
+ * 2. **Resolution-generated effects still running** (CR 611.2): the
+ *    [dev.mtgplay.core.state.GameState.timedEffects] store, filtered to those naming [affectedId].
+ *    A stored effect whose affected object has left the battlefield contributes nothing and is
+ *    **not** an error — a CR 611.2 effect does not end when its object dies, and the object that
+ *    comes back is a different one (CR 400.7), so it simply applies to nothing for the rest of its
+ *    duration.
+ *
+ * The two lists are concatenated unsorted; [applyContinuousEffects] does the CR 613.7 ordering, and
+ * both timestamps come from one allocation sequence so the sort is meaningful across generators.
  */
 internal fun activeEffectsOn(
+    state: GameState,
+    affectedId: ObjectId,
+): List<ActiveEffect> = staticEffectsOn(state, affectedId) + timedEffectsOn(state, affectedId)
+
+/** The CR 604.3 static half of [activeEffectsOn]: attached-and-active Aura statics. */
+private fun staticEffectsOn(
     state: GameState,
     affectedId: ObjectId,
 ): List<ActiveEffect> =
@@ -99,11 +118,42 @@ internal fun activeEffectsOn(
                 null
             } else {
                 // CR 613.7c: an Aura's timestamp is when it became attached; in the MVP that is its
-                // battlefield-entry order, i.e. its fresh ObjectId value (§3).
-                ActiveEffect(source.id, affected, effect, source.id.value)
+                // battlefield-entry order, i.e. its fresh ObjectId value (layer-system.md §3).
+                ActiveEffect(
+                    source = source.id,
+                    affected = affected,
+                    grantedKeywords = effect.grantedKeywords,
+                    grantedManaAbilities = effect.grantedManaAbilities,
+                    powerMod = effect.powerMod,
+                    toughnessMod = effect.toughnessMod,
+                    timestamp = source.id.value,
+                )
             }
         }
     }
+
+/**
+ * The CR 611.2 resolution-generated half of [activeEffectsOn]: the running timed effects naming
+ * [affectedId]. Their modifiers were snapshotted when the effect was created (CR 608.2h, CR 611.2d)
+ * and are therefore already constants — presented as [dev.mtgplay.core.definition.Magnitude.Fixed],
+ * which is the only shape a timed magnitude can take (docs/design/duration.md §3.2).
+ */
+private fun timedEffectsOn(
+    state: GameState,
+    affectedId: ObjectId,
+): List<ActiveEffect> =
+    state.timedEffects
+        .filter { it.affected == affectedId }
+        .map { effect ->
+            ActiveEffect(
+                source = effect.source,
+                affected = effect.affected,
+                grantedKeywords = effect.modification.grantedKeywords,
+                powerMod = Magnitude.Fixed(effect.modification.powerMod),
+                toughnessMod = Magnitude.Fixed(effect.modification.toughnessMod),
+                timestamp = effect.timestamp,
+            )
+        }
 
 /**
  * The object a [source]'s effect currently affects for the affected set [affects] (CR 611.2c), or

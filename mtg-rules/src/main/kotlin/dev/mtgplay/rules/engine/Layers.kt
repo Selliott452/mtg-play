@@ -1,9 +1,14 @@
 package dev.mtgplay.rules.engine
 
+import dev.mtgplay.core.card.Keyword
 import dev.mtgplay.core.definition.Magnitude
-import dev.mtgplay.core.definition.StaticContinuousEffect
+import dev.mtgplay.core.definition.ManaAbility
 import dev.mtgplay.core.identity.ObjectId
 import dev.mtgplay.core.state.GameState
+import kotlinx.collections.immutable.PersistentList
+import kotlinx.collections.immutable.PersistentSet
+import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.persistentSetOf
 
 /*
  * The CR 613 continuous-effect algorithm (docs/design/layer-system.md §3): apply active continuous
@@ -12,14 +17,26 @@ import dev.mtgplay.core.state.GameState
  * stages — layer 6 (ability adding) and sublayer 7c (P/T modification that doesn't set) — so any
  * effect that would land elsewhere fails loudly rather than being silently dropped (§1).
  *
- * Timestamps are the source permanent's battlefield-entry order (its fresh ObjectId, CR 400.7): an
- * MVP Aura enters already attached (CR 303.4f) and never re-attaches, so "became attached"
- * (CR 613.7c) and "entered" coincide, and entry order is ObjectId order — monotonic and replay-safe
- * (§3). The sort is performed (the 613.7 spine is real) even though every within-layer MVP
- * interaction commutes (additive grants and additive modifiers), so the order is not yet observable.
+ * **Two generators, one algorithm** (`FW-DURATION`, docs/design/duration.md §5.2). A continuous
+ * effect comes either from a permanent's *static ability* (CR 604.3) — an Aura's "enchanted creature
+ * gets …", active while it is attached — or from the *resolution of a spell or ability* (CR 611.2) —
+ * "target creature gets +2/+2 until end of turn", active until its duration expires. [ActiveEffect]
+ * is deliberately the shape both collapse to: it carries the layer payload directly rather than
+ * wrapping a card's declaration, so neither generator is privileged and nothing below this line
+ * knows which one produced an effect.
+ *
+ * Timestamps come from **one** strictly monotonic sequence, the [dev.mtgplay.core.state.GameState]
+ * object-id allocation counter. A static effect's timestamp is its source permanent's
+ * battlefield-entry order (its fresh ObjectId, CR 400.7, CR 613.7c — an MVP Aura enters already
+ * attached and never re-attaches, so "became attached" and "entered" coincide); a resolution-
+ * generated effect's is allocated when it is created (CR 613.7d). Drawing both from one sequence is
+ * what makes them comparable at all: two counters would order by which counter a value came from
+ * (docs/design/duration.md §4). The sort is performed because the 613.7 spine is real, even though
+ * every within-layer interaction in the implemented set commutes (additive grants, additive
+ * modifiers), so the order is not yet observable.
  *
  * Dependency ordering (CR 613.8) is deferred and correct-by-construction: no interaction in the pool
- * creates a dependency (only additive layer-6 grants and additive 7c modifiers exist, §3), so a
+ * creates a dependency (only additive layer-6 grants and additive 7c modifiers exist), so a
  * dependency-inducing effect kind is off the implemented list and is refused by the same loud gate
  * as every other unimplemented kind.
  */
@@ -62,32 +79,47 @@ internal enum class Layer {
 }
 
 /**
- * One active continuous effect: the [effect] a battlefield [source] generates, applied to the
- * [affected] object, with [timestamp] the source's battlefield-entry order (CR 613.7c). Collected
- * by [activeEffectsOn].
+ * One active continuous effect, whichever generator produced it (CR 604.3 or CR 611.2), reduced to
+ * the payload the CR 613 layers act on. Collected by [activeEffectsOn].
+ *
+ * The magnitudes stay [Magnitude]-shaped because a *static* effect's may be
+ * [Magnitude.Dynamic] — read live on every computation (CR 613.3c). A *resolution-generated*
+ * effect's magnitude is already a frozen integer by the time it reaches here (CR 608.2h, CR 611.2d),
+ * and is presented as [Magnitude.Fixed]; that is not a conversion so much as an admission of what it
+ * already is (docs/design/duration.md §3.2).
+ *
+ * @property source the object generating the effect: the Aura, or the resolved ability's source as
+ *   last-known information (CR 113.7c). `null` where the engine has none — a timed effect whose
+ *   source it never recorded. Diagnostics only; nothing in the algorithm depends on it existing.
+ * @property affected the object the effect modifies (CR 611.2c).
+ * @property timestamp the CR 613.7 timestamp, in the single allocation sequence described above.
  */
 internal data class ActiveEffect(
-    val source: ObjectId,
+    val source: ObjectId?,
     val affected: ObjectId,
-    val effect: StaticContinuousEffect,
+    val grantedKeywords: PersistentSet<Keyword> = persistentSetOf(),
+    val grantedManaAbilities: PersistentList<ManaAbility> = persistentListOf(),
+    val powerMod: Magnitude = Magnitude.Zero,
+    val toughnessMod: Magnitude = Magnitude.Zero,
     val timestamp: Long,
 )
 
 /**
- * The CR 613 layers an [effect] contributes to (docs/design/layer-system.md §2). The classification
- * point: a keyword or mana-ability grant is layer 6; a nonzero P/T modifier is sublayer 7c. A new
- * effect kind (copy, control, type-change, set-P/T, counters) adds its field here and routes to its
- * layer, where [applyLayer]'s loud gate then refuses it until that layer is implemented.
+ * The CR 613 layers an [active] effect contributes to (docs/design/layer-system.md §2). The
+ * classification point: a keyword or mana-ability grant is layer 6; a nonzero P/T modifier is
+ * sublayer 7c. A new effect kind (copy, control, type-change, set-P/T, counters) adds its field to
+ * [ActiveEffect] and routes to its layer here, where [applyLayer]'s loud gate then refuses it until
+ * that layer is implemented.
  *
  * A [Magnitude.Dynamic] modifier always contributes to 7c even if it currently evaluates to zero:
  * the layer *contribution* exists; its magnitude is read live (CR 613.3c).
  */
-internal fun layersOf(effect: StaticContinuousEffect): Set<Layer> =
+internal fun layersOf(active: ActiveEffect): Set<Layer> =
     buildSet {
-        if (effect.grantedKeywords.isNotEmpty() || effect.grantedManaAbilities.isNotEmpty()) {
+        if (active.grantedKeywords.isNotEmpty() || active.grantedManaAbilities.isNotEmpty()) {
             add(Layer.ABILITY_ADDING)
         }
-        if (effect.powerMod != Magnitude.Zero || effect.toughnessMod != Magnitude.Zero) {
+        if (active.powerMod != Magnitude.Zero || active.toughnessMod != Magnitude.Zero) {
             add(Layer.PT_MODIFYING)
         }
     }
@@ -107,7 +139,7 @@ internal fun applyContinuousEffects(
     active.forEach(::requireImplementedKind)
     val byTimestamp = active.sortedBy(ActiveEffect::timestamp)
     return Layer.entries.fold(base) { acc, layer ->
-        applyLayer(state, acc, layer, byTimestamp.filter { layer in layersOf(it.effect) })
+        applyLayer(state, acc, layer, byTimestamp.filter { layer in layersOf(it) })
     }
 }
 
@@ -126,7 +158,7 @@ internal fun applyLayer(
 ): LayeredCharacteristics =
     when (layer) {
         // CR 613.1f: layer 6 unions granted keywords and mana abilities onto the object.
-        Layer.ABILITY_ADDING -> effects.fold(acc) { current, active -> current.granting(active.effect) }
+        Layer.ABILITY_ADDING -> effects.fold(acc) { current, active -> current.granting(active) }
         // CR 613.4d: sublayer 7c adds the (possibly dynamic) P/T modifiers.
         Layer.PT_MODIFYING -> effects.fold(acc) { current, active -> current.modifying(state, active) }
         Layer.COPY, Layer.CONTROL, Layer.TEXT, Layer.TYPE, Layer.COLOR,
@@ -143,24 +175,25 @@ internal fun applyLayer(
 
 /** The loud gate: an effect must contribute to an implemented layer (6 or 7c), never nothing. */
 private fun requireImplementedKind(active: ActiveEffect) {
-    require(layersOf(active.effect).isNotEmpty()) {
-        "CR 613: the static continuous effect from ${active.source} classifies into no implemented " +
+    require(layersOf(active).isNotEmpty()) {
+        "CR 613: the continuous effect from ${active.source} classifies into no implemented " +
             "layer (a layer-6 grant or a layer-7c P/T modifier); an unimplemented effect kind must " +
             "fail loudly, never silently drop (docs/design/layer-system.md §1)"
     }
 }
 
-/** Layer 6 (CR 613.1f): unions [effect]'s granted keywords and mana abilities onto the object. */
-private fun LayeredCharacteristics.granting(effect: StaticContinuousEffect): LayeredCharacteristics =
+/** Layer 6 (CR 613.1f): unions [active]'s granted keywords and mana abilities onto the object. */
+private fun LayeredCharacteristics.granting(active: ActiveEffect): LayeredCharacteristics =
     copy(
-        keywords = keywords.addingAll(effect.grantedKeywords),
-        manaAbilities = manaAbilities.addingAll(effect.grantedManaAbilities),
+        keywords = keywords.addingAll(active.grantedKeywords),
+        manaAbilities = manaAbilities.addingAll(active.grantedManaAbilities),
     )
 
 /**
  * Sublayer 7c (CR 613.4d): adds [active]'s power/toughness modifiers, evaluating a dynamic magnitude
  * against the current [state] (CR 613.3c). Fails loudly if the object has no P/T box — a 7c modifier
- * on a non-creature is an engine defect (the enchant restrictions keep P/T Auras on creatures).
+ * on a non-creature is an engine defect (the enchant restrictions keep P/T Auras on creatures, and a
+ * "target creature" spec keeps timed pumps there).
  */
 private fun LayeredCharacteristics.modifying(
     state: GameState,
@@ -173,18 +206,29 @@ private fun LayeredCharacteristics.modifying(
             "printed power/toughness; only creatures have P/T"
     }
     return copy(
-        power = basePower + evaluateMagnitude(active.effect.powerMod, state, active.source),
-        toughness = baseToughness + evaluateMagnitude(active.effect.toughnessMod, state, active.source),
+        power = basePower + evaluateMagnitude(active.powerMod, state, active.source),
+        toughness = baseToughness + evaluateMagnitude(active.toughnessMod, state, active.source),
     )
 }
 
-/** The value of [magnitude] now (CR 613.3c): a fixed amount, or a dynamic pure function of state. */
+/**
+ * The value of [magnitude] now: a fixed amount — which a resolution-generated effect's snapshotted
+ * modifier always is (CR 608.2h, CR 611.2d) — or a dynamic pure function of the live state
+ * (CR 613.3c). A [Magnitude.Dynamic] needs the generating object, so it is unreachable without one.
+ */
 private fun evaluateMagnitude(
     magnitude: Magnitude,
     state: GameState,
-    source: ObjectId,
+    source: ObjectId?,
 ): Int =
     when (magnitude) {
         is Magnitude.Fixed -> magnitude.amount
-        is Magnitude.Dynamic -> magnitude.evaluate(state, source)
+        is Magnitude.Dynamic ->
+            magnitude.evaluate(
+                state,
+                source ?: error(
+                    "CR 613.3c: a dynamic magnitude is a function of its generating object, but the " +
+                        "effect records none; only a static ability's magnitude may be dynamic",
+                ),
+            )
     }

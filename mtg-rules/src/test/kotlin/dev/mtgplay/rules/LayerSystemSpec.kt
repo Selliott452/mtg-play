@@ -213,7 +213,16 @@ class LayerSystemSpec :
                     manaAbilities = persistentListOf(),
                 )
             val effect = state.staticEffectOf("Fixture Cloak")
-            val active = ActiveEffect(source = ObjectId(1), affected = ObjectId(0), effect = effect, timestamp = 1)
+            val active =
+                ActiveEffect(
+                    source = ObjectId(1),
+                    affected = ObjectId(0),
+                    grantedKeywords = effect.grantedKeywords,
+                    grantedManaAbilities = effect.grantedManaAbilities,
+                    powerMod = effect.powerMod,
+                    toughnessMod = effect.toughnessMod,
+                    timestamp = 1,
+                )
             val error = shouldThrow<IllegalArgumentException> { applyLayer(state, base, Layer.TYPE, listOf(active)) }
             error.message.shouldBeInstanceOf<String>() shouldContain "613"
         }

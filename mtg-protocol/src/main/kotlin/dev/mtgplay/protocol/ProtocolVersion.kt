@@ -73,5 +73,18 @@ package dev.mtgplay.protocol
  *
  * No `DecisionRequest` kind is added: multi-mana production is a change to what an existing option
  * *says*, not a new decision, which is the whole point of the P8.3 plan shape holding.
+ *
+ * **6.0.0 — `FW-DURATION`** (docs/design/duration.md §13). Spells and abilities can now create
+ * continuous effects with a duration (CR 611.2), and a seat must be able to see them: [SeatViewDto]
+ * gains a **required** `timedEffects` list of [TimedContinuousEffectDto], which a `5.0.0` peer's
+ * strict codec rejects outright. That is the same break shape `4.0.0` recorded for
+ * `pendingLibraryLook` and `3.0.0` for `pendingTriggerTargets`, and the recorded standard is to say
+ * so with a major bump rather than to argue that nobody is listening.
+ *
+ * The break is **server→client only**, and the milder of the two modes: no
+ * [DecisionRequestDto] member, no [DecisionRequestKindDto] member, and no [TargetDto] member are
+ * added, so nothing fails at `valueOf` mid-match. An until-end-of-turn effect is something an agent
+ * *observes*, never something it decides — which is exactly why the client→server direction is
+ * untouched.
  */
-const val PROTOCOL_VERSION: String = "5.0.0"
+const val PROTOCOL_VERSION: String = "6.0.0"

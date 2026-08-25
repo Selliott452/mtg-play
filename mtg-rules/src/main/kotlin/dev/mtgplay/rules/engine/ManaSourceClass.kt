@@ -227,29 +227,16 @@ private fun manaAmountOf(
 
 /**
  * How many battlefield permanents match [filter] from the point of view of the source [obj]
- * (CR 109.4, CR 205.3): permanents whose **printed** subtypes contain the filter's subtype, and —
- * when the filter says "you control" — that share [obj]'s controller.
+ * (CR 109.4, CR 205.3) — the shared count in [countMatchingPermanents], with the source's
+ * controller (ownership in the MVP pool) supplying the filter's "you".
  *
- * Two read points are worth naming.
- *
- * - **Controller is owner**, the same standing simplification the rest of payment enumeration makes
- *   until control-changing effects exist.
- * - **Subtypes are printed, not layered.** [LayeredCharacteristics] carries power, toughness,
- *   keywords and mana abilities, and no card in the gauntlet pool changes a permanent's subtypes
- *   (that is `FW-TYPECHANGE`, its own framework). Reading printed subtypes is therefore exact
- *   today; when a type-changing effect lands it must extend [LayeredCharacteristics] and this line
- *   must follow it, and the reason it will be found is that this is the only place subtypes are
- *   counted.
+ * The count itself moved to `PermanentCount.kt` when `FW-DURATION` became its second consumer, on
+ * docs/design/cost-modification.md §6's verdict: share the counting *noun*, never the consumer, so
+ * that a mana ability's live CR 605.2 read and an until-end-of-turn effect's frozen CR 608.2h read
+ * stay distinguishable at the type level.
  */
 private fun countMatching(
     state: GameState,
     obj: GameObject,
     filter: PermanentFilter,
-): Int =
-    state.sharedZones.battlefield.count { candidate ->
-        (!filter.controlledByYou || candidate.owner == obj.owner) &&
-            state.definitions[candidate.card]
-                ?.characteristics
-                ?.subtypes
-                ?.contains(filter.subtype) == true
-    }
+): Int = countMatchingPermanents(state, filter, obj.owner)

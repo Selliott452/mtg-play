@@ -62,6 +62,8 @@ fun viewFor(
             pendingLibraryLook = state.pendingLibraryLook?.let { lookViewOf(state, it) },
             pendingTriggerTargets = state.pendingTriggerTargets,
             pendingCounterPayment = state.pendingCounterPayment,
+            // CR 611.2: a resolved spell's continuous effect is public information; no filtering applies.
+            timedEffects = state.timedEffects,
         )
     return projected.copy(cards = cardsOf(state.definitions, visibleCardRefs(projected)))
 }
