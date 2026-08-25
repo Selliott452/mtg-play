@@ -5,6 +5,7 @@ import dev.mtgplay.core.identity.ObjectId
 import dev.mtgplay.core.identity.PlayerId
 import dev.mtgplay.rules.DecisionRequestKind
 import dev.mtgplay.rules.DecisionView
+import dev.mtgplay.rules.PendingHandRevealView
 import dev.mtgplay.rules.PendingRevealView
 import dev.mtgplay.rules.PendingTriggerView
 import kotlinx.serialization.SerialName
@@ -12,8 +13,9 @@ import kotlinx.serialization.Serializable
 
 /*
  * Wire mirrors of the trigger, reveal, and decision-context per-seat view nouns (ADR-007): the
- * definition-free pending-trigger projection, the publicly revealed cards, and the decision
- * filtered to the deciding seat (others see only who decides and the broad kind).
+ * definition-free pending-trigger projection, the publicly revealed cards (of a library reveal and
+ * of a revealed hand alike), and the decision filtered to the deciding seat (others see only who
+ * decides and the broad kind).
  */
 
 /** Wire form of a [PendingTriggerView] — a fired trigger's public last-known information (CR 603.3). */
@@ -54,6 +56,44 @@ fun PendingRevealView.toDto(): PendingRevealViewDto =
 fun PendingRevealViewDto.toDomain(): PendingRevealView =
     PendingRevealView(PlayerId(decider), revealed.map { it.toDomain() }, kept.map { it.toDomain() })
 
+/**
+ * Wire form of a [PendingHandRevealView] (CR 701.16a) — an open "target opponent reveals their hand and
+ * you choose a card from it". Added by `FW-HIDDENCHOICE`.
+ *
+ * **Carried in full to both seats**, and that is the rules-correct filtering rather than a shortcut:
+ * CR 701.16a reveals the hand to *every* player, so this is the one pending record that makes a hidden
+ * zone temporarily public. The engine has already made that ruling in [PendingHandRevealView]; this
+ * layer is a straight structural translation of it and adds no redaction of its own.
+ */
+@Serializable
+data class PendingHandRevealViewDto(
+    val decider: Int,
+    val revealer: Int,
+    val revealed: List<GameObjectDto>,
+    val outcome: RevealedCardOutcomeDto,
+    val sourceCard: String,
+)
+
+/** [PendingHandRevealView] to its wire form. */
+fun PendingHandRevealView.toDto(): PendingHandRevealViewDto =
+    PendingHandRevealViewDto(
+        decider.seat,
+        revealer.seat,
+        revealed.map { it.toDto() },
+        outcome.toDto(),
+        sourceCard.name,
+    )
+
+/** [PendingHandRevealViewDto] back to the engine value. */
+fun PendingHandRevealViewDto.toDomain(): PendingHandRevealView =
+    PendingHandRevealView(
+        PlayerId(decider),
+        PlayerId(revealer),
+        revealed.map { it.toDomain() },
+        outcome.toDomain(),
+        CardRef(sourceCard),
+    )
+
 /** Wire form of the broad decision kind a non-deciding seat sees (ADR-007); names mirror [DecisionRequestKind]. */
 @Serializable
 enum class DecisionRequestKindDto {
@@ -89,6 +129,16 @@ enum class DecisionRequestKindDto {
 
     /** A resolving counter's "unless its controller pays" (CR 118.3a). */
     CHOOSE_COUNTER_PAYMENT,
+
+    /** Pick a card from an opponent's revealed hand (CR 701.16a). */
+    CHOOSE_REVEALED_HAND_CARD,
+
+    /**
+     * An "each opponent discards a card" selection (CR 701.7a), made by an opponent of the resolving
+     * object's controller. The kind an opposing seat may see; its **options** never reach anyone but
+     * the deciding seat (ADR-007).
+     */
+    CHOOSE_OPPONENT_DISCARDS,
 }
 
 /**

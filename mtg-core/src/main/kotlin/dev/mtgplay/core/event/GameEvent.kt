@@ -457,6 +457,41 @@ sealed interface GameEvent {
     ) : GameEvent
 
     /**
+     * A card was exiled from a hand (CR 701.3a): [card], owned by [player], moved from their hand to
+     * exile as the new object [exileObjectId] (CR 400.7). Added by `FW-HIDDENCHOICE`
+     * (docs/design/exile-and-return.md §7) — Mesmeric Fiend exiles the card its controller chose from the
+     * revealed hand.
+     *
+     * Distinct from [PermanentExiled], which is the battlefield exile (CR 701.3a reached from a
+     * permanent) and carries a battlefield object id, and from [CardExiledByMadness], which is a
+     * *replacement* of a discard rather than an exile in its own right. The card is public from this
+     * moment: it was revealed (CR 701.16a) before it was chosen, and exile is a public zone (CR 406.3).
+     */
+    data class CardExiledFromHand(
+        val player: PlayerId,
+        val objectId: ObjectId,
+        val card: CardRef,
+        val exileObjectId: ObjectId,
+    ) : GameEvent
+
+    /**
+     * A card was returned from exile to its owner's hand (CR 400.7): [card], owned by [player], moved
+     * from exile to their hand as the new hand object [objectId]. Added by `FW-LINKEDEXILE`
+     * (docs/design/exile-and-return.md §4) — Mesmeric Fiend's leaves-the-battlefield trigger returns the
+     * card its linked ability exiled.
+     *
+     * Its own member rather than a reuse of [CardReturnedToHand], whose KDoc and every consumer read
+     * "from a graveyard": the source zone is the load-bearing half of a return, and a driver rendering
+     * "returned from the graveyard" for a card that came back from exile would be narrating a different
+     * game.
+     */
+    data class CardReturnedToHandFromExile(
+        val player: PlayerId,
+        val objectId: ObjectId,
+        val card: CardRef,
+    ) : GameEvent
+
+    /**
      * A card with madness was exiled instead of being discarded (CR 702.35a): the discard→exile
      * replacement moved [card] from [player]'s hand to exile as the new object [objectId] (CR 400.7),
      * where it waits ([dev.mtgplay.core.state.GameObject.awaitingMadness]) on its reflexive cast
@@ -481,11 +516,17 @@ sealed interface GameEvent {
     ) : GameEvent
 
     /**
-     * A spell was exiled instead of being put into a graveyard as it left the stack (CR 702.34e): the
-     * flashback leave-stack replacement moved [card], controlled by [controller], to exile as the new
-     * object [exileObjectId] (CR 400.7) rather than to its owner's graveyard — on resolution, a
-     * counter, or a fizzle. Added in P5.2. Follows the [SpellResolved]/[SpellFizzled] of the same
-     * departure, whose object id is this same exile object.
+     * A spell was exiled instead of being put into a graveyard as it left the stack: the leave-stack
+     * replacement moved [card], controlled by [controller], to exile as the new object [exileObjectId]
+     * (CR 400.7) rather than to its owner's graveyard — on resolution, a counter, or a fizzle. Added in
+     * P5.2. Follows the [SpellResolved]/[SpellFizzled] of the same departure, whose object id is this
+     * same exile object.
+     *
+     * Two keywords narrate through it, because the observable move is the same one: **flashback**
+     * (CR 702.34e), which exiles on any departure from the stack, and **rebound** (CR 702.88a,
+     * `FW-BLINK`), which exiles only a spell that resolved after being cast from its owner's hand. What
+     * distinguishes them afterwards is the exile object itself —
+     * [dev.mtgplay.core.state.GameObject.reboundTurn] is set only by rebound — not a flag here.
      */
     data class SpellExiledInsteadOfGraveyard(
         val controller: PlayerId,

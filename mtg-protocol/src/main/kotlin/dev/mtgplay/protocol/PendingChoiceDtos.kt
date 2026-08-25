@@ -5,7 +5,6 @@ import dev.mtgplay.core.identity.ObjectId
 import dev.mtgplay.core.identity.PlayerId
 import dev.mtgplay.core.mana.ManaCost
 import dev.mtgplay.core.state.PendingCounterPayment
-import dev.mtgplay.core.state.PendingMadness
 import dev.mtgplay.core.state.PendingMulligan
 import dev.mtgplay.core.state.PendingReplacement
 import dev.mtgplay.core.state.PendingTriggerTargets
@@ -14,21 +13,9 @@ import kotlinx.serialization.Serializable
 /*
  * Wire mirrors of the pre-cast/pre-game choice pending nouns a [SeatView] carries unfiltered: none
  * carries hand contents (the mulligan bottoming and discard selections are the deciding seat's
- * private request options, not stored here).
+ * private request options, not stored here). The two free-cast-from-exile offers live together in
+ * PendingExileCastDtos.kt.
  */
-
-/** Wire form of [PendingMadness] (CR 702.35b). */
-@Serializable
-data class PendingMadnessDto(
-    val owner: Int,
-    val exiledObjectId: Long,
-)
-
-/** [PendingMadness] to its wire form. */
-fun PendingMadness.toDto(): PendingMadnessDto = PendingMadnessDto(owner.seat, exiledObjectId.value)
-
-/** [PendingMadnessDto] back to the engine value. */
-fun PendingMadnessDto.toDomain(): PendingMadness = PendingMadness(PlayerId(owner), ObjectId(exiledObjectId))
 
 /** Wire form of [PendingReplacement] (CR 616.1). */
 @Serializable

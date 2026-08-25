@@ -44,16 +44,25 @@ internal data class SpellLeftStack(
  * Locates the entry by its stack-residence object id, never by position: see the file comment. Fails
  * loudly if it is not on the stack at all, which would mean the caller is moving a card that has already
  * left (an engine defect, and the exact double-move a position-based removal would perform silently).
+ *
+ * @param exileInstead forces the exile destination for a departure that is *not* a property of how the
+ *   spell was cast. **Rebound** (CR 702.88a) is the only caller: unlike flashback, whose
+ *   `exilesOnLeaveStack` covers every way a spell leaves the stack, rebound replaces the graveyard move
+ *   *only as the spell resolves* — a countered or fizzled Ephemerate goes to the graveyard and does not
+ *   rebound. So the condition cannot live on [dev.mtgplay.core.definition.CastingPermission], where it
+ *   would silently also fire on the counter and fizzle paths; it is decided by the resolution caller and
+ *   passed in.
  */
 internal fun putSpellOffStack(
     state: GameState,
     entry: StackEntry.Spell,
+    exileInstead: Boolean = false,
 ): SpellLeftStack {
     val index = state.sharedZones.stack.indexOfFirst { (it as? StackEntry.Spell)?.obj?.id == entry.obj.id }
     check(index >= 0) {
         "CR 400.7: ${entry.obj.card.name} (${entry.obj.id}) is not on the stack, so it cannot leave it"
     }
-    val exilesInstead = entry.castVia?.exilesOnLeaveStack == true
+    val exilesInstead = entry.castVia?.exilesOnLeaveStack == true || exileInstead
     val (id, allocated) = state.allocateObjectId()
     val reborn = entry.obj.copy(id = id)
     val destacked = allocated.updateStack { it.removingAt(index) }

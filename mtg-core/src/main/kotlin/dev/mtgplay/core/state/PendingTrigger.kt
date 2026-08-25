@@ -4,6 +4,8 @@ import dev.mtgplay.core.definition.TriggeredAbility
 import dev.mtgplay.core.identity.CardRef
 import dev.mtgplay.core.identity.ObjectId
 import dev.mtgplay.core.identity.PlayerId
+import kotlinx.collections.immutable.PersistentList
+import kotlinx.collections.immutable.persistentListOf
 
 /**
  * A triggered ability that has fired (CR 603.3) but is not yet resolving — the load-bearing record of
@@ -34,6 +36,16 @@ import dev.mtgplay.core.identity.PlayerId
  * @property subject the specific object the effect acts on beyond its controller (CR 603.10), e.g. the
  *   graveyard object Rancor returns to hand or the object that entered the battlefield; `null` when
  *   the trigger acts on no specific object.
+ * @property linkedExiled the exile objects the source had recorded under CR 607.2 when this trigger
+ *   fired, or empty when it had recorded none. Additive, flagged core (`FW-LINKEDEXILE`,
+ *   docs/design/exile-and-return.md §4).
+ *
+ *   This is [subject]'s plural, linked sibling and it exists for the same CR 603.10 reason: Journey to
+ *   Nowhere's leaves-the-battlefield trigger has to return *the card Journey exiled*, and by the time
+ *   that ability resolves the Journey permanent is gone — so the link cannot be re-read off the
+ *   battlefield and must be captured as the trigger fires. Distinct from [subject], which names one
+ *   object the effect acts on in the *current* zone; these name objects in exile that a **linked**
+ *   ability (CR 607.2) put there.
  */
 data class PendingTrigger(
     val sourceId: ObjectId,
@@ -42,4 +54,5 @@ data class PendingTrigger(
     val ability: TriggeredAbility,
     val amount: Int = 0,
     val subject: ObjectId? = null,
+    val linkedExiled: PersistentList<ObjectId> = persistentListOf(),
 )

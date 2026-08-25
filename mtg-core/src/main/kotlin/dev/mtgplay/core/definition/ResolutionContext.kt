@@ -56,6 +56,18 @@ import kotlinx.collections.immutable.persistentListOf
  *   [dev.mtgplay.core.state.DamageSource]: an object's characteristics are looked up by [CardRef]
  *   through the definition registry, which works whatever zone the source has reached by the time
  *   its damage lands, while its id may name nothing anywhere (CR 400.7).
+ * @property linkedExiled the exile objects a **linked** ability (CR 607.2) of this ability's source put
+ *   into exile, in the order exiled; empty for every spell and for an ability with no linked partner.
+ *   Additive, flagged core (`FW-LINKEDEXILE`, docs/design/exile-and-return.md §4). The linked
+ *   information Journey to Nowhere's second ability reads ("return **the exiled card**") and Mesmeric
+ *   Fiend's ("return the exiled card to its owner's hand"), supplied from
+ *   [dev.mtgplay.core.state.PendingTrigger.linkedExiled].
+ *
+ *   Like [sacrificedForCost] this is captured rather than looked up, and for the sharper version of the
+ *   same reason: the source permanent has *already left the battlefield* when the ability that reads
+ *   this resolves, so there is nothing left to read the link off (CR 603.10). Unlike
+ *   [sacrificedForCost] it is the live [ObjectId] rather than a printed [CardRef], because the effect
+ *   must move that exact exile object and not merely name a card.
  */
 data class ResolutionContext(
     val controller: PlayerId,
@@ -66,6 +78,7 @@ data class ResolutionContext(
     val source: ObjectId? = null,
     val sacrificedForCost: PersistentList<CardRef> = persistentListOf(),
     val sourceCard: CardRef? = null,
+    val linkedExiled: PersistentList<ObjectId> = persistentListOf(),
 ) {
     /**
      * The [dev.mtgplay.core.state.DamageSource] this resolving object is, for the damage primitives

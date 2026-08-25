@@ -92,6 +92,10 @@ object Responders {
                 // resolving, so reaching one is a defect, not a decision.
                 is DecisionRequest.ChooseCounterPayment ->
                     error("the pass-everything responder never casts a counter: $request")
+                // CR 701.16a: a revealed-hand choice only exists while a Duress-shaped object this policy
+                // never cast is resolving, so reaching one is a defect, not a decision.
+                is DecisionRequest.ChooseRevealedHandCard ->
+                    error("the pass-everything responder never casts a hand-reveal spell: $request")
                 // CR 103.4/103.5: the passive policy keeps every hand at seven — so no bottoming ever
                 // follows — but bottoms the lowest indices if a mulligan game is ever driven this way.
                 is DecisionRequest.MulliganRequest -> keepAtSeven(request)

@@ -54,7 +54,7 @@ private fun moveDeadCreatureToGraveyard(
             .emit(GameEvent.CreatureDied(objectId, dead.card, graveyardId))
     // CR 603.6b, CR 603.10: a "put into a graveyard from the battlefield" trigger fires now, matched
     // against the creature's pre-death state (no MVP creature has one, but a token or later card may).
-    return detectPutIntoGraveyardTriggers(moved, dead, graveyardId)
+    return announceBattlefieldDeparture(moved, dead, graveyardId)
 }
 
 /**

@@ -100,6 +100,9 @@ private fun applySizedSelection(
             applyOptionalCostObject(state, request.options[decision.indices.single()].objectId)
         is DecisionRequest.ChooseResolutionDiscards ->
             applyResolutionDiscards(state, decision.indices.map { request.options[it].objectId })
+        // CR 701.7a: answered by an *opponent* of the resolving object's controller, over their own hand.
+        is DecisionRequest.ChooseOpponentDiscards ->
+            applyOpponentDiscards(state, decision.indices.map { request.options[it].objectId })
     }
 }
 
@@ -151,15 +154,21 @@ private fun applyChosenYesNo(
 ): AdvanceResult {
     check(decision is Decision.SingleSelect) { "unreachable: decision shape was validated against the request" }
     val accept = decision.index == DecisionRequest.ChooseYesNo.ACCEPT
-    // Three yes/no flows share this request: madness's reflexive cast (CR 702.35b), the optional
-    // discard-then-draw clause (CR 601.3b), and a library look's optional shuffle (CR 601.3b, Ponder);
-    // the pending record present says which. Tested in the order pendingDecisionRequest derives them in,
-    // so an answer can never be routed to a flow other than the one that was asked.
+    // Four yes/no flows share this request: madness's reflexive cast (CR 702.35b), the optional
+    // discard-then-draw clause (CR 601.3b), a library look's optional shuffle (CR 601.3b, Ponder), and
+    // rebound's delayed free cast (CR 702.88b); the pending record present says which. Tested in the
+    // order pendingDecisionRequest derives them in, so an answer can never be routed to a flow other
+    // than the one that was asked.
     return when {
         state.pendingOptionalDiscardDraw != null -> applyOptionalDiscardYesNo(state, accept)
         state.pendingLibraryLook != null -> applyLibraryLookShuffle(state, accept)
         state.pendingMadness != null -> applyMadnessCastChoice(state, accept)
-        else -> error("a yes/no was answered with no pending madness, discard, or look flow (${request.card.name})")
+        state.pendingRebound != null -> applyReboundCastChoice(state, accept)
+        else ->
+            error(
+                "a yes/no was answered with no pending madness, rebound, discard, or look flow " +
+                    "(${request.card.name})",
+            )
     }
 }
 

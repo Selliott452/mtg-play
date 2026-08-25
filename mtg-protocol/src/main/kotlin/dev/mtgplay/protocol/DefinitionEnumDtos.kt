@@ -4,22 +4,19 @@ import dev.mtgplay.core.definition.AbilityZoneScope
 import dev.mtgplay.core.definition.CastSource
 import dev.mtgplay.core.definition.LibraryLookSource
 import dev.mtgplay.core.definition.OptionalCostMode
-import dev.mtgplay.core.event.LossReason
+import dev.mtgplay.core.definition.RevealedCardOutcome
 import kotlinx.serialization.Serializable
 
 /*
- * Wire mirrors of the card-definition/outcome enums, plus the two data-free sealed families
+ * Wire mirrors of the card-definition enums, plus the two data-free sealed families
  * ([AbilityZoneScope], [OptionalCostMode]) that serialize as enum values. Every mapping is an
- * exhaustive `when` (no `else`).
+ * exhaustive `when` (no `else`). The match-outcome enum lives with the result it explains, in
+ * MatchResultDto.kt.
  */
 
 /** Wire form of [CastSource] (CR 601.2a). */
 @Serializable
 enum class CastSourceDto { HAND, GRAVEYARD, EXILE }
-
-/** Wire form of [LossReason] (CR 104.3). */
-@Serializable
-enum class LossReasonDto { LIFE_TOTAL_ZERO_OR_LESS, ATTEMPTED_DRAW_FROM_EMPTY_LIBRARY }
 
 /** Wire form of [AbilityZoneScope] (CR 113.6) — a data-free sealed family, so an enum on the wire. */
 @Serializable
@@ -33,6 +30,14 @@ enum class OptionalCostModeDto { DISCARD_CARD, SACRIFICE_LAND }
 @Serializable
 enum class LibraryLookSourceDto { TOP_OF_LIBRARY, HAND }
 
+/**
+ * Wire form of [RevealedCardOutcome] (CR 701.16a) — what happens to the card chosen from a revealed
+ * hand: the owner discards it (CR 701.7a, Duress) or it is exiled and recorded as the choosing
+ * source's linked exile (CR 701.3a/CR 607.2, Mesmeric Fiend). Added by `FW-HIDDENCHOICE`.
+ */
+@Serializable
+enum class RevealedCardOutcomeDto { DISCARD, EXILE_LINKED }
+
 /** [LibraryLookSource] to its wire form. */
 fun LibraryLookSource.toDto(): LibraryLookSourceDto =
     when (this) {
@@ -45,6 +50,20 @@ fun LibraryLookSourceDto.toDomain(): LibraryLookSource =
     when (this) {
         LibraryLookSourceDto.TOP_OF_LIBRARY -> LibraryLookSource.TOP_OF_LIBRARY
         LibraryLookSourceDto.HAND -> LibraryLookSource.HAND
+    }
+
+/** [RevealedCardOutcome] to its wire form. */
+fun RevealedCardOutcome.toDto(): RevealedCardOutcomeDto =
+    when (this) {
+        RevealedCardOutcome.DISCARD -> RevealedCardOutcomeDto.DISCARD
+        RevealedCardOutcome.EXILE_LINKED -> RevealedCardOutcomeDto.EXILE_LINKED
+    }
+
+/** [RevealedCardOutcomeDto] back to the engine value. */
+fun RevealedCardOutcomeDto.toDomain(): RevealedCardOutcome =
+    when (this) {
+        RevealedCardOutcomeDto.DISCARD -> RevealedCardOutcome.DISCARD
+        RevealedCardOutcomeDto.EXILE_LINKED -> RevealedCardOutcome.EXILE_LINKED
     }
 
 /** [CastSource] to its wire form. */
@@ -61,20 +80,6 @@ fun CastSourceDto.toDomain(): CastSource =
         CastSourceDto.HAND -> CastSource.HAND
         CastSourceDto.GRAVEYARD -> CastSource.GRAVEYARD
         CastSourceDto.EXILE -> CastSource.EXILE
-    }
-
-/** [LossReason] to its wire form. */
-fun LossReason.toDto(): LossReasonDto =
-    when (this) {
-        LossReason.LIFE_TOTAL_ZERO_OR_LESS -> LossReasonDto.LIFE_TOTAL_ZERO_OR_LESS
-        LossReason.ATTEMPTED_DRAW_FROM_EMPTY_LIBRARY -> LossReasonDto.ATTEMPTED_DRAW_FROM_EMPTY_LIBRARY
-    }
-
-/** [LossReasonDto] back to the engine value. */
-fun LossReasonDto.toDomain(): LossReason =
-    when (this) {
-        LossReasonDto.LIFE_TOTAL_ZERO_OR_LESS -> LossReason.LIFE_TOTAL_ZERO_OR_LESS
-        LossReasonDto.ATTEMPTED_DRAW_FROM_EMPTY_LIBRARY -> LossReason.ATTEMPTED_DRAW_FROM_EMPTY_LIBRARY
     }
 
 /** [AbilityZoneScope] to its wire form. */

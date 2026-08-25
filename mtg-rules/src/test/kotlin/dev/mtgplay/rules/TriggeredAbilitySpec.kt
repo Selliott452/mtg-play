@@ -24,7 +24,7 @@ import dev.mtgplay.core.state.TurnStep
 import dev.mtgplay.rules.decision.Decision
 import dev.mtgplay.rules.decision.DecisionRequest
 import dev.mtgplay.rules.effect.gainLife
-import dev.mtgplay.rules.engine.detectPutIntoGraveyardTriggers
+import dev.mtgplay.rules.engine.announceBattlefieldDeparture
 import dev.mtgplay.rules.engine.finishCleanup
 import dev.mtgplay.rules.engine.priorityTo
 import dev.mtgplay.rules.engine.resolveTopOfStack
@@ -123,7 +123,7 @@ class TriggeredAbilitySpec :
             val leftObject = GameObject(ObjectId(5), source, alice)
             val state = triggerState(definitions = mapOf(source to definition))
             // The object left the battlefield and was reborn in the graveyard as object 9.
-            val detected = detectPutIntoGraveyardTriggers(state, leftObject, ObjectId(9))
+            val detected = announceBattlefieldDeparture(state, leftObject, ObjectId(9))
             val fired = detected.pendingTriggers.single()
             fired.sourceId shouldBe ObjectId(5)
             fired.sourceCard shouldBe source

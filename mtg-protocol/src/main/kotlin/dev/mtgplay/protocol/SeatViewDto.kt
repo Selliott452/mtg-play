@@ -39,6 +39,9 @@ data class SeatViewDto(
     val pendingLibraryLook: PendingLibraryLookViewDto?,
     val pendingTriggerTargets: PendingTriggerTargetsDto?,
     val pendingCounterPayment: PendingCounterPaymentDto?,
+    val pendingHandReveal: PendingHandRevealViewDto?,
+    val pendingOpponentDiscard: PendingOpponentDiscardViewDto?,
+    val pendingRebound: PendingReboundDto?,
     val timedEffects: List<TimedContinuousEffectDto>,
 )
 
@@ -69,6 +72,9 @@ fun SeatView.toDto(): SeatViewDto =
         pendingLibraryLook = pendingLibraryLook?.toDto(),
         pendingTriggerTargets = pendingTriggerTargets?.toDto(),
         pendingCounterPayment = pendingCounterPayment?.toDto(),
+        pendingHandReveal = pendingHandReveal?.toDto(),
+        pendingOpponentDiscard = pendingOpponentDiscard?.toDto(),
+        pendingRebound = pendingRebound?.toDto(),
         timedEffects = timedEffects.map { it.toDto() },
     )
 
@@ -99,5 +105,8 @@ fun SeatViewDto.toDomain(): SeatView =
         pendingLibraryLook = pendingLibraryLook?.toDomain(),
         pendingTriggerTargets = pendingTriggerTargets?.toDomain(),
         pendingCounterPayment = pendingCounterPayment?.toDomain(),
+        pendingHandReveal = pendingHandReveal?.toDomain(),
+        pendingOpponentDiscard = pendingOpponentDiscard?.toDomain(),
+        pendingRebound = pendingRebound?.toDomain(),
         timedEffects = timedEffects.map { it.toDomain() },
     )

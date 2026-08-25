@@ -48,6 +48,10 @@ internal fun resolveAbility(
             // CR 120.1 + CR 113.7c: a triggered ability's damage source is its source object, as
             // last-known information — the source may have left the battlefield since it fired.
             sourceCard = trigger.sourceCard,
+            // CR 607.2, CR 603.10: the linked exile record the source held when this trigger fired.
+            // Read from the trigger and never from the battlefield: a leaves-the-battlefield ability's
+            // source is by definition already gone by the time it resolves.
+            linkedExiled = trigger.linkedExiled,
         )
     val resolved = trigger.ability.effect.resolve(state, context)
     // Relaxed by `FW-COUNTER` from "the stack is unchanged", which is false for any ability that
@@ -94,6 +98,7 @@ private fun resolveOrchestratedTrigger(
 ): AdvanceResult? =
     when {
         entry.trigger.ability.condition == TriggerCondition.MadnessCast -> resolveMadnessTrigger(state, entry)
+        entry.trigger.ability.condition == TriggerCondition.ReboundCast -> resolveReboundTrigger(state, entry)
         entry.trigger.ability.optionalDiscardDraw != null -> resolveOptionalDiscardDrawTrigger(state, entry)
         else -> null
     }

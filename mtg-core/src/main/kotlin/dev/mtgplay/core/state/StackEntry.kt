@@ -175,6 +175,24 @@ val StackEntry.resolutionSourceId: ObjectId
             is StackEntry.ActivatedAbilityOnStack -> sourceId
         }
 
+/**
+ * The targets this stack object chose, in the order chosen (CR 601.2c, CR 602.2b, CR 603.3d) — empty for
+ * an untargeted one. The projection that lets a mid-resolution clause read its object's targets without
+ * knowing which of the three kinds it is, exactly as [resolutionController] does for the decider.
+ *
+ * Its first client is the hand-reveal clause (`FW-HIDDENCHOICE`), which reveals *the targeted opponent's*
+ * hand and so must reach the target from inside an orchestrator that takes a plain [StackEntry]: Duress
+ * declares the clause on a spell and Mesmeric Fiend on a triggered ability, and the clause is written
+ * once.
+ */
+val StackEntry.resolutionTargets: PersistentList<Target>
+    get() =
+        when (this) {
+            is StackEntry.Spell -> targets
+            is StackEntry.Ability -> targets
+            is StackEntry.ActivatedAbilityOnStack -> targets
+        }
+
 /** The printed identity of this stack object's source (CR 201) — the counterpart of [resolutionSourceId]. */
 val StackEntry.resolutionSourceCard: CardRef
     get() =

@@ -14,9 +14,15 @@ import dev.mtgplay.rules.decision.DecisionRequest
 /**
  * The printed identities this view's zones name, and nothing else: the shared public zones, both
  * seats' graveyards (CR 404, public), the fired triggers' and stack entries' sources, the revealed
- * cards (CR 701.16), and the viewer's own hand — an opponent's hand is a [HandView.Concealed] count
- * that holds no objects, so it can contribute nothing (ADR-007). Libraries are counts and contribute
- * nothing on either side.
+ * cards (CR 701.16), an opponent's hand while it is **revealed** (CR 701.16a, `FW-HIDDENCHOICE`), and
+ * the viewer's own hand — an unrevealed opponent's hand is a [HandView.Concealed] count that holds no
+ * objects, so it can contribute nothing (ADR-007). Libraries are counts and contribute nothing on
+ * either side.
+ *
+ * **`FW-NONCTRLDEC` deliberately added nothing here.** An each-opponent discard (CR 701.7a) is decided
+ * by a seat over its own hidden hand, and [SeatView.pendingOpponentDiscard] is count-only by
+ * construction, so it names no card for this set to pick up — the opposite of the reveal above. The
+ * deciding seat's own options are already covered by its own [HandView.Revealed].
  *
  * Taking the already-filtered [view] as input rather than the raw
  * [dev.mtgplay.core.state.GameState] is deliberate: a hidden card can only reach this set by first
@@ -39,6 +45,11 @@ internal fun visibleCardRefs(view: SeatView): Set<CardRef> =
         view.stack.forEach { add(stackEntryCard(it)) }
         view.pendingTriggers.forEach { add(it.sourceCard) }
         view.pendingReveal?.revealed?.forEach { add(it.card) }
+        // CR 701.16a: a revealed hand is public to every seat for as long as the reveal is open, so
+        // both seats must be able to name its cards. This is the one clause that contributes identities
+        // from a *hand* other than the viewer's own, and it is legitimate for the same reason the
+        // pendingReveal clause above it is (`FW-HIDDENCHOICE`).
+        view.pendingHandReveal?.revealed?.forEach { add(it.card) }
         addAll(privateArrangementCardRefs(view.pendingDecision))
         view.players.forEach { player ->
             player.graveyard.forEach { add(it.card) }

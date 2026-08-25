@@ -1188,6 +1188,111 @@ sealed interface DecisionRequest {
     }
 
     /**
+     * The choice from an opponent's **revealed** hand (CR 701.16a): [seat] — the resolving spell's or
+     * ability's **controller** — must pick one of [options] by index. Duress's "You choose a
+     * noncreature, nonland card from it" and Mesmeric Fiend's "you choose a nonland card from it".
+     * Additive, flagged (`FW-HIDDENCHOICE`, docs/design/exile-and-return.md §7).
+     *
+     * **This request's options are legitimately public**, and that is the whole ADR-007 content of it:
+     * the revealing player was told to reveal their hand and did, so those cards are known to the table
+     * (CR 701.16a) for as long as the reveal is open. There is nothing to redact and the seat view
+     * carries the same cards for both seats. Contrast [ChooseOpponentDiscards], which is the opposite
+     * case in every respect.
+     *
+     * Surfaced only when at least one revealed card satisfies the restriction — a hand of nothing but
+     * lands offers no legal choice, so the clause does nothing rather than enumerating an empty request
+     * (ADR-005: an illegal option has no index).
+     *
+     * @property revealer the opponent whose hand was revealed — **not** the deciding seat.
+     * @property sourceCard the resolving object's printed identity, for display.
+     * @property options the revealed cards that may be chosen, in the revealer's hand order.
+     */
+    data class ChooseRevealedHandCard(
+        override val id: DecisionRequestId,
+        val revealer: PlayerId,
+        val sourceCard: CardRef,
+        val options: List<Option>,
+    ) : SingleOptionSelection {
+        override val optionCount: Int get() = options.size
+
+        init {
+            require(options.isNotEmpty()) {
+                "CR 701.16a: a hand-reveal choice is surfaced only when a legal choice exists"
+            }
+            require(id.seat != revealer) {
+                "CR 701.16a: the chooser is the resolving object's controller, never the revealer $revealer"
+            }
+        }
+
+        /**
+         * One revealed card in the opponent's hand that may be chosen.
+         *
+         * @property objectId the revealer's hand object.
+         * @property card its printed identity — public, because it was revealed.
+         */
+        data class Option(
+            val objectId: ObjectId,
+            val card: CardRef,
+        )
+    }
+
+    /**
+     * An "each opponent discards a card" selection made by **an opponent of the resolving object's
+     * controller**, over their own hand (CR 701.7a): [seat] must select exactly [count] cards from
+     * [options] — their own hand, one entry per card — by index. Refurbished Familiar's. Additive,
+     * flagged (`FW-NONCTRLDEC`, docs/design/exile-and-return.md §6).
+     *
+     * **The first request in the engine whose deciding seat is not the resolving object's controller
+     * *and* whose options are hidden from that controller.** `FW-COUNTER`'s [ChooseCounterPayment] was
+     * the first of the first kind, but its options are payment plans over the battlefield, which is
+     * public (CR 400.2); a hand is not (CR 402.1).
+     *
+     * The ADR-007 ruling this encodes: a `DecisionRequest` is delivered **only to `id.seat`**, so
+     * enumerating the decider's own hand here leaks nothing by construction — the controller never
+     * receives this object. What the controller does see is the *fact* of the pause, through the
+     * count-only [dev.mtgplay.core.state.PendingOpponentDiscard] projection in their seat view. The
+     * options are the decider's own cards, so from the decider's side this is no more revealing than
+     * their ordinary cleanup discard ([ChooseDiscards]) — the asymmetry is entirely in who is handed
+     * the request.
+     *
+     * @property controller the resolving object's controller, who must not see [options]; carried for
+     *   display so the deciding seat knows whose card is making them discard.
+     * @property sourceCard the resolving object's printed identity, for display.
+     * @property options one entry per card in [seat]'s own hand, in hand order.
+     * @property count how many must be discarded.
+     */
+    data class ChooseOpponentDiscards(
+        override val id: DecisionRequestId,
+        val controller: PlayerId,
+        val sourceCard: CardRef,
+        val options: List<Option>,
+        val count: Int,
+    ) : SizedSelection {
+        override val optionCount: Int get() = options.size
+        override val requiredCount: Int get() = count
+
+        init {
+            require(count in 1..options.size) {
+                "CR 701.7a: opponent discard count must be between 1 and hand size ${options.size}, was $count"
+            }
+            require(id.seat != controller) {
+                "CR 701.7a: an each-opponent discard is decided by an opponent, never by the controller $controller"
+            }
+        }
+
+        /**
+         * One card in the deciding opponent's own hand.
+         *
+         * @property objectId the hand object that would be discarded.
+         * @property card its printed identity, for display — visible to the deciding seat only.
+         */
+        data class Option(
+            val objectId: ObjectId,
+            val card: CardRef,
+        )
+    }
+
+    /**
      * A "put one of these library cards into your hand, or find none" choice of a library search (CR 701.18):
      * [seat] searched their library and may find up to one matching card (Ash Barrens' basic land card).
      * Answered with a [Decision.SingleSelect] whose index is one of [options] to find that card, or the extra

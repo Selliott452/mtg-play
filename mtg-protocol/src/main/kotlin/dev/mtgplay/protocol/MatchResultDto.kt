@@ -1,5 +1,6 @@
 package dev.mtgplay.protocol
 
+import dev.mtgplay.core.event.LossReason
 import dev.mtgplay.core.identity.PlayerId
 import dev.mtgplay.rules.MatchResult
 import kotlinx.serialization.Serializable
@@ -23,3 +24,21 @@ fun MatchResult.toDto(): MatchResultDto = MatchResultDto(winner.seat, loser.seat
 
 /** [MatchResultDto] back to the engine value. */
 fun MatchResultDto.toDomain(): MatchResult = MatchResult(PlayerId(winner), PlayerId(loser), reason.toDomain())
+
+/** Wire form of [LossReason] (CR 104.3) — the only reason a [MatchResultDto] ever carries. */
+@Serializable
+enum class LossReasonDto { LIFE_TOTAL_ZERO_OR_LESS, ATTEMPTED_DRAW_FROM_EMPTY_LIBRARY }
+
+/** [LossReason] to its wire form. */
+fun LossReason.toDto(): LossReasonDto =
+    when (this) {
+        LossReason.LIFE_TOTAL_ZERO_OR_LESS -> LossReasonDto.LIFE_TOTAL_ZERO_OR_LESS
+        LossReason.ATTEMPTED_DRAW_FROM_EMPTY_LIBRARY -> LossReasonDto.ATTEMPTED_DRAW_FROM_EMPTY_LIBRARY
+    }
+
+/** [LossReasonDto] back to the engine value. */
+fun LossReasonDto.toDomain(): LossReason =
+    when (this) {
+        LossReasonDto.LIFE_TOTAL_ZERO_OR_LESS -> LossReason.LIFE_TOTAL_ZERO_OR_LESS
+        LossReasonDto.ATTEMPTED_DRAW_FROM_EMPTY_LIBRARY -> LossReason.ATTEMPTED_DRAW_FROM_EMPTY_LIBRARY
+    }

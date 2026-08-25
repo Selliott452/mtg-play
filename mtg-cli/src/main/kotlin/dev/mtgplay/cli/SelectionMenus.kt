@@ -47,6 +47,11 @@ private fun sizedHeaderAndNames(request: DecisionRequest.SizedSelection): Pair<S
         is DecisionRequest.ChooseResolutionDiscards ->
             "Discard exactly ${request.count} card(s) as the spell resolves (CR 601.2c):" to
                 request.options.map { it.card.name }
+        // CR 701.7a: the deciding seat is an *opponent* of the resolving object's controller, so the
+        // header names the card making them discard — they did not choose to be here.
+        is DecisionRequest.ChooseOpponentDiscards ->
+            "Discard exactly ${request.count} card(s) to ${request.sourceCard.name} (CR 701.7a):" to
+                request.options.map { it.card.name }
     }
 
 /**

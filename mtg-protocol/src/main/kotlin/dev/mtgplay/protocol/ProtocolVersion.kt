@@ -231,5 +231,43 @@ package dev.mtgplay.protocol
  * bump carries every break in the wave. `FW-MULTITGT` lands inside that same unreleased wave, so it
  * is folded in rather than bumped to `7.0.0` — parallel packets in this wave may reach the same
  * conclusion, and one shared bump is meant to carry all of them.
+ *
+ * bump carries every break in the wave.
+ *
+ * *`FW-BLINK`, `FW-LINKEDEXILE`, `FW-HIDDENCHOICE`, `FW-NONCTRLDEC`* (docs/design/exile-and-return.md).
+ * The exile-and-return wave breaks the wire in **both** directions and in three ways, any one of which
+ * would be a major bump on the standard the last four versions set. It is absorbed into `6.0.0` rather
+ * than bumped to `7.0.0` on this file's own established standard, stated in the `5.0.0` note and applied
+ * again above: **`6.0.0` is unreleased.** The only tag is `v0.1.0`, which shipped protocol `1.0.0`, so
+ * `1.0.0` — not `6.0.0` — remains the last version any consumer can have seen, and an unshipped major
+ * absorbs further breaks from the same wave rather than inflating the major count for a version nobody
+ * could have consumed. Naming the breaks is still owed, and they are:
+ * 1. [GameObjectDto] gains **required** `linkedExiled` (CR 607.2's linked-ability exile record,
+ *    `FW-LINKEDEXILE`) and `reboundTurn` (CR 702.88a's exile marker, `FW-BLINK`). Every game object on
+ *    the wire is a [GameObjectDto], so a strict `5.0.0` codec (`ignoreUnknownKeys = false`) rejects
+ *    **every seat view**, not only the ones with an exiled card in play — precisely the break shape
+ *    `FW-COUNTERS` records directly above, and the fields are required for the same reason: an
+ *    omitted-by-default linked-exile record would let an old client watch a Journey to Nowhere leave the
+ *    battlefield and never learn which card comes back.
+ * 2. [SeatViewDto] gains **required** `pendingHandReveal` (`FW-HIDDENCHOICE`), `pendingOpponentDiscard`
+ *    (`FW-NONCTRLDEC`), and `pendingRebound` (`FW-BLINK`), which a `5.0.0` peer's strict codec likewise
+ *    rejects outright — the shape `4.0.0` recorded for `pendingLibraryLook`. [CastingPermissionDto]
+ *    gains its payload-free `rebound` discriminator alongside them, met as a **runtime** decode failure
+ *    inside a priority window's cast options.
+ * 3. [DecisionRequestDto] gains [DecisionRequestDto.ChooseRevealedHandCard] (CR 701.16a) and
+ *    [DecisionRequestDto.ChooseOpponentDiscards] (CR 701.7a), and [DecisionRequestKindDto] gains
+ *    `CHOOSE_REVEALED_HAND_CARD` and `CHOOSE_OPPONENT_DISCARDS`. Their `valueOf` mapping fails at
+ *    **runtime** rather than at compile time, so an old peer meets the new `choose_revealed_hand_card` /
+ *    `choose_opponent_discards` discriminators and kind names as a decode exception mid-match — the
+ *    sharper of the two break modes, and answerable client→server too, since both are decisions an agent
+ *    sends an index for.
+ *
+ * `FW-NONCTRLDEC`'s break is the one worth reading twice, because the wire shape encodes an ADR-007
+ * ruling rather than a convenience: `ChooseOpponentDiscards` enumerates the **deciding seat's own hand**
+ * and is delivered only to `id.seat`, while `SeatViewDto.pendingOpponentDiscard` is count-only for every
+ * seat including that one. The two must not be brought into line — a peer that filled the seat-view
+ * record from the request would be publishing a hand the resolving object's controller may not see
+ * (CR 402.1). `FW-HIDDENCHOICE` is the deliberate opposite: `pendingHandReveal` carries the revealed
+ * cards in full to *both* seats, because CR 701.16a reveals them to every player.
  */
 const val PROTOCOL_VERSION: String = "6.0.0"

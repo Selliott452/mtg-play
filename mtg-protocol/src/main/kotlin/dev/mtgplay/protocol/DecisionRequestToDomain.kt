@@ -8,8 +8,7 @@ import dev.mtgplay.rules.decision.DecisionRequest
 /*
  * DTO -> engine half of the exhaustive [DecisionRequest] mapping (ADR-008 amendment). Dispatch is
  * grouped by the five sealed families so every `when` stays flat and a new request kind breaks
- * compilation. The engine -> DTO half is in DecisionRequestToDto.kt; the single-option family, which
- * grows fastest, lives in SingleOptionRequestToDomain.kt so each file stays inside its function budget.
+ * compilation. The engine -> DTO half is in DecisionRequestToDto.kt.
  */
 
 /** [DecisionRequestDto] back to the engine value. */
@@ -22,18 +21,8 @@ fun DecisionRequestDto.toDomain(): DecisionRequest =
         is DecisionRequestDto.ChooseYesNo ->
             DecisionRequest.ChooseYesNo(id.toDomain(), prompt, ObjectId(cardObjectId), CardRef(card))
         is DecisionRequestDto.SingleOptionSelectionDto -> singleOptionSelectionToDomain(this)
+        is DecisionRequestDto.RangedSelectionDto -> rangedSelectionToDomain(this)
         is DecisionRequestDto.SizedSelectionDto -> sizedSelectionToDomain(this)
-        // CR 601.2c: the ranged subset family has one member, so it maps inline rather than through a
-        // one-branch helper.
-        is DecisionRequestDto.ChooseMultipleTargets ->
-            DecisionRequest.ChooseMultipleTargets(
-                id.toDomain(),
-                ObjectId(cardObjectId),
-                CardRef(card),
-                options.map { it.toDomain() },
-                minimumCount,
-                maximumCount,
-            )
         is DecisionRequestDto.PermutationSelectionDto -> permutationSelectionToDomain(this)
         is DecisionRequestDto.ChoiceCountSelectionDto -> choiceCountSelectionToDomain(this)
         is DecisionRequestDto.MulliganRequestDto -> mulliganRequestToDomain(this)
@@ -87,6 +76,14 @@ private fun sizedSelectionToDomain(dto: DecisionRequestDto.SizedSelectionDto): D
             DecisionRequest.ChooseResolutionDiscards(
                 dto.id.toDomain(),
                 dto.options.mapOptions { o, c -> DecisionRequest.ChooseResolutionDiscards.Option(o, c) },
+                dto.count,
+            )
+        is DecisionRequestDto.ChooseOpponentDiscards ->
+            DecisionRequest.ChooseOpponentDiscards(
+                dto.id.toDomain(),
+                PlayerId(dto.controller),
+                CardRef(dto.sourceCard),
+                dto.options.mapOptions { o, c -> DecisionRequest.ChooseOpponentDiscards.Option(o, c) },
                 dto.count,
             )
         is DecisionRequestDto.ChooseCardsToExile,
@@ -152,6 +149,7 @@ private fun costSizedSelectionToDomain(dto: DecisionRequestDto.SizedSelectionDto
         is DecisionRequestDto.ChooseOptionalDiscard,
         is DecisionRequestDto.ChooseOptionalCostObject,
         is DecisionRequestDto.ChooseResolutionDiscards,
+        is DecisionRequestDto.ChooseOpponentDiscards,
         -> error("CR 601.2: non-cost sized selection routed to the cost helper: $dto")
     }
 
@@ -197,11 +195,20 @@ private fun mulliganRequestToDomain(dto: DecisionRequestDto.MulliganRequestDto):
             )
     }
 
-/**
- * Maps the shared card-option wire shape to a request's specific nested option via [factory].
- *
- * `internal` rather than file-private since the single-option family moved to
- * SingleOptionRequestToDomain.kt, which needs it for the library arrangement's pool.
- */
+/** Maps the shared card-option wire shape to a request's specific nested option via [factory]. */
 internal inline fun <T> List<CardObjectOptionDto>.mapOptions(factory: (ObjectId, CardRef) -> T): List<T> =
     map { factory(ObjectId(it.objectId), CardRef(it.card)) }
+
+/** The "pick between N and M of these, by distinct index" family (CR 601.2c, `FW-MULTITGT`). */
+private fun rangedSelectionToDomain(dto: DecisionRequestDto.RangedSelectionDto): DecisionRequest =
+    when (dto) {
+        is DecisionRequestDto.ChooseMultipleTargets ->
+            DecisionRequest.ChooseMultipleTargets(
+                dto.id.toDomain(),
+                ObjectId(dto.cardObjectId),
+                CardRef(dto.card),
+                dto.options.map { it.toDomain() },
+                dto.minimumCount,
+                dto.maximumCount,
+            )
+    }

@@ -56,6 +56,51 @@ sealed interface TriggerCondition {
     data object PutIntoGraveyardFromBattlefieldSelf : TriggerCondition
 
     /**
+     * "When this permanent leaves the battlefield" (CR 603.6c, CR 603.10) — the **general**
+     * leaves-the-battlefield trigger, fired by *every* departure rather than only by the one that ends in
+     * a graveyard. Journey to Nowhere's "When this enchantment leaves the battlefield, return the exiled
+     * card" and Mesmeric Fiend's "When this creature leaves the battlefield, return the exiled card to
+     * its owner's hand" both print it. Added by `FW-TRIGLTB` (docs/design/exile-and-return.md §3).
+     *
+     * **Strictly wider than [PutIntoGraveyardFromBattlefieldSelf], and the difference is the whole
+     * reason this member exists.** CR 603.6b's condition is "is put into a graveyard from the
+     * battlefield"; CR 603.6c's is "leaves the battlefield", which a permanent also does by being
+     * exiled (CR 701.3a), returned to a hand (CR 701.4a), or shuffled into a library. Encoding Journey
+     * to Nowhere with the narrower condition would be exactly the silent approximation CONVENTIONS.md
+     * forbids: exile the Journey in response and the creature it holds would stay exiled forever,
+     * which is a different card. The two conditions are deliberately *both* kept rather than the
+     * narrower one being expressed as a filter over this one — Rancor's "when this is put into a
+     * graveyard from the battlefield" genuinely does not fire when Rancor is exiled, and collapsing
+     * them would make that wrong in the opposite direction.
+     *
+     * Per CR 603.10 the condition is checked against the game state just before the object left, and
+     * the fired trigger carries the departed permanent's last-known information — including, for a
+     * linked ability (CR 607), the [dev.mtgplay.core.state.GameObject.linkedExiled] ids it recorded
+     * while it was on the battlefield. A permanent that leaves the battlefield for a graveyard fires
+     * this *and* [PutIntoGraveyardFromBattlefieldSelf], in that order; no card in the pool prints both.
+     */
+    data object LeftBattlefieldSelf : TriggerCondition
+
+    /**
+     * Rebound's delayed "at the beginning of your next upkeep, you may cast this card from exile without
+     * paying its mana cost" ability (CR 702.88a). Added by `FW-BLINK` (docs/design/exile-and-return.md
+     * §5) for Ephemerate.
+     *
+     * Like [MadnessCast] this is never *detected* against a game event in the ordinary way: the rebound
+     * replacement exiles the resolving spell instead of putting it into its owner's graveyard and marks
+     * the exile object, and the upkeep turn-based check synthesizes the fired trigger directly
+     * (functioning from [TriggerZoneScope.Exile]). On resolution the reflexive-cast path offers the
+     * owner a yes/no free cast and, if declined or impossible, **leaves the card in exile** — which is
+     * the one place rebound differs from madness, whose decline puts the card into a graveyard
+     * (CR 702.35b). Its [TriggeredAbility.effect] is unused because the may-cast is the engine's, not a
+     * [ResolutionEffect].
+     *
+     * This is a **narrow** rebound, not the general delayed-triggered-ability framework (CR 603.7),
+     * which the engine still lacks; docs/design/exile-and-return.md §5.1 records the difference.
+     */
+    data object ReboundCast : TriggerCondition
+
+    /**
      * "Whenever enchanted creature deals damage" (CR 603.2) — the Aura watches the object it is
      * attached to (CR 611.2c) and fires when that creature deals damage, combat or noncombat.
      * Armadillo Cloak's "you gain that much life" fires here; the fired trigger carries the amount

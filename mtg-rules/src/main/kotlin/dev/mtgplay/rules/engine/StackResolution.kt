@@ -130,12 +130,19 @@ internal fun completeInstantSorceryResolution(
     state: GameState,
     entry: StackEntry.Spell,
 ): AdvanceResult {
-    val left = putResolvedSpellOffStack(state, entry)
+    // CR 702.88a: rebound replaces the graveyard move *as the spell resolves*, and only for a spell cast
+    // from a hand. Decided here rather than on the permission, so the counter and fizzle paths — which
+    // share putSpellOffStack — are untouched.
+    val rebounds = reboundReplacesGraveyardMove(entry)
+    val left = putResolvedSpellOffStack(state, entry, exileInstead = rebounds)
     val narrated =
         left.state.emit(
             GameEvent.SpellResolved(entry.controller, entry.obj.id, entry.obj.card, left.newObjectId),
         )
-    return grantPriorityRound(narrateLeaveStackExile(narrated, entry, left))
+    val exileNarrated = narrateLeaveStackExile(narrated, entry, left)
+    val marked =
+        if (rebounds) markReboundExile(exileNarrated, left.newObjectId, state.turn.number) else exileNarrated
+    return grantPriorityRound(marked)
 }
 
 /**
@@ -222,7 +229,8 @@ private fun auraAttachmentTargetOf(entry: StackEntry.Spell): ObjectId? =
 private fun putResolvedSpellOffStack(
     state: GameState,
     entry: StackEntry.Spell,
+    exileInstead: Boolean = false,
 ): SpellLeftStack {
     check(state.sharedZones.stack.lastOrNull() == entry) { "CR 608.1: only the topmost stack object may resolve" }
-    return putSpellOffStack(state, entry)
+    return putSpellOffStack(state, entry, exileInstead)
 }

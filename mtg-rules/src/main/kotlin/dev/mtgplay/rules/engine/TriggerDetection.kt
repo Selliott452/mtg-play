@@ -151,25 +151,69 @@ internal fun announceBattlefieldEntry(
 ): GameState = detectEnterBattlefieldTriggers(state.emit(announcement), battlefieldId)
 
 /**
- * Detects put-into-graveyard-from-battlefield-self triggers (CR 603.6b, CR 603.10) for [leftObject],
- * the battlefield object that just moved to the graveyard as the new object [graveyardId]. Matched
- * against [leftObject]'s pre-departure last-known information (its card, id, and controller); each
- * fired trigger carries [graveyardId] as its subject — the fresh graveyard object (CR 400.7) the
- * ability acts on. Rancor's "return this to its owner's hand" fires here. A no-op if [leftObject] has
- * no definition or no such trigger (every creature and non-Rancor Aura in the MVP pool).
+ * Announces that [leftObject] has left the battlefield and fires the triggers that departure fires —
+ * **the one home every departure path shares**, the mirror of [announceBattlefieldEntry].
+ *
+ * Two conditions watch a departure and they are not the same condition:
+ * - [TriggerCondition.LeftBattlefieldSelf] (CR 603.6c) fires for **every** departure — to a graveyard,
+ *   to exile, to a hand, to a library. Journey to Nowhere and Mesmeric Fiend print it.
+ * - [TriggerCondition.PutIntoGraveyardFromBattlefieldSelf] (CR 603.6b) fires **only** when the
+ *   destination is a graveyard, which is what [graveyardId] being non-null means. Rancor prints it.
+ *
+ * Both are matched against [leftObject]'s pre-departure last-known information (CR 603.10) — its card,
+ * id, controller, and the [GameObject.linkedExiled] record a linked ability (CR 607.2) wrote on it while
+ * it was on the battlefield. The graveyard trigger carries [graveyardId] as its subject, the fresh
+ * graveyard object (CR 400.7) it acts on; the general one carries no subject, because the object it acts
+ * on is in exile and is named by the linked record instead.
+ *
+ * **Why this exists rather than six careful call sites.** A permanent leaves the battlefield six ways —
+ * destroyed, sacrificed, dying to lethal damage, falling off as an Aura, exiled, returned to hand — and
+ * before this framework only the four that end in a graveyard fired anything at all. That was correct
+ * while [TriggerCondition.PutIntoGraveyardFromBattlefieldSelf] was the only departure condition, and
+ * became a silent trap the moment CR 603.6c was expressible: a new departure path, or an existing one
+ * nobody thought to revisit, would drop a Journey to Nowhere's return and leave a creature exiled
+ * forever, with no invariant, test, or crash to notice. This is the same "give it one home rather than
+ * be careful six times" move [announceBattlefieldEntry] made for CR 603.6a after the identical failure
+ * (T18), and it is made here *before* the second half of the pair goes wrong rather than after.
+ *
+ * @param graveyardId the fresh graveyard object when the destination is a graveyard, or `null` for a
+ *   departure to any other zone.
  */
-internal fun detectPutIntoGraveyardTriggers(
+internal fun announceBattlefieldDeparture(
     state: GameState,
     leftObject: GameObject,
-    graveyardId: ObjectId,
-): GameState =
-    battlefieldTriggersOf(state, leftObject.card, TriggerCondition.PutIntoGraveyardFromBattlefieldSelf)
-        .fold(state) { current, ability ->
+    graveyardId: ObjectId?,
+): GameState {
+    val general =
+        battlefieldTriggersOf(state, leftObject.card, TriggerCondition.LeftBattlefieldSelf)
+            .fold(state) { current, ability ->
+                enqueuePendingTrigger(
+                    current,
+                    PendingTrigger(
+                        sourceId = leftObject.id,
+                        sourceCard = leftObject.card,
+                        controller = leftObject.owner,
+                        ability = ability,
+                        linkedExiled = leftObject.linkedExiled,
+                    ),
+                )
+            }
+    if (graveyardId == null) return general
+    return battlefieldTriggersOf(general, leftObject.card, TriggerCondition.PutIntoGraveyardFromBattlefieldSelf)
+        .fold(general) { current, ability ->
             enqueuePendingTrigger(
                 current,
-                PendingTrigger(leftObject.id, leftObject.card, leftObject.owner, ability, subject = graveyardId),
+                PendingTrigger(
+                    sourceId = leftObject.id,
+                    sourceCard = leftObject.card,
+                    controller = leftObject.owner,
+                    ability = ability,
+                    subject = graveyardId,
+                    linkedExiled = leftObject.linkedExiled,
+                ),
             )
         }
+}
 
 /**
  * Detects enchanted-creature-deals-damage triggers (CR 603.2) when the creature [damagerId] dealt

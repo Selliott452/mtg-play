@@ -73,6 +73,13 @@ internal fun singleOptionSelectionToDomain(dto: DecisionRequestDto.SingleOptionS
                 dto.options.map { DecisionRequest.ChooseReplacement.Option(it.description) },
             )
         is DecisionRequestDto.ChooseLibraryArrangement -> libraryArrangementToDomain(dto)
+        is DecisionRequestDto.ChooseRevealedHandCard ->
+            DecisionRequest.ChooseRevealedHandCard(
+                dto.id.toDomain(),
+                PlayerId(dto.revealer),
+                CardRef(dto.sourceCard),
+                dto.options.mapOptions { o, c -> DecisionRequest.ChooseRevealedHandCard.Option(o, c) },
+            )
     }
 
 /**

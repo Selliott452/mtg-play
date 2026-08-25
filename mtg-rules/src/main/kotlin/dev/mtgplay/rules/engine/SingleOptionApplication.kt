@@ -48,6 +48,10 @@ internal fun applySingleOptionSelection(
                 state,
                 (request.options[decision.index] as? DecisionRequest.ChooseCounterPayment.Option.Pay)?.plan,
             )
+        // CR 701.16a: the controller's pick from the opponent's revealed hand; the clause's outcome
+        // (discard or linked exile) decides what happens to it.
+        is DecisionRequest.ChooseRevealedHandCard ->
+            applyHandRevealChoice(state, request.options[decision.index].objectId)
     }
 }
 

@@ -156,9 +156,15 @@ private fun midTransitionPauseRequest(state: GameState): DecisionRequest? =
 
 /**
  * The tail of [midTransitionPauseRequest]: a private look's two stages (CR 701.14a/701.17a), a resolving
- * counter's unless-pay (CR 118.3a), or a madness yes/no (CR 702.35b) — or `null` if none is open. Split
- * out only so the dispatch stays inside detekt's complexity budget; the order is a continuation of the
- * one above it and must not be reasoned about separately.
+ * counter's unless-pay (CR 118.3a), a madness yes/no (CR 702.35b), a revealed-hand choice (CR 701.16a),
+ * an each-opponent discard (CR 701.7a), or a rebound yes/no (CR 702.88b) — or `null` if none is open.
+ * Split out only so the dispatch stays inside detekt's complexity budget; the order is a continuation of
+ * the one above it and must not be reasoned about separately.
+ *
+ * The last three are the pauses whose deciding seat need not be the priority holder — and, for the
+ * opponent discard, need not be the resolving object's controller either. That costs this dispatch
+ * nothing, because a request names its own seat ([DecisionRequestId.seat]) and nothing here consults the
+ * priority holder; it is the seat *view* that has to care (ADR-007).
  */
 private fun libraryLookOrLatePauseRequest(state: GameState): DecisionRequest? =
     when {
@@ -169,6 +175,12 @@ private fun libraryLookOrLatePauseRequest(state: GameState): DecisionRequest? =
         // CR 118.3a: the *targeted* spell's controller answers this one, not the resolving counter's.
         state.pendingCounterPayment != null -> pendingCounterPaymentRequest(state)
         state.pendingMadness != null -> pendingMadnessRequest(state)
+        // CR 701.16a: the resolving object's *controller* chooses from the opponent's revealed hand.
+        state.pendingHandReveal != null -> pendingHandRevealRequest(state)
+        // CR 701.7a: an *opponent* of the resolving object's controller chooses from their own hand —
+        // the one pause answered by a seat that is neither the controller nor the priority holder.
+        state.pendingOpponentDiscard != null -> pendingOpponentDiscardRequest(state)
+        state.pendingRebound != null -> pendingReboundRequest(state)
         else -> null
     }
 

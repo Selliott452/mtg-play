@@ -40,6 +40,7 @@ private fun permissionName(permission: CastingPermission): String =
         is CastingPermission.Escape -> "escape ${permission.cost.render()}, exile ${permission.exileOthers} other"
         is CastingPermission.AlternativeCost -> "alternative cost ${permission.cost.render()}"
         is CastingPermission.Plot -> "plot (no mana cost)"
+        CastingPermission.Rebound -> "rebound (no mana cost)"
     }
 
 /** The zone a cast draws from (CR 601.2a). */

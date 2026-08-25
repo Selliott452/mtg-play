@@ -2,6 +2,7 @@ package dev.mtgplay.acceptance
 
 import dev.mtgplay.acceptance.driver.RandomLegalResponder
 import dev.mtgplay.acceptance.driver.ScriptedGame
+import dev.mtgplay.cards.MvpCards
 import dev.mtgplay.core.definition.TokenDefinition
 import dev.mtgplay.core.identity.CardRef
 import dev.mtgplay.core.identity.PlayerId
@@ -15,6 +16,7 @@ import dev.mtgplay.protocol.seatUpdateMessage
 import dev.mtgplay.protocol.toDomain
 import dev.mtgplay.rules.DecisionView
 import dev.mtgplay.rules.HandView
+import dev.mtgplay.rules.MatchConfig
 import dev.mtgplay.rules.SeatView
 import dev.mtgplay.rules.StackEntryView
 import dev.mtgplay.rules.decision.DecisionRequest
@@ -56,6 +58,27 @@ import io.kotest.matchers.types.shouldBeInstanceOf
  * silently — and [checkMultiTargetBounds] adds the ADR-005 half a multi-target option list needs and a
  * single-target one cannot have: the offered bounds are satisfiable, and no object is offered twice, so
  * the engine's distinct-index rule really is CR 601.2c's same-object rule.
+ * answer from the raw state, on every `ChooseTargets` pause, for every seat.
+ *
+ * **`FW-NONCTRLDEC` adds the fourth half, and it is the sharpest one.** Until this packet every decision
+ * was answered by the resolving object's controller, so "the deciding seat may see its options" and "the
+ * controller may see its options" were the same sentence. Refurbished Familiar's "each opponent discards
+ * a card" separates them: the decider is an **opponent** of the controller, and the options are that
+ * opponent's own hand, which the controller may not see (CR 402.1). [checkHiddenOptionOwnership] pins the
+ * ruling — *the enumerated options of a decision belong to `id.seat` and to no other seat* — as a
+ * property over every pause, checking both that no other seat's view names an option card and that the
+ * count-only [dev.mtgplay.rules.PendingOpponentDiscardView] carries no identity at all.
+ *
+ * **`FW-HIDDENCHOICE` extends the oracle rather than relaxing it.** Duress and Mesmeric Fiend make an
+ * opponent *reveal* their hand, and CR 701.16a makes those cards public to the table for as long as the
+ * reveal is open. The forbidden-name oracle is therefore taught about an open reveal in [publicNames],
+ * exactly as it already knows about a library reveal — a name the printed card publishes was never
+ * secret, and an oracle that called it a leak would be asserting the wrong game. Nothing is removed from
+ * the forbidden set that a card does not itself publish.
+ *
+ * The Madness-vs-Bogles corpus contains none of the packet's cards, so a **second** corpus drives the
+ * hidden-choice and non-controller-decision cards through the identical [checkPause], because a property
+ * no game reaches proves nothing.
  */
 class ViewLeakPropertySpec :
     StringSpec({
@@ -93,7 +116,74 @@ class ViewLeakPropertySpec :
             // CR 111: the corpus really does create tokens, so the card-table checks above are exercised on them.
             (tokensDescribed > 0).shouldBeTrue()
         }
+
+        "CR 701.7a + CR 701.16a: the hidden-choice corpus reaches both new pauses and leaks neither" {
+            var pausesChecked = 0
+            var opponentDiscardPauses = 0
+            var handRevealPauses = 0
+
+            for (seed in 0L until HIDDEN_CHOICE_SEEDS) {
+                val game =
+                    ScriptedGame
+                        .start(hiddenChoiceConfig(seed))
+                        .playUntilOverOrBound(
+                            RandomLegalResponder(seed),
+                            turnCap = REAL_CARD_TURN_CAP,
+                            maxDecisions = LEAK_DECISION_CAP,
+                        )
+                for (pause in game.pauses) {
+                    checkPause(pause.state, pause.request)
+                    pausesChecked += 1
+                    if (pause.state.pendingOpponentDiscard != null) opponentDiscardPauses += 1
+                    if (pause.state.pendingHandReveal != null) handRevealPauses += 1
+                }
+            }
+
+            println(
+                "HIDDEN CHOICE CORPUS: $pausesChecked pauses, " +
+                    "$opponentDiscardPauses opponent-discard pauses, $handRevealPauses hand-reveal pauses",
+            )
+            // The property is only worth anything if the corpus actually reaches the new pauses.
+            (opponentDiscardPauses > 0).shouldBeTrue()
+            (handRevealPauses > 0).shouldBeTrue()
+        }
     })
+
+/** Seeds for the hidden-choice corpus; a handful reaches both pauses reliably. */
+private const val HIDDEN_CHOICE_SEEDS: Long = 6L
+
+/**
+ * A two-seat config built to reach the packet's two new pauses: [alice] plays the non-controller and
+ * hidden-choice cards (Refurbished Familiar, Duress, Mesmeric Fiend) and [bob] holds a hand worth
+ * revealing and discarding from. Both libraries are legal 60-card lists of defined cards.
+ */
+private fun hiddenChoiceConfig(seed: Long): MatchConfig =
+    MatchConfig(
+        seed = seed,
+        libraries = mapOf(alice to hiddenChoiceLibrary(), bob to revealTargetLibrary()),
+        definitions = MvpCards.definitions,
+        startingPlayer = null,
+    )
+
+/** [alice]'s library: the packet's opponent-facing cards, on a Swamp base that can cast them. */
+private fun hiddenChoiceLibrary(): List<CardRef> =
+    repeatCard("Refurbished Familiar", 8) +
+        repeatCard("Duress", 8) +
+        repeatCard("Mesmeric Fiend", 8) +
+        repeatCard("Swamp", 36)
+
+/** [bob]'s library: a mix of creature and noncreature spells, so both restrictions find a legal choice. */
+private fun revealTargetLibrary(): List<CardRef> =
+    repeatCard("Grizzly Bears", 8) +
+        repeatCard("Lightning Bolt", 8) +
+        repeatCard("Rancor", 8) +
+        repeatCard("Mountain", 36)
+
+/** [count] copies of the card named [name] (CR 100.2a decklists are multisets). */
+private fun repeatCard(
+    name: String,
+    count: Int,
+): List<CardRef> = List(count) { CardRef(name) }
 
 // A modest corpus sample: full real-card games serialized at every pause on both seats stay well
 // under a couple of seconds while covering mulligans, casts, combat, reveals, and searches.
@@ -153,6 +243,8 @@ private fun checkPause(
     (viewFor(state, request.seat).pendingDecision as DecisionView.ToDecide).request shouldBe request
     // ADR-005 + ADR-007: every target the seat is offered lives in a zone it may see (FW-ZONETGT).
     checkTargetOptionZones(state, request)
+    // ADR-005 + ADR-007: a decision's options belong to its own seat and to no other (FW-NONCTRLDEC).
+    checkHiddenOptionOwnership(state, request)
     return PauseScan(bytesScanned = bytes, tokensDescribed = tokens)
 }
 
@@ -174,6 +266,10 @@ private fun checkCardTable(
     view.stack.forEach { named += stackEntryViewName(it) }
     view.pendingTriggers.forEach { named += it.sourceCard }
     view.pendingReveal?.revealed?.forEach { named += it.card }
+    // CR 701.16a (`FW-HIDDENCHOICE`): an open hand reveal makes those cards public to every seat, so the
+    // view legitimately names them and the table must describe them. Rebuilt here independently of
+    // `visibleCardRefs`, like every other clause in this function.
+    view.pendingHandReveal?.revealed?.forEach { named += it.card }
     view.players.forEach { player ->
         player.graveyard.forEach { named += it.card }
         when (val hand = player.hand) {
@@ -276,6 +372,54 @@ private fun checkMultiTargetBounds(request: DecisionRequest.ChooseMultipleTarget
     request.options.shouldNotBeEmpty()
 }
 
+/**
+ * The `FW-NONCTRLDEC` ruling, pinned as a property (docs/design/exile-and-return.md §6.1): **the
+ * enumerated options of a decision belong to `id.seat` and to no other seat.**
+ *
+ * Checked on an each-opponent discard (CR 701.7a), the first request whose deciding seat is neither the
+ * priority holder nor the resolving object's controller, and whose options are the decider's **own
+ * hand** — a hidden zone (CR 402.1).
+ *
+ * Two halves, and they fail independently:
+ *
+ * *Half one — no other seat's view names an option card.* The controller's view must not carry the
+ * identity of any card in the deciding opponent's hand. Checked against the view's whole card table
+ * rather than against the discard projection alone, because a leak that arrived through some *other*
+ * field would be exactly as bad and exactly as invisible. Cards the controller may legitimately see by
+ * another route are excluded via [publicNames], so a coincidence is never a false alarm.
+ *
+ * *Half two — the projection carries no identity at all.* [dev.mtgplay.rules.PendingOpponentDiscardView]
+ * is count-only by construction, for every seat including the deciding one. Asserting the count matches
+ * the request while no card crosses is what would notice a future "convenience" field being added to it.
+ */
+private fun checkHiddenOptionOwnership(
+    state: GameState,
+    request: DecisionRequest,
+) {
+    val pending = state.pendingOpponentDiscard ?: return
+    val decider = pending.decider
+    val controller = pending.controller
+
+    // Half two: the projection is count-only, in every seat's view, and agrees with the real pause.
+    state.players.keys.forEach { seat ->
+        val projected = viewFor(state, seat).pendingOpponentDiscard.shouldNotBeNull()
+        projected.decider shouldBe decider
+        projected.controller shouldBe controller
+        projected.count shouldBe pending.count
+        projected.remainingCount shouldBe pending.remaining.size
+    }
+
+    // Half one: the deciding seat's hand names never reach the controller's view, by any route.
+    if (request !is DecisionRequest.ChooseOpponentDiscards) return
+    request.id.seat shouldBe decider
+    val controllerJson = seatUpdateMessage(viewFor(state, controller)).encode()
+    val secret = hiddenNames(state, decider, controller)
+    request.options
+        .map { it.card.name }
+        .filter { it in secret }
+        .forEach { name -> controllerJson.contains("\"$name\"") shouldBe false }
+}
+
 /** The printed identity a [StackEntryView] names (CR 405): a spell's card, or an ability's source. */
 private fun stackEntryViewName(entry: StackEntryView): CardRef =
     when (entry) {
@@ -332,6 +476,17 @@ private fun publicNames(
     if (reveal != null) {
         val library = state.players.getValue(reveal.decider).library
         reveal.revealedIds.forEach { id -> library.firstOrNull { it.id == id }?.let { names += it.card.name } }
+    }
+    // CR 701.16a (`FW-HIDDENCHOICE`): a hand told to reveal itself is public to the table while the
+    // reveal is open, so Duress's and Mesmeric Fiend's target's cards are legitimately observable. This
+    // widens the *oracle*, not the view: it records what the printed card publishes, so that a name the
+    // card gave away is not counted as a leak. Every other hand stays secret.
+    val handReveal = state.pendingHandReveal
+    if (handReveal != null) {
+        state.players
+            .getValue(handReveal.revealer)
+            .hand
+            .forEach { names += it.card.name }
     }
     return names
 }

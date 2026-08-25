@@ -71,15 +71,40 @@ interface ResolutionClauses {
      * **instead of** the ordinary effect rather than after it. Both are fixed by moving it here.
      */
     val librarySearch: LibrarySearch? get() = null
+
+    /**
+     * A "target opponent reveals their hand, you choose a card from it, discard or exile it" clause
+     * (CR 701.16), or `null` for a definition with none. Duress's and Mesmeric Fiend's. The decider is
+     * the resolving object's **controller** — see [HandRevealChoice], whose KDoc records why the
+     * printed "*you* choose" makes this a public-information choice rather than a non-controller one.
+     */
+    val handRevealChoice: HandRevealChoice? get() = null
+
+    /**
+     * An "each opponent discards a card" clause (CR 701.7a), or `null` for a definition with none.
+     * Refurbished Familiar's. The **only** clause whose decider is not the resolving object's
+     * controller, and the only one whose option list is hidden from that controller — see
+     * [EachOpponentDiscards].
+     */
+    val eachOpponentDiscards: EachOpponentDiscards? get() = null
 }
 
 /**
  * The clauses [ResolutionClauses] actually declares, in declaration order — empty for a definition
- * that carries none. The one place the four properties are enumerated together, so a fifth clause is
+ * that carries none. The one place the properties are enumerated together, so a further clause is
  * added here rather than at every site that asks "does this carry a clause?".
  */
 val ResolutionClauses.declaredClauses: List<Any>
-    get() = listOfNotNull(libraryReveal, libraryLook, optionalCostThenDraw, drawThenDiscard, librarySearch)
+    get() =
+        listOfNotNull(
+            libraryReveal,
+            libraryLook,
+            optionalCostThenDraw,
+            drawThenDiscard,
+            librarySearch,
+            handRevealChoice,
+            eachOpponentDiscards,
+        )
 
 /**
  * Fails loudly if [clauses] declares more than one post-resolution clause (see [ResolutionClauses]).

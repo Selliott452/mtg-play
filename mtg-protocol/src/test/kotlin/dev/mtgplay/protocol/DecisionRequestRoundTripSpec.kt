@@ -31,6 +31,7 @@ import kotlinx.serialization.encodeToString
 
 /**
  * The schema round-trip (ADR-008): every one of the 29 [DecisionRequest] kinds, and every
+ * The schema round-trip (ADR-008): every one of the 30 [DecisionRequest] kinds, and every
  * [Decision] shape, survives engine value -> DTO -> JSON -> DTO -> engine value unchanged, through
  * the strict [ProtocolJson] codec. The `allRequests` fixture is asserted to cover every kind, so the
  * exhaustive mapping is exercised end to end.
@@ -111,6 +112,12 @@ private val richPriorityWindow: DecisionRequest.ChooseAction =
                 CardRef("Fireblast"),
                 CastSource.HAND,
                 CastingPermission.AlternativeCost(ManaCost.parse("{0}"), SacrificeRequirement(2, Subtype("Mountain"))),
+            ),
+            PriorityOption.CastSpell(
+                ObjectId(11),
+                CardRef("Ephemerate"),
+                CastSource.EXILE,
+                CastingPermission.Rebound,
             ),
             PriorityOption.PlayLand(ObjectId(7), CardRef("Mountain")),
             PriorityOption.PlotCard(ObjectId(8), CardRef("Highway Robbery")),
@@ -351,6 +358,29 @@ private val allRequests: List<DecisionRequest> =
         DecisionRequest.ChooseFromLibrary(
             ID,
             listOf(DecisionRequest.ChooseFromLibrary.Option(ObjectId(1), CardRef("Mountain"))),
+        ),
+        // CR 701.16a: the revealer is the opponent, never the deciding seat — the request's own invariant.
+        DecisionRequest.ChooseRevealedHandCard(
+            ID,
+            revealer = PlayerId(1),
+            sourceCard = CardRef("Duress"),
+            options =
+                listOf(
+                    DecisionRequest.ChooseRevealedHandCard.Option(ObjectId(1), CardRef("Lightning Bolt")),
+                    DecisionRequest.ChooseRevealedHandCard.Option(ObjectId(2), CardRef("Journey to Nowhere")),
+                ),
+        ),
+        // CR 701.7a: decided by an opponent of the controller, over that opponent's own hand.
+        DecisionRequest.ChooseOpponentDiscards(
+            ID,
+            controller = PlayerId(1),
+            sourceCard = CardRef("Refurbished Familiar"),
+            options =
+                listOf(
+                    DecisionRequest.ChooseOpponentDiscards.Option(ObjectId(3), CardRef("Mountain")),
+                    DecisionRequest.ChooseOpponentDiscards.Option(ObjectId(4), CardRef("Bog")),
+                ),
+            count = 1,
         ),
         // CR 701.17a: a scry 2's six arrangements over a two-card pool, the framework's smallest real space.
         DecisionRequest.ChooseLibraryArrangement(

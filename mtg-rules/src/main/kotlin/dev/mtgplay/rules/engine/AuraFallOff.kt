@@ -42,5 +42,5 @@ private fun moveAuraToGraveyard(
             .emit(GameEvent.AuraFellOff(objectId, aura.card, graveyardId))
     // CR 603.6b, CR 603.10: a "put into a graveyard from the battlefield" trigger (Rancor) fires now,
     // matched against the Aura's pre-departure state and carrying the fresh graveyard object it acts on.
-    return detectPutIntoGraveyardTriggers(moved, aura, graveyardId)
+    return announceBattlefieldDeparture(moved, aura, graveyardId)
 }

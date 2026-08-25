@@ -1,6 +1,7 @@
 package dev.mtgplay.rules.engine
 
 import dev.mtgplay.core.card.CardType
+import dev.mtgplay.core.card.PrintedCharacteristics
 import dev.mtgplay.core.card.Supertype
 import dev.mtgplay.core.definition.PermanentRestriction
 import dev.mtgplay.core.identity.PlayerId
@@ -64,15 +65,48 @@ internal fun satisfiesPermanentRestriction(
         PermanentRestriction.CREATURE_POWER_2_OR_LESS ->
             isCreature && effectivePower(state, candidate.id) <= POWER_TWO_OR_LESS_LIMIT
         PermanentRestriction.ARTIFACT -> CardType.ARTIFACT in characteristics.cardTypes
-        // CR 108.4: control is ownership in the MVP pool — nothing in the gauntlet changes control of a
-        // permanent (docs/design/layer-system.md §4).
-        PermanentRestriction.PERMANENT_YOU_CONTROL -> candidate.owner == you
-        // CR 102.1: "an opponent" is any player who is not the one choosing.
-        PermanentRestriction.CREATURE_AN_OPPONENT_CONTROLS -> isCreature && candidate.owner != you
-        // CR 202.2: colour is derived from the printed mana cost, the same derivation
-        // [satisfiesSpellRestriction] makes for a spell on the stack and with the same CR 204 limit.
-        // A land has no mana cost and is therefore colourless (CR 105.2), so no land qualifies.
-        PermanentRestriction.RED_PERMANENT -> Color.RED in characteristics.colors
-        PermanentRestriction.BLUE_PERMANENT -> Color.BLUE in characteristics.colors
+        PermanentRestriction.RED_PERMANENT,
+        PermanentRestriction.BLUE_PERMANENT,
+        -> satisfiesColourRestriction(restriction, characteristics)
+        PermanentRestriction.PERMANENT_YOU_CONTROL,
+        PermanentRestriction.CREATURE_AN_OPPONENT_CONTROLS,
+        PermanentRestriction.CREATURE_YOU_CONTROL,
+        -> satisfiesControlRestriction(restriction, candidate, you, isCreature)
     }
 }
+
+/**
+ * The colour arms of [satisfiesPermanentRestriction] (CR 202.2), split out to keep that `when` inside
+ * detekt's complexity budget. Colour is derived from the printed mana cost — the same derivation
+ * [satisfiesSpellRestriction] makes for a spell on the stack, and with the same CR 204 limit. A land
+ * has no mana cost and is therefore colourless (CR 105.2), so no land ever qualifies.
+ */
+private fun satisfiesColourRestriction(
+    restriction: PermanentRestriction,
+    characteristics: PrintedCharacteristics,
+): Boolean =
+    when (restriction) {
+        PermanentRestriction.RED_PERMANENT -> Color.RED in characteristics.colors
+        PermanentRestriction.BLUE_PERMANENT -> Color.BLUE in characteristics.colors
+        else -> error("CR 202.2: $restriction is not a colour restriction")
+    }
+
+/**
+ * The decider-relative arms of [satisfiesPermanentRestriction] (CR 109.5, CR 102.1), split out beside
+ * [satisfiesColourRestriction] to keep that `when` inside detekt's complexity budget. Control is
+ * ownership in the current pool — nothing in the gauntlet changes control of a permanent
+ * (docs/design/layer-system.md §4) — and these are the arms that must start reading a real controller
+ * the day one does.
+ */
+private fun satisfiesControlRestriction(
+    restriction: PermanentRestriction,
+    candidate: GameObject,
+    you: PlayerId,
+    isCreature: Boolean,
+): Boolean =
+    when (restriction) {
+        PermanentRestriction.PERMANENT_YOU_CONTROL -> candidate.owner == you
+        PermanentRestriction.CREATURE_YOU_CONTROL -> isCreature && candidate.owner == you
+        PermanentRestriction.CREATURE_AN_OPPONENT_CONTROLS -> isCreature && candidate.owner != you
+        else -> error("CR 109.5: $restriction is not a control restriction")
+    }
