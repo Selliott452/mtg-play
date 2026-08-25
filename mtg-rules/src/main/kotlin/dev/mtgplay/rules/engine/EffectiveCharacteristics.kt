@@ -2,6 +2,7 @@ package dev.mtgplay.rules.engine
 
 import dev.mtgplay.core.card.CardType
 import dev.mtgplay.core.card.Keyword
+import dev.mtgplay.core.card.Quality
 import dev.mtgplay.core.identity.ObjectId
 import dev.mtgplay.core.state.GameObject
 import dev.mtgplay.core.state.GameState
@@ -45,6 +46,22 @@ internal fun effectiveKeywords(
     state: GameState,
     id: ObjectId,
 ): PersistentSet<Keyword> = layeredCharacteristics(state, id).keywords
+
+/**
+ * The in-game protection abilities of the battlefield object [id], one per quality (CR 702.16,
+ * CR 613 layer 6): printed protections unioned with active grants, via [layeredCharacteristics].
+ * An object with no definition has none.
+ *
+ * The fourth `effective*` seam, and it exists for the same reason as the other three: every one of
+ * protection's DEBT letters — targeting (CR 702.16b), Aura attachment (CR 702.16c/CR 704.5m),
+ * blocking (CR 702.16f) and damage (CR 702.16e) — must read the *same* set, so a Mask-granted
+ * protection restricts exactly as Guardian of the Guildpact's printed one does, and none of the four
+ * call sites can drift from the others.
+ */
+internal fun effectiveProtections(
+    state: GameState,
+    id: ObjectId,
+): PersistentSet<Quality> = layeredCharacteristics(state, id).protections
 
 /**
  * Whether the battlefield object [id] can't be destroyed right now (CR 702.12b) — the single seam the

@@ -1,6 +1,7 @@
 package dev.mtgplay.rules.engine
 
 import dev.mtgplay.core.card.Keyword
+import dev.mtgplay.core.card.Quality
 import dev.mtgplay.core.definition.AffectedSet
 import dev.mtgplay.core.definition.Magnitude
 import dev.mtgplay.core.definition.ManaAbility
@@ -27,12 +28,17 @@ import kotlinx.collections.immutable.persistentSetOf
  *   grants active on the object, including the keywords its own keyword counters grant (CR 122.1b).
  * @property manaAbilities the layered tap-for-mana abilities (CR 605.1a): printed abilities followed
  *   by layer-6 grants — how an Abundant-Growth-enchanted land gains "add one mana of any color".
+ * @property protections the layered protection abilities, one per quality (CR 702.16): printed
+ *   protections unioned with layer-6 grants active on the object — how a Mask-of-Law-and-Grace-
+ *   enchanted creature gains protection from black and from red (`FW-PROTECT`). A set, so
+ *   CR 702.16m's "multiple instances … are redundant" needs no code.
  */
 data class LayeredCharacteristics(
     val power: Int?,
     val toughness: Int?,
     val keywords: PersistentSet<Keyword>,
     val manaAbilities: PersistentList<ManaAbility>,
+    val protections: PersistentSet<Quality> = persistentSetOf(),
 )
 
 /**
@@ -55,6 +61,7 @@ fun layeredCharacteristics(
             toughness = printed?.powerToughness?.toughness,
             keywords = printed?.keywords ?: persistentSetOf(),
             manaAbilities = definition?.manaAbilities ?: persistentListOf(),
+            protections = printed?.protections ?: persistentSetOf(),
         )
     // CR 122.1: the object's own counters are applied by the same walk, at the layers the rules give
     // them — layer 6 for a keyword counter (CR 122.1b), sublayer 7c for a P/T counter (CR 613.4c).
@@ -127,6 +134,7 @@ private fun staticEffectsOn(
                     affected = affected,
                     grantedKeywords = effect.grantedKeywords,
                     grantedManaAbilities = effect.grantedManaAbilities,
+                    grantedProtections = effect.grantedProtections,
                     powerMod = effect.powerMod,
                     toughnessMod = effect.toughnessMod,
                     timestamp = source.id.value,

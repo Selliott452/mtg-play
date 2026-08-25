@@ -67,7 +67,15 @@ class LotlethGiantSpec :
                 lotlethGiant.triggeredAbilities
                     .single()
                     .effect
-                    .resolve(state, ResolutionContext(alice, persistentListOf(Target.Player(bob))))
+                    .resolve(
+                        state,
+                        // CR 120.1 + CR 113.7c: the trigger's damage source is its source object.
+                        ResolutionContext(
+                            alice,
+                            persistentListOf(Target.Player(bob)),
+                            sourceCard = CardRef("Lotleth Giant"),
+                        ),
+                    )
             resolved.players.getValue(bob).life shouldBe STARTING_LIFE - 2
             resolved.players.getValue(alice).life shouldBe STARTING_LIFE
         }
@@ -78,7 +86,15 @@ class LotlethGiantSpec :
                 lotlethGiant.triggeredAbilities
                     .single()
                     .effect
-                    .resolve(state, ResolutionContext(alice, persistentListOf(Target.Player(bob))))
+                    .resolve(
+                        state,
+                        // CR 120.1 + CR 113.7c: the trigger's damage source is its source object.
+                        ResolutionContext(
+                            alice,
+                            persistentListOf(Target.Player(bob)),
+                            sourceCard = CardRef("Lotleth Giant"),
+                        ),
+                    )
             resolved shouldBe state
         }
     })

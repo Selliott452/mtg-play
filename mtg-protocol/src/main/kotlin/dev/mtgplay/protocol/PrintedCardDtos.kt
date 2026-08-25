@@ -44,6 +44,7 @@ data class PrintedPowerToughnessDto(
  * @property powerToughness the printed power/toughness box (CR 208.1); present exactly for creatures.
  * @property keywords the printed keyword abilities (CR 702) as [Keyword] names.
  * @property evasions the printed non-keyword evasion abilities (CR 509.1b) as [Evasion] names.
+ * @property protections the printed protection abilities (CR 702.16), one [QualityDto] per quality.
  */
 @Serializable
 data class PrintedCharacteristicsDto(
@@ -55,6 +56,7 @@ data class PrintedCharacteristicsDto(
     val powerToughness: PrintedPowerToughnessDto?,
     val keywords: List<String>,
     val evasions: List<String>,
+    val protections: List<QualityDto>,
 )
 
 /**
@@ -84,6 +86,7 @@ fun PrintedCharacteristics.toDto(): PrintedCharacteristicsDto =
         powerToughness = powerToughness?.toDto(),
         keywords = keywords.map { it.name },
         evasions = evasions.map { it.name },
+        protections = protections.map { it.toDto() },
     )
 
 /** [PrintedCharacteristicsDto] back to the engine value; an unknown vocabulary word fails loudly. */
@@ -97,6 +100,7 @@ fun PrintedCharacteristicsDto.toDomain(): PrintedCharacteristics =
         powerToughness = powerToughness?.toDomain(),
         keywords = keywords.map { parseVocabulary<Keyword>(it, "keyword") }.toPersistentSet(),
         evasions = evasions.map { parseVocabulary<Evasion>(it, "evasion") }.toPersistentSet(),
+        protections = protections.map { it.toDomain() }.toPersistentSet(),
     )
 
 /** [PrintedCardView] to its wire form. */

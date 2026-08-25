@@ -5,6 +5,7 @@ import dev.mtgplay.core.card.Evasion
 import dev.mtgplay.core.card.Keyword
 import dev.mtgplay.core.card.PrintedCharacteristics
 import dev.mtgplay.core.card.PrintedPowerToughness
+import dev.mtgplay.core.card.Quality
 import dev.mtgplay.core.card.Subtype
 import dev.mtgplay.core.definition.CardDefinition
 import dev.mtgplay.core.definition.EnchantRestriction
@@ -19,6 +20,7 @@ import dev.mtgplay.core.definition.TriggeredAbility
 import dev.mtgplay.core.identity.CardRef
 import dev.mtgplay.core.identity.ObjectId
 import dev.mtgplay.core.identity.PlayerId
+import dev.mtgplay.core.mana.Color
 import dev.mtgplay.core.mana.ManaCost
 import dev.mtgplay.core.random.Rng
 import dev.mtgplay.core.state.Counter
@@ -73,6 +75,34 @@ private fun creature(
             )
     }
 
+// A `FW-PROTECT` creature fixture: printed [protections] (CR 702.16) and — its own half of the
+// framework — an actual [manaCost].
+//
+// It is a sibling of [creature] rather than two more parameters on it because protection needs a
+// *colour* on both sides and the plain fixtures have none. CR 202.2 derives colour from the mana
+// cost, so a fixture that is the **source** of a protection or prevention test must carry one, where
+// every other fixture here is costless and therefore colourless (CR 105.4) — which is itself a third
+// source shape worth having. These objects are still never cast.
+private fun protectionCreature(
+    name: String,
+    power: Int,
+    toughness: Int,
+    manaCost: String? = null,
+    protections: Set<Quality> = emptySet(),
+): CardDefinition =
+    object : CardDefinition {
+        override val characteristics =
+            PrintedCharacteristics(
+                name = name,
+                manaCost = manaCost?.let(ManaCost::parse),
+                supertypes = persistentSetOf(),
+                cardTypes = persistentSetOf(CardType.CREATURE),
+                subtypes = persistentSetOf(),
+                powerToughness = PrintedPowerToughness(power, toughness),
+                protections = protections.toPersistentSet(),
+            )
+    }
+
 // An Aura fixture (P5.3): an enchant-creature permanent spell whose static ability generates
 // [effect] (omitted for a trigger-only Aura, so the layer loud gate never sees an empty effect) and
 // whose triggered abilities are [triggers]. Sorcery-speed, no-op resolution.
@@ -80,12 +110,16 @@ private fun aura(
     name: String,
     effect: StaticContinuousEffect? = null,
     triggers: List<TriggeredAbility> = emptyList(),
+    manaCost: String = "{G}",
 ): SpellDefinition =
     object : SpellDefinition {
         override val characteristics =
             PrintedCharacteristics(
                 name = name,
-                manaCost = ManaCost.parse("{G}"),
+                // Green by default, as every P5.3 Aura fixture was. `FW-PROTECT` needs one that is a
+                // *red* Aura so CR 704.5m's protection case is reachable: an Aura only falls off a
+                // creature that has protection from the Aura's own quality.
+                manaCost = ManaCost.parse(manaCost),
                 supertypes = persistentSetOf(),
                 cardTypes = persistentSetOf(CardType.ENCHANTMENT),
                 subtypes = persistentSetOf(Subtype("Aura")),
@@ -133,9 +167,32 @@ internal val combatDefinitions: Map<CardRef, CardDefinition> =
         creature("Sentry", 1, 4, setOf(Keyword.DEFENDER, Keyword.HASTE)),
         creature("Reacher", 2, 3, setOf(Keyword.REACH)),
         creature("Warden", 2, 2, setOf(Keyword.HEXPROOF)),
+        // `FW-PROTECT` bodies (CR 702.16). The *protected* pair prints a quality each — "Warder" a
+        // colour (Mask of Law and Grace's shape) and "Paladin" monocolored (Guardian of the
+        // Guildpact's, the quality that is not a colour at all). The *source* trio exists to be
+        // tested against: "Redcap" is mono-red, "Whitecap" mono-white, and "Hybrid" is two colours
+        // and therefore neither red nor monocolored — the multicolored blind spot the printed card
+        // famously has. Every other fixture is costless and so colourless (CR 105.4), which is a
+        // third source shape for free.
+        protectionCreature("Warder", 2, 2, protections = setOf(Quality.OfColor(Color.RED))),
+        protectionCreature("Paladin", 2, 3, protections = setOf(Quality.Monocolored)),
+        protectionCreature("Redcap", 2, 2, manaCost = "{R}"),
+        protectionCreature("Whitecap", 2, 2, manaCost = "{W}"),
+        protectionCreature("Hybrid", 2, 2, manaCost = "{R}{W}"),
         // P5.3 keyword-granting Auras (layer 6): hexproof, lifelink, and trample-with-+2/+0
         // (Rancor's shape). "Bloodfeast" is the Armadillo-Cloak analogue: a damage-triggered
         // gain-that-much-life for the Aura's controller — a trigger, distinct from the lifelink grant.
+        // `FW-PROTECT` Auras (CR 613.1f layer 6, CR 702.16). "Ward Aura" is green and grants
+        // protection from red — Mask of Law and Grace's shape, and it removes neither itself nor any
+        // other green Aura. "Red Aura" is red and grants nothing: it is the CR 704.5m self-removal
+        // case, which no *in-pool* card reaches (a property of two decklists, not of the rules) and
+        // which the SBA is nevertheless written for (docs/design/protection.md §2.2).
+        aura("Ward Aura", StaticContinuousEffect(grantedProtections = persistentSetOf(Quality.OfColor(Color.RED)))),
+        aura(
+            "Red Aura",
+            StaticContinuousEffect(grantedKeywords = persistentSetOf(Keyword.VIGILANCE)),
+            manaCost = "{R}",
+        ),
         aura("Hex Aura", StaticContinuousEffect(grantedKeywords = persistentSetOf(Keyword.HEXPROOF))),
         aura("Vamp Aura", StaticContinuousEffect(grantedKeywords = persistentSetOf(Keyword.LIFELINK))),
         // `FW-COUNTERS` keyword-granting Auras (layer 6), so each new keyword is exercised through the

@@ -135,7 +135,7 @@ val smashToSmithereens: SpellDefinition =
                 // CR 608.2h: capture the controller while the artifact is still on the battlefield.
                 val controller = controllerOfTargetedPermanent(state, target, "Smash to Smithereens")
                 val destroyed = destroy(state, target)
-                dealDamage(destroyed, Target.Player(controller), SMASH_TO_SMITHEREENS_DAMAGE)
+                dealDamage(destroyed, context.damageSource(), Target.Player(controller), SMASH_TO_SMITHEREENS_DAMAGE)
             }
     }
 

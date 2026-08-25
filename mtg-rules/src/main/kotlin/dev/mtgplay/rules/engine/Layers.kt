@@ -1,6 +1,7 @@
 package dev.mtgplay.rules.engine
 
 import dev.mtgplay.core.card.Keyword
+import dev.mtgplay.core.card.Quality
 import dev.mtgplay.core.definition.Magnitude
 import dev.mtgplay.core.definition.ManaAbility
 import dev.mtgplay.core.identity.ObjectId
@@ -133,6 +134,7 @@ internal data class ActiveEffect(
     val affected: ObjectId,
     val grantedKeywords: PersistentSet<Keyword> = persistentSetOf(),
     val grantedManaAbilities: PersistentList<ManaAbility> = persistentListOf(),
+    val grantedProtections: PersistentSet<Quality> = persistentSetOf(),
     val powerMod: Magnitude = Magnitude.Zero,
     val toughnessMod: Magnitude = Magnitude.Zero,
     val timestamp: Long,
@@ -150,7 +152,13 @@ internal data class ActiveEffect(
  */
 internal fun layersOf(active: ActiveEffect): Set<Layer> =
     buildSet {
-        if (active.grantedKeywords.isNotEmpty() || active.grantedManaAbilities.isNotEmpty()) {
+        if (active.grantedKeywords.isNotEmpty() ||
+            active.grantedManaAbilities.isNotEmpty() ||
+            // CR 613.1f: a protection grant is an ability grant like any other — the same layer, the
+            // same additive union. It is its own field only because protection carries a quality and
+            // Keyword cannot (docs/design/protection.md §5).
+            active.grantedProtections.isNotEmpty()
+        ) {
             add(Layer.ABILITY_ADDING)
         }
         if (active.powerMod != Magnitude.Zero || active.toughnessMod != Magnitude.Zero) {
@@ -269,11 +277,17 @@ private fun requireImplementedKind(active: ActiveEffect) {
     }
 }
 
-/** Layer 6 (CR 613.1f): unions [active]'s granted keywords and mana abilities onto the object. */
+/**
+ * Layer 6 (CR 613.1f): unions [active]'s granted keywords, mana abilities and protections onto the
+ * object. Every grant is additive, which is what keeps the within-layer order unobservable and the
+ * CR 613.8 dependency gate correct-by-construction — a protection grant changes neither whether
+ * another effect exists, nor what it applies to, nor what it does (docs/design/protection.md §5).
+ */
 private fun LayeredCharacteristics.granting(active: ActiveEffect): LayeredCharacteristics =
     copy(
         keywords = keywords.addingAll(active.grantedKeywords),
         manaAbilities = manaAbilities.addingAll(active.grantedManaAbilities),
+        protections = protections.addingAll(active.grantedProtections),
     )
 
 /**

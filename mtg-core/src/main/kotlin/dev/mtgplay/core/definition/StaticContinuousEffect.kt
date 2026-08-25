@@ -1,6 +1,7 @@
 package dev.mtgplay.core.definition
 
 import dev.mtgplay.core.card.Keyword
+import dev.mtgplay.core.card.Quality
 import kotlinx.collections.immutable.PersistentList
 import kotlinx.collections.immutable.PersistentSet
 import kotlinx.collections.immutable.persistentListOf
@@ -27,6 +28,11 @@ import kotlinx.collections.immutable.persistentSetOf
  *   in-game keyword set unions these on (Rancor grants trample).
  * @property grantedManaAbilities mana abilities the affected object gains (CR 613.3 layer 6); how
  *   an Abundant-Growth-enchanted land gains "{T}: add one mana of any color".
+ * @property grantedProtections protection abilities the affected object gains, one per quality
+ *   (CR 613.3 layer 6, CR 702.16) — Mask of Law and Grace's "enchanted creature has protection from
+ *   black and from red". A grant like any other keyword grant, and CR 613.1f's same layer; it is a
+ *   field of its own only because protection carries a quality and [Keyword] cannot
+ *   (docs/design/protection.md §4). Additive, flagged (`FW-PROTECT`).
  * @property powerMod the layer-7c power modifier (CR 613.3 sublayer 7c), possibly [Magnitude.Zero].
  * @property toughnessMod the layer-7c toughness modifier (CR 613.3 sublayer 7c), possibly
  *   [Magnitude.Zero].
@@ -35,6 +41,7 @@ data class StaticContinuousEffect(
     val affects: AffectedSet = AffectedSet.Enchanted,
     val grantedKeywords: PersistentSet<Keyword> = persistentSetOf(),
     val grantedManaAbilities: PersistentList<ManaAbility> = persistentListOf(),
+    val grantedProtections: PersistentSet<Quality> = persistentSetOf(),
     val powerMod: Magnitude = Magnitude.Zero,
     val toughnessMod: Magnitude = Magnitude.Zero,
 )

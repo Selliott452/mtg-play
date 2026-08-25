@@ -76,6 +76,8 @@ private fun resolveSpell(
                     discardedForCost = entry.discardedForCost,
                     source = entry.obj.id,
                     sacrificedForCost = entry.sacrificedForCost,
+                    // CR 120.1: a resolving spell that deals damage is that damage's source.
+                    sourceCard = entry.obj.card,
                 ),
             )
         // Relaxed by `FW-COUNTER` from "the stack is unchanged" to what that assertion actually meant.

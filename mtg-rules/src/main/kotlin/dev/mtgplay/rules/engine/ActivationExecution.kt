@@ -215,7 +215,14 @@ internal fun resolveActivatedAbility(
         fizzleActivatedAbility(state, entry)
             ?: entry.ability.librarySearch?.let { orchestrateLibrarySearch(state, entry, it) }
     if (early != null) return early
-    val context = ResolutionContext(entry.controller, entry.targets, source = entry.sourceId)
+    val context =
+        ResolutionContext(
+            entry.controller,
+            entry.targets,
+            source = entry.sourceId,
+            // CR 120.1 + CR 113.7c: the ability's source object as of activation.
+            sourceCard = entry.sourceCard,
+        )
     val resolved = entry.ability.effect.resolve(state, context)
     require(resolved.sharedZones.stack == state.sharedZones.stack) {
         "CR 113.7a: an activated ability's effect performs its instructions but does not move the ability " +

@@ -97,6 +97,7 @@ val lotlethGiant: SpellDefinition =
                         ResolutionEffect { state, context ->
                             dealDamage(
                                 state,
+                                context.damageSource(),
                                 context.targets.single(),
                                 LOTLETH_GIANT_DAMAGE_PER_CREATURE_CARD *
                                     creatureCardsInGraveyard(state, context.controller),

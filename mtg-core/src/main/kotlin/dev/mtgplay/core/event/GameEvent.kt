@@ -7,6 +7,7 @@ import dev.mtgplay.core.mana.ManaType
 import dev.mtgplay.core.state.AttackerAssignment
 import dev.mtgplay.core.state.BlockAssignment
 import dev.mtgplay.core.state.Counter
+import dev.mtgplay.core.state.DamageSource
 import dev.mtgplay.core.state.Target
 import dev.mtgplay.core.state.TurnPhase
 import dev.mtgplay.core.state.TurnStep
@@ -281,15 +282,40 @@ sealed interface GameEvent {
     ) : GameEvent
 
     /**
-     * [amount] damage was dealt to [recipient] (CR 120). For a [Target.Player] recipient the
+     * [source] dealt [amount] damage to [recipient] (CR 120). For a [Target.Player] recipient the
      * damage's result is losing that much life (CR 120.3a), narrated by the [LifeChanged] that
      * follows — the two events together are what distinguish damage from pure life loss
      * (CR 119.3c), a distinction later phases' cards care about. For a [Target.Permanent]
      * recipient (P3.1) the result is marked damage (CR 120.3d): no [LifeChanged] follows,
      * because a permanent has no life total — the damage sits on the object until cleanup
      * (CR 514.2) or a lethal-damage state-based action (CR 704.5g, P3.2) acts on it.
+     *
+     * [source] arrived with `FW-PREVENT` (docs/design/protection.md §3 Part A). CR 120.1 makes the
+     * source half of what damage *is* — "an object that deals damage is the source of that
+     * damage" — and the log narrated only the recipient until prevention needed the other half.
+     * Combat had computed a source all along and discarded it at the call.
      */
     data class DamageDealt(
+        val source: DamageSource,
+        val recipient: Target,
+        val amount: Int,
+    ) : GameEvent
+
+    /**
+     * The [amount] damage [source] would have dealt to [recipient] was **prevented** (CR 615.6:
+     * "If damage that would be dealt is prevented, it never happens"), so no [DamageDealt]
+     * follows, no damage is marked, no life is lost, no lifelink gains life (CR 702.15 gains life
+     * as a result of damage *dealt*), and no damage trigger fires. Additive, flagged
+     * (`FW-PREVENT`).
+     *
+     * **Derived observability, never load-bearing** (PLAN.md §2.2). Nothing in the rules reads this
+     * event; it exists because a fully prevented alpha strike is otherwise indistinguishable in the
+     * log from a combat that never happened, and "the damage did not happen" is precisely the fact
+     * a debugging human most wants narrated. [amount] is the damage that *would* have been dealt —
+     * the pre-prevention figure, which is the only one with any information in it.
+     */
+    data class DamagePrevented(
+        val source: DamageSource,
         val recipient: Target,
         val amount: Int,
     ) : GameEvent
