@@ -73,7 +73,12 @@ import dev.mtgplay.core.state.Turn
  * @property players every seat's public standing plus the hidden-zone filtering, in turn order
  *   (CR 101.4) — [viewer]'s own hand in full, an opponent's hand as a count only (see [PlayerView]).
  * @property battlefield the shared battlefield (CR 403); fully public — every permanent, with its
- *   tapped/summoning-sick/damage/attachment/chosen-colour status, is visible to all (ADR-007).
+ *   tapped/summoning-sick/damage/attachment/chosen-colour status **and its counters (CR 122.1)**, is
+ *   visible to all (ADR-007). Counters are public by the same rule the rest of that list is: they sit
+ *   on the card face-up on the table. A consumer that wants a permanent's *in-game* power and
+ *   toughness must apply CR 613 itself from this public state — which now means folding the P/T
+ *   counters into sublayer 7c (CR 613.4c) and the keyword counters into layer 6 (CR 122.1b), not only
+ *   the Aura statics.
  * @property stack the shared stack (CR 405), top last; fully public — the [StackEntryView] of each
  *   entry carries its controller and its targets, which are chosen openly whether the entry is a spell
  *   (CR 601.2c), an activated ability (CR 602.2b), or a triggered one (CR 603.3d).

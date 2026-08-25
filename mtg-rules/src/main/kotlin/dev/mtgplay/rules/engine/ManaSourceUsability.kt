@@ -31,6 +31,16 @@ import dev.mtgplay.core.state.GameState
  *   in Activation.kt. Until the pool's first creature mana source was encoded no object could
  *   reach it from the payment path, and its absence there was silent: mana offered in the
  *   enumerated action space (ADR-005) that the rules do not permit.
+ * - **CR 702.10c**: haste lifts that restriction — "its controller can activate its activated
+ *   abilities whose cost includes the tap symbol … even if that creature hasn't been controlled by
+ *   that player continuously since their most recent turn began". A hasty creature mana source taps
+ *   for mana the turn it arrives. It is read through [hasHaste], the effective-keyword seam, so a
+ *   granted haste or a CR 122.1b haste counter counts and not only a printed one.
+ *
+ * Because both halves of payment call this one predicate, honouring haste **here** honours it in the
+ * planner ([manaSourceClasses]) and the executor ([resolveTapForMana]) at once — which is the whole
+ * reason the file exists, and the reason haste could not become a silent half-gap the way CR 302.6
+ * itself once was.
  *
  * An object that is no mana source at all is filtered by [productionProfile] rather than here, so
  * this predicate answers only "may it be activated", never "has it anything to activate".
@@ -40,7 +50,7 @@ internal fun manaSourceUsable(
     obj: GameObject,
 ): Boolean {
     if (isSacrificeSource(state, obj.id)) return true
-    return !obj.tapped && !(isCreature(state, obj) && obj.summoningSick)
+    return !obj.tapped && !(isCreature(state, obj) && obj.summoningSick && !hasHaste(state, obj.id))
 }
 
 /**

@@ -1,6 +1,7 @@
 package dev.mtgplay.rules
 
 import dev.mtgplay.core.card.CardType
+import dev.mtgplay.core.card.Keyword
 import dev.mtgplay.core.card.PrintedCharacteristics
 import dev.mtgplay.core.card.PrintedPowerToughness
 import dev.mtgplay.core.card.Subtype
@@ -20,6 +21,7 @@ import dev.mtgplay.rules.effect.loseLife
 import kotlinx.collections.immutable.PersistentSet
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.persistentSetOf
+import kotlinx.collections.immutable.toPersistentSet
 
 /*
  * Synthetic fixture definitions for the P2.1 engine specs (architect decision: rules-module
@@ -38,6 +40,7 @@ private fun sourceFixture(
     cardType: CardType,
     vararg types: ManaType,
     powerToughness: PrintedPowerToughness? = null,
+    keywords: Set<Keyword> = emptySet(),
 ): CardDefinition =
     object : CardDefinition {
         override val characteristics =
@@ -48,6 +51,7 @@ private fun sourceFixture(
                 cardTypes = persistentSetOf(cardType),
                 subtypes = persistentSetOf(),
                 powerToughness = powerToughness,
+                keywords = keywords.toPersistentSet(),
             )
         override val manaAbilities = persistentListOf(ManaAbility(persistentListOf(*types.toList().toTypedArray())))
     }
@@ -134,6 +138,26 @@ internal val fixtureManaElf =
         CardType.CREATURE,
         ManaType.GREEN,
         powerToughness = PrintedPowerToughness(power = 1, toughness = 1),
+    )
+
+/**
+ * "Fixture Hasty Elf" — [fixtureManaElf] with **haste** printed on it. The fixture that makes
+ * CR 702.10c reachable from mana payment: a mana ability is an activated ability (CR 605.1a), so
+ * haste lets its `{T}` cost be paid the turn the creature arrives.
+ *
+ * It exists to pin the gate at the *shared* predicate rather than at one caller. `manaSourceUsable`
+ * is deliberately the only place either half of payment asks "may this source be activated"
+ * (docs/design/mana-payment.md §10), so the planner and the executor must agree about this
+ * creature by construction — and the spec asserts both, because that agreement is the property, not
+ * an implementation detail.
+ */
+internal val fixtureHastyElf =
+    sourceFixture(
+        "Fixture Hasty Elf",
+        CardType.CREATURE,
+        ManaType.GREEN,
+        powerToughness = PrintedPowerToughness(power = 1, toughness = 1),
+        keywords = setOf(Keyword.HASTE),
     )
 
 /**
@@ -349,6 +373,7 @@ internal val fixtureDefinitions: Map<CardRef, CardDefinition> =
         fixturePrism,
         fixtureWastes,
         fixtureManaElf,
+        fixtureHastyElf,
         fixtureManaSpawn,
         fixturePylon,
         fixtureReactor,

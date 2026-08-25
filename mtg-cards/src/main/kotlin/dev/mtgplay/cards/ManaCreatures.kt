@@ -1,6 +1,7 @@
 package dev.mtgplay.cards
 
 import dev.mtgplay.core.card.CardType
+import dev.mtgplay.core.card.Keyword
 import dev.mtgplay.core.card.PrintedCharacteristics
 import dev.mtgplay.core.card.PrintedPowerToughness
 import dev.mtgplay.core.card.Subtype
@@ -34,12 +35,14 @@ import kotlinx.collections.immutable.persistentSetOf
  * that the rules do not permit (PLAN.md §7, docs/gauntlet-card-triage.md §7 T1).
  *
  * The `FW-MANA` packet then adds the list's third Elf, [priestOfTitania], whose ability adds one
- * `{G}` *per Elf on the battlefield* — the pool's first variable-amount production (CR 605.2). Its
- * two would-be siblings from Spy Combo stay absent rather than approximated: Overgrown Battlement
- * counts creatures **with defender**, a keyword `mtg-core` does not have (`FW-DEFENDERKW`), and
- * Saruli Caretaker's ability costs "{T}, Tap an untapped creature you control", an activation cost
- * shape that does not exist and that is a payment-*capacity* problem rather than a production one
- * (docs/design/mana-payment.md §9).
+ * `{G}` *per Elf on the battlefield* — the pool's first variable-amount production (CR 605.2).
+ *
+ * `FW-COUNTERS` unblocked one of the two siblings `FW-MANA` had to leave out. [overgrownBattlement]
+ * counts creatures **with defender**, and the only thing missing was the keyword: `Keyword.DEFENDER`
+ * now exists with its CR 702.3b rules effect, and [PermanentFilter] grew the card-type and keyword
+ * axes the count needs. Saruli Caretaker stays absent — its ability costs "{T}, Tap an untapped
+ * creature you control", an activation cost shape that does not exist and that is a
+ * payment-*capacity* problem rather than a production one (docs/design/mana-payment.md §9).
  */
 
 /**
@@ -48,6 +51,9 @@ import kotlinx.collections.immutable.persistentSetOf
  * their mana ability, never a resolution instruction.
  */
 private val entersTheBattlefield: ResolutionEffect = ResolutionEffect { state, _ -> state }
+
+/** Overgrown Battlement's printed toughness (CR 208.2) — a 0/4 Wall. */
+private const val OVERGROWN_BATTLEMENT_TOUGHNESS: Int = 4
 
 /** The creature types both mana Elves print (CR 205.3m). */
 private val ELF_DRUID: PersistentSet<Subtype> = persistentSetOf(Subtype("Elf"), Subtype("Druid"))
@@ -136,6 +142,62 @@ val priestOfTitania: SpellDefinition =
                 ManaAbility(
                     options = persistentListOf(ManaType.GREEN),
                     amount = ManaAmount.PerPermanent(PermanentFilter(Subtype("Elf"), controlledByYou = false)),
+                ),
+            )
+    }
+
+/**
+ * Overgrown Battlement — `{1}{G}` Creature — Wall, a 0/4 with defender and "`{T}`: Add `{G}` for
+ * each creature you control with defender." Spy Combo's ramp Wall, and the pool's second
+ * variable-amount mana source (CR 605.2).
+ *
+ * `FW-MANA` had the counting machinery and still could not encode this card: the count reads a
+ * *keyword*, and [dev.mtgplay.core.card.Keyword.DEFENDER] did not exist. `FW-COUNTERS` added the
+ * keyword with its real CR 702.3b effect, which is what makes the card honest in both halves — the
+ * Wall genuinely cannot attack, and it genuinely counts itself.
+ *
+ * Three things about the oracle text are load-bearing:
+ *
+ * - **"you control", unlike Priest of Titania's "on the battlefield".** An opposing Wall of Junk
+ *   adds nothing here. [PermanentFilter.controlledByYou] is `true`.
+ * - **"creature … with defender", two conjuncts, not one.** The filter carries a card type *and* a
+ *   keyword; a hypothetical noncreature permanent with defender would not be counted. The keyword
+ *   half is read through the CR 613 layer system, so a granted defender counts and a printed one
+ *   that some effect removed would not.
+ * - **It counts itself**, so a lone Battlement adds exactly one `{G}` and the count is never zero
+ *   while the source is on the battlefield to be tapped.
+ *
+ * Being an activated ability with `{T}` in its cost on a creature, it adds nothing while the
+ * Battlement is summoning sick (CR 302.6) — the Wall has defender, not haste.
+ */
+val overgrownBattlement: SpellDefinition =
+    object : SpellDefinition {
+        override val characteristics =
+            PrintedCharacteristics(
+                name = "Overgrown Battlement",
+                manaCost = ManaCost.parse("{1}{G}"),
+                supertypes = persistentSetOf(),
+                cardTypes = persistentSetOf(CardType.CREATURE),
+                subtypes = persistentSetOf(Subtype("Wall")),
+                powerToughness = PrintedPowerToughness(power = 0, toughness = OVERGROWN_BATTLEMENT_TOUGHNESS),
+                keywords = persistentSetOf(Keyword.DEFENDER),
+            )
+
+        override val timing = TimingClass.SORCERY_SPEED
+        override val targetSpec = TargetSpec.None
+        override val resolution = entersTheBattlefield
+        override val manaAbilities =
+            persistentListOf(
+                ManaAbility(
+                    options = persistentListOf(ManaType.GREEN),
+                    amount =
+                        ManaAmount.PerPermanent(
+                            PermanentFilter(
+                                controlledByYou = true,
+                                cardType = CardType.CREATURE,
+                                keyword = Keyword.DEFENDER,
+                            ),
+                        ),
                 ),
             )
     }

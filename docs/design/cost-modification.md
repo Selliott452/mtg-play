@@ -559,3 +559,10 @@ formula reserves and a loud gate refuses to fake.
    modify power and/or toughness") and **P/T switching in 7d** (613.4d); there is no 613.4e. The enum is
    unpopulated so nothing is wrong today, but the citation and the slot's meaning are stale. Confirm whether to
    correct it, and where.
+
+   **Resolved by `FW-COUNTERS`.** Checked against the Comprehensive Rules text of 2026-08-19: this reading is
+   correct on both counts. CR 613.4 has exactly four lettered sublayers, a–d; **there is no 613.4e**; 613.4c is
+   7c and names counters explicitly; 613.4d is 7d and is switching. The invented letter had also shifted the
+   7a/7b/7c citations in that enum one letter each. All four are corrected, `PT_COUNTERS` is renamed
+   `PT_SWITCHING` (still an unpopulated loud gate — nothing in the gauntlet switches P/T), and counters are
+   applied in 7c beside the Aura modifiers.

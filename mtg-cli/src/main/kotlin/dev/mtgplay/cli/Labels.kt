@@ -4,6 +4,7 @@ import dev.mtgplay.core.card.CardType
 import dev.mtgplay.core.card.Keyword
 import dev.mtgplay.core.card.PrintedCharacteristics
 import dev.mtgplay.core.identity.ObjectId
+import dev.mtgplay.core.state.Counter
 import dev.mtgplay.core.state.GameObject
 import dev.mtgplay.core.state.GameState
 import dev.mtgplay.core.state.StackEntry
@@ -51,8 +52,22 @@ private fun permanentTags(
         // CR 302.6: summoning sickness only restricts creatures; harmless noise on anything else.
         if (isCreature && obj.summoningSick) add("sick")
         if (obj.damageMarked > 0) add("${obj.damageMarked} dmg")
+        // CR 122.1: counters are public (ADR-007) and change what the permanent is, so they are shown
+        // as the cause. The keywords below are already the layered set, so a keyword counter's grant
+        // appears there too — the counter tag says *why*.
+        for ((kind, count) in obj.counters) add(counterTag(kind, count))
         keywords.forEach { add(it.name.lowercase().replace('_', ' ')) }
         obj.attachedTo?.let { add("attached to ${attachedName(state, it)}") }
+    }
+
+/** One counter multiset entry as a tag (CR 122.1): "3x +1/+1", "a lifelink counter". */
+private fun counterTag(
+    kind: Counter,
+    count: Int,
+): String =
+    when (kind) {
+        is Counter.PowerToughness -> "${count}x %+d/%+d".format(kind.power, kind.toughness)
+        is Counter.KeywordCounter -> "${count}x ${kind.keyword.name.lowercase().replace('_', ' ')} counter"
     }
 
 /** The name of the object [id] an Aura is attached to (CR 303.4), with its id for disambiguation. */

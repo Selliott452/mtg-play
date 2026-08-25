@@ -76,6 +76,7 @@ object InvariantChecker {
             addAll(checkP62aMarkerScopes(residences))
             addAll(checkPendingResolutionSanity(state))
             addAll(checkAbilityTargetSanity(state))
+            addAll(checkCounterScope(residences))
             if (expectedCards != null) addAll(checkCardConservation(state, expectedCards))
         }
     }

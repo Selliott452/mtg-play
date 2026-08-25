@@ -4,6 +4,8 @@ import dev.mtgplay.core.identity.CardRef
 import dev.mtgplay.core.identity.ObjectId
 import dev.mtgplay.core.identity.PlayerId
 import dev.mtgplay.core.mana.Color
+import kotlinx.collections.immutable.PersistentMap
+import kotlinx.collections.immutable.persistentMapOf
 
 /**
  * One game object (CR 109): a card existing in a zone.
@@ -13,8 +15,8 @@ import dev.mtgplay.core.mana.Color
  * [id] is fresh per zone residence (CR 400.7: an object that moves zones becomes a new object; ids
  * come from [GameState.allocateObjectId]), while the [card] is the stable printed identity carried
  * across those rebirths. Controller (CR 108.4 — equals [owner] until control-changing effects
- * arrive in Phase 4), counters, and token-ness are deliberately absent: each arrives with the
- * rules packet that gives it meaning (Phases 4–5).
+ * arrive in Phase 4) and token-ness are deliberately absent: each arrives with the rules packet
+ * that gives it meaning (Phases 4–5). [counters] arrived with `FW-COUNTERS`.
  *
  * @property id this object's identity for as long as it stays in its current zone.
  * @property card the printed card this object represents.
@@ -64,6 +66,19 @@ import dev.mtgplay.core.mana.Color
  *   — Utopia Sprawl's "As this Aura enters, choose a colour", read by its triggered mana ability. Set as
  *   the object enters and fixed thereafter; `null` off the battlefield and on the fresh object born of
  *   any zone move (CR 400.7).
+ * @property counters the counters on this permanent (CR 122.1), as a multiset: how many of each
+ *   [Counter] kind it carries. Additive, flagged core (`FW-COUNTERS`). A battlefield-only quantity
+ *   like [tapped] and [damageMarked] — **CR 122.2 is explicit that counters are not retained when an
+ *   object changes zones; they are not "removed", they simply cease to exist** — so the fresh object
+ *   born of any zone move carries none (CR 400.7), and the acceptance invariant checker enforces both
+ *   the scope and that every recorded multiplicity is strictly positive (a kind an object has none of
+ *   is absent from the map, never present with a count of zero — otherwise two states that are the
+ *   same position would compare unequal and the replay fingerprint would split them).
+ *
+ *   What the counters *do* is a rules decision, not a state one: `mtg-rules` applies
+ *   [Counter.PowerToughness] in CR 613 sublayer 7c (CR 613.4c) and [Counter.KeywordCounter] in layer
+ *   6 (CR 613.1f), and annihilates opposing `+1/+1` and `-1/-1` counters as the CR 704.5q
+ *   state-based action.
  */
 data class GameObject(
     val id: ObjectId,
@@ -76,10 +91,18 @@ data class GameObject(
     val awaitingMadness: Boolean = false,
     val plottedTurn: Int? = null,
     val chosenColor: Color? = null,
+    val counters: PersistentMap<Counter, Int> = persistentMapOf(),
 ) {
     init {
         require(damageMarked >= 0) { "CR 120.3: marked damage is non-negative, was $damageMarked" }
         require(attachedTo != id) { "CR 303.4: an Aura cannot be attached to itself ($id)" }
         require(plottedTurn == null || plottedTurn >= 1) { "CR 702.140: a plotted turn is a real turn number" }
+        require(counters.values.all { it > 0 }) {
+            "CR 122.1: a counter multiset records only counters that are present; a kind with a " +
+                "non-positive count must be absent, got $counters"
+        }
     }
+
+    /** How many [kind] counters are on this permanent (CR 122.1); zero when it has none. */
+    fun counterCount(kind: Counter): Int = counters[kind] ?: 0
 }

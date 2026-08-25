@@ -83,10 +83,13 @@ internal fun abilityCostPayable(
                     component.cost,
                     manaSourcesReservedBy(state, source, ability),
                 ).isNotEmpty()
+            // CR 602.2a / CR 302.6, lifted by CR 702.10c: a creature with haste may activate its
+            // `{T}` abilities the turn it arrives. Read through the effective-keyword seam so a
+            // granted haste or a haste counter (CR 122.1b) counts.
             AbilityCost.TapSelf ->
                 scope == AbilityZoneScope.Battlefield &&
                     !source.tapped &&
-                    !(isCreature(state, source) && source.summoningSick)
+                    !(isCreature(state, source) && source.summoningSick && !hasHaste(state, source.id))
             AbilityCost.SacrificeSelf -> scope == AbilityZoneScope.Battlefield
             AbilityCost.DiscardSelf -> scope == AbilityZoneScope.Hand
             AbilityCost.DiscardACard -> discardableForAbility(state, seat, source, scope).isNotEmpty()

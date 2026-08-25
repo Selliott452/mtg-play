@@ -523,7 +523,7 @@ Terror · `Mad` Mono-Red Madness · `Rly` Mono Red Rally · `Trn` Monster Tron �
 | Citadel Gate | — | 2 | `FW-MANA` | `{T}: Add {W} or one mana of the chosen colour` — production options that depend on an as-enters choice. Also enters tapped. | Gat4 |
 | Cleansing Wildfire | {1}{R} | 2 | `FW-NONCTRLDEC` | The *target land's controller* may search — a mid-resolution decision by someone other than the resolving controller; plus search-to-battlefield, a land target and destroy. | Jnd4 |
 | Cliffgate | — | 2 | `FW-MANA` | As Citadel Gate. | Gat4 |
-| Clockwork Percussionist | {R} | 2 | `FW-DURATION` | 'You may play it until the end of your next turn' — a duration-bounded permission to play a card from exile. Also needs haste. | Rly4 |
+| Clockwork Percussionist | {R} | 2 | `FW-DURATION` | 'You may play it until the end of your next turn' — a duration-bounded permission to **play** (not cast) a card from exile, spanning two turns. Haste shipped with `FW-COUNTERS`; the window did not. | Rly4 |
 | Conduit Pylons | — | 2 | `FW-LIBLOOK` `FW-MANA` | Surveil 1 on ETB; `{1}, {T}: Add one mana of any colour` is a mana ability with a mana cost. | Trn2 |
 | Contaminated Landscape | — | 1 | `P-SEARCH` | The cost (`TapSelf`+`SacrificeSelf`) and cycling both exist; needs a `LibrarySearchFilter` for a listed basic and a battlefield-tapped destination. | UWX2 |
 | Counterspell | {U}{U} | 2 | `FW-COUNTER` | The unrestricted counter — F1.2, the reference card of the framework. | Jes4 Fae4 Ter4 |
@@ -558,11 +558,11 @@ Terror · `Mad` Mono-Red Madness · `Rly` Mono Red Rally · `Trn` Monster Tron �
 | Ghostly Flicker | {2}{U} | 2 | `FW-BLINK` `FW-MULTITGT` | Two targets across three permanent types, exiled and returned together. | UWX1 |
 | Giant's Boulder | {1} | 2 | `FW-LIBLOOK` `FW-MANA` `FW-ABILTGT` | Scry 2, a mana ability with a mana cost, and a targeted destroy ability. | Trn4 |
 | Gingerbread Cabin | — | 1 | `P-ETBTAPPED` `P-TRIGCOND` | Conditional enters-tapped ('unless you control three or more other Forests') and an *entered untapped* trigger condition. | Elv1 |
-| Gingerbrute | {1} | 2 | `FW-DURATION` `FW-CONDSTATIC` | An until-EOT evasion grant bought with an activated ability; also needs haste. | Rly3 |
+| Gingerbrute | {1} | 2 | `FW-DURATION` `FW-EVASION` | An until-EOT 'can't be blocked except by creatures with haste' bought with an activated ability — a new `Evasion` member *and* a duration. Haste shipped with `FW-COUNTERS`. | Rly3 |
 | Glacial Floodplain | — | 1 | `P-ETBTAPPED` | Snow supertype and dual production already exist; the only gap is enters-tapped. | Jes1 |
 | Gnaw to the Bone | {2}{G} | 0 | **Tier 0** | `gainLife` with a graveyard-count amount + `CastingPermission.Flashback`. Shape: **Faithless Looting** (flashback) + **Armadillo Cloak** (computed lifegain). | Elv°3 |
 | Goblin Bushwhacker | {R} | 2 | `FW-OPTCOST` `FW-DURATION` `FW-CONDSTATIC` | Kicker with linked information, an until-EOT team pump, and an `AffectedSet` wider than `Enchanted`; also haste. | Rly4 |
-| Goblin Tomb Raider | {R} | 2 | `FW-CONDSTATIC` | cost-modification.md §0: **not a cost card**. A conditional static needing `AffectedSet.Self` and haste — and it is the whole of Mono Red Rally's claimed F3 dependency. | Rly4 |
+| Goblin Tomb Raider | {R} | 2 | `FW-CONDSTATIC` | cost-modification.md §0: **not a cost card** — confirmed against Oracle. Haste shipped with `FW-COUNTERS`; what is left is a *conditional* static continuous effect affecting its own source: `AffectedSet.Self`, a condition on `StaticContinuousEffect`, and a 'you control an artifact' predicate. | Rly4 |
 | God-Pharaoh's Faithful | {W} | 1 | `P-TRIGCOND` | `TriggerCondition.SpellCast` filters on card types only; needs a colour filter (CR 202.2). | UWX4 |
 | Goliath Paladin | {4}{W} | 2 | `FW-INITIATIVE` | As Avenging Hunter. | Jes°1 |
 | Gorilla Shaman | {R} | 2 | `FW-X` `FW-ABILTGT` | `{X}{X}{1}` on an activated ability with a mana-value-X target restriction. | Grx°1 |
@@ -579,7 +579,7 @@ Terror · `Mad` Mono-Red Madness · `Rly` Mono Red Rally · `Trn` Monster Tron �
 | Inventor's Axe | {R} | 2 | `FW-EQUIP` `FW-COUNTERS` | Equipment attachment plus energy counters — two frameworks in one uncommon. | Rly4 |
 | Journey to Nowhere | {1}{W} | 2 | `FW-ABILTGT` `FW-LINKEDEXILE` | Targeted ETB exile plus a leaves-the-battlefield trigger returning *that* card (CR 610.3 linked abilities). | Gat2 |
 | Kaervek's Torch | {X}{R} | 2 | `FW-X` `FW-COST` `FW-COUNTER` | `{X}` damage, a **cost increase** on spells that target it, and being targetable on the stack. | Trn1 |
-| Kenku Artificer | {2}{U} | 2 | `FW-COUNTERS` `FW-ABILTGT` `FW-TYPECHANGE` | +1/+1 counters, a target, and a layer-4 type change with a layer-7b set-P/T. Three unpopulated layers at once. | Grx1 |
+| Kenku Artificer | {2}{U} | 2 | `FW-TYPECHANGE` `FW-SETPT` | Counters and the targeting spec both shipped; what remains is the layer-4 type change and the layer-7b set-P/T, still unpopulated. Note the counters land on a **noncreature** artifact, which is why the type change must come first. | Grx1 |
 | Krark-Clan Shaman | {R} | 1 | `P-ABILCOST` | `AbilityCost.SacrificeAnother(filter)`; the damage-to-each-non-flier fold is Tier-0 composition. | Grx3 Jnd3 |
 | Land Grant | {1}{G} | 2 | `FW-ALTCOST` | An alternative cost that is 'reveal your hand', gated on a hidden-zone condition; plus a Forest search. | Elv2 Spy4 |
 | Last Breath | {1}{W} | 1 | `P-TGT` `P-EXILE` | `TargetSpec` creature with a **layered** power restriction, plus an exile-a-permanent primitive. | UWX°2 |
@@ -605,10 +605,10 @@ Terror · `Mad` Mono-Red Madness · `Rly` Mono Red Rally · `Trn` Monster Tron �
 | Negate | {1}{U} | 2 | `FW-COUNTER` | `SpellRestriction.NotOfCardType(CREATURE)` — F1.2. | UWX2 |
 | Nihil Spellbomb | {1} | 2 | `FW-ABILTGT` `FW-OPTMANA` | Targeted graveyard exile, plus an optional *mana* payment inside a trigger's resolution (`OptionalCostThenDraw` has discard/sacrifice modes only). | Grx3 Jnd3 |
 | Ninja of the Deep Hours | {3}{U} | 2 | `FW-NINJUTSU` `FW-TRIGCOMBAT` | As Moon-Circuit Hacker. | Fae4 |
-| Nyxborn Hydra | {X}{G} | 2 | `FW-X` `FW-COUNTERS` `FW-BESTOW` | `{X}` cost, enters-with-X-counters, and bestow (a creature cast as an Aura). Looks like a green fatty; is three frameworks. | Elv4 Jnd2 |
+| Nyxborn Hydra | {X}{G} | 2 | `FW-X` `FW-BESTOW` `FW-ETBCOUNTERS` | Oracle confirms the `{X}` cost. Counters shipped, but 'enters with X +1/+1 counters' is a CR 614.1c enters-with replacement, which is its own absent framework on top of `{X}` and bestow. | Elv4 Jnd2 |
 | Of One Mind | {2}{U} | 2 | `FW-COST` | A flat `{2}` reduction gated on a board predicate — cost-modification.md §1's other-object shape, self-sourced. | Fae3 |
 | Outlaw Medic | {1}{W} | 0 | **Tier 0** | Printed `Keyword.LIFELINK` + `PutIntoGraveyardFromBattlefieldSelf` -> `drawCards(1)`. Shape: **Sneaky Snacker** body + **Rancor** trigger. | Gat4 |
-| Overgrown Battlement | {1}{G} | 2 | `FW-MANA` `FW-DEFENDERKW` | 'Add {G} for each creature you control with defender' — variable-amount production (CR 605.2), the same seam as Tron. | Spy4 |
+| Overgrown Battlement | {1}{G} | 2 | **ENCODED** (`FW-COUNTERS`) | Was `FW-MANA` `FW-DEFENDERKW`. `FW-MANA` shipped the variable-amount production; `FW-COUNTERS` added `Keyword.DEFENDER` with its CR 702.3b effect and widened `PermanentFilter` with a card-type and a keyword axis. | Spy4 |
 | Perilous Landscape | — | 1 | `P-SEARCH` | As Contaminated Landscape. | Jes4 |
 | Pinnacle Kill-Ship | {7} | 2 | `FW-COUNTERS` `FW-STATION` `FW-ABILTGT` `FW-MULTITGT` | Charge counters, station (a type change at a counter threshold), a targeted ETB and an 'up to one' target. The heaviest single card in the gauntlet. | Trn4 |
 | Ponder | {U} | 2 | `FW-LIBLOOK` | Reorder the top three, then an optional shuffle (an ADR-006 PRNG draw). | Ter4 |
@@ -668,7 +668,7 @@ Terror · `Mad` Mono-Red Madness · `Rly` Mono Red Rally · `Trn` Monster Tron �
 | Troll of Khazad-dûm | {5}{B} | 2 | `FW-BLOCKSET` | 'Can't be blocked except by three or more creatures' is a constraint over the whole block declaration; `DeclareBlockers` enumerates **pairwise** options. Also swampcycling. | Spy1 |
 | Troublemaker Ouphe | {1}{G} | 2 | `FW-OPTCOST` `FW-ABILTGT` | Bargain with linked information gating a targeted ETB exile. | Jnd°2 |
 | Twisted Landscape | — | 1 | `P-SEARCH` | As Contaminated Landscape. | Jnd4 |
-| Unexpected Fangs | {1}{B} | 2 | `FW-COUNTERS` | +1/+1 and lifelink counters — layer 7d and keyword counters, neither of which exists. | Grx°1 |
+| Unexpected Fangs | {1}{B} | 2 | **ENCODED** (`FW-COUNTERS`) | Triage said 'layer 7d'; **counters are 7c** (CR 613.4c) — there is no 613.4e and 7d is P/T switching. Keyword counters (CR 122.1b) are layer 6, and `FW-COUNTERS` built both. | Grx°1 |
 | Unfathomable Truths | {4}{U} | 0 | **Tier 0** | `drawCards(3)` + `createToken(eldraziSpawnToken)` — the token is already defined. Shape: **Malevolent Rumble**. *Devoid is unmodelled — see traps.* | Trn4 |
 | Union of the Third Path | {2}{W} | 0 | **Tier 0** | `drawCards(1)` then `gainLife(hand size)`. Shape: **Grab the Prize** (draw, then read state). | Jes1 |
 | Urza's Mine | — | 2 | `FW-MANA` | cost-modification.md §8 / mana-payment.md §8: conditional multi-mana production, a `SourceClassKey` profile change. | Trn4 |
@@ -678,9 +678,9 @@ Terror · `Mad` Mono-Red Madness · `Rly` Mono Red Rally · `Trn` Monster Tron �
 | Vault of Whispers | — | 0 | **Tier 0** | Artifact land, `ManaAbility(BLACK)`. Shape: **Ash Barrens**. | Grx3 Jnd2 |
 | Vitu-Ghazi Inspector | {1}{G} | 2 | `FW-OPTCOST` `FW-COUNTERS` `FW-ABILTGT` | Collect evidence with linked information gating a targeted +1/+1 counter. | Elv°3 |
 | Volatile Fjord | — | 1 | `P-ETBTAPPED` | As Glacial Floodplain. | Jes2 |
-| Wall of Roots | {1}{G} | 2 | `FW-COUNTERS` `FW-MANA` | A mana ability whose cost is putting a `-0/-1` counter on itself — counters plus a non-tap mana-ability cost. | Spy3 |
+| Wall of Roots | {1}{G} | 2 | `FW-MANACOST` `FW-ONCEPERTURN` | Counters shipped (`FW-COUNTERS`; the `-0/-1` kind is expressible). What is left is **not** counters: `ManaAbility` admits only `{T}` and sacrifice costs, and 'Activate only once each turn' has no per-turn activation limiter anywhere. | Spy3 |
 | Weather the Storm | {1}{G} | 2 | `FW-COPY` | Storm copies the spell once per spell cast this turn — spell copying plus a per-turn cast counter. | Jnd°3 |
 | Wellwisher | {1}{G} | 0 | **Tier 0** | `ActivatedAbility(cost=[TapSelf])`, untargeted, `gainLife` by an Elf count. Shape: **Melded Moxite**'s activated ability (`Activation.kt` already bars a summoning-sick `{T}`). | Elv1 |
 | Winding Way | {1}{G} | 1 | `P-REVEAL` | `LibraryReveal` extended with creature/land filters, an unbounded keep count, and a resolution-time filter choice (`ChooseColor` is the precedent request shape). | Elv4 Spy4 |
-| Writhing Chrysalis | {2}{R}{G} | 2 | `FW-COUNTERS` `FW-TRIGSAC` | The cast trigger is fine; `+1/+1` counters and a 'whenever you sacrifice another Eldrazi' trigger are not. Reach too. | Gat4 Jnd4 Spy°4 |
+| Writhing Chrysalis | {2}{R}{G} | 2 | `FW-SELFCASTTRIG` `FW-TRIGSAC` | Counters and reach both shipped (`FW-COUNTERS`). **The cast trigger is not fine**: `TriggerCondition.SpellCast` watches *other* spells being cast; 'when you cast **this** spell' is a self-referential trigger that fires from the stack and has no member. Plus the sacrifice trigger. | Gat4 Jnd4 Spy°4 |
 

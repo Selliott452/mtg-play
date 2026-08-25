@@ -3,7 +3,9 @@ package dev.mtgplay.rules.engine
 import dev.mtgplay.core.definition.Magnitude
 import dev.mtgplay.core.definition.StaticContinuousEffect
 import dev.mtgplay.core.identity.ObjectId
+import dev.mtgplay.core.state.Counter
 import dev.mtgplay.core.state.GameState
+import kotlinx.collections.immutable.PersistentMap
 
 /*
  * The CR 613 continuous-effect algorithm (docs/design/layer-system.md §3): apply active continuous
@@ -11,6 +13,15 @@ import dev.mtgplay.core.state.GameState
  * within a layer. The full ordered spine is real even though the pinned pool populates only two
  * stages — layer 6 (ability adding) and sublayer 7c (P/T modification that doesn't set) — so any
  * effect that would land elsewhere fails loudly rather than being silently dropped (§1).
+ *
+ * **Counters (CR 122) enter at those same two stages, not at a stage of their own.** CR 613.4c is
+ * explicit that sublayer 7c applies "effects *and counters* that modify power and/or toughness", and
+ * CR 122.1b routes a keyword counter through CR 613.1f, layer 6, exactly like a granted keyword. They
+ * reach the walk differently from an effect — a counter lives on the affected [dev.mtgplay.core.state.GameObject]
+ * itself, not on some source permanent's static ability, so it is threaded in as its own argument
+ * rather than as an [ActiveEffect] with a timestamp. CR 613.7 gives counters no timestamp of their
+ * own, and within 7c every contribution is an addition, so where in the sublayer they land is
+ * unobservable; they are applied after that sublayer's effects for definiteness.
  *
  * Timestamps are the source permanent's battlefield-entry order (its fresh ObjectId, CR 400.7): an
  * MVP Aura enters already attached (CR 303.4f) and never re-attaches, so "became attached"
@@ -28,6 +39,16 @@ import dev.mtgplay.core.state.GameState
  * The CR 613.1 / 613.3 layers, in application order. Layers 1→7, with layer 7 split into sublayers
  * 7a→7d. Only [ABILITY_ADDING] (layer 6) and [PT_MODIFYING] (sublayer 7c) are populated in the MVP
  * pool; the rest are ordered stages the algorithm walks and the loud gate keeps empty.
+ *
+ * **The sublayer citations were off by one until `FW-COUNTERS` and are now checked against the
+ * Comprehensive Rules text of 2026-08-19.** CR 613.4 has exactly four lettered sublayers, a–d:
+ * 613.4a is 7a (characteristic-defining P/T), 613.4b is 7b (setting), **613.4c is 7c ("Effects *and
+ * counters* that modify power and/or toughness")**, and **613.4d is 7d (switching power and
+ * toughness)**. **There is no rule 613.4e.** The enum previously named a `PT_COUNTERS` sublayer 7d
+ * citing a nonexistent 613.4e, and every sublayer citation from 7a down was shifted one letter to
+ * make room for it. Counters were never their own sublayer; 7d is switching, which no card in the
+ * gauntlet pool does, so that stage keeps its place on the spine and its loud gate under its real
+ * name, [PT_SWITCHING].
  */
 internal enum class Layer {
     /** Layer 1 — copy effects (CR 613.2). Unpopulated in the MVP pool. */
@@ -48,17 +69,25 @@ internal enum class Layer {
     /** Layer 6 — ability adding/removing (CR 613.1f). Populated: additive keyword/mana grants. */
     ABILITY_ADDING,
 
-    /** Sublayer 7a — characteristic-defining P/T (CR 613.4b). Unpopulated (no `*` P/T in the pool). */
+    /** Sublayer 7a — characteristic-defining P/T (CR 613.4a). Unpopulated (no `*` P/T in the pool). */
     PT_CHARACTERISTIC_DEFINING,
 
-    /** Sublayer 7b — P/T setting effects (CR 613.4c). Unpopulated (no "becomes a 1/1"). */
+    /** Sublayer 7b — P/T setting effects (CR 613.4b). Unpopulated (no "becomes a 1/1"). */
     PT_SETTING,
 
-    /** Sublayer 7c — P/T modifiers that don't set (CR 613.4d). Populated: additive +X/+Y. */
+    /**
+     * Sublayer 7c — effects **and counters** that modify P/T without setting it (CR 613.4c).
+     * Populated twice over: additive +X/+Y from Aura statics, and the [Counter.PowerToughness]
+     * counters on the object itself (CR 122.1a).
+     */
     PT_MODIFYING,
 
-    /** Sublayer 7d — P/T changes from counters (CR 613.4e). Unpopulated (no +1/+1 counters). */
-    PT_COUNTERS,
+    /**
+     * Sublayer 7d — effects that **switch** a creature's power and toughness (CR 613.4d).
+     * Unpopulated: no card in the gauntlet pool switches P/T. Not the counters slot — see the
+     * citation note on [Layer].
+     */
+    PT_SWITCHING,
 }
 
 /**
@@ -103,11 +132,12 @@ internal fun applyContinuousEffects(
     state: GameState,
     base: LayeredCharacteristics,
     active: List<ActiveEffect>,
+    counters: PersistentMap<Counter, Int>,
 ): LayeredCharacteristics {
     active.forEach(::requireImplementedKind)
     val byTimestamp = active.sortedBy(ActiveEffect::timestamp)
     return Layer.entries.fold(base) { acc, layer ->
-        applyLayer(state, acc, layer, byTimestamp.filter { layer in layersOf(it.effect) })
+        applyLayer(state, acc, layer, byTimestamp.filter { layer in layersOf(it.effect) }, counters)
     }
 }
 
@@ -123,14 +153,23 @@ internal fun applyLayer(
     acc: LayeredCharacteristics,
     layer: Layer,
     effects: List<ActiveEffect>,
+    counters: PersistentMap<Counter, Int>,
 ): LayeredCharacteristics =
     when (layer) {
-        // CR 613.1f: layer 6 unions granted keywords and mana abilities onto the object.
-        Layer.ABILITY_ADDING -> effects.fold(acc) { current, active -> current.granting(active.effect) }
-        // CR 613.4d: sublayer 7c adds the (possibly dynamic) P/T modifiers.
-        Layer.PT_MODIFYING -> effects.fold(acc) { current, active -> current.modifying(state, active) }
+        // CR 613.1f: layer 6 unions granted keywords and mana abilities onto the object, then the
+        // keywords the object's own keyword counters grant it (CR 122.1b).
+        Layer.ABILITY_ADDING ->
+            effects
+                .fold(acc) { current, active -> current.granting(active.effect) }
+                .grantingKeywordCounters(counters)
+        // CR 613.4c: sublayer 7c adds the (possibly dynamic) P/T modifiers, then the object's own
+        // P/T counters (CR 122.1a) — the sublayer the rule names for both.
+        Layer.PT_MODIFYING ->
+            effects
+                .fold(acc) { current, active -> current.modifying(state, active) }
+                .modifiedByCounters(counters)
         Layer.COPY, Layer.CONTROL, Layer.TEXT, Layer.TYPE, Layer.COLOR,
-        Layer.PT_CHARACTERISTIC_DEFINING, Layer.PT_SETTING, Layer.PT_COUNTERS,
+        Layer.PT_CHARACTERISTIC_DEFINING, Layer.PT_SETTING, Layer.PT_SWITCHING,
         -> {
             require(effects.isEmpty()) {
                 "CR 613: continuous effects in $layer are not implemented in the MVP pool " +
@@ -140,6 +179,49 @@ internal fun applyLayer(
             acc
         }
     }
+
+/**
+ * Layer 6 (CR 613.1f, CR 122.1b): unions onto the object the keywords its own keyword counters
+ * grant it. Unconditional — a keyword counter grants its keyword to any object, creature or not
+ * (CR 122.1b names permanents *and* cards in other zones), so there is nothing here to gate on a
+ * P/T box the way [modifiedByCounters] must.
+ */
+private fun LayeredCharacteristics.grantingKeywordCounters(
+    counters: PersistentMap<Counter, Int>,
+): LayeredCharacteristics {
+    val granted = counters.keys.filterIsInstance<Counter.KeywordCounter>().map(Counter.KeywordCounter::keyword)
+    return if (granted.isEmpty()) this else copy(keywords = keywords.addingAll(granted))
+}
+
+/**
+ * Sublayer 7c (CR 613.4c, CR 122.1a): adds the object's own `+X/+Y` counters to its power and
+ * toughness — N counters of a kind contribute N times that kind's components.
+ *
+ * Fails loudly on an object with P/T counters and no P/T box. CR 122.1a would leave such an object
+ * with nothing to modify (a `+1/+1` counter on a noncreature artifact is real and inert until the
+ * artifact becomes a creature), but nothing in the gauntlet pool can place one — the card that
+ * does, Kenku Artificer, needs the layer-4 type change and layer-7b P/T setting that would give the
+ * artifact a P/T box in the first place, and neither layer is implemented. Silently ignoring the
+ * counters would make that card look encodable when it is not.
+ */
+private fun LayeredCharacteristics.modifiedByCounters(counters: PersistentMap<Counter, Int>): LayeredCharacteristics {
+    var powerDelta = 0
+    var toughnessDelta = 0
+    for ((kind, count) in counters) {
+        if (kind !is Counter.PowerToughness) continue
+        powerDelta += kind.power * count
+        toughnessDelta += kind.toughness * count
+    }
+    if (powerDelta == 0 && toughnessDelta == 0) return this
+    val basePower = power
+    val baseToughness = toughness
+    require(basePower != null && baseToughness != null) {
+        "CR 613.4c / CR 122.1a: an object with no printed power/toughness carries P/T counters " +
+            "($counters); only a creature has power and toughness to modify, and no implemented " +
+            "layer can make this object one"
+    }
+    return copy(power = basePower + powerDelta, toughness = baseToughness + toughnessDelta)
+}
 
 /** The loud gate: an effect must contribute to an implemented layer (6 or 7c), never nothing. */
 private fun requireImplementedKind(active: ActiveEffect) {
@@ -158,7 +240,7 @@ private fun LayeredCharacteristics.granting(effect: StaticContinuousEffect): Lay
     )
 
 /**
- * Sublayer 7c (CR 613.4d): adds [active]'s power/toughness modifiers, evaluating a dynamic magnitude
+ * Sublayer 7c (CR 613.4c): adds [active]'s power/toughness modifiers, evaluating a dynamic magnitude
  * against the current [state] (CR 613.3c). Fails loudly if the object has no P/T box — a 7c modifier
  * on a non-creature is an engine defect (the enchant restrictions keep P/T Auras on creatures).
  */
@@ -169,7 +251,7 @@ private fun LayeredCharacteristics.modifying(
     val basePower = power
     val baseToughness = toughness
     require(basePower != null && baseToughness != null) {
-        "CR 613.4d: a layer-7c P/T modifier from ${active.source} applies to an object with no " +
+        "CR 613.4c: a layer-7c P/T modifier from ${active.source} applies to an object with no " +
             "printed power/toughness; only creatures have P/T"
     }
     return copy(

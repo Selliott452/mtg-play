@@ -97,10 +97,21 @@ import dev.mtgplay.core.identity.CardRef
  * amount** (CR 605.2): Monster Tron's three Urza lands (UrzaLands.kt) [urzasMine], [urzasPowerPlant],
  * and [urzasTower] — one colorless alone, two or (for the Tower) three with the other two out — and
  * [priestOfTitania] (ManaCreatures.kt), one `{G}` per Elf on the battlefield. Two of that framework's
- * cards are deliberately absent: Overgrown Battlement counts creatures **with defender**, a keyword
- * that does not exist yet (`FW-DEFENDERKW`), and Saruli Caretaker's ability costs "{T}, Tap an
+ * cards were left absent at the time; Saruli Caretaker still is, its ability costing "{T}, Tap an
  * untapped creature you control" — an activation cost shape the payment model cannot express
  * (docs/design/mana-payment.md §9).
+ * The `FW-COUNTERS` packet adds counters on permanents (CR 122) and the three keywords the engine
+ * lacked — haste (CR 702.10), defender (CR 702.3) and reach (CR 702.17), each with its rules effect,
+ * never a bare enum member. It brings two cards. [overgrownBattlement] (ManaCreatures.kt) is the
+ * `FW-MANA` card that was blocked *only* on `Keyword.DEFENDER` existing; with the keyword real and
+ * `PermanentFilter` widened by a card-type and a keyword axis, "add {G} for each creature you control
+ * with defender" is now exact. [unexpectedFangs] (CountersOnPermanents.kt) is the pool's first card to
+ * place counters at all, and the first to place a **keyword counter** (CR 122.1b). The packet's other
+ * seven cards stay absent, each on a framework it does not own: Wall of Roots and Gingerbrute need
+ * mana-ability/activation cost shapes and a per-turn limiter, Kenku Artificer needs CR 613 layers 4
+ * and 7b, Nyxborn Hydra needs `{X}` and bestow, Writhing Chrysalis needs two absent trigger
+ * conditions, Clockwork Percussionist needs a delayed play-permission window, and Goblin Tomb Raider
+ * needs a *conditional* static continuous effect that affects its own source.
  *
  * [definitions] is shaped for direct `MatchConfig.definitions` consumption: the engine carries
  * it into `GameState` in canonical name-sorted order regardless of this map's own order
@@ -168,6 +179,7 @@ object MvpCards {
             murmuringMystic,
             negate,
             outlawMedic,
+            overgrownBattlement,
             plains,
             ponder,
             preordain,
@@ -196,6 +208,7 @@ object MvpCards {
             swamp,
             terminate,
             thoughtScour,
+            unexpectedFangs,
             unfathomableTruths,
             unionOfTheThirdPath,
             urzasMine,

@@ -19,10 +19,11 @@ import kotlinx.collections.immutable.persistentSetOf
  * stale read is impossible (CR 613.3c, §5).
  *
  * @property power the layered power (CR 613.3), or `null` for an object with no printed P/T box
- *   (a non-creature); layer 7c never invents a P/T box.
+ *   (a non-creature); layer 7c never invents a P/T box, whether the modifier came from an effect or
+ *   from a counter (CR 122.1a).
  * @property toughness the layered toughness, or `null` for an object with no printed P/T box.
  * @property keywords the layered keyword abilities (CR 702): printed keywords unioned with layer-6
- *   grants active on the object.
+ *   grants active on the object, including the keywords its own keyword counters grant (CR 122.1b).
  * @property manaAbilities the layered tap-for-mana abilities (CR 605.1a): printed abilities followed
  *   by layer-6 grants — how an Abundant-Growth-enchanted land gains "add one mana of any color".
  */
@@ -54,7 +55,9 @@ fun layeredCharacteristics(
             keywords = printed?.keywords ?: persistentSetOf(),
             manaAbilities = definition?.manaAbilities ?: persistentListOf(),
         )
-    return applyContinuousEffects(state, base, activeEffectsOn(state, id))
+    // CR 122.1: the object's own counters are applied by the same walk, at the layers the rules give
+    // them — layer 6 for a keyword counter (CR 122.1b), sublayer 7c for a P/T counter (CR 613.4c).
+    return applyContinuousEffects(state, base, activeEffectsOn(state, id), obj.counters)
 }
 
 /**

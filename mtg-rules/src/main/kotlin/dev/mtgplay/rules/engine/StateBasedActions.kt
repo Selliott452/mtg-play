@@ -5,6 +5,7 @@ import dev.mtgplay.core.event.GameEvent
 import dev.mtgplay.core.event.LossReason
 import dev.mtgplay.core.identity.ObjectId
 import dev.mtgplay.core.identity.PlayerId
+import dev.mtgplay.core.state.Counter
 import dev.mtgplay.core.state.GameObject
 import dev.mtgplay.core.state.GameState
 import dev.mtgplay.core.state.PriorityStatus
@@ -61,7 +62,37 @@ internal sealed interface StateBasedAction {
     data class TokenCeasesToExist(
         val objectId: ObjectId,
     ) : StateBasedAction
+
+    /**
+     * [amount] `+1/+1` counters and [amount] `-1/-1` counters are removed from the permanent
+     * [objectId] because it has both (CR 704.5q), where [amount] is the smaller of the two counts.
+     * Added by `FW-COUNTERS`.
+     *
+     * Applies to any **permanent**, not only a creature — CR 704.5q says "permanent" — though only a
+     * creature can carry both kinds in the gauntlet pool today.
+     */
+    data class CountersAnnihilate(
+        val objectId: ObjectId,
+        val amount: Int,
+    ) : StateBasedAction
 }
+
+/**
+ * The CR 704.5q counter-annihilation actions applicable to [state], in battlefield order: for each
+ * permanent carrying both `+1/+1` and `-1/-1` counters, one action removing N of each, N being the
+ * smaller count.
+ *
+ * **Only that exact pair annihilates.** A `-0/-1` counter (Wall of Roots' cost) is a different kind
+ * under CR 122.1a and CR 704.5q does not name it, so a creature with `+1/+1` and `-0/-1` counters
+ * keeps both forever — which is the printed rule, not an omission.
+ */
+private fun counterAnnihilationActions(state: GameState): List<StateBasedAction> =
+    state.sharedZones.battlefield.mapNotNull { obj ->
+        val plus = obj.counterCount(Counter.PLUS_ONE_PLUS_ONE)
+        val minus = obj.counterCount(Counter.MINUS_ONE_MINUS_ONE)
+        val pairs = minOf(plus, minus)
+        if (pairs > 0) StateBasedAction.CountersAnnihilate(obj.id, pairs) else null
+    }
 
 /**
  * The creature-death state-based actions applicable to [state] (CR 704.5f, CR 704.5g), in battlefield
@@ -94,7 +125,8 @@ private fun creatureDeathActions(state: GameState): List<StateBasedAction> =
 /**
  * All state-based actions applicable to [state] right now (CR 704.5), in deterministic order:
  * player losses first, in seat order, then creature deaths in battlefield order, then Aura
- * fall-offs in battlefield order. Later phases append checks here.
+ * fall-offs in battlefield order, then token cessations, then CR 704.5q counter annihilations.
+ * Later phases append checks here.
  */
 internal fun applicableStateBasedActions(state: GameState): List<StateBasedAction> =
     buildList {
@@ -123,6 +155,7 @@ internal fun applicableStateBasedActions(state: GameState): List<StateBasedActio
             // CR 704.5d: a token in any zone other than the battlefield ceases to exist.
             add(StateBasedAction.TokenCeasesToExist(obj.id))
         }
+        addAll(counterAnnihilationActions(state))
     }
 
 /**
@@ -225,6 +258,15 @@ internal fun performStateBasedActions(state: GameState): SbaOutcome {
  * and Aura fall-offs (CR 704.5m) are performed together — an Aura and its enchanted creature never
  * fall in the *same* batch (while the creature is still on the battlefield the Aura is legal), so
  * these two moves never contend for the same object.
+ *
+ * **CR 704.5q annihilation and a creature death *can* name the same object in one batch**, and that
+ * is why it is performed last and skips an object that is no longer on the battlefield: a creature
+ * whose counters make its toughness 0 or less dies (CR 704.5f) in the same check that annihilates its
+ * opposing counters. Order is nonetheless unobservable, which is the point worth recording — removing
+ * N `+1/+1` and N `-1/-1` counters changes power by `-N + N` and toughness by `-N + N`, so
+ * annihilation is exactly P/T-neutral and cannot make a creature die that would have lived, or the
+ * reverse. It is sequenced after the deaths only because a departed object has no counters to remove
+ * (CR 122.2), not to resolve a rules conflict.
  */
 private fun performBatch(
     state: GameState,
@@ -234,6 +276,7 @@ private fun performBatch(
     val deaths = mutableListOf<StateBasedAction.CreatureDies>()
     val fallOffs = mutableListOf<StateBasedAction.AuraFallsOff>()
     val tokenCeases = mutableListOf<StateBasedAction.TokenCeasesToExist>()
+    val annihilations = mutableListOf<StateBasedAction.CountersAnnihilate>()
     for (action in actions) {
         // Exhaustive over the sealed hierarchy: a new state-based-action kind must be sorted here.
         when (action) {
@@ -241,6 +284,7 @@ private fun performBatch(
             is StateBasedAction.CreatureDies -> deaths += action
             is StateBasedAction.AuraFallsOff -> fallOffs += action
             is StateBasedAction.TokenCeasesToExist -> tokenCeases += action
+            is StateBasedAction.CountersAnnihilate -> annihilations += action
         }
     }
     if (losses.isNotEmpty()) return performPlayerLoss(state, losses)
@@ -248,7 +292,7 @@ private fun performBatch(
     val afterFallOffs = performAuraFallOffs(afterDeaths, fallOffs.map(StateBasedAction.AuraFallsOff::objectId))
     val afterTokens =
         performTokenCeasesToExist(afterFallOffs, tokenCeases.map(StateBasedAction.TokenCeasesToExist::objectId))
-    return SbaOutcome.Continued(afterTokens, performedWork = true)
+    return SbaOutcome.Continued(performCounterAnnihilations(afterTokens, annihilations), performedWork = true)
 }
 
 /**

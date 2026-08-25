@@ -227,19 +227,24 @@ private fun manaAmountOf(
 
 /**
  * How many battlefield permanents match [filter] from the point of view of the source [obj]
- * (CR 109.4, CR 205.3): permanents whose **printed** subtypes contain the filter's subtype, and —
- * when the filter says "you control" — that share [obj]'s controller.
+ * (CR 109.4, CR 205.2, CR 205.3) — Priest of Titania's "each Elf on the battlefield", Urza's Mine's
+ * "an Urza's Power-Plant you control", Overgrown Battlement's "each creature you control with
+ * defender". Every axis the filter states must hold; an axis it leaves `null` constrains nothing.
  *
- * Two read points are worth naming.
+ * Three read points are worth naming.
  *
  * - **Controller is owner**, the same standing simplification the rest of payment enumeration makes
  *   until control-changing effects exist.
- * - **Subtypes are printed, not layered.** [LayeredCharacteristics] carries power, toughness,
- *   keywords and mana abilities, and no card in the gauntlet pool changes a permanent's subtypes
- *   (that is `FW-TYPECHANGE`, its own framework). Reading printed subtypes is therefore exact
- *   today; when a type-changing effect lands it must extend [LayeredCharacteristics] and this line
- *   must follow it, and the reason it will be found is that this is the only place subtypes are
+ * - **Subtypes and card types are printed, not layered.** [LayeredCharacteristics] carries power,
+ *   toughness, keywords and mana abilities, and no card in the gauntlet pool changes a permanent's
+ *   types (that is `FW-TYPECHANGE`, its own framework). Reading them printed is therefore exact
+ *   today; when a type-changing effect lands it must extend [LayeredCharacteristics] and these lines
+ *   must follow it, and the reason they will be found is that this is the only place types are
  *   counted.
+ * - **Keywords are layered, and deliberately not printed.** A keyword is the one axis here that
+ *   effects already grant (CR 613.1f layer 6) and that a counter can confer (CR 122.1b), so the count
+ *   goes through [effectiveKeywords] — the same seam combat reads. Reading printed keywords would be
+ *   wrong *today*, not merely wrong later: an Aura granting defender would go uncounted.
  */
 private fun countMatching(
     state: GameState,
@@ -247,9 +252,10 @@ private fun countMatching(
     filter: PermanentFilter,
 ): Int =
     state.sharedZones.battlefield.count { candidate ->
-        (!filter.controlledByYou || candidate.owner == obj.owner) &&
-            state.definitions[candidate.card]
-                ?.characteristics
-                ?.subtypes
-                ?.contains(filter.subtype) == true
+        val characteristics = state.definitions[candidate.card]?.characteristics
+        characteristics != null &&
+            (!filter.controlledByYou || candidate.owner == obj.owner) &&
+            (filter.subtype == null || filter.subtype in characteristics.subtypes) &&
+            (filter.cardType == null || filter.cardType in characteristics.cardTypes) &&
+            (filter.keyword == null || filter.keyword in effectiveKeywords(state, candidate.id))
     }
