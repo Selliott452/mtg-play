@@ -571,6 +571,26 @@ sealed interface GameEvent {
     ) : GameEvent
 
     /**
+     * [player] shuffled [card] into their library from another zone as the new object [objectId]
+     * (CR 400.7, CR 701.20) — Lembas' "its owner shuffles it into their library". Added with
+     * `FW-SHUFFLEIN`.
+     *
+     * The sibling of [CardPutOnLibrary] and deliberately **not** a mode of it: that event carries an
+     * `onTop` flag because a placement chooses an end of the library, while a shuffle-in chooses
+     * nothing at all — the card's position is decided by the CR 701.20 randomisation, which the match
+     * PRNG performs (ADR-006). Reporting a shuffle-in as `onTop = false` would name a position that no
+     * rule assigned and that nobody may know.
+     *
+     * The shuffle itself is not separately narrated: it is inseparable from this move, and no other
+     * event in the log would distinguish a shuffled library from an unshuffled one anyway.
+     */
+    data class CardShuffledIntoLibrary(
+        val player: PlayerId,
+        val objectId: ObjectId,
+        val card: CardRef,
+    ) : GameEvent
+
+    /**
      * A card was plotted (CR 702.140): [player] paid its plot cost and exiled [card] from their hand as
      * the new exile object [objectId] (CR 400.7), marked plotted this turn
      * ([dev.mtgplay.core.state.GameObject.plottedTurn]). Added in P6.2a — the card may be cast for free

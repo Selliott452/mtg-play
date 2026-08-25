@@ -126,6 +126,22 @@ import dev.mtgplay.core.identity.CardRef
  * **Sunscape Familiar** — whose other-object reducer the framework does implement and test — prints
  * **Defender**, the same missing keyword (`FW-DEFENDERKW`) that keeps Overgrown Battlement out.
  *
+ * The `P-SEARCH` / `FW-SHUFFLEIN` packet widens the CR 701.18 library search on two axes and brings six
+ * cards (docs/design/library-search.md). The Landscape cycle — [contaminatedLandscape],
+ * [twistedLandscape], and [perilousLandscape] (Landscapes.kt) — needs both: a **battlefield-tapped**
+ * destination and a filter that is a Basic supertype *and* one of three land types. They are also the
+ * pool's first **plain** cycling (CR 702.29a, "draw a card"), which was composable all along but had no
+ * client, because Ash Barrens and Lórien Revealed both print typecycling instead. In
+ * LibrarySearchCards.kt, [generousEnt] is the second typecycler and the first to name a land type other
+ * than Island; [cropRotation] is the first **spell** whose resolution is a search at all, which is what
+ * moved the search clause off `ActivatedAbility` onto the `ResolutionClauses` carrier; and [lembas] is
+ * the first card to move a card from a graveyard *back into a library*, on the new
+ * `shuffleIntoOwnersLibrary` primitive. Two siblings stay absent: **Land Grant**'s "reveal your hand
+ * rather than pay" is an alternative cost that is both conditional on a hidden zone and paid by
+ * revealing (`FW-ALTCOST`), and **Troll of Khazad-dûm**'s "can't be blocked except by three or more
+ * creatures" is a constraint over the whole block declaration while `DeclareBlockers` enumerates
+ * pairwise (`FW-BLOCKSET`). Each is one framework — and zero primitives — away.
+ *
  * [definitions] is shaped for direct `MatchConfig.definitions` consumption: the engine carries
  * it into `GameState` in canonical name-sorted order regardless of this map's own order
  * (ADR-009 — definitions ride in the state; a [CardRef] without an entry is inert). The pool
@@ -146,7 +162,9 @@ object MvpCards {
             breathWeapon,
             cartoucheOfSolidarity,
             castDown,
+            contaminatedLandscape,
             counterspell,
+            cropRotation,
             crypticSerpent,
             dispel,
             drossforgeBridge,
@@ -164,6 +182,7 @@ object MvpCards {
             forest,
             fyndhornElves,
             galvanicBlast,
+            generousEnt,
             gingerbreadCabin,
             glacialFloodplain,
             gladecoverScout,
@@ -185,6 +204,7 @@ object MvpCards {
             kruphixsInsight,
             lastBreath,
             lavaDart,
+            lembas,
             lifelink,
             lightningBolt,
             lorienRevealed,
@@ -201,6 +221,7 @@ object MvpCards {
             ofOneMind,
             outlawMedic,
             overgrownBattlement,
+            perilousLandscape,
             plains,
             ponder,
             preordain,
@@ -233,6 +254,7 @@ object MvpCards {
             thoughtcast,
             thoughtScour,
             timberwatchElf,
+            twistedLandscape,
             unexpectedFangs,
             unfathomableTruths,
             unionOfTheThirdPath,
