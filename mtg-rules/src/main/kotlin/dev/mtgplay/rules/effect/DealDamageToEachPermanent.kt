@@ -1,6 +1,7 @@
 package dev.mtgplay.rules.effect
 
 import dev.mtgplay.core.card.Keyword
+import dev.mtgplay.core.state.DamageSource
 import dev.mtgplay.core.state.GameObject
 import dev.mtgplay.core.state.GameState
 import dev.mtgplay.core.state.Target
@@ -8,7 +9,7 @@ import dev.mtgplay.rules.engine.isCreature
 import dev.mtgplay.rules.engine.layeredCharacteristics
 
 /**
- * Effect primitive: a source deals [amount] damage to **each** battlefield permanent the [affected]
+ * Effect primitive: [source] deals [amount] damage to **each** battlefield permanent the [affected]
  * predicate accepts (CR 120) — the published building block a sweeper's resolution composes (ADR-003;
  * Breath Weapon's "each non-Dragon creature" and End the Festivities' "each creature and planeswalker
  * they control" are the first clients).
@@ -26,9 +27,19 @@ import dev.mtgplay.rules.engine.layeredCharacteristics
  * The predicate is the card's, never this primitive's: `mtg-rules` names no specific card (PLAN.md §3),
  * so "non-Dragon", "you control", and every other printed qualifier is card-definition data. The one
  * rules judgement a sweeper needs is published beside it as [isCreaturePermanent].
+ *
+ * **[source] is required here for the same reason it is on [dealDamage], and this primitive is the
+ * sharper case** (`FW-PREVENT`, docs/design/protection.md §3 Part A). A sweeper's own source is
+ * routinely one of its recipients — Krark-Clan Shaman damages every creature without flying and so
+ * damages itself — and until now the primitive could not say so. CR 615 prevention and CR 702.16e
+ * protection are both predicates on the source, so a sweeper that could not name its source could not
+ * be prevented against: each recipient's check is [dealDamage]'s, made against this one source, so a
+ * board where one creature has protection from it and another does not resolves correctly per
+ * creature rather than all-or-nothing.
  */
 fun dealDamageToEachPermanent(
     state: GameState,
+    source: DamageSource,
     amount: Int,
     affected: (GameState, GameObject) -> Boolean,
 ): GameState {
@@ -39,7 +50,7 @@ fun dealDamageToEachPermanent(
         state.sharedZones.battlefield
             .filter { affected(state, it) }
             .map { it.id }
-    return recipients.fold(state) { current, id -> dealDamage(current, Target.Permanent(id), amount) }
+    return recipients.fold(state) { current, id -> dealDamage(current, source, Target.Permanent(id), amount) }
 }
 
 /**

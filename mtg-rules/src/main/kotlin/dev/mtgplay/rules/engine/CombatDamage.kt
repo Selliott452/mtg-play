@@ -4,6 +4,7 @@ import dev.mtgplay.core.card.Keyword
 import dev.mtgplay.core.identity.ObjectId
 import dev.mtgplay.core.state.AttackerAssignment
 import dev.mtgplay.core.state.CombatState
+import dev.mtgplay.core.state.DamageSource
 import dev.mtgplay.core.state.GameState
 import dev.mtgplay.core.state.Target
 import dev.mtgplay.rules.AdvanceResult
@@ -44,6 +45,26 @@ internal data class DamageAssignment(
     val recipient: Target,
     val amount: Int,
 )
+
+/**
+ * The [DamageSource] a combat [assignment]'s source object is (CR 120.1), read from the pre-step
+ * state — the same state CR 510.2 computes every assignment from. A creature that has already left
+ * the battlefield within this step still deals its damage as last-known information (CR 113.7c), so
+ * the [CardRef] is looked up leniently and falls back to nothing only if the object is gone from the
+ * battlefield entirely, which CR 510.2's simultaneity makes unreachable within a step.
+ */
+private fun damageSourceOf(
+    state: GameState,
+    source: ObjectId,
+): DamageSource =
+    DamageSource(
+        objectId = source,
+        card =
+            state.sharedZones.battlefield
+                .firstOrNull { it.id == source }
+                ?.card
+                ?: error("CR 120.1: combat damage's source $source is not on the battlefield"),
+    )
 
 /**
  * Performs the combat-damage step (CR 510): first surfaces any pending trample-assignment decision
@@ -133,11 +154,26 @@ private fun dealCombatDamage(
                 )
             }
         }
-    val damaged = assignments.fold(state) { current, a -> dealDamage(current, a.recipient, a.amount) }
+    // CR 120.1: combat has always known each assignment's source and used to drop it at this call.
+    // It is passed now, so a blocker with protection from the attacker takes no damage (CR 702.16e)
+    // while the lethal assignment that was computed for it above stands unchanged (CR 510.1c).
+    val damaged =
+        assignments.fold(state) { current, a ->
+            dealDamage(current, damageSourceOf(state, a.source), a.recipient, a.amount)
+        }
+    // CR 615.6: prevented damage never happens, so it is not damage *dealt* — and both results below
+    // are results of damage dealt (CR 702.15 lifelink, CR 603.2 the enchanted-creature trigger).
+    // Reading the verdict from the same pre-step state the assignments were computed from keeps
+    // CR 510.2 simultaneity: nothing this step does can change whether this step's damage is
+    // prevented. Assignments themselves are *not* filtered — CR 510.1c lethal and the CR 702.19b
+    // trample excess are computed pre-prevention and stand (docs/design/protection.md §2.1) — and
+    // every assignment still goes through dealDamage, which emits the DamagePrevented narration.
+    val dealt =
+        assignments.filterNot { damageIsPrevented(state, damageSourceOf(state, it.source), it.recipient) }
     // CR 702.15: lifelink is a result of the damage, applied in this same transition, before any
     // trigger is placed — so it can never race the Armadillo Cloak "gain that much life" trigger.
-    val lifelinked = applyCombatLifelink(damaged, assignments)
-    val triggered = fireCombatDamageTriggers(lifelinked, assignments)
+    val lifelinked = applyCombatLifelink(damaged, dealt)
+    val triggered = fireCombatDamageTriggers(lifelinked, dealt)
     return triggered.updateCombat {
         when (step) {
             DamageStep.FIRST_STRIKE -> it.copy(firstStrikeDamageDealt = true)

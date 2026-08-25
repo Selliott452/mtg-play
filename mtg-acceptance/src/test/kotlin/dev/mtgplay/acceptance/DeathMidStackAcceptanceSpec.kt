@@ -7,6 +7,7 @@ import dev.mtgplay.core.event.GameEvent
 import dev.mtgplay.core.event.LossReason
 import dev.mtgplay.core.identity.CardRef
 import dev.mtgplay.core.identity.PlayerId
+import dev.mtgplay.core.state.DamageSource
 import dev.mtgplay.core.state.StackEntry
 import dev.mtgplay.core.state.Target
 import dev.mtgplay.rules.MatchResult
@@ -60,7 +61,14 @@ class DeathMidStackAcceptanceSpec :
             duelEvents.filterIsInstance<GameEvent.SpellResolved>() shouldHaveSize 1
             duelEvents.filterIsInstance<GameEvent.SpellFizzled>().shouldBeEmpty()
             val tail = final.events.takeLast(5)
-            tail[0] shouldBe GameEvent.DamageDealt(Target.Player(initiator), LIGHTNING_BOLT_DAMAGE)
+            // CR 120.1: the damage names its source, and here that is load-bearing — the *responder's*
+            // Bolt is the one that resolved, and the source is what says so (`FW-PREVENT`).
+            tail[0] shouldBe
+                GameEvent.DamageDealt(
+                    DamageSource(outcome.responderBoltId, CardRef("Lightning Bolt")),
+                    Target.Player(initiator),
+                    LIGHTNING_BOLT_DAMAGE,
+                )
             tail[1] shouldBe
                 GameEvent.LifeChanged(initiator, -LIGHTNING_BOLT_DAMAGE, BOLT_LETHAL_LIFE - LIGHTNING_BOLT_DAMAGE)
             val resolved = tail[2].shouldBeInstanceOf<GameEvent.SpellResolved>()

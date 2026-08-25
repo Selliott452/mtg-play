@@ -1,14 +1,16 @@
 package dev.mtgplay.rules.effect
 
 import dev.mtgplay.core.event.GameEvent
+import dev.mtgplay.core.state.DamageSource
 import dev.mtgplay.core.state.GameState
 import dev.mtgplay.core.state.Target
 import dev.mtgplay.rules.engine.changeLife
+import dev.mtgplay.rules.engine.damageIsPrevented
 import dev.mtgplay.rules.engine.emit
 import dev.mtgplay.rules.engine.markDamage
 
 /**
- * Effect primitive: a source deals [amount] damage to [recipient] (CR 120) — the published
+ * Effect primitive: [source] deals [amount] damage to [recipient] (CR 120) — the published
  * building block card resolutions compose (ADR-003; Lightning Bolt is the first client).
  *
  * Damage dealt to a player causes that player to lose that much life as its **result**
@@ -29,24 +31,68 @@ import dev.mtgplay.rules.engine.markDamage
  *
  * Life may legally drop to 0 or below; the CR 704.5a state-based action ends the game at the
  * next check (CR 704.3) — an effect never ends the game itself.
+ *
+ * **[source] and the CR 615 prevention step** (`FW-PREVENT`, docs/design/protection.md §3). CR 120.1
+ * makes the source half of what damage is, and this primitive had no room for it: combat computed
+ * one and dropped it, card resolutions never had one to drop, and the event narrated only the
+ * recipient. Prevention is the reason it can no longer be optional — every prevention effect in the
+ * CR is a predicate on the *source's* characteristics ("damage from sources with the stated
+ * quality", "damage that sources of the colour of your choice would deal"), so the predicate was
+ * not expressible at the point where damage happens.
+ *
+ * The prevention check ([damageIsPrevented]) is therefore the **first** thing this function does
+ * after the CR 120.8 zero exit, and its position is the rule: CR 615.6 says prevented damage never
+ * happens, so no [GameEvent.DamageDealt] is emitted, no damage is marked, no life is lost, and —
+ * because both are results of damage *dealt* — no lifelink gains life (CR 702.15) and no
+ * damage-dealt trigger fires. A [GameEvent.DamagePrevented] is emitted in its place as derived
+ * observability (PLAN.md §2.2); nothing in the rules reads it.
+ *
+ * **Fully prevented damage is not the same as zero damage.** Both exit here with the state
+ * unchanged, for different reasons — CR 120.8 for one and CR 615.6 for the other — and the events
+ * are what tell them apart.
+ *
+ * @param source what is dealing the damage (CR 120.1); see [DamageSource] for why it carries both
+ *   an id and a [dev.mtgplay.core.identity.CardRef].
  */
 fun dealDamage(
     state: GameState,
+    source: DamageSource,
     recipient: Target,
     amount: Int,
 ): GameState {
     require(amount >= 0) { "CR 120: a damage amount is non-negative, was $amount" }
+    // CR 120.8: zero damage is not dealt at all.
     if (amount == 0) return state
-    return when (recipient) {
+    // CR 615.6: prevented damage never happens — no event, no mark, no life loss, no lifelink, no
+    // trigger. This must precede every one of those, which is why it is checked before any of the
+    // work below and not applied as a subtraction somewhere upstream.
+    return if (damageIsPrevented(state, source, recipient)) {
+        state.emit(GameEvent.DamagePrevented(source, recipient, amount))
+    } else {
+        dealUnpreventedDamage(state, source, recipient, amount)
+    }
+}
+
+/**
+ * The damage itself, once CR 120.8 and CR 615 have both let it through: the event, then its result —
+ * life loss for a player (CR 120.3a) or a mark on a permanent (CR 120.3d).
+ */
+private fun dealUnpreventedDamage(
+    state: GameState,
+    source: DamageSource,
+    recipient: Target,
+    amount: Int,
+): GameState =
+    when (recipient) {
         is Target.Player ->
             changeLife(
-                state.emit(GameEvent.DamageDealt(recipient, amount)),
+                state.emit(GameEvent.DamageDealt(source, recipient, amount)),
                 recipient.id,
                 -amount,
             )
         is Target.Permanent ->
             markDamage(
-                state.emit(GameEvent.DamageDealt(recipient, amount)),
+                state.emit(GameEvent.DamageDealt(source, recipient, amount)),
                 recipient.id,
                 amount,
             )
@@ -58,4 +104,3 @@ fun dealDamage(
         is Target.CardInGraveyard ->
             error("CR 120.3: damage cannot be dealt to a card in a graveyard, got $recipient")
     }
-}

@@ -162,6 +162,28 @@ package dev.mtgplay.protocol
  * client→server direction changes shape either — this is a one-directional break, the smaller of the
  * two modes, but a break in every message that carries a game object.
  *
+ * *`FW-PREVENT` / `FW-PROTECT`* — damage prevention (CR 615), the damage source (CR 120.1), and
+ * protection (CR 702.16). Two of the three are **not** wire-visible, and saying which is which is the
+ * point of this paragraph:
+ *
+ * 1. **The damage source is not on the wire.** [dev.mtgplay.core.event.GameEvent.DamageDealt] gained
+ *    a `source`, and [dev.mtgplay.core.event.GameEvent] gained a `DamagePrevented` member — but the
+ *    event log is not part of [SeatViewDto] at all. It is derived observability (ADR-006), excluded
+ *    from the seat view by design and excluded from the replay fingerprint for the same reason. So
+ *    the single largest change in this wave, measured in call sites, is invisible to a peer.
+ * 2. **Protection is on the wire, and it is a break.** [PrintedCharacteristicsDto] gains a required
+ *    `protections: List<QualityDto>`, and [QualityDto] is a new sealed hierarchy with the `color`
+ *    and `monocolored` discriminators. Every printed card on the wire carries the field, so a
+ *    `5.0.0` peer's strict codec (`ignoreUnknownKeys = false`) rejects every seat view that names a
+ *    card — the same break shape `FW-COUNTERS` recorded for [GameObjectDto]. It is not made optional
+ *    to dodge the bump for the same reason counters were not: protection changes what a permanent
+ *    can be targeted by, blocked by, and damaged by, so a peer silently missing it is a peer
+ *    rendering an illegal action space.
+ * 3. **No decision shape changes.** Prevention and protection are things an agent *observes* and
+ *    that shrink its enumerated options; neither is ever something it decides. No
+ *    [DecisionRequestDto] member, no [DecisionRequestKindDto] member, no [TargetDto] member — so the
+ *    client→server direction is untouched, the milder of the two break modes.
+ *
  * The version is a single major step even though several frameworks are landing in this wave for the
  * same reason `5.0.0` covered two: `5.0.0` is the last version any consumer can have seen, so one
  * bump carries every break in the wave.

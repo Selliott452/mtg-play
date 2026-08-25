@@ -34,6 +34,16 @@ import kotlinx.collections.immutable.persistentSetOf
  *   (CR 509.1b), possibly empty (additive, flagged, P5.3). Silhana Ledgewalker's "can't be blocked
  *   except by creatures with flying" lives here; nothing in the MVP pool grants or removes an
  *   evasion, so combat reads these straight from the printed characteristics.
+ * @property protections the printed protection abilities, one per quality (CR 702.16), possibly
+ *   empty (additive, flagged, `FW-PROTECT`). Guardian of the Guildpact's "protection from
+ *   monocolored" is printed; Mask of Law and Grace's is *granted*, and arrives instead through the
+ *   layer-6 union in `mtg-rules` — so, like [keywords], the rules read these only through the
+ *   effective-protection accessor and never straight off the card.
+ *
+ *   **Not a [Keyword] member**, which is the one place protection cannot follow hexproof's path:
+ *   [Keyword] is a parameterless enum and protection carries a quality (CR 702.16a). CR 702.16g
+ *   makes "protection from black and from red" two abilities rather than one, so this is a set of
+ *   qualities; CR 702.16m's redundancy of repeated instances then falls out of the set for free.
  */
 data class PrintedCharacteristics(
     val name: String,
@@ -44,6 +54,7 @@ data class PrintedCharacteristics(
     val powerToughness: PrintedPowerToughness?,
     val keywords: PersistentSet<Keyword> = persistentSetOf(),
     val evasions: PersistentSet<Evasion> = persistentSetOf(),
+    val protections: PersistentSet<Quality> = persistentSetOf(),
 ) {
     init {
         require(name.isNotBlank()) { "card name must not be blank" }

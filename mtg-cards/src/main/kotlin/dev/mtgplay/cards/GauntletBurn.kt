@@ -103,7 +103,9 @@ val gutShot: SpellDefinition =
         override val timing = TimingClass.INSTANT_SPEED
         override val targetSpec = TargetSpec.AnyTarget
         override val resolution =
-            ResolutionEffect { state, context -> dealDamage(state, context.targets.single(), GUT_SHOT_DAMAGE) }
+            ResolutionEffect { state, context ->
+                dealDamage(state, context.damageSource(), context.targets.single(), GUT_SHOT_DAMAGE)
+            }
     }
 
 /**
@@ -144,7 +146,7 @@ val galvanicBlast: SpellDefinition =
                     } else {
                         GALVANIC_BLAST_DAMAGE
                     }
-                dealDamage(state, context.targets.single(), damage)
+                dealDamage(state, context.damageSource(), context.targets.single(), damage)
             }
     }
 
@@ -172,8 +174,8 @@ val breathWeapon: SpellDefinition =
         override val timing = TimingClass.INSTANT_SPEED
         override val targetSpec = TargetSpec.None
         override val resolution =
-            ResolutionEffect { state, _ ->
-                dealDamageToEachPermanent(state, BREATH_WEAPON_DAMAGE) { current, obj ->
+            ResolutionEffect { state, context ->
+                dealDamageToEachPermanent(state, context.damageSource(), BREATH_WEAPON_DAMAGE) { current, obj ->
                     isCreaturePermanent(current, obj) && !hasSubtype(current, obj, DRAGON)
                 }
             }
@@ -210,8 +212,14 @@ val endTheFestivities: SpellDefinition =
         override val targetSpec = TargetSpec.None
         override val resolution =
             ResolutionEffect { state, context ->
-                val burned = dealDamageToEachOpponent(state, context.controller, END_THE_FESTIVITIES_DAMAGE)
-                dealDamageToEachPermanent(burned, END_THE_FESTIVITIES_DAMAGE) { current, obj ->
+                val burned =
+                    dealDamageToEachOpponent(
+                        state,
+                        context.damageSource(),
+                        context.controller,
+                        END_THE_FESTIVITIES_DAMAGE,
+                    )
+                dealDamageToEachPermanent(burned, context.damageSource(), END_THE_FESTIVITIES_DAMAGE) { current, obj ->
                     obj.owner != context.controller &&
                         (
                             isCreaturePermanent(current, obj) ||

@@ -36,7 +36,10 @@ class CombatDamageScenarioSpec :
             afterDamage.players.getValue(bob).life shouldBe STARTING_LIFE - 4
             // CR 120.3a: the player's DamageDealt is immediately followed by its LifeChanged result.
             val events = afterDamage.events
-            val index = events.indexOfFirst { it == GameEvent.DamageDealt(Target.Player(bob), 4) }
+            val index =
+                events.indexOfFirst {
+                    it is GameEvent.DamageDealt && it.recipient == Target.Player(bob) && it.amount == 4
+                }
             index shouldBeGreaterThanOrEqual 0
             events[index + 1] shouldBe GameEvent.LifeChanged(bob, -4, STARTING_LIFE - 4)
             // The unharmed attacker is still on the battlefield — no state-based action applied.

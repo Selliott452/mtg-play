@@ -142,7 +142,7 @@ val skred: SpellDefinition =
                     state.sharedZones.battlefield.count {
                         it.owner == context.controller && isSnow(state, it)
                     }
-                dealDamage(state, context.targets.single(), snowPermanents)
+                dealDamage(state, context.damageSource(), context.targets.single(), snowPermanents)
             }
     }
 

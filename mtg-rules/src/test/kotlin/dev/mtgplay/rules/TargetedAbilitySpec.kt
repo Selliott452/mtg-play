@@ -294,7 +294,10 @@ private fun damageOpponentAbility(amount: Int): TriggeredAbility =
     TriggeredAbility(
         condition = TriggerCondition.EnteredBattlefieldSelf,
         targetSpec = TargetSpec.TargetOpponent,
-        effect = ResolutionEffect { state, context -> dealDamage(state, context.targets.single(), amount) },
+        effect =
+            ResolutionEffect { state, context ->
+                dealDamage(state, context.damageSource(), context.targets.single(), amount)
+            },
     )
 
 /**
@@ -306,7 +309,10 @@ private fun damageCreatureAbility(amount: Int): TriggeredAbility =
     TriggeredAbility(
         condition = TriggerCondition.EnteredBattlefieldSelf,
         targetSpec = TargetSpec.Enchantable(EnchantRestriction.CREATURE),
-        effect = ResolutionEffect { state, context -> dealDamage(state, context.targets.single(), amount) },
+        effect =
+            ResolutionEffect { state, context ->
+                dealDamage(state, context.damageSource(), context.targets.single(), amount)
+            },
     )
 
 /** A fixture permanent with a `{T}`-cost activated ability that pings target opponent for [BOLT]. */
@@ -335,7 +341,10 @@ private fun abilityCard(
                 ActivatedAbility(
                     cost = persistentListOf(AbilityCost.TapSelf),
                     targetSpec = spec,
-                    effect = ResolutionEffect { state, context -> dealDamage(state, context.targets.single(), BOLT) },
+                    effect =
+                        ResolutionEffect { state, context ->
+                            dealDamage(state, context.damageSource(), context.targets.single(), BOLT)
+                        },
                 ),
             )
     }

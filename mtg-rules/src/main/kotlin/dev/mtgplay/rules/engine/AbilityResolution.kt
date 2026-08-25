@@ -45,6 +45,9 @@ internal fun resolveAbility(
             amount = trigger.amount,
             subject = trigger.subject,
             source = trigger.sourceId,
+            // CR 120.1 + CR 113.7c: a triggered ability's damage source is its source object, as
+            // last-known information — the source may have left the battlefield since it fired.
+            sourceCard = trigger.sourceCard,
         )
     val resolved = trigger.ability.effect.resolve(state, context)
     // Relaxed by `FW-COUNTER` from "the stack is unchanged", which is false for any ability that

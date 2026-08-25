@@ -115,8 +115,17 @@ class BoltDuelAcceptanceSpec :
                 .getValue(bob)
                 .life shouldBe STARTING_LIFE - LIGHTNING_BOLT_DAMAGE
             val events = game.state.events
-            val damageIndex = events.indexOf(GameEvent.DamageDealt(Target.Player(bob), LIGHTNING_BOLT_DAMAGE))
+            val damageIndex =
+                events.indexOfFirst {
+                    it is GameEvent.DamageDealt &&
+                        it.recipient == Target.Player(bob) &&
+                        it.amount == LIGHTNING_BOLT_DAMAGE
+                }
             damageIndex shouldBeGreaterThanOrEqual 0
+            // CR 120.1: the damage names the object that dealt it — the resolving Bolt itself
+            // (`FW-PREVENT`). Asserted here rather than in the equality above so the match stays
+            // pinned to recipient and amount and this stays a separate, named claim.
+            (events[damageIndex] as GameEvent.DamageDealt).source.card shouldBe CardRef("Lightning Bolt")
             events[damageIndex + 1] shouldBe
                 GameEvent.LifeChanged(bob, -LIGHTNING_BOLT_DAMAGE, STARTING_LIFE - LIGHTNING_BOLT_DAMAGE)
 

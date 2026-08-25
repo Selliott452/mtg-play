@@ -38,6 +38,6 @@ val lightningBolt: SpellDefinition =
         override val targetSpec = TargetSpec.AnyTarget
         override val resolution =
             ResolutionEffect { state, context ->
-                dealDamage(state, context.targets.single(), LIGHTNING_BOLT_DAMAGE)
+                dealDamage(state, context.damageSource(), context.targets.single(), LIGHTNING_BOLT_DAMAGE)
             }
     }

@@ -145,8 +145,14 @@ internal fun applicableStateBasedActions(state: GameState): List<StateBasedActio
         for (obj in state.sharedZones.battlefield) {
             val restriction = enchantRestrictionOf(state, obj) ?: continue
             // CR 704.5m: an Aura attached to an illegal object or to nothing goes to its owner's
-            // graveyard. In the MVP the reachable case is a gone enchanted object (its creature
-            // died) — no type-changing effect makes a still-present object illegal.
+            // graveyard. Two reachable cases: a gone enchanted object (its creature died), and —
+            // since `FW-PROTECT` — a still-present object that has protection from the Aura's own
+            // quality (CR 702.16c). CR 704.5n, the Equipment analogue, still has no member: nothing
+            // in the pool is Equipment.
+            //
+            // Ordering note (docs/design/protection.md §2.2): this check reads *layered* protections
+            // and layered characteristics are computed on read, so an Aura granting protection is
+            // still contributing its grant while the batch is collected.
             if (!auraAttachmentIsLegal(state, obj, restriction)) {
                 add(StateBasedAction.AuraFallsOff(obj.id))
             }
@@ -211,7 +217,15 @@ private fun auraAttachmentIsLegal(
 ): Boolean {
     val attachedTo = aura.attachedTo ?: return false
     val target = state.sharedZones.battlefield.firstOrNull { it.id == attachedTo }
-    return target != null && satisfiesEnchantRestriction(state, restriction, target, aura.owner)
+    return target != null &&
+        // CR 702.16c: "A permanent … with protection can't be enchanted by Auras that have the
+        // stated quality. Such Auras attached to the permanent … with protection will be put into
+        // their owners' graveyards as a state-based action." So a still-present enchanted object can
+        // make the attachment illegal — which the comment at the call site said was unreachable
+        // until protection existed, and is exactly the case that would otherwise rot silently
+        // (docs/design/protection.md §2.2).
+        !hasProtectionFrom(state, attachedTo, aura.card) &&
+        satisfiesEnchantRestriction(state, restriction, target, aura.owner)
 }
 
 /** The result of one full state-based-action check (the CR 704.3 repeat-until-quiet loop). */

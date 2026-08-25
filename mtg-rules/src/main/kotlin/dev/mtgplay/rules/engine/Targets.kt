@@ -99,7 +99,7 @@ internal fun legalTargets(
         TargetSpec.AnyTarget ->
             state.players.keys.map { Target.Player(it) } +
                 state.sharedZones.battlefield
-                    .filter { isCreature(state, it) && targetableBy(state, it, you) }
+                    .filter { isCreature(state, it) && targetableBy(state, it, you, self) }
                     .map { Target.Permanent(it.id) }
         // CR 115.1b: every battlefield permanent satisfying the restriction, in battlefield order
         // (CR 302.1); no player is ever offered.
@@ -107,7 +107,7 @@ internal fun legalTargets(
             state.sharedZones.battlefield
                 .filter {
                     satisfiesPermanentRestriction(state, spec.restriction, it) &&
-                        targetableBy(state, it, you)
+                        targetableBy(state, it, you, self)
                 }.map { Target.Permanent(it.id) }
         is TargetSpec.Enchantable ->
             state.sharedZones.battlefield
@@ -118,7 +118,7 @@ internal fun legalTargets(
                         it,
                         you,
                     ) &&
-                        targetableBy(state, it, you)
+                        targetableBy(state, it, you, self)
                 }.map { Target.Permanent(it.id) }
         // CR 115.1/111.1: every spell on the stack satisfying the restriction, bottom-up, never the
         // choosing object itself and never an ability (CR 113.7a — no card, so no id to name it by).
@@ -157,22 +157,82 @@ private fun graveyardsInScope(
     }
 
 /**
- * Whether the deciding player [you] may target the battlefield object [obj] (CR 115.4, CR 702.11):
- * a hexproof object can't be the target of spells or abilities its opponents control, so it is
- * untargetable by anyone who is not its controller — ownership is control in the MVP pool
- * (docs/design/layer-system.md §4). Every non-hexproof object, and every object [you] controls, is
- * targetable. Hexproof is read from effective keywords, so an aura-granted hexproof restricts
- * targeting exactly as a printed one does (CR 613 layer 6).
+ * Whether the deciding player [you], choosing for the object [self], may target the battlefield
+ * object [obj]. Two independent restrictions, and their shapes are not the same.
  *
- * Hexproof is a quality of a *permanent*, not of a spell on the stack, so the stack enumeration does not
- * consult it: nothing in the pool makes a spell untargetable while it is being cast, and "can't be
+ * **Hexproof (CR 115.4, CR 702.11) is decider-relative.** A hexproof object can't be the target of
+ * spells or abilities its opponents control, so it is untargetable by anyone who is not its
+ * controller — ownership is control in the MVP pool (docs/design/layer-system.md §4). The only extra
+ * input it needs is who is deciding.
+ *
+ * **Protection (CR 702.16b) is quality-relative**, and that is the single biggest shape difference
+ * (`FW-PROTECT`, docs/design/protection.md §2.4): "A permanent or player with protection can't be
+ * targeted by spells with the stated quality and can't be targeted by abilities from a source with
+ * the stated quality." It does not care who controls the source — a player may not target their own
+ * creature that has protection from white with their own white spell — but it does need the
+ * *prospective source's* characteristics, which is what [self] supplies.
+ *
+ * Both are read through the layered seams ([effectiveKeywords], [effectiveProtections]), so a
+ * granted restriction restricts exactly as a printed one does (CR 613 layer 6), and both are read
+ * at the *enumeration*, which is what makes cast-time choice (CR 601.2c) and the resolution-time
+ * re-check (CR 608.2b) incapable of drifting apart (ADR-005).
+ *
+ * **The gap this fails loudly on.** [self] is the choosing object, and every *spell* call site
+ * passes one — the cast enumeration, the CR 601.2c validation and the CR 608.2b re-check all name
+ * the card object. Every *ability* call site passes `null`, because [self] was introduced to exclude
+ * the choosing spell from a stack enumeration and an ability has no card to exclude (CR 113.7a). So
+ * CR 702.16b's "abilities from a source with the stated quality" half has no source to read here,
+ * and closing it means giving the four ability sites a source — `Activation.kt`,
+ * `ActivationGathering.kt`, `ActivationExecution.kt`, `TriggerTargeting.kt`. Until that lands, an
+ * object with protection reached from an ability enumeration **throws** rather than being offered as
+ * a target it might not legally be: a silently illegal option handed to a training agent is the
+ * failure mode ADR-005 exists to prevent, and it is the one thing `EnumerationProbe` structurally
+ * cannot catch (enumerator and validator are the same function — docs/design/protection.md §6).
+ * Nothing in the pool prints or grants protection today, so the gate is unreachable; it fires the
+ * moment that stops being true.
+ *
+ * Neither restriction is a quality of a *spell* on the stack, so the stack enumeration consults
+ * neither: nothing in the pool makes a spell untargetable while it is being cast, and "can't be
  * countered" is a separate, absent predicate (docs/design/countering-spells.md §13).
  */
 private fun targetableBy(
     state: GameState,
     obj: GameObject,
     you: PlayerId,
-): Boolean = obj.owner == you || Keyword.HEXPROOF !in effectiveKeywords(state, obj.id)
+    self: ObjectId?,
+): Boolean {
+    // CR 115.4 / CR 702.11: decider-relative, needs only who is choosing.
+    val hexproofPermits = obj.owner == you || Keyword.HEXPROOF !in effectiveKeywords(state, obj.id)
+    // CR 702.16b: quality-relative, needs the prospective source's characteristics.
+    return hexproofPermits && !protectedFromSource(state, obj, self)
+}
+
+/**
+ * The CR 702.16b half of [targetableBy]: whether [obj] has protection from a quality the prospective
+ * source [self] has, and so can't be targeted by it.
+ *
+ * The common case is checked first and needs no source at all — an object with no protection is
+ * protected from nothing — which is what keeps the loud gate below unreachable while nothing in the
+ * pool prints or grants protection.
+ */
+private fun protectedFromSource(
+    state: GameState,
+    obj: GameObject,
+    self: ObjectId?,
+): Boolean {
+    val protections = effectiveProtections(state, obj.id)
+    if (protections.isEmpty()) return false
+    val sourceCard =
+        self?.let { printedIdentityOf(state, it) }
+            ?: error(
+                "CR 702.16b: ${obj.card} has protection $protections, but this target enumeration " +
+                    "carries no prospective source to test it against — an ability's targeting " +
+                    "(Activation.kt, ActivationGathering.kt, ActivationExecution.kt, " +
+                    "TriggerTargeting.kt) passes self = null. Offering the object anyway would be a " +
+                    "silently illegal option (ADR-005); see docs/design/protection.md §2.4",
+            )
+    return protections.any { sourceHasQuality(state, sourceCard, it) }
+}
 
 /**
  * Whether [target] is (still) a legal choice for [spec] in [state] for the deciding player [you], with

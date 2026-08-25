@@ -174,8 +174,12 @@ val krarkClanShaman: SpellDefinition =
                 ActivatedAbility(
                     cost = persistentListOf(AbilityCost.Sacrifice(ARTIFACT)),
                     effect =
-                        ResolutionEffect { state, _ ->
-                            dealDamageToEachPermanent(state, KRARK_CLAN_SHAMAN_DAMAGE) { s, obj ->
+                        ResolutionEffect { state, context ->
+                            dealDamageToEachPermanent(
+                                state,
+                                context.damageSource(),
+                                KRARK_CLAN_SHAMAN_DAMAGE,
+                            ) { s, obj ->
                                 isCreaturePermanent(s, obj) && !hasFlyingPermanent(s, obj)
                             }
                         },
@@ -223,7 +227,12 @@ val makeshiftMunitions: SpellDefinition =
                         ),
                     effect =
                         ResolutionEffect { state, context ->
-                            dealDamage(state, context.targets.single(), MAKESHIFT_MUNITIONS_DAMAGE)
+                            dealDamage(
+                                state,
+                                context.damageSource(),
+                                context.targets.single(),
+                                MAKESHIFT_MUNITIONS_DAMAGE,
+                            )
                         },
                     targetSpec = TargetSpec.AnyTarget,
                 ),

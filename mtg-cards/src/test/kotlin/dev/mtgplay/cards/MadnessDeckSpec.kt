@@ -146,7 +146,12 @@ class MadnessDeckSpec :
                 val resolved =
                     card.resolution.resolve(
                         twoPlayerState(alice, bob),
-                        ResolutionContext(alice, persistentListOf(Target.Player(bob))),
+                        // CR 120.1: each burn spell is the source of its own damage.
+                        ResolutionContext(
+                            alice,
+                            persistentListOf(Target.Player(bob)),
+                            sourceCard = CardRef(card.characteristics.name),
+                        ),
                     )
                 resolved.players.getValue(bob).life shouldBe STARTING_LIFE - damage
             }
@@ -266,11 +271,25 @@ class MadnessDeckSpec :
 
 private const val STARTING_LIFE: Int = 20
 
-/** A resolution context for [seat] with no targets and the given [discarded] linked information. */
+/**
+ * A resolution context for [seat] with no targets and the given [discarded] linked information.
+ *
+ * [source] is the printed identity of the resolving object (CR 120.1). It is required of any context
+ * whose effect deals damage — `FW-PREVENT` made the damage source part of the primitive, because
+ * CR 615 prevention and CR 702.16e protection are both predicates on it — and `ResolutionContext`
+ * fails loudly rather than inventing one.
+ */
 private fun noTargets(
     seat: PlayerId,
     discarded: List<CardRef> = emptyList(),
-): ResolutionContext = ResolutionContext(seat, persistentListOf(), discardedForCost = discarded.toPersistentList())
+    source: String = "Guttersnipe",
+): ResolutionContext =
+    ResolutionContext(
+        seat,
+        persistentListOf(),
+        discardedForCost = discarded.toPersistentList(),
+        sourceCard = CardRef(source),
+    )
 
 /** A two-player main-phase state over [MvpCards], both seats at 20 with empty zones — for effect tests. */
 private fun twoPlayerState(

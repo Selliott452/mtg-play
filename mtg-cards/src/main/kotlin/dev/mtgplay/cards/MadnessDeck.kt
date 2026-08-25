@@ -218,7 +218,12 @@ val guttersnipe: SpellDefinition =
                         ),
                     effect =
                         ResolutionEffect { state, context ->
-                            dealDamageToEachOpponent(state, context.controller, GUTTERSNIPE_DAMAGE)
+                            dealDamageToEachOpponent(
+                                state,
+                                context.damageSource(),
+                                context.controller,
+                                GUTTERSNIPE_DAMAGE,
+                            )
                         },
                 ),
             )
@@ -260,7 +265,12 @@ val kessigFlamebreather: SpellDefinition =
                         ),
                     effect =
                         ResolutionEffect { state, context ->
-                            dealDamageToEachOpponent(state, context.controller, KESSIG_FLAMEBREATHER_DAMAGE)
+                            dealDamageToEachOpponent(
+                                state,
+                                context.damageSource(),
+                                context.controller,
+                                KESSIG_FLAMEBREATHER_DAMAGE,
+                            )
                         },
                 ),
             )
@@ -335,7 +345,13 @@ val voldarenEpicure: SpellDefinition =
                     condition = TriggerCondition.EnteredBattlefieldSelf,
                     effect =
                         ResolutionEffect { state, context ->
-                            val burned = dealDamageToEachOpponent(state, context.controller, VOLDAREN_EPICURE_DAMAGE)
+                            val burned =
+                                dealDamageToEachOpponent(
+                                    state,
+                                    context.damageSource(),
+                                    context.controller,
+                                    VOLDAREN_EPICURE_DAMAGE,
+                                )
                             createToken(burned, context.controller, bloodToken)
                         },
                 ),
@@ -364,7 +380,9 @@ val fieryTemper: SpellDefinition =
         override val timing = TimingClass.INSTANT_SPEED
         override val targetSpec = TargetSpec.AnyTarget
         override val resolution =
-            ResolutionEffect { state, context -> dealDamage(state, context.targets.single(), FIERY_TEMPER_DAMAGE) }
+            ResolutionEffect { state, context ->
+                dealDamage(state, context.damageSource(), context.targets.single(), FIERY_TEMPER_DAMAGE)
+            }
         override val castingPermissions = listOf(CastingPermission.Madness(ManaCost.parse("{R}")))
         override val replacementEffects =
             persistentListOf<ReplacementEffect>(ReplacementEffect.DiscardToExileInstead)
@@ -392,7 +410,9 @@ val fireblast: SpellDefinition =
         override val timing = TimingClass.INSTANT_SPEED
         override val targetSpec = TargetSpec.AnyTarget
         override val resolution =
-            ResolutionEffect { state, context -> dealDamage(state, context.targets.single(), FIREBLAST_DAMAGE) }
+            ResolutionEffect { state, context ->
+                dealDamage(state, context.damageSource(), context.targets.single(), FIREBLAST_DAMAGE)
+            }
         override val castingPermissions =
             listOf(
                 CastingPermission.AlternativeCost(
@@ -424,7 +444,9 @@ val lavaDart: SpellDefinition =
         override val timing = TimingClass.INSTANT_SPEED
         override val targetSpec = TargetSpec.AnyTarget
         override val resolution =
-            ResolutionEffect { state, context -> dealDamage(state, context.targets.single(), LAVA_DART_DAMAGE) }
+            ResolutionEffect { state, context ->
+                dealDamage(state, context.damageSource(), context.targets.single(), LAVA_DART_DAMAGE)
+            }
         override val castingPermissions =
             listOf(
                 CastingPermission.Flashback(
@@ -472,7 +494,7 @@ val grabThePrize: SpellDefinition =
                 if (discardedWasLand) {
                     drawn
                 } else {
-                    dealDamageToEachOpponent(drawn, context.controller, GRAB_THE_PRIZE_DAMAGE)
+                    dealDamageToEachOpponent(drawn, context.damageSource(), context.controller, GRAB_THE_PRIZE_DAMAGE)
                 }
             }
     }

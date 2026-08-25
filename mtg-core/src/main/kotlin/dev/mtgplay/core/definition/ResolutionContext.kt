@@ -3,6 +3,7 @@ package dev.mtgplay.core.definition
 import dev.mtgplay.core.identity.CardRef
 import dev.mtgplay.core.identity.ObjectId
 import dev.mtgplay.core.identity.PlayerId
+import dev.mtgplay.core.state.DamageSource
 import dev.mtgplay.core.state.Target
 import kotlinx.collections.immutable.PersistentList
 import kotlinx.collections.immutable.persistentListOf
@@ -49,6 +50,12 @@ import kotlinx.collections.immutable.persistentListOf
  *   outcome names the object performing it rather than only the object performed upon — countering,
  *   whose `SpellCountered` event narrates *what* countered *what*. Distinct from [subject], which is a
  *   further object the effect acts *on*.
+ * @property sourceCard the printed identity behind [source] (CR 113.7c last-known information), or
+ *   `null` where the engine has none. Additive, flagged core (`FW-PREVENT`,
+ *   docs/design/protection.md §3 Part A). [source] alone is not enough to build a
+ *   [dev.mtgplay.core.state.DamageSource]: an object's characteristics are looked up by [CardRef]
+ *   through the definition registry, which works whatever zone the source has reached by the time
+ *   its damage lands, while its id may name nothing anywhere (CR 400.7).
  */
 data class ResolutionContext(
     val controller: PlayerId,
@@ -58,4 +65,21 @@ data class ResolutionContext(
     val discardedForCost: PersistentList<CardRef> = persistentListOf(),
     val source: ObjectId? = null,
     val sacrificedForCost: PersistentList<CardRef> = persistentListOf(),
-)
+    val sourceCard: CardRef? = null,
+) {
+    /**
+     * The [dev.mtgplay.core.state.DamageSource] this resolving object is, for the damage primitives
+     * (CR 120.1). Fails loudly when the context carries no [sourceCard]: a resolution that deals
+     * damage without knowing what dealt it cannot be checked against CR 615 prevention or
+     * CR 702.16e protection, and guessing a source would make both silently wrong.
+     */
+    fun damageSource(): DamageSource =
+        DamageSource(
+            objectId = source,
+            card =
+                sourceCard ?: error(
+                    "CR 120.1: damage has a source, but this resolution context carries no " +
+                        "sourceCard; every damage-dealing resolution must be given one",
+                ),
+        )
+}

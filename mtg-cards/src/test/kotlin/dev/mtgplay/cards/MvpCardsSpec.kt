@@ -16,6 +16,7 @@ import dev.mtgplay.core.identity.PlayerId
 import dev.mtgplay.core.mana.Color
 import dev.mtgplay.core.mana.ManaType
 import dev.mtgplay.core.random.Rng
+import dev.mtgplay.core.state.DamageSource
 import dev.mtgplay.core.state.GameState
 import dev.mtgplay.core.state.PlayerState
 import dev.mtgplay.core.state.SharedZones
@@ -122,12 +123,22 @@ class MvpCardsSpec :
             val resolved =
                 lightningBolt.resolution.resolve(
                     state,
-                    ResolutionContext(alice, persistentListOf(Target.Player(bob))),
+                    ResolutionContext(
+                        alice,
+                        persistentListOf(Target.Player(bob)),
+                        // CR 120.1: a resolving spell that deals damage is that damage's source, and
+                        // the context is where it comes from (`FW-PREVENT`).
+                        sourceCard = CardRef("Lightning Bolt"),
+                    ),
                 )
             resolved.players.getValue(bob).life shouldBe 20 - LIGHTNING_BOLT_DAMAGE
             resolved.events shouldBe
                 listOf(
-                    GameEvent.DamageDealt(Target.Player(bob), LIGHTNING_BOLT_DAMAGE),
+                    GameEvent.DamageDealt(
+                        DamageSource(objectId = null, card = CardRef("Lightning Bolt")),
+                        Target.Player(bob),
+                        LIGHTNING_BOLT_DAMAGE,
+                    ),
                     GameEvent.LifeChanged(bob, -LIGHTNING_BOLT_DAMAGE, 20 - LIGHTNING_BOLT_DAMAGE),
                 )
         }
