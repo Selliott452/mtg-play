@@ -56,6 +56,7 @@ data class GameObjectDto(
     val linkedExiled: List<Long>,
     val reboundTurn: Int?,
     val manaAbilitiesActivatedThisTurn: List<Int>,
+    val kickedWhenCast: Boolean,
 )
 
 /** [GameObject] to its wire form. */
@@ -77,6 +78,9 @@ fun GameObject.toDto(): GameObjectDto =
         // CR 602.5b: publicly observable — every player sees that a Wall of Roots has already been
         // activated this turn, exactly as they see that it is tapped (ADR-007).
         manaAbilitiesActivatedThisTurn = manaAbilitiesActivatedThisTurn.sorted(),
+        // CR 702.33f: publicly observable — everyone at the table saw the kicker paid, and the fact
+        // changes what the permanent's own abilities do, so it rides unredacted (ADR-007).
+        kickedWhenCast = kickedWhenCast,
     )
 
 /** [GameObjectDto] back to the engine value. */
@@ -96,4 +100,5 @@ fun GameObjectDto.toDomain(): GameObject =
         linkedExiled = linkedExiled.map(::ObjectId).toPersistentList(),
         reboundTurn = reboundTurn,
         manaAbilitiesActivatedThisTurn = manaAbilitiesActivatedThisTurn.toPersistentSet(),
+        kickedWhenCast = kickedWhenCast,
     )

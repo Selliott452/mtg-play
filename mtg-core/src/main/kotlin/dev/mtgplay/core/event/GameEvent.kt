@@ -586,6 +586,22 @@ sealed interface GameEvent {
     ) : GameEvent
 
     /**
+     * A triggered ability was removed from the stack without doing anything because its CR 603.4
+     * intervening-if clause was no longer true when it resolved: [controller]'s ability from [sourceCard].
+     * Additive (`FW-OPTCOST`).
+     *
+     * **Deliberately not [AbilityFizzled].** The two reach the same state transition — the ability leaves
+     * the stack having performed nothing — but they are different rules with different causes: a fizzle
+     * is CR 608.2b, every target having become illegal, while this is CR 603.4, a condition the card
+     * itself names. Narrating both as a fizzle would make a replay log unable to say why an ability did
+     * nothing, which is the same reasoning that keeps [SpellCountered] and [SpellFizzled] apart.
+     */
+    data class AbilityConditionFailed(
+        val controller: PlayerId,
+        val sourceCard: CardRef,
+    ) : GameEvent
+
+    /**
      * Cards were revealed from the top of a library (CR 701.16): [player] revealed [cards] (their
      * printed identities, top-first) as part of a resolving effect — Malevolent Rumble's "reveal the top
      * four cards". Added in P6.2a. Public information: the revealed identities are recorded here (they are

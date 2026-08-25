@@ -51,6 +51,10 @@ internal fun executeCastPipeline(
     val cast = state.pendingCast ?: error("no cast is gathering decisions")
     val modes = cast.chosenModes ?: error("CR 601.2b: modes must be settled before targets are chosen")
     val targets = cast.chosenTargets ?: error("CR 601.2c: targets must be settled before payment is chosen")
+    // CR 601.2b: both cost announcements are settled before the plan was ever enumerated; a null here
+    // means the gathering order was violated, which would price the cast differently from the plan.
+    cast.kicked ?: error("CR 601.2b: the kicker announcement must be settled before payment is chosen")
+    cast.chosenX ?: error("CR 601.2b: the value of X must be announced before payment is chosen")
     // Close the gathering record first: from here the cast either completes or throws whole.
     val casting = state.copy(pendingCast = null)
     val (proposed, entry) = proposeSpell(casting, cast, modes, targets)
@@ -62,7 +66,8 @@ internal fun executeCastPipeline(
     val withAdditional = payAdditionalCosts(targeted, cast)
     val withSacrifice = paySacrificeCosts(withAdditional, cast)
     val withDiscard = payAdditionalDiscardCost(withSacrifice, cast)
-    val paid = payCosts(withDiscard, entry, totalCost, plan)
+    val revealed = payHandRevealCost(withDiscard, cast)
+    val paid = payCosts(revealed, entry, totalCost, plan)
     // CR 601.2h after CR 601.2g: the intrinsic sacrifice cost is paid **after** the mana, so a land
     // tapped by the plan may be the one sacrificed (docs/design/mana-payment.md §2.2).
     val sacrificed = payAdditionalSacrificeCost(paid, cast)
@@ -148,6 +153,11 @@ private fun proposeSpell(
             // change; the target stage below and every later CR 608.2b re-check read the spell's
             // targeting line through them.
             chosenModes = modes,
+            // CR 702.33f: the linked information "this spell was kicked", fixed here for the same reason
+            // the modes are — it is settled while casting and everything downstream depends on it.
+            kicked = cast.kicked ?: false,
+            // CR 202.3b: the announced value, which is what X *is* while this spell is on the stack.
+            chosenX = cast.chosenX ?: 0,
         )
     val proposed =
         removeFromZone(allocated, cast.caster, cast.source, cast.cardObjectId)
@@ -292,7 +302,46 @@ private fun determineTotalCost(
     state: GameState,
     cast: PendingCast,
     entry: StackEntry.Spell,
-): ManaCost = totalCost(state, entry.controller, entry.definition, entry.castVia, castObjectId = cast.cardObjectId)
+): ManaCost =
+    totalCost(
+        state,
+        entry.controller,
+        CastSubject(entry.definition, entry.castVia, cast.cardObjectId),
+        // CR 601.2b: the announcements made while gathering, read back off the cast record — the same
+        // values the ChoosePaymentPlan the caster answered was derived against, so the plan and the cost
+        // cannot disagree.
+        CostAnnouncements(entry.kicked, entry.chosenX),
+    )
+
+/**
+ * Stage CR 601.2h — the hand-reveal component of an alternative cost (CR 701.16a): a cast via a
+ * permission whose [dev.mtgplay.core.definition.CastingPermission.revealsHand] is set publishes the
+ * caster's hand as the cost is paid. Land Grant's "you may **reveal your hand** rather than pay this
+ * spell's mana cost". A no-op for every other cast.
+ *
+ * **No decision, no pause, and nothing moves.** Unlike the sacrifice and discard cost components either
+ * side of it, this cost has nothing to select — the whole hand is revealed — and nothing to consume, so
+ * it is paid by emitting the CR 701.16a event that makes the cards public. It can never fail: an empty
+ * hand is a legal thing to reveal.
+ *
+ * **The card being cast is not in the revealed hand, and that is CR 601.2a rather than a choice.** The
+ * spell left the caster's hand for the stack in [proposeSpell], several stages above, so what is
+ * revealed here is the hand as it stands while the cost is paid — which is what the printed card means
+ * and what an opponent would see at a table.
+ *
+ * ADR-007: this **widens** what the opposing seat may see, for exactly as long as the event log records
+ * it, and it is the printed card that widens it. Nothing here discloses anything the card does not
+ * publish.
+ */
+private fun payHandRevealCost(
+    state: GameState,
+    cast: PendingCast,
+): GameState {
+    if (cast.castingPermission?.revealsHand != true) return state
+    return state.emit(
+        GameEvent.CardsRevealed(cast.caster, state.player(cast.caster).hand.map { it.card }),
+    )
+}
 
 /**
  * Stages CR 601.2g–h — mana abilities and payment, executing the chosen [PaymentPlan] (see

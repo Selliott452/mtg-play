@@ -69,6 +69,27 @@ import kotlinx.collections.immutable.PersistentList
  *   (docs/design/mana-payment.md §2.2). The permanents are sacrificed when the cast executes, *after*
  *   the mana payment — tapping a land for mana and then sacrificing it is legal (CR 601.2g precedes
  *   CR 601.2h), and that plan stays enumerable.
+ * @property kicked whether the caster announced that they are paying the kicker cost (CR 601.2b,
+ *   CR 702.33a): `null` before the announcement is made when the card has kicker, `false` once declined
+ *   or when the card has no kicker, `true` once accepted. Additive, flagged core (`FW-OPTCOST`).
+ *
+ *   Settled **before** the payment plan is enumerated, and the ordering is load-bearing for the same
+ *   reason [additionalSacrifice]'s is: the kicked cost is the cost the plan pays, so announcing
+ *   afterwards would enumerate plans against a price the cast is not going to charge. The announcement
+ *   is offered only when the kicked cost is affordable, so answering "yes" can never dead-end.
+ * @property chosenX the value announced for the variable symbol (CR 107.3, CR 601.2b): `null` before the
+ *   announcement is made when the cost carries [dev.mtgplay.core.mana.ManaSymbol.X], `0` once settled or
+ *   when it does not. Additive, flagged core (`FW-X`).
+ *
+ *   Settled **last**, immediately before the payment plan, and that position is a deliberate deviation
+ *   from CR 601.2b's printed order, which announces X before targets are chosen. The engine settles it
+ *   after every other cost selection because the *option set* of X is bounded by what the caster can
+ *   actually pay, and "what can be paid" is only exact once the sibling cost selections that reserve
+ *   mana sources are known. Announcing earlier would mean bounding X against a reservation the payment
+ *   enumeration does not use, which is precisely the enumerated-then-unpayable defect ADR-005 forbids.
+ *   The deviation is unobservable for every card in the gauntlet, because no card's *targets* depend on
+ *   the value of X; a card printing "X target creatures" would make it observable and must move the
+ *   announcement back, along with the bound.
  */
 data class PendingCast(
     val caster: PlayerId,
@@ -81,4 +102,12 @@ data class PendingCast(
     val sacrificeCost: PersistentList<ObjectId>? = null,
     val additionalDiscard: PersistentList<ObjectId>? = null,
     val additionalSacrifice: PersistentList<ObjectId>? = null,
-)
+    val kicked: Boolean? = null,
+    val chosenX: Int? = null,
+) {
+    init {
+        require(chosenX == null || chosenX >= 0) {
+            "CR 601.2b: an announced value of X is non-negative, was $chosenX"
+        }
+    }
+}

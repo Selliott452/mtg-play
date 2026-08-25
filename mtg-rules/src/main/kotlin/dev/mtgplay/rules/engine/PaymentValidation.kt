@@ -79,6 +79,11 @@ internal fun paymentSatisfies(
                 is ManaSymbol.Hybrid ->
                     payment.mana == manaTypeOf(symbol.first) || payment.mana == manaTypeOf(symbol.second)
                 is ManaSymbol.Phyrexian -> payment.mana == manaTypeOf(symbol.color)
+                // CR 107.3b: nothing satisfies an unannounced variable. Unreachable in practice —
+                // `expandToUnits` refuses a cost carrying {X} before any unit is validated — and `false`
+                // rather than a throw because this is a pure predicate whose callers report their own
+                // mismatch with the cost in hand (`FW-X`).
+                ManaSymbol.X -> false
             }
         // CR 107.4: only a Phyrexian symbol accepts the 2-life alternative.
         SymbolPayment.WithTwoLife -> symbol is ManaSymbol.Phyrexian

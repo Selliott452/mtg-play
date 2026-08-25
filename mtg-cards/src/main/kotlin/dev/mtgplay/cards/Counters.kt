@@ -26,8 +26,14 @@ import kotlinx.collections.immutable.persistentSetOf
  * other shape — "counter target spell **if** it's red" (Hydroblast, Pyroblast) — is an unrestricted
  * target with a conditional effect, is not expressible as a restriction, and is deliberately not here
  * (docs/design/countering-spells.md §1.2). Nor are the modal Blasts and Steel Sabotage (CR 700.2, no mode
- * machinery yet), Prohibit (kicker, CR 702.33), or Spellstutter Sprite (a *triggered* ability that
- * targets, with a dynamic restriction).
+ * machinery yet) or Spellstutter Sprite (a *triggered* ability that targets, with a dynamic
+ * restriction).
+ *
+ * **Prohibit shipped with `FW-OPTCOST`** and lives in OptionalCostCards.kt rather than here: what it
+ * was waiting on was kicker (CR 702.33), not anything about countering. It is also the card that makes
+ * the paragraph above concrete from the other side — its "if its mana value is 2 or less" is a
+ * *condition* on an unrestricted target, so it targets [SpellRestriction.Any] and simply does nothing
+ * to a spell too large.
  *
  * Oracle text below is Scryfall's, fetched for this packet; where it disagreed with the design note or
  * the upstream brief, the oracle text won.

@@ -119,6 +119,24 @@ sealed interface DecisionRequestDto {
         val options: List<PaymentPlanDto>,
     ) : SingleOptionSelectionDto
 
+    /**
+     * Wire form of [DecisionRequest.ChooseXValue] — the CR 601.2b announcement of a variable cost
+     * (CR 107.3b). Additive (`FW-X`).
+     *
+     * [values] carries the announceable **numbers**, not a count, and a peer must answer with the index
+     * of the value it wants rather than with the value itself. The two coincide on every ordinary board
+     * (the options run `0, 1, 2, …`) and would diverge on a board where a middle value is unpayable, so
+     * a client that assumes they are equal is wrong exactly where the bound is interesting.
+     */
+    @Serializable
+    @SerialName("choose_x_value")
+    data class ChooseXValue(
+        override val id: DecisionRequestIdDto,
+        val cardObjectId: Long,
+        val card: String,
+        val values: List<Int>,
+    ) : SingleOptionSelectionDto
+
     /** Wire form of [DecisionRequest.DeclareAttackers] (CR 508.1). */
     @Serializable
     @SerialName("declare_attackers")

@@ -1,6 +1,7 @@
 package dev.mtgplay.rules.engine
 
 import dev.mtgplay.core.definition.AdditionalCost
+import dev.mtgplay.core.definition.SpellDefinition
 import dev.mtgplay.core.identity.CardRef
 import dev.mtgplay.core.state.GameState
 import dev.mtgplay.core.state.PendingCast
@@ -11,11 +12,30 @@ import dev.mtgplay.rules.decision.DecisionRequestId
  * The pending decision a cast in progress is waiting on (CR 601.2), split from PendingDecision.kt so
  * each file stays within its function budget. The gathering order is fixed: modes (601.2b), targets
  * (601.2c), then the additional-exile / sacrifice / additional-discard cost selections (601.2b/h), then
- * the payment plan (601.2g) — always surfaced, even with a single plan, so replay logs stay canonical
- * (P2.1).
+ * the **kicker** announcement and the **value of X** (601.2b), then the payment plan (601.2g) — always
+ * surfaced, even with a single plan, so replay logs stay canonical (P2.1).
  *
  * Modes come first because CR 601.2b puts them first, and `FW-MODAL` is the packet that made the
  * ordering observable: until then no card had modes, so the stage was a documented no-op.
+ *
+ * **The two cost announcements sit last, and that is a deliberate deviation from CR 601.2b's printed
+ * order**, which announces kicker and X *before* targets are chosen. Both are bounded by affordability
+ * — a kicker is offered only when the kicked cost is payable, and a value of X only when that value's
+ * total cost is payable — and affordability is only exact once the sibling selections that reserve mana
+ * sources (a sacrifice additional cost) are settled. Announcing at CR 601.2b's position would bound
+ * them against `minimalSacrificeReservation` while the payment enumeration uses the exact,
+ * choice-aware one, which is the enumerated-then-unpayable defect ADR-005 forbids
+ * (docs/design/mana-payment.md §2.3).
+ *
+ * The deviation is unobservable across the whole gauntlet, because nothing in the pool makes a target's
+ * legality depend on a kicker or on X. It becomes observable for a card printing "X target creatures"
+ * or a kicker that adds a target, and such a card must move the announcements back above the target
+ * stage and take the weaker reservation with them — the same trade `FW-ADDSAC` recorded for the
+ * sacrifice cost. Recorded here rather than discovered later.
+ *
+ * Kicker precedes X because CR 601.2b prints it that way ("alternative or additional costs … then …
+ * a variable cost"), and because the dependency runs that way too: the affordable values of X are the
+ * values affordable *given* the kicker announcement, so X cannot be bounded until kicker is settled.
  */
 
 /**
@@ -73,13 +93,20 @@ internal fun pendingCastRequest(
         cast.additionalDiscard == null -> chooseDiscardForCostRequest(state, cast, definition, card.card, id)
         // CR 601.2b: then any intrinsic sacrifice additional cost selection (Eviscerator's Insight).
         cast.additionalSacrifice == null -> chooseSacrificeForCostRequest(state, cast, definition, card.card, id)
+        // CR 601.2b/702.33a: then the optional kicker announcement, surfaced only when the kicked cost
+        // is affordable — so both answers are legal, which is what a yes/no requires (ADR-005).
+        cast.kicked == null -> kickerAnnouncementRequest(cast, definition, card.card, id)
+        // CR 601.2b/107.3b: then the value of X, bounded by what this seat can actually pay (`FW-X`).
+        cast.chosenX == null -> xAnnouncementRequest(state, cast, definition, card.card, id)
         // CR 601.2g: finally the payment plan for the (possibly alternative) mana cost.
         else -> {
             // CR 601.2f: the same shared function legality and the pipeline use, with the card still
             // in its source zone and therefore excluded from its own zone counts (CR 601.2a) — which
             // is what makes this cost equal the one `determineTotalCost` recomputes at execution.
-            val cost =
-                totalCost(state, cast.caster, definition, cast.castingPermission, cast.cardObjectId)
+            // CR 601.2b: both announcements are settled by now, so this is the cost the cast will
+            // actually charge — and the identical expression `determineTotalCost` recomputes at
+            // execution.
+            val cost = totalCost(state, cast.caster, cast.subject(definition), cast.announcements())
             DecisionRequest.ChoosePaymentPlan(
                 id = id,
                 cardObjectId = cast.cardObjectId,
@@ -191,3 +218,57 @@ private fun chooseDiscardForCostRequest(
         count = additional.count,
     )
 }
+
+/**
+ * The CR 601.2b kicker announcement (CR 702.33a): a plain yes/no, because declining is always legal and
+ * the announcement is only surfaced at all when the kicked cost is affordable ([kickerAffordable]) — so
+ * both answers lead somewhere payable, which is what a yes/no requires (ADR-005).
+ *
+ * The prompt names the cost, because "pay the kicker?" is not answerable without knowing what it costs
+ * and the request carries no other price.
+ */
+private fun kickerAnnouncementRequest(
+    cast: PendingCast,
+    definition: SpellDefinition,
+    card: CardRef,
+    id: DecisionRequestId,
+): DecisionRequest.ChooseYesNo =
+    DecisionRequest.ChooseYesNo(
+        id = id,
+        prompt = "Pay the kicker cost ${definition.kicker?.render()} for ${card.name}?",
+        cardObjectId = cast.cardObjectId,
+        card = card,
+    )
+
+/**
+ * The CR 601.2b announcement of a variable cost (CR 107.3b), whose options are the values this seat can
+ * actually pay for (`XCost.kt`).
+ *
+ * Two inputs make the bound exact, and both are settled by the time this branch is reached. The kicker
+ * answer, one branch above, is part of the cost each candidate is priced against. And the reservation is
+ * the **identical** set the [DecisionRequest.ChoosePaymentPlan] below will use — which is the whole
+ * reason the announcement is settled here rather than at CR 601.2b's printed position, above the target
+ * stage (see the file header).
+ */
+private fun xAnnouncementRequest(
+    state: GameState,
+    cast: PendingCast,
+    definition: SpellDefinition,
+    card: CardRef,
+    id: DecisionRequestId,
+): DecisionRequest.ChooseXValue =
+    DecisionRequest.ChooseXValue(
+        id = id,
+        cardObjectId = cast.cardObjectId,
+        card = card,
+        values =
+            xValueOptions(
+                state,
+                cast.caster,
+                cast.subject(definition),
+                // Non-null in this branch, but a cross-module property the compiler will not smart-cast;
+                // `?: false` is the same value, exactly as `chosenModes.orEmpty()` is above.
+                kicked = cast.kicked ?: false,
+                reserved = sacrificeSourcesAmong(state, cast.additionalSacrifice.orEmpty()),
+            ),
+    )

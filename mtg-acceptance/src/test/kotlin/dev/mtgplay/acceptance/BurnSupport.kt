@@ -55,6 +55,10 @@ internal val BURN_OPPONENT: Responder =
             is DecisionRequest.ChooseModes ->
                 error("the burn policy casts no modal card, but a mode request surfaced: $request")
             is DecisionRequest.ChoosePaymentPlan -> Decision.SingleSelect(request.id, 0)
+            // CR 601.2b: no burn card in this scenario has an {X} cost, so an announcement is
+            // unreachable; fail loudly rather than guessing a value that would change the damage.
+            is DecisionRequest.ChooseXValue ->
+                error("this scenario casts no {X} spell, but an X announcement surfaced: $request")
             is DecisionRequest.ChooseDiscards ->
                 Decision.MultiSelect(request.id, (0 until request.count).toList())
             // The burn decks hold no creatures: attack and block with nothing (CR 508.1 / 509.1);
@@ -224,6 +228,10 @@ internal val GRIND_TO_BOLT_RANGE: Responder =
             is DecisionRequest.ChooseModes ->
                 error("the burn policy casts no modal card, but a mode request surfaced: $request")
             is DecisionRequest.ChoosePaymentPlan -> Decision.SingleSelect(request.id, 0)
+            // CR 601.2b: no burn card in this scenario has an {X} cost, so an announcement is
+            // unreachable; fail loudly rather than guessing a value that would change the damage.
+            is DecisionRequest.ChooseXValue ->
+                error("this scenario casts no {X} spell, but an X announcement surfaced: $request")
             is DecisionRequest.ChooseDiscards ->
                 Decision.MultiSelect(request.id, (0 until request.count).toList())
             // The burn decks hold no creatures: attack and block with nothing (CR 508.1 / 509.1);

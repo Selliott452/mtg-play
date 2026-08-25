@@ -80,6 +80,10 @@ private fun resolveSpell(
                     sacrificedForCost = entry.sacrificedForCost,
                     // CR 120.1: a resolving spell that deals damage is that damage's source.
                     sourceCard = entry.obj.card,
+                    // CR 702.33f: the linked "was it kicked", which Prohibit's resolution reads.
+                    kicked = entry.kicked,
+                    // CR 202.3b: the announced value, which is what an "X damage" resolution deals.
+                    chosenX = entry.chosenX,
                 ),
             )
         // Relaxed by `FW-COUNTER` from "the stack is unchanged" to what that assertion actually meant.
@@ -187,6 +191,11 @@ internal fun putResolvedSpellOntoBattlefield(
             tapped = entersTappedNow(allocated, entry.obj.owner, entry.definition),
             // CR 614.12: the colour chosen as this object entered (Utopia Sprawl), or null.
             chosenColor = chosenColor,
+            // CR 702.33f: "was it kicked" is information about the *spell*, and the permanent is a
+            // different object (CR 400.7) — so the fact is carried across the move here, which is the
+            // only place a resolving permanent spell becomes a permanent. Goblin Bushwhacker's
+            // intervening-if reads it off the entering object a moment later.
+            kickedWhenCast = entry.kicked,
         )
     val moved =
         allocated

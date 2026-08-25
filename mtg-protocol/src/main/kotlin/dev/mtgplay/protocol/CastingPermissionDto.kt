@@ -1,6 +1,7 @@
 package dev.mtgplay.protocol
 
 import dev.mtgplay.core.card.Subtype
+import dev.mtgplay.core.definition.CastCondition
 import dev.mtgplay.core.definition.CastingPermission
 import dev.mtgplay.core.definition.SacrificeRequirement
 import dev.mtgplay.core.mana.ManaCost
@@ -49,12 +50,21 @@ sealed interface CastingPermissionDto {
         val sacrifice: SacrificeRequirementDto?,
     ) : CastingPermissionDto
 
-    /** A generic alternative cost cast from hand (CR 118.9): [cost] plus an optional [sacrifice]. */
+    /**
+     * A generic alternative cost cast from hand (CR 118.9): [cost] plus an optional [sacrifice] or
+     * [revealsHand] hand reveal, available only while [condition] holds.
+     *
+     * [condition] and [revealsHand] arrived with `FW-ALTCOST` and are independent: a permission may be
+     * gated without revealing or reveal without a gate. A `null` [condition] is the always-available
+     * permission every pre-`FW-ALTCOST` card has.
+     */
     @Serializable
     @SerialName("alternative_cost")
     data class AlternativeCost(
         val cost: String,
         val sacrifice: SacrificeRequirementDto?,
+        val condition: CastConditionDto?,
+        val revealsHand: Boolean,
     ) : CastingPermissionDto
 
     /** Escape (CR 702.139): cast from the graveyard for [cost] plus exiling [exileOthers] others. */
@@ -87,7 +97,13 @@ fun CastingPermission.toDto(): CastingPermissionDto =
     when (this) {
         is CastingPermission.Madness -> CastingPermissionDto.Madness(cost.render())
         is CastingPermission.Flashback -> CastingPermissionDto.Flashback(cost.render(), sacrifice?.toDto())
-        is CastingPermission.AlternativeCost -> CastingPermissionDto.AlternativeCost(cost.render(), sacrifice?.toDto())
+        is CastingPermission.AlternativeCost ->
+            CastingPermissionDto.AlternativeCost(
+                cost.render(),
+                sacrifice?.toDto(),
+                condition?.toDto(),
+                revealsHand,
+            )
         is CastingPermission.Escape -> CastingPermissionDto.Escape(cost.render(), exileOthers)
         is CastingPermission.Plot -> CastingPermissionDto.Plot(plotCost.render())
         is CastingPermission.Rebound -> CastingPermissionDto.Rebound
@@ -99,8 +115,39 @@ fun CastingPermissionDto.toDomain(): CastingPermission =
         is CastingPermissionDto.Madness -> CastingPermission.Madness(ManaCost.parse(cost))
         is CastingPermissionDto.Flashback -> CastingPermission.Flashback(ManaCost.parse(cost), sacrifice?.toDomain())
         is CastingPermissionDto.AlternativeCost ->
-            CastingPermission.AlternativeCost(ManaCost.parse(cost), sacrifice?.toDomain())
+            CastingPermission.AlternativeCost(
+                ManaCost.parse(cost),
+                sacrifice?.toDomain(),
+                condition?.toDomain(),
+                revealsHand,
+            )
         is CastingPermissionDto.Escape -> CastingPermission.Escape(ManaCost.parse(cost), exileOthers)
         is CastingPermissionDto.Plot -> CastingPermission.Plot(ManaCost.parse(plotCost))
         is CastingPermissionDto.Rebound -> CastingPermission.Rebound
+    }
+
+/**
+ * Wire form of [dev.mtgplay.core.definition.CastCondition] (CR 118.9) — the state condition gating a
+ * [CastingPermissionDto.AlternativeCost]. Additive (`FW-ALTCOST`).
+ *
+ * An enum rather than a sealed hierarchy because the one condition the pool prints carries no payload;
+ * a condition that needs one becomes a sealed hierarchy here, which is a wire break and should be.
+ */
+@Serializable
+enum class CastConditionDto {
+    /** "If you have no land cards in hand" (CR 305) — Land Grant. */
+    @SerialName("no_land_cards_in_hand")
+    NO_LAND_CARDS_IN_HAND,
+}
+
+/** [dev.mtgplay.core.definition.CastCondition] to its wire form. */
+fun CastCondition.toDto(): CastConditionDto =
+    when (this) {
+        CastCondition.NoLandCardsInHand -> CastConditionDto.NO_LAND_CARDS_IN_HAND
+    }
+
+/** [CastConditionDto] back to the engine value. */
+fun CastConditionDto.toDomain(): CastCondition =
+    when (this) {
+        CastConditionDto.NO_LAND_CARDS_IN_HAND -> CastCondition.NoLandCardsInHand
     }

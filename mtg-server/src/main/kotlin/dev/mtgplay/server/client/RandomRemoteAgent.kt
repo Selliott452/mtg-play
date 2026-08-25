@@ -85,6 +85,8 @@ class RandomRemoteAgent(
             is DecisionRequestDto.ChooseModes -> request.options.size
             is DecisionRequestDto.ChooseTargets -> request.options.size
             is DecisionRequestDto.ChoosePaymentPlan -> request.options.size
+            // CR 601.2b: one index per announceable value of X, not per unit of X.
+            is DecisionRequestDto.ChooseXValue -> request.values.size
             is DecisionRequestDto.AssignTrampleDamage -> request.options.size
             is DecisionRequestDto.ChooseColor -> request.options.size
             is DecisionRequestDto.ChooseReplacement -> request.options.size

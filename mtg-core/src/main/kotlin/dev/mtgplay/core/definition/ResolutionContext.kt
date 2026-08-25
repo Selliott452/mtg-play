@@ -56,6 +56,16 @@ import kotlinx.collections.immutable.persistentListOf
  *   [dev.mtgplay.core.state.DamageSource]: an object's characteristics are looked up by [CardRef]
  *   through the definition registry, which works whatever zone the source has reached by the time
  *   its damage lands, while its id may name nothing anywhere (CR 400.7).
+ * @property kicked whether the resolving spell's **kicker** cost was paid (CR 702.33a), the linked
+ *   information CR 702.33f makes readable; `false` for a spell without kicker, for one whose kicker was
+ *   declined, and for every ability. Additive, flagged core (`FW-OPTCOST`). Prohibit's resolution reads
+ *   it to decide whether it counters a mana value of 2 or of 4, and it is supplied from
+ *   [dev.mtgplay.core.state.StackEntry.Spell.kicked].
+ * @property chosenX the value announced for the resolving spell's variable symbol (CR 107.3, CR 601.2b),
+ *   supplied from [dev.mtgplay.core.state.StackEntry.Spell.chosenX]; `0` for every spell whose cost
+ *   carries none and for every ability. Additive, flagged core (`FW-X`). This is the number an "X damage"
+ *   or "X counters" resolution deals or places, and it is read from the cast record rather than
+ *   recomputed from the cost, because the printed cost's X is zero everywhere but the stack (CR 202.3b).
  * @property linkedExiled the exile objects a **linked** ability (CR 607.2) of this ability's source put
  *   into exile, in the order exiled; empty for every spell and for an ability with no linked partner.
  *   Additive, flagged core (`FW-LINKEDEXILE`, docs/design/exile-and-return.md §4). The linked
@@ -79,6 +89,8 @@ data class ResolutionContext(
     val sacrificedForCost: PersistentList<CardRef> = persistentListOf(),
     val sourceCard: CardRef? = null,
     val linkedExiled: PersistentList<ObjectId> = persistentListOf(),
+    val kicked: Boolean = false,
+    val chosenX: Int = 0,
 ) {
     /**
      * The [dev.mtgplay.core.state.DamageSource] this resolving object is, for the damage primitives

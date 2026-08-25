@@ -76,6 +76,13 @@ private fun singleOptionSelectionToDto(request: DecisionRequest.SingleOptionSele
                 request.cost.render(),
                 request.options.map { it.toDto() },
             )
+        is DecisionRequest.ChooseXValue ->
+            DecisionRequestDto.ChooseXValue(
+                request.id.toDto(),
+                request.cardObjectId.value,
+                request.card.name,
+                request.values,
+            )
         is DecisionRequest.AssignTrampleDamage ->
             DecisionRequestDto.AssignTrampleDamage(
                 request.id.toDto(),

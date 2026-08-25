@@ -34,6 +34,8 @@ internal fun applySingleOptionSelection(
         is DecisionRequest.ChooseModes -> applyChosenModes(state, request.options[decision.index].modeIndex)
         is DecisionRequest.ChooseTargets -> applyChosenTargets(state, request, decision)
         is DecisionRequest.ChoosePaymentPlan -> applyChosenPaymentPlan(state, request, decision)
+        // CR 601.2b: the option index names an *offered* value of X; the value itself is recorded.
+        is DecisionRequest.ChooseXValue -> applyChosenXValue(state, request.values[decision.index])
         // The option index *is* the amount assigned to the defending player (options are 0..excess).
         is DecisionRequest.AssignTrampleDamage ->
             applyTrampleAssignment(state, request, request.options[decision.index])

@@ -169,6 +169,24 @@ import dev.mtgplay.core.identity.CardRef
  * graveyards" — both variable-count multi-target lines (`FW-MULTITGT`), and a modal card whose modes
  * cannot all be offered is an enumeration gap rather than a partial card.
  *
+ * The `FW-X` / `FW-OPTCOST` / `FW-ALTCOST` packet adds the pool's first cards with an **optional**
+ * cost (OptionalCostCards.kt): [goblinBushwhacker] and [prohibit], the two kickers (CR 702.33), and
+ * [landGrant], whose alternative cost is "reveal your hand rather than pay" (CR 118.9). The two kickers
+ * are deliberately different halves of the same keyword — Bushwhacker reads "was it kicked" back from a
+ * *permanent*, through CR 702.33f's linked information and a CR 603.4 intervening-if, while Prohibit
+ * reads it during its own resolution off its own cast record. Land Grant was written and dropped twice
+ * before: `P-SEARCH` had its search half and could not express a permission that was both conditional
+ * on a hidden zone and paid by revealing.
+ *
+ * Two of that packet's five cards stay absent, each on a framework it does not own. **Kaervek's Torch**
+ * prints "As long as this is on the stack, spells that target it cost {2} more to cast" — a cost
+ * *increase*, which `FW-COST` leaves deliberately unrepresentable, and one keyed on *another* spell's
+ * chosen targets, so pricing it would also have to filter target enumeration by affordability
+ * (`Targets.kt`). **Nyxborn Hydra** needs bestow (`FW-BESTOW`) and a CR 614.1c "enters with X +1/+1
+ * counters" replacement; the counters framework it is sometimes filed under supplies neither. The
+ * variable-cost framework itself shipped without a pool card for that reason and is carried by rules
+ * fixtures, the way `FW-COST` and the cast-from-elsewhere permissions already are.
+ *
  * [definitions] is shaped for direct `MatchConfig.definitions` consumption: the engine carries
  * it into `GameState` in canonical name-sorted order regardless of this map's own order
  * (ADR-009 — definitions ride in the state; a [CardRef] without an entry is inert). The pool
@@ -218,6 +236,9 @@ object MvpCards {
             etherealArmor,
             evisceratorsInsight,
             expeditionMap,
+            goblinBushwhacker,
+            landGrant,
+            prohibit,
             faerieMacabre,
             faerieSeer,
             faithlessLooting,

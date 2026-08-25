@@ -154,12 +154,15 @@ private fun applyChosenYesNo(
 ): AdvanceResult {
     check(decision is Decision.SingleSelect) { "unreachable: decision shape was validated against the request" }
     val accept = decision.index == DecisionRequest.ChooseYesNo.ACCEPT
-    // Four yes/no flows share this request: madness's reflexive cast (CR 702.35b), the optional
-    // discard-then-draw clause (CR 601.3b), a library look's optional shuffle (CR 601.3b, Ponder), and
-    // rebound's delayed free cast (CR 702.88b); the pending record present says which. Tested in the
-    // order pendingDecisionRequest derives them in, so an answer can never be routed to a flow other
-    // than the one that was asked.
+    // Five yes/no flows share this request: a cast's kicker announcement (CR 601.2b/702.33a), madness's
+    // reflexive cast (CR 702.35b), the optional discard-then-draw clause (CR 601.3b), a library look's
+    // optional shuffle (CR 601.3b, Ponder), and rebound's delayed free cast (CR 702.88b); the pending
+    // record present says which. Tested in the order pendingDecisionRequest derives them in, so an
+    // answer can never be routed to a flow other than the one that was asked — and an open cast
+    // gathering is the *first* thing that function checks (`gatheringPauseRequest`), so the kicker
+    // branch is first here.
     return when {
+        state.pendingCast?.kicked == null && state.pendingCast != null -> applyChosenKicker(state, accept)
         state.pendingOptionalDiscardDraw != null -> applyOptionalDiscardYesNo(state, accept)
         state.pendingLibraryLook != null -> applyLibraryLookShuffle(state, accept)
         state.pendingMadness != null -> applyMadnessCastChoice(state, accept)

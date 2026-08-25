@@ -27,11 +27,24 @@ import dev.mtgplay.core.state.PendingTrigger
  * scope is checked so a graveyard/hand/exile-scoped ability (P6) is not fired from the wrong zone.
  */
 
-/** Appends [trigger] to the pending-trigger queue (CR 603.3), preserving fire order. */
+/**
+ * Appends [trigger] to the pending-trigger queue (CR 603.3), preserving fire order — unless its
+ * CR 603.4 intervening-if clause is false, in which case the ability **does not trigger at all** and
+ * the state is returned unchanged.
+ *
+ * The check lives here rather than in each of the half-dozen detectors so that a detector added later
+ * cannot forget it (InterveningIfCheck.kt). An ability declaring no such clause is unaffected, which is
+ * every ability in the pool but Goblin Bushwhacker's.
+ */
 internal fun enqueuePendingTrigger(
     state: GameState,
     trigger: PendingTrigger,
-): GameState = state.copy(pendingTriggers = state.pendingTriggers.adding(trigger))
+): GameState =
+    if (!interveningIfHolds(state, trigger.ability, trigger.sourceId)) {
+        state
+    } else {
+        state.copy(pendingTriggers = state.pendingTriggers.adding(trigger))
+    }
 
 /** The battlefield-scoped triggered abilities of [card]'s definition matching [condition]. */
 private fun battlefieldTriggersOf(

@@ -44,6 +44,40 @@ sealed interface CastingPermission {
     val sacrifice: SacrificeRequirement? get() = null
 
     /**
+     * A condition on the game state that must hold for this permission to be usable (CR 118.9), or
+     * `null` for a permission that is always available once its card is in the right zone. Additive,
+     * flagged core (`FW-ALTCOST`). Land Grant's "If you have no land cards in hand".
+     *
+     * **The first state-conditional member of this interface**, and deliberately a declaration rather
+     * than a predicate: `mtg-rules` evaluates it and excludes the permission from enumeration when it
+     * fails, so a permission a seat can see is one it can complete (ADR-005). See [CastCondition] for
+     * why the shape is closed and what ADR-007 has to say about reading a hidden hand.
+     *
+     * Every permission that predates this one gates on *where the card is* — a marker the engine reads
+     * off the object itself — so the two kinds of gate are checked in different places and neither
+     * subsumes the other.
+     */
+    val condition: CastCondition? get() = null
+
+    /**
+     * Whether paying this permission's cost requires the caster to **reveal their hand** (CR 701.16a),
+     * as a non-mana component of the alternative cost. Additive, flagged core (`FW-ALTCOST`). `false`
+     * for every permission but Land Grant's, whose whole printed cost is "reveal your hand".
+     *
+     * **A third kind of non-mana cost component, and not expressible as either existing one.**
+     * [sacrifice] names permanents to destroy and [additionalExileCount] names cards to exile; this
+     * consumes nothing and moves nothing. What it does is *publish* information — the hand becomes
+     * known to every player (CR 701.16a) — which is why it is a `Boolean` here and an emitted event in
+     * `mtg-rules` rather than a selection: there is nothing to choose, the whole hand is revealed, and
+     * the reveal is momentary. It needs no decision point and opens no pause.
+     *
+     * It is paid at CR 601.2h alongside the mana, and — unlike a sacrifice — it can never fail: a
+     * player with an empty hand reveals an empty hand, which is a legal payment of this cost. The
+     * *condition* that gates the permission is a separate field ([condition]) for exactly that reason.
+     */
+    val revealsHand: Boolean get() = false
+
+    /**
      * Whether a spell cast via this permission is **exiled instead of** being put into a graveyard as
      * it leaves the stack (CR 702.34e / CR 614) — the flashback replacement, covering resolution,
      * countering, and fizzling. `false` for madness, escape, and plot: their spells leave the stack
@@ -92,18 +126,31 @@ sealed interface CastingPermission {
 
     /**
      * A generic alternative cost cast from the hand (CR 118.9, CR 601.2f): the card may be cast for
-     * [cost] plus an optional [sacrifice] instead of its printed mana cost. Fireblast's "You may
-     * sacrifice two Mountains rather than pay this spell's mana cost" is
-     * `AlternativeCost({0}, sacrifice = two Mountains)`. Offered at a priority window like a normal
-     * cast (the same card is also castable normally, a distinct option); the alternative cost replaces
-     * the printed mana cost entirely (CR 118.9).
+     * [cost] plus an optional [sacrifice] or hand [revealsHand] reveal instead of its printed mana
+     * cost, and only while [condition] holds. Fireblast's "You may sacrifice two Mountains rather than
+     * pay this spell's mana cost" is `AlternativeCost({0}, sacrifice = two Mountains)`; Land Grant's
+     * "If you have no land cards in hand, you may reveal your hand rather than pay this spell's mana
+     * cost" is `AlternativeCost({0}, condition = NoLandCardsInHand, revealsHand = true)`. Offered at a
+     * priority window like a normal cast (the same card is also castable normally, a distinct option);
+     * the alternative cost replaces the printed mana cost entirely (CR 118.9).
+     *
+     * **The two fields `FW-ALTCOST` added are independent, and Land Grant needs both.** A permission
+     * could in principle reveal without a gate, or be gated without revealing; conflating them into one
+     * "Land Grant mode" flag would make the next card of either half unencodable. What the card
+     * demonstrates is that the pre-`FW-ALTCOST` shape — mana plus an optional sacrifice, always
+     * available — was two gaps rather than one.
      *
      * @property sacrifice the non-mana part of the alternative cost (Fireblast's two Mountains), or
-     *   `null` when the alternative cost is mana only.
+     *   `null` when the alternative cost demands no sacrifice.
+     * @property condition the state condition gating this permission (Land Grant's "no land cards in
+     *   hand"), or `null` when it is always available.
+     * @property revealsHand whether paying the cost reveals the caster's hand (CR 701.16a).
      */
     data class AlternativeCost(
         override val cost: ManaCost,
         override val sacrifice: SacrificeRequirement? = null,
+        override val condition: CastCondition? = null,
+        override val revealsHand: Boolean = false,
     ) : CastingPermission {
         override val source: CastSource = CastSource.HAND
     }

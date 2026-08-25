@@ -142,7 +142,8 @@ private fun castIsLegal(
         enumeratePaymentPlans(
             state,
             seat,
-            totalCost(state, seat, definition, permission = null, castObjectId = castObjectId),
+            // CR 601.2b: priced at the cheapest announcement (see [targetsAndCostAvailable]).
+            totalCost(state, seat, CastSubject(definition, permission = null, castObjectId = castObjectId)),
             minimalSacrificeReservation(state, seat, definition),
         ).isNotEmpty()
 

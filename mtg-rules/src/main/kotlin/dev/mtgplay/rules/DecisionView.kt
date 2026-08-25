@@ -91,6 +91,9 @@ enum class DecisionRequestKind {
     /** [DecisionRequest.ChooseYesNo] — a yes/no choice (CR 601.3b, CR 702.35b). */
     CHOOSE_YES_NO,
 
+    /** [DecisionRequest.ChooseXValue] — the CR 601.2b announcement of a variable cost (CR 107.3b). */
+    CHOOSE_X_VALUE,
+
     /** [DecisionRequest.ChooseCardsToExile] — an additional exile cost (CR 601.2b). */
     CHOOSE_CARDS_TO_EXILE,
 
@@ -187,6 +190,7 @@ private fun singleOptionSelectionKind(request: DecisionRequest.SingleOptionSelec
         is DecisionRequest.ChooseModes -> DecisionRequestKind.CHOOSE_MODES
         is DecisionRequest.ChooseTargets -> DecisionRequestKind.CHOOSE_TARGETS
         is DecisionRequest.ChoosePaymentPlan -> DecisionRequestKind.CHOOSE_PAYMENT_PLAN
+        is DecisionRequest.ChooseXValue -> DecisionRequestKind.CHOOSE_X_VALUE
         is DecisionRequest.AssignTrampleDamage -> DecisionRequestKind.ASSIGN_TRAMPLE_DAMAGE
         is DecisionRequest.ChooseColor -> DecisionRequestKind.CHOOSE_COLOR
         is DecisionRequest.ChooseReplacement -> DecisionRequestKind.CHOOSE_REPLACEMENT

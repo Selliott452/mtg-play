@@ -21,6 +21,7 @@ internal fun singleOptionMenu(
         is DecisionRequest.ChooseModes -> modeMenu(request)
         is DecisionRequest.ChooseTargets -> targetMenu(view, request)
         is DecisionRequest.ChoosePaymentPlan -> paymentMenu(request)
+        is DecisionRequest.ChooseXValue -> xValueMenu(request)
         is DecisionRequest.AssignTrampleDamage -> trampleMenu(view, request)
         is DecisionRequest.ChooseColor -> colorMenu(request)
         is DecisionRequest.ChooseReplacement -> replacementMenu(request)

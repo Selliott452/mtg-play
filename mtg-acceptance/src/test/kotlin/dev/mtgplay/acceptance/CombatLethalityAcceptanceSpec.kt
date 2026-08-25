@@ -106,6 +106,8 @@ private val ALL_OUT_ATTACK: Responder =
                 error("the all-out-attack policy never casts, but a targets request surfaced: $request")
             is DecisionRequest.ChoosePaymentPlan ->
                 error("the all-out-attack policy never casts, but a payment request surfaced: $request")
+            is DecisionRequest.ChooseXValue ->
+                error("the all-out-attack policy never casts, but an X announcement surfaced: $request")
             is DecisionRequest.OrderBlockers ->
                 error("the all-out-attack policy never blocks, but a blocker-order request surfaced: $request")
             is DecisionRequest.AssignTrampleDamage ->

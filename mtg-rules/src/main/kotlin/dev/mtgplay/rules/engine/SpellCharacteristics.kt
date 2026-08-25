@@ -45,6 +45,38 @@ internal fun spellCharacteristics(
 }
 
 /**
+ * The mana value of the spell whose stack-residence id is [id], **as it sits on the stack** (CR 202.3,
+ * CR 202.3b): the mana value of its printed cost plus the value announced for its variable symbol when
+ * it was cast. Additive (`FW-X`).
+ *
+ * **The two halves come from different places, and they have to.** The printed cost's
+ * [dev.mtgplay.core.mana.ManaSymbol.X] contributes zero — which is CR 202.3b's rule for a card in any
+ * zone but the stack, and is what keeps a Kaervek's Torch in a graveyard honestly mana value 1. The
+ * announced value lives on the cast record ([dev.mtgplay.core.state.StackEntry.Spell.chosenX]), because
+ * it is a fact about *this cast* rather than about the card. Adding them here is the one place the
+ * engine reconstructs "X on the stack", and every predicate about a spell's size reads through it.
+ *
+ * The printed half goes through [spellCharacteristics], the CR 613 seam, so a future effect that changes
+ * a spell's cost on the stack reaches this too.
+ *
+ * Fails loudly when [id] names nothing on the stack: the CR 608.2b re-check has already run for any
+ * resolving object that asks, so a stale id is an engine defect rather than a rules case (ADR-005).
+ */
+internal fun spellManaValue(
+    state: GameState,
+    id: ObjectId,
+): Int {
+    val entry =
+        spellOnStack(state, id)
+            ?: error(
+                "CR 202.3b: mana value on the stack requires a spell on the stack, but $id names none - " +
+                    "the CR 608.2b re-check should have fizzled whatever asked",
+            )
+    // CR 202.3b: printed mana value (in which the variable is zero) plus this cast's announced value.
+    return spellCharacteristics(state, entry).manaValue + entry.chosenX
+}
+
+/**
  * The spell on [state]'s stack whose current stack-residence id is [id] (CR 400.7), or `null` when no
  * stack object has it — because the spell has already left the stack, or because [id] names an ability,
  * which is not a card and carries no such id (CR 113.7a).

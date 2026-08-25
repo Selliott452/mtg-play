@@ -21,6 +21,12 @@ import kotlinx.serialization.Serializable
  * because that is the order the engine settles them in: a modal spell's targeting line is not determined
  * until its mode is, so a view showing a non-null [chosenModes] and a null [chosenTargets] is a cast
  * paused exactly between CR 601.2b and CR 601.2c.
+ *
+ * [kicked] and [chosenX] are the two CR 601.2b cost announcements (`FW-OPTCOST`, `FW-X`), listed last
+ * because that is where the engine settles them — after every other cost selection, so their
+ * affordability bounds are priced against the same reservation the payment plan will use
+ * (docs/design/mana-payment.md §12). A view with both non-null and no plan chosen yet is a cast paused
+ * exactly at CR 601.2g.
  */
 @Serializable
 data class PendingCastDto(
@@ -34,6 +40,8 @@ data class PendingCastDto(
     val sacrificeCost: List<Long>?,
     val additionalDiscard: List<Long>?,
     val additionalSacrifice: List<Long>?,
+    val kicked: Boolean?,
+    val chosenX: Int?,
 )
 
 /** [PendingCast] to its wire form. */
@@ -49,6 +57,8 @@ fun PendingCast.toDto(): PendingCastDto =
         sacrificeCost = sacrificeCost?.map(ObjectId::value),
         additionalDiscard = additionalDiscard?.map(ObjectId::value),
         additionalSacrifice = additionalSacrifice?.map(ObjectId::value),
+        kicked = kicked,
+        chosenX = chosenX,
     )
 
 /** [PendingCastDto] back to the engine value. */
@@ -64,6 +74,8 @@ fun PendingCastDto.toDomain(): PendingCast =
         sacrificeCost = sacrificeCost?.map(::ObjectId)?.toPersistentList(),
         additionalDiscard = additionalDiscard?.map(::ObjectId)?.toPersistentList(),
         additionalSacrifice = additionalSacrifice?.map(::ObjectId)?.toPersistentList(),
+        kicked = kicked,
+        chosenX = chosenX,
     )
 
 /** Wire form of [PendingActivation] (CR 602.2). */

@@ -45,14 +45,18 @@ internal fun targetsAndCostAvailable(
         enumeratePaymentPlans(
             state,
             seat,
-            totalCost(state, seat, definition, permission, self),
+            // CR 601.2b: priced at the cheapest announcement — no kicker, X = 0 — because that is what
+            // "is this castable at all?" means: declining a kicker is always legal and a larger X only
+            // ever costs more, so a cast payable at any announcement is payable at this one.
+            totalCost(state, seat, CastSubject(definition, permission, self)),
             minimalSacrificeReservation(state, seat, definition),
         ).isNotEmpty()
 
 /**
  * Whether [seat] may cast the card [sourceObject] via [permission] from a priority window (CR 117.1a):
- * the card's timing permits it, the additional "exile N others" cost is satisfiable, and its targets
- * and alternative cost are available. Used to enumerate flashback and escape casts (ADR-005).
+ * the card's timing permits it, the permission's own state condition holds, the additional "exile N
+ * others" cost is satisfiable, and its targets and alternative cost are available. Used to enumerate
+ * flashback, escape, and hand alternative-cost casts (ADR-005).
  */
 internal fun permissionCastIsLegal(
     state: GameState,
@@ -62,6 +66,7 @@ internal fun permissionCastIsLegal(
     sourceObject: GameObject,
 ): Boolean =
     timingPermitsWindow(state, seat, definition.timing) &&
+        castConditionHolds(state, seat, permission) &&
         additionalExileSatisfiable(state, seat, permission, sourceObject) &&
         sacrificeSatisfiable(state, seat, permission.sacrifice) &&
         additionalDiscardSatisfiable(state, seat, definition, sourceObject.id, permission.source) &&
