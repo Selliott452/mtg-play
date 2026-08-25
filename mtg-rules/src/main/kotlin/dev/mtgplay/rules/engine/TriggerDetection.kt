@@ -88,13 +88,26 @@ internal fun detectDrawCountTriggers(
  * entered: each of its own [TriggerCondition.EnteredBattlefieldSelf] abilities fires, carrying the
  * entered object as its subject. Cartouche of Solidarity and Abundant Growth trigger here. A no-op if
  * the object is not on the battlefield or has no definition.
+ *
+ * [TriggerCondition.EnteredBattlefieldUntappedSelf] fires here too, and only when the object in fact
+ * arrived untapped — Gingerbread Cabin's "when this land enters untapped, create a Food token". The
+ * status is read off the entered object rather than recomputed, so whatever CR 614.1c replacement
+ * applied as it entered is what the trigger sees; the two are decided at the same instant and can
+ * never disagree. A land that entered tapped fires **nothing**, which is a different game from firing
+ * an ability that resolves doing nothing (that one would use the stack).
  */
 internal fun detectEnterBattlefieldTriggers(
     state: GameState,
     enteredId: ObjectId,
 ): GameState {
     val obj = state.sharedZones.battlefield.firstOrNull { it.id == enteredId } ?: return state
-    return battlefieldTriggersOf(state, obj.card, TriggerCondition.EnteredBattlefieldSelf)
+    val conditions =
+        buildList {
+            add(TriggerCondition.EnteredBattlefieldSelf)
+            if (!obj.tapped) add(TriggerCondition.EnteredBattlefieldUntappedSelf)
+        }
+    return conditions
+        .flatMap { condition -> battlefieldTriggersOf(state, obj.card, condition) }
         .fold(state) { current, ability ->
             enqueuePendingTrigger(
                 current,

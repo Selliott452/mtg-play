@@ -484,6 +484,21 @@ lands first must add the detector call to the play-land special action (CR 603.6
 exactly as it does to a resolving permanent) and check that the fired trigger reaches the stack at the
 priority grant `executePlayLand` already performs.
 
+> **Resolved, with Gingerbread Cabin.** The count of forgetful entry paths was **two, not one**:
+> `createToken` skipped the detector identically, and `TokenDefinition` carries `triggeredAbilities`,
+> so an ETB token was just as expressible and just as silent. Correcting two call sites would have
+> left four independent paths each remembering CR 603.6a on its own, so the derivation was given one
+> home instead — `announceBattlefieldEntry` emits an entry's announcement and fires its CR 603.6a
+> triggers as one indivisible step, and all four paths go through it. A new entry path cannot narrate
+> an entry without firing the triggers, because there is no other way to narrate one.
+>
+> Two checks back it up. `Invariant.ENTRY_TRIGGER_DETECTION` is the acceptance-side backstop for what
+> structure cannot cover — a *fifth* path that announces nothing: per card, entries × declared ETB
+> abilities must equal triggers placed on the stack plus triggers still pending, violating in both
+> directions. And `PlayedLandEntryTriggerSpec` asserts the behaviour against **fixtures** rather than
+> pool cards, because the trap survived precisely by being unreachable from the pool and a test that
+> waits for a real card inherits that blindness.
+
 ---
 
 ## 8. The 187, classified
@@ -557,7 +572,7 @@ Terror · `Mad` Mono-Red Madness · `Rly` Mono Red Rally · `Trn` Monster Tron �
 | Generous Ent | {5}{G} | 1 | `P-REACH` `P-SEARCH` | Food is a `TokenDefinition` with an activated ability (the Blood-token precedent); forestcycling needs a Forest-card search filter. | Elv4 Trn2 Spy4 |
 | Ghostly Flicker | {2}{U} | 2 | `FW-BLINK` `FW-MULTITGT` | Two targets across three permanent types, exiled and returned together. | UWX1 |
 | Giant's Boulder | {1} | 2 | `FW-LIBLOOK` `FW-MANA` `FW-ABILTGT` | Scry 2, a mana ability with a mana cost, and a targeted destroy ability. | Trn4 |
-| Gingerbread Cabin | — | 1 | `P-ETBTAPPED` `P-TRIGCOND` | Conditional enters-tapped ('unless you control three or more other Forests') and an *entered untapped* trigger condition. | Elv1 |
+| Gingerbread Cabin | — | 1 | ~~`P-ETBTAPPED` `P-TRIGCOND`~~ | **Encoded** with the T18 fix. Conditional enters-tapped (`EntersTapped.UnlessYouControl`) and an *entered untapped* trigger condition, both built. The row omitted its **Food token** — a token with a non-mana activated ability, which `TokenDefinition` has carried since P6.2c (Blood is the precedent), so it needed nothing new. | Elv1 |
 | Gingerbrute | {1} | 2 | `FW-DURATION` `FW-CONDSTATIC` | An until-EOT evasion grant bought with an activated ability; also needs haste. | Rly3 |
 | Glacial Floodplain | — | 1 | `P-ETBTAPPED` | Snow supertype and dual production already exist; the only gap is enters-tapped. | Jes1 |
 | Gnaw to the Bone | {2}{G} | 0 | **Tier 0** | `gainLife` with a graveyard-count amount + `CastingPermission.Flashback`. Shape: **Faithless Looting** (flashback) + **Armadillo Cloak** (computed lifegain). | Elv°3 |

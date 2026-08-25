@@ -208,6 +208,7 @@ private fun reorderPendingTriggers(
 private fun triggerDescription(trigger: PendingTrigger): String =
     when (val condition = trigger.ability.condition) {
         TriggerCondition.EnteredBattlefieldSelf -> "enters-the-battlefield"
+        TriggerCondition.EnteredBattlefieldUntappedSelf -> "enters-the-battlefield-untapped"
         TriggerCondition.PutIntoGraveyardFromBattlefieldSelf -> "leaves-the-battlefield"
         TriggerCondition.EnchantedCreatureDealsDamage -> "enchanted-creature-deals-damage"
         is TriggerCondition.SpellCast -> "spell-cast"

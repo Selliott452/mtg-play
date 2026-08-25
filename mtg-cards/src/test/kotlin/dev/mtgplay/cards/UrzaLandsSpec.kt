@@ -3,6 +3,7 @@ package dev.mtgplay.cards
 import dev.mtgplay.core.card.CardType
 import dev.mtgplay.core.card.Subtype
 import dev.mtgplay.core.definition.CardDefinition
+import dev.mtgplay.core.definition.EntersTapped
 import dev.mtgplay.core.definition.ManaAmount
 import dev.mtgplay.core.definition.PermanentFilter
 import dev.mtgplay.core.identity.CardRef
@@ -45,7 +46,7 @@ class UrzaLandsSpec :
                 printed.subtypes shouldBe persistentSetOf(subtype)
                 printed.powerToughness shouldBe null
                 printed.keywords.shouldBeEmpty()
-                definition.entersTapped shouldBe false
+                definition.entersTapped shouldBe EntersTapped.Never
             }
         }
 

@@ -220,34 +220,41 @@ private fun manaAmountOf(
 ): Int =
     when (amount) {
         is ManaAmount.Fixed -> amount.count
-        is ManaAmount.PerPermanent -> countMatching(state, obj, amount.each)
+        is ManaAmount.PerPermanent -> countMatching(state, obj.owner, amount.each)
         is ManaAmount.Conditional ->
-            if (amount.requires.all { countMatching(state, obj, it) > 0 }) amount.ifMet else amount.otherwise
+            if (amount.requires.all { countMatching(state, obj.owner, it) > 0 }) amount.ifMet else amount.otherwise
     }
 
 /**
- * How many battlefield permanents match [filter] from the point of view of the source [obj]
- * (CR 109.4, CR 205.3): permanents whose **printed** subtypes contain the filter's subtype, and —
- * when the filter says "you control" — that share [obj]'s controller.
+ * How many battlefield permanents match [filter] from the point of view of [you] (CR 109.4,
+ * CR 205.3): permanents whose **printed** subtypes contain the filter's subtype, and — when the
+ * filter says "you control" — that [you] control.
  *
- * Two read points are worth naming.
+ * Three read points are worth naming.
  *
  * - **Controller is owner**, the same standing simplification the rest of payment enumeration makes
- *   until control-changing effects exist.
+ *   until control-changing effects exist. [you] is therefore the perspective seat, however the
+ *   caller identifies it — the source permanent's owner for a [ManaAmount], the entering permanent's
+ *   owner for an [dev.mtgplay.core.definition.EntersTapped] clause. Taking a seat rather than a
+ *   [GameObject] is what lets the second caller exist at all: a permanent's CR 614.1c clause is read
+ *   as it enters, when it has no battlefield object yet.
  * - **Subtypes are printed, not layered.** [LayeredCharacteristics] carries power, toughness,
  *   keywords and mana abilities, and no card in the gauntlet pool changes a permanent's subtypes
  *   (that is `FW-TYPECHANGE`, its own framework). Reading printed subtypes is therefore exact
  *   today; when a type-changing effect lands it must extend [LayeredCharacteristics] and this line
  *   must follow it, and the reason it will be found is that this is the only place subtypes are
  *   counted.
+ * - **Only permanents already on the battlefield are counted**, which is what makes Gingerbread
+ *   Cabin's "three or more **other** Forests" exact without an explicit exclusion: the entering land
+ *   has not joined the battlefield when its clause is evaluated.
  */
-private fun countMatching(
+internal fun countMatching(
     state: GameState,
-    obj: GameObject,
+    you: dev.mtgplay.core.identity.PlayerId,
     filter: PermanentFilter,
 ): Int =
     state.sharedZones.battlefield.count { candidate ->
-        (!filter.controlledByYou || candidate.owner == obj.owner) &&
+        (!filter.controlledByYou || candidate.owner == you) &&
             state.definitions[candidate.card]
                 ?.characteristics
                 ?.subtypes

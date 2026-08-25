@@ -53,8 +53,10 @@ internal fun executePlayLand(
     }
     val (id, allocated) = state.allocateObjectId()
     // CR 400.7: a new object with no memory of its former self. It enters untapped (CR 110.5a) unless
-    // the card's own CR 614.1c "this land enters tapped" replacement says otherwise.
-    val land = card.copy(id = id, tapped = definition?.entersTapped ?: false)
+    // the card's own CR 614.1c "this land enters tapped" replacement says otherwise — read here,
+    // against the battlefield the land has not yet joined, so a conditional clause's count is over
+    // the *other* permanents (Gingerbread Cabin).
+    val land = card.copy(id = id, tapped = entersTappedNow(allocated, player, definition))
     val played =
         allocated
             .updatePlayer(player) { it.copy(hand = it.hand.removingAt(index)) }
