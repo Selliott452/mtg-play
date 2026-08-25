@@ -133,16 +133,26 @@ class CostReductionCardsSpec :
             myrEnforcer.characteristics.keywords.toSet() shouldBe emptySet()
         }
 
-        "the six cost cards are registered in the catalog and no other card declares a reduction" {
+        "the seven cost cards are registered in the catalog and no other card declares a reduction" {
             // Refurbished Familiar joined with `FW-NONCTRLDEC`: its affinity half was always encodable
             // and reuses this file's `affinityForArtifacts` unchanged, so the sixth reducer is a card
-            // this packet unblocked rather than a new cost shape.
+            // this packet unblocked rather than a new cost shape. Ride's End joined with `W8-C` and is
+            // the seventh — the first reducer whose input is the spell's own chosen target rather than
+            // a zone count (`FW-TGTCOND`, BurnAndRemoval.kt).
             val registered =
-                listOf(myrEnforcer, utromMonitor, thoughtcast, crypticSerpent, ofOneMind, refurbishedFamiliar)
+                listOf(
+                    myrEnforcer,
+                    utromMonitor,
+                    thoughtcast,
+                    crypticSerpent,
+                    ofOneMind,
+                    refurbishedFamiliar,
+                    ridesEnd,
+                )
             registered.forEach { card ->
                 MvpCards.definitions[CardRef(card.characteristics.name)] shouldBe card
             }
-            // The whole set of cost-reducing cards in the pool, so a sixth cannot arrive unnoticed.
+            // The whole set of cost-reducing cards in the pool, so an eighth cannot arrive unnoticed.
             MvpCards.definitions.values
                 .filterIsInstance<SpellDefinition>()
                 .filter { it.costReduction != null }
@@ -167,9 +177,10 @@ class CostReductionCardsSpec :
             //   move nothing performs plus a non-controller mid-resolution decision. Its reduction is
             //   **not** the blocker: `W8-B` found `PlayerState.drawsThisTurn` has existed since Sneaky
             //   Snacker, so the earlier "the state does not track it" diagnosis was wrong.
-            // Ride's End: a cost priced off the chosen target, `FW-TGTCOND`.
             // Refurbished Familiar has left this list: `FW-NONCTRLDEC` landed and it is now encoded.
-            listOf("Tolarian Terror", "Deem Inferior", "Ride's End").forEach {
+            // Ride's End has left it too: `W8-C` shipped `FW-TGTCOND` (BurnAndRemoval.kt), so a cost
+            // priced off the chosen target is expressible and the card is registered above.
+            listOf("Tolarian Terror", "Deem Inferior").forEach {
                 MvpCards.definitions[CardRef(it)].shouldBeNull()
             }
         }

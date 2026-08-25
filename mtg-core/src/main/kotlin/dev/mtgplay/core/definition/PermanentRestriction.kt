@@ -161,4 +161,26 @@ enum class PermanentRestriction {
      * *not* a legal Ghostly Flicker target, so the blink cannot be pointed at it to re-fire its exile.
      */
     ARTIFACT_CREATURE_OR_LAND_YOU_CONTROL,
+
+    /**
+     * "Target **creature or Vehicle**" (CR 115.1b, CR 302, CR 301.7) — Ride's End's targeting line.
+     * Additive, flagged core (`W8-C`).
+     *
+     * **The disjunction is a card type *or* a subtype**, which no restriction before it mixed: a creature
+     * qualifies by [dev.mtgplay.core.card.CardType.CREATURE], a Vehicle by the artifact subtype Vehicle
+     * (CR 301.7), and a crewed Vehicle — an artifact that has *become* a creature — qualifies twice over.
+     * [ARTIFACT_CREATURE_OR_LAND_YOU_CONTROL] is a disjunction over card types alone and cannot say this.
+     *
+     * **The Vehicle half is currently vacuous in play and is modelled anyway**, the same call
+     * [NONLEGENDARY_CREATURE] records: no gauntlet card prints the Vehicle subtype, so today this is
+     * behaviourally [CREATURE]. Collapsing it to [CREATURE] would print a line the card does not have and
+     * would be silently wrong the first time an uncrewed Vehicle sits on the battlefield — precisely the
+     * board Ride's End is printed to answer, since an uncrewed Vehicle is not a creature and no ordinary
+     * removal spell can point at it.
+     *
+     * The subtype is read **printed** (CR 205.3), like every other subtype test in the engine; crew
+     * (CR 702.122) is a layer-4 type-changing effect the engine does not have, and when it lands this is
+     * one of the sites that must route through the layer system.
+     */
+    CREATURE_OR_VEHICLE,
 }

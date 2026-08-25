@@ -37,6 +37,7 @@ import dev.mtgplay.core.state.TurnPhase
 import dev.mtgplay.core.state.TurnStep
 import dev.mtgplay.rules.decision.Decision
 import dev.mtgplay.rules.decision.DecisionRequest
+import dev.mtgplay.rules.effect.destroy
 import dev.mtgplay.rules.effect.gainLife
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.persistentMapOf
@@ -135,6 +136,30 @@ private fun aura(
         override val triggeredAbilities = triggers.toPersistentList()
     }
 
+/**
+ * Cryoshatter's printed trigger condition in fixture form (`W8-C`): one ability, two event patterns
+ * (CR 603.2) — the enchanted permanent becoming tapped (CR 701.20a) or being dealt damage (CR 120.3d).
+ */
+internal val TAP_OR_DAMAGE: TriggerCondition =
+    TriggerCondition.AnyOf(
+        persistentListOf(
+            TriggerCondition.EnchantedPermanentBecomesTapped,
+            TriggerCondition.EnchantedPermanentIsDealtDamage,
+        ),
+    )
+
+// A triggered ability that destroys the permanent its fired trigger named as subject (CR 603.10 last
+// known information), or does nothing when that permanent has already left the battlefield (CR 608.2).
+private fun destroySubjectOn(condition: TriggerCondition): TriggeredAbility =
+    TriggeredAbility(
+        condition = condition,
+        effect =
+            ResolutionEffect { state, context ->
+                val subject = context.subject ?: error("a destroy-subject trigger fires with a subject")
+                if (state.sharedZones.battlefield.any { it.id == subject }) destroy(state, subject) else state
+            },
+    )
+
 /** The scenario creature catalog, keyed by ref (the registry combat scenarios build states with). */
 internal val combatDefinitions: Map<CardRef, CardDefinition> =
     listOf(
@@ -227,6 +252,13 @@ internal val combatDefinitions: Map<CardRef, CardDefinition> =
                     ),
                 ),
         ),
+        // `W8-C` Auras for the two status/damage trigger conditions (CR 701.20a, CR 120.3d).
+        // "Frostbind" is Cryoshatter's shape: **one** ability whose condition is a
+        // [TriggerCondition.AnyOf] of both patterns, destroying the enchanted permanent it fired for.
+        // "Tapwatch" declares only the tap half, which is what proves the disjunction is a real match
+        // rather than a blanket one — it must stay silent when its host is merely damaged.
+        aura("Frostbind", triggers = listOf(destroySubjectOn(TAP_OR_DAMAGE))),
+        aura("Tapwatch", triggers = listOf(destroySubjectOn(TriggerCondition.EnchantedPermanentBecomesTapped))),
         // Keyword-tail bodies. "Venomous" is a plain 2/2 deathtoucher: one point from it is lethal to
         // anything (CR 702.2b). "Venomtrampler" pairs deathtouch with trample, which is where the two
         // interact — CR 702.19b excess is power minus *1* per blocker, not power minus toughness.

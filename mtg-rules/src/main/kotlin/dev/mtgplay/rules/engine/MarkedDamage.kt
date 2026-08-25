@@ -47,5 +47,9 @@ internal fun markDamage(
             dealtDeathtouchDamage = obj.dealtDeathtouchDamage || fromDeathtouchSource,
         )
     val marked = battlefield.removingAt(index).addingAt(index, updated)
-    return state.copy(sharedZones = state.sharedZones.copy(battlefield = marked))
+    val damaged = state.copy(sharedZones = state.sharedZones.copy(battlefield = marked))
+    // CR 603.2: "is dealt damage" fires here, the one point damage to a permanent actually lands. Sitting
+    // past `dealDamage`'s CR 120.8 zero exit and its CR 615.6 prevention exit is what makes both of those
+    // rules apply to the trigger without this function knowing either (`W8-C`).
+    return fireEnchantedDamageReceivedTriggers(damaged, objectId)
 }

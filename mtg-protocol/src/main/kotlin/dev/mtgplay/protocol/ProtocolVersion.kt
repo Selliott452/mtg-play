@@ -508,5 +508,35 @@ package dev.mtgplay.protocol
  * `TriggeredAbility.addsMana` — the packet's other core addition, Burning-Tree Emissary's "When this
  * creature enters, add `{R}{G}`" — adds **nothing** to the wire. It is a property of a card definition,
  * and its only observable consequence is mana in a pool, which [SeatViewDto] already carries.
+ * ### Held at `8.0.0` — `W8-C`: status-change triggers and a target-conditional cost
+ *
+ * **No bump, and naming the absence is the point** — the standard this file set at `W7-C` is that a
+ * packet owes an entry either way. `W8-C` adds three
+ * [dev.mtgplay.core.definition.TriggerCondition] members (a permanent becoming tapped, a permanent being
+ * dealt damage, and the `AnyOf` disjunction), a
+ * [dev.mtgplay.core.definition.PermanentRestriction] member (`CREATURE_OR_VEHICLE`), a
+ * [dev.mtgplay.core.definition.CostReduction] member (`IfTargets`) with its
+ * [dev.mtgplay.core.definition.TargetCondition] enum, and three cards. Every one of those is
+ * card-definition vocabulary, and definitions are static match configuration that never travels — the
+ * same ruling `7.0.0` records for `FW-TRIGCOMBAT`'s trigger condition.
+ *
+ * Four things a peer might have been expected to see, and why none of them is a shape change:
+ *
+ * 1. **No [DecisionRequestDto] member, no [DecisionRequestKindDto] value, no [TargetDto] member.**
+ *    "Exile two target artifacts" is answered by `choose_multiple_targets`, which `6.0.0` already added;
+ *    a fired status-change trigger is ordered through the existing `order_triggers`; and a
+ *    target-conditional cost is announced through nothing at all — it is not a decision.
+ * 2. **No [SeatViewDto] or [GameObjectDto] field.** Becoming tapped changes [GameObjectDto.tapped], which
+ *    has been on the wire since P7.1, and being dealt damage changes its marked damage, likewise. Neither
+ *    trigger stores anything of its own.
+ * 3. **[DecisionRequestDto.ChoosePaymentPlan] is unchanged**, including its `cost` string. `FW-COST`
+ *    added that field precisely so a modified cost could be *read* rather than inferred, and a cost
+ *    modified by the spell's chosen target renders identically to one modified by a board count —
+ *    `{1}{W}` is `{1}{W}`. The new input is invisible on the wire by construction.
+ * 4. **A narrower option list is not a shape change.** `FW-TGTCOND` filters a Ride's End's
+ *    `choose_targets` options to the targets its controller can afford, so the same request carries
+ *    fewer entries on some boards. `8.0.0`'s own entry already makes this argument for deathtouch and the
+ *    haste evasion: an option list is a payload the wire carries, and which options are in it is what
+ *    ADR-005 is about, not what the schema is.
  */
 const val PROTOCOL_VERSION: String = "8.0.0"

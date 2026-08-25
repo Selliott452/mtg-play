@@ -52,10 +52,14 @@ import kotlinx.collections.immutable.persistentSetOf
  *   *effect*: "the owner of target nonland permanent puts it into their library second from the top or
  *   on the bottom" is a library-position insertion nothing in the engine performs, chosen by somebody
  *   other than the caster (`FW-NONCTRLDEC` landed only as an opponent *discard*).
- * - **Ride's End** reduces "{3} less if it targets a tapped permanent" — a cost that depends on the
- *   chosen target. Cost determination now correctly follows target choice inside the pipeline, but cast
- *   *legality* is decided before any target is chosen, so enumerating it needs "exists a target making
- *   this affordable" (`FW-TGTCOND`).
+ * - **Ride's End** was listed here as blocked on `FW-TGTCOND`: "{3} less if it targets a tapped
+ *   permanent" is a cost that depends on the chosen target, while cast *legality* is decided before any
+ *   target is chosen. That framework landed with `W8-C` and the card is encoded in `BurnAndRemoval.kt`.
+ *   The diagnosis was right on both halves — the gate now prices the cheapest achievable target choice
+ *   (`cheapestTargetsFor`), which is exactly the "exists a target making this affordable" test this
+ *   entry asked for — and it turned out to need a second half nobody had written down: once the gate
+ *   admits a cast only some of whose targets are payable, the *target request* has to be narrowed too,
+ *   or the caster is offered an option that dead-ends at an empty payment plan (`affordableTargetOptions`).
  * - **Sunscape Familiar** is the other-object reducer this framework's C6 half exists for, and its
  *   declaration slot ([dev.mtgplay.core.definition.CardDefinition.spellCostReductions]) ships and is
  *   exercised by rules fixtures. It was absent because it prints **Defender**, a keyword `mtg-core` did

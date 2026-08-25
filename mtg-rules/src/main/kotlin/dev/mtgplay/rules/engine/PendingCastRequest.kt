@@ -27,11 +27,23 @@ import dev.mtgplay.rules.decision.DecisionRequestId
  * choice-aware one, which is the enumerated-then-unpayable defect ADR-005 forbids
  * (docs/design/mana-payment.md §2.3).
  *
- * The deviation is unobservable across the whole gauntlet, because nothing in the pool makes a target's
+ * The deviation is unobservable across the whole *encoded* pool, because nothing in it makes a target's
  * legality depend on a kicker or on X. It becomes observable for a card printing "X target creatures"
  * or a kicker that adds a target, and such a card must move the announcements back above the target
  * stage and take the weaker reservation with them — the same trade `FW-ADDSAC` recorded for the
  * sacrifice cost. Recorded here rather than discovered later.
+ *
+ * **`W8-C` found that card, and it is in the gauntlet.** Gorilla Shaman's "`{X}{X}{1}`: Destroy target
+ * noncreature artifact **with mana value X**" makes the target restriction a function of the announced
+ * value, so X must be settled before CR 601.2c rather than after it. That packet dropped the card rather
+ * than reorder this file's gathering unilaterally — the reorder costs every *other* cast the exact
+ * reservation, which is a trade the whole payment model pays for one card — and it needs the announcement
+ * on the **activation** path anyway, which has no `chosenX` at all. Both halves are on the same packet
+ * when it is taken; see `mtg-cards/BurnAndRemoval.kt`.
+ *
+ * Ride's End is the mirror case and it does *not* force a reorder: its **cost** depends on its chosen
+ * target rather than its target depending on a cost announcement, so the existing order (targets, then
+ * announcements, then payment) is exactly right for it (`FW-TGTCOND`, `TargetConditionalCost.kt`).
  *
  * Kicker precedes X because CR 601.2b prints it that way ("alternative or additional costs … then …
  * a variable cost"), and because the dependency runs that way too: the affordable values of X are the
@@ -68,23 +80,7 @@ internal fun pendingCastRequest(
         // CR 601.2c: then targets, enumerated against the spec the settled mode put in force. The modes
         // are non-null in this branch, but they are a cross-module property so the compiler will not
         // smart-cast them; `orEmpty()` is the same value, and a non-modal card's is empty anyway.
-        cast.chosenTargets == null ->
-            targetRequest(
-                id = id,
-                cardObjectId = cast.cardObjectId,
-                card = card.card,
-                spec = effectiveTargetSpec(definition, cast.chosenModes.orEmpty()),
-                // CR 601.2c: the card is still in its source zone while gathering, so its id excludes
-                // nothing from the stack — and naming it here is what makes this enumeration equal the
-                // one `establishTargets` recomputes once the card is on the stack under a fresh id.
-                options =
-                    legalTargets(
-                        state,
-                        effectiveTargetSpec(definition, cast.chosenModes.orEmpty()),
-                        cast.caster,
-                        Chooser.Spell(cast.cardObjectId),
-                    ),
-            )
+        cast.chosenTargets == null -> targetsRequestFor(state, cast, definition, card.card, id)
         // CR 601.2b: then any additional "exile N other cards" cost selection (escape).
         cast.additionalExileCost == null -> chooseCardsToExileRequest(state, cast, card.card, id)
         // CR 601.2h: then any non-mana sacrifice cost selection (Fireblast, Lava Dart).
@@ -127,6 +123,38 @@ internal fun pendingCastRequest(
             )
         }
     }
+}
+
+/**
+ * The CR 601.2c target request for the open [cast], enumerated against the spec the settled mode put in
+ * force (`FW-MODAL`).
+ *
+ * The card is still in its source zone while gathering, so naming it as the [Chooser.Spell] excludes
+ * nothing from the stack — and naming it is what makes this enumeration equal the one `establishTargets`
+ * recomputes once the card is on the stack under a fresh id.
+ *
+ * The options are then narrowed by [affordableTargetOptions], which is the identity for every card that
+ * does not price itself off its own targets — all but Ride's End (`FW-TGTCOND`). Narrowing here rather
+ * than in `legalTargets` is deliberate: CR 115 legality is unchanged and the CR 601.2c re-validation still
+ * tests membership in the *unfiltered* enumeration, so the filter can only ever remove an option the
+ * caster could not have paid for, never make a chosen one illegal.
+ */
+private fun targetsRequestFor(
+    state: GameState,
+    cast: PendingCast,
+    definition: SpellDefinition,
+    card: CardRef,
+    id: DecisionRequestId,
+): DecisionRequest {
+    val spec = effectiveTargetSpec(definition, cast.chosenModes.orEmpty())
+    val legal = legalTargets(state, spec, cast.caster, Chooser.Spell(cast.cardObjectId))
+    return targetRequest(
+        id = id,
+        cardObjectId = cast.cardObjectId,
+        card = card,
+        spec = spec,
+        options = affordableTargetOptions(state, cast.caster, cast.subject(definition), spec, legal),
+    )
 }
 
 // CR 601.2b/702.139a: every card in the source zone other than the one being cast is exilable (escape).

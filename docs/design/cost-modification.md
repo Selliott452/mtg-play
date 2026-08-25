@@ -619,6 +619,20 @@ determination correctly follows target choice inside the pipeline, but cast *leg
 before any target exists, so enumerating it needs "exists a target making this affordable"), and
 **Sunscape Familiar** (`FW-DEFENDERKW`).
 
+> **`W8-C` update.** `FW-TGTCOND` has since landed and **Ride's End is encoded**
+> (`mtg-cards/BurnAndRemoval.kt`, `mtg-rules/TargetConditionalCost.kt`). The diagnosis above was right
+> as far as it went: `cheapestTargetsFor` is exactly the "exists a target making this affordable" test
+> it asked for, and it is the whole of the castability half. It missed a second half, and the two are a
+> matched pair. Once the gate admits a cast only *some* of whose targets are payable, the CR 601.2c
+> **target request** has to be narrowed too (`affordableTargetOptions`) — otherwise the caster is
+> offered a legal target whose only outcome is a `ChoosePaymentPlan` with no options, which the CR
+> answers with the CR 601.2h/CR 728 rewind and a gathering in progress cannot represent. `FW-TGTCOND`
+> is therefore the first framework in which target *enumeration* is filtered by mana, and the KDoc on
+> `affordableTargetOptions` argues why that is the honest reading rather than a convenience.
+>
+> **Refurbished Familiar** has also left this list (`FW-NONCTRLDEC` landed), so the remaining absentees
+> are Tolarian Terror, Deem Inferior, and Sunscape Familiar.
+
 **Sunscape Familiar is the note's one factual error.** §10's C6 says "Defender is a separate, existing
 keyword". It is not: `Keyword.kt` has no `DEFENDER`, and `FW-DEFENDERKW` is already the recorded
 reason Overgrown Battlement is absent. The C6 *framework* — the other-object reducer — ships and is

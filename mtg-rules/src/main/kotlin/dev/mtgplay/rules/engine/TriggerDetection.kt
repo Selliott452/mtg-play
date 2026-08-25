@@ -46,16 +46,44 @@ internal fun enqueuePendingTrigger(
         state.copy(pendingTriggers = state.pendingTriggers.adding(trigger))
     }
 
-/** The battlefield-scoped triggered abilities of [card]'s definition matching [condition]. */
-private fun battlefieldTriggersOf(
+/**
+ * The battlefield-scoped triggered abilities of [card]'s definition matching [condition].
+ *
+ * `internal` rather than file-private since `W8-C`, so the status-change detectors in
+ * `StatusChangeTriggers.kt` ask the same question through the same function — including the
+ * [TriggerCondition.AnyOf] handling below, which a second copy would be free to forget.
+ */
+internal fun battlefieldTriggersOf(
     state: GameState,
     card: dev.mtgplay.core.identity.CardRef,
     condition: TriggerCondition,
 ): List<TriggeredAbility> =
     state.definitions[card]
         ?.triggeredAbilities
-        ?.filter { it.zoneScope == TriggerZoneScope.Battlefield && it.condition == condition }
+        ?.filter { it.zoneScope == TriggerZoneScope.Battlefield && matchesEvent(it.condition, condition) }
         .orEmpty()
+
+/**
+ * Whether the [declared] trigger condition of an ability is satisfied by the [event] pattern a detector
+ * has just observed (CR 603.2).
+ *
+ * Equality for every ordinary condition — a detector names the pattern it saw and an ability declaring
+ * that pattern fires. The one non-trivial case is [TriggerCondition.AnyOf], the "When X **or** Y" shape
+ * (`W8-C`): one ability, several patterns, satisfied by any of them. Written here rather than at each
+ * detector so that a detector added later cannot forget the disjunction — the same argument
+ * [enqueuePendingTrigger] makes for the CR 603.4 intervening-if check.
+ *
+ * The disjunction is never nested ([TriggerCondition.AnyOf]'s `init` refuses it), so this is one level
+ * deep by construction and needs no recursion.
+ */
+private fun matchesEvent(
+    declared: TriggerCondition,
+    event: TriggerCondition,
+): Boolean =
+    when (declared) {
+        is TriggerCondition.AnyOf -> event in declared.conditions
+        else -> declared == event
+    }
 
 /**
  * Detects "when you draw your Nth card in a turn" triggers (CR 603.2) for [player], who has just

@@ -236,13 +236,17 @@ private fun tapObjectForCost(
     require(index >= 0) { "CR 602.2a: a {T} cost taps a battlefield source, but $id is not there" }
     val source = battlefield[index]
     require(!source.tapped) { "CR 602.2a: a {T} cost requires an untapped source, but $id is tapped" }
-    return state
-        .copy(
-            sharedZones =
-                state.sharedZones.copy(
-                    battlefield = battlefield.removingAt(index).addingAt(index, source.copy(tapped = true)),
-                ),
-        ).emit(GameEvent.ObjectTapped(id, source.card))
+    val tapped =
+        state
+            .copy(
+                sharedZones =
+                    state.sharedZones.copy(
+                        battlefield = battlefield.removingAt(index).addingAt(index, source.copy(tapped = true)),
+                    ),
+            ).emit(GameEvent.ObjectTapped(id, source.card))
+    // CR 603.2/701.20a: paying a {T} cost is a way of becoming tapped like any other — the source was
+    // untapped a line above, so this is always a real flip (`W8-C`).
+    return announceBecameTapped(tapped, id)
 }
 
 /**

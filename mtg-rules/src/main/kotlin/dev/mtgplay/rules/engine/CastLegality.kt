@@ -50,7 +50,14 @@ internal fun targetsAndCostAvailable(
             // CR 601.2b: priced at the cheapest announcement — no kicker, X = 0 — because that is what
             // "is this castable at all?" means: declining a kicker is always legal and a larger X only
             // ever costs more, so a cast payable at any announcement is payable at this one.
-            totalCost(state, seat, CastSubject(definition, permission, self)),
+            // CR 601.2c/f: and at the cheapest *target choice*, for the same reason in the same direction
+            // — a target-conditional reduction (Ride's End) applies as soon as some legal choice would
+            // make it apply, so pricing the printed cost here would hide a payable cast (`FW-TGTCOND`).
+            totalCost(
+                state,
+                seat,
+                CastSubject(definition, permission, self, cheapestTargetsFor(state, seat, definition, self)),
+            ),
             minimalSacrificeReservation(state, seat, definition),
         ).isNotEmpty()
 

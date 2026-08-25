@@ -139,7 +139,10 @@ internal fun orderTriggersRequest(
 ): DecisionRequest.OrderTriggers =
     DecisionRequest.OrderTriggers(
         id = DecisionRequestId(controller, state.player(controller).decisionsAnswered),
-        options = group.map { DecisionRequest.OrderTriggers.Option(it.sourceCard, triggerDescription(it)) },
+        options =
+            group.map {
+                DecisionRequest.OrderTriggers.Option(it.sourceCard, describeCondition(it.ability.condition))
+            },
     )
 
 /**
@@ -204,9 +207,16 @@ private fun reorderPendingTriggers(
     return state.copy(pendingTriggers = rewritten)
 }
 
-/** A short human description of a pending trigger, for the ordering decision's display (ADR-005). */
-private fun triggerDescription(trigger: PendingTrigger): String =
-    when (val condition = trigger.ability.condition) {
+/**
+ * A short human description of one trigger condition, for the ordering decision's display (ADR-005).
+ *
+ * Takes the bare condition rather than the whole [PendingTrigger] since `W8-C`, so
+ * [TriggerCondition.AnyOf] can describe each pattern it names by recursing into itself. The recursion is
+ * one level deep by construction — a disjunction is never nested ([TriggerCondition.AnyOf]'s `init`
+ * refuses it).
+ */
+private fun describeCondition(condition: TriggerCondition): String =
+    when (condition) {
         TriggerCondition.EnteredBattlefieldSelf -> "enters-the-battlefield"
         TriggerCondition.EnteredBattlefieldUntappedSelf -> "enters-the-battlefield-untapped"
         TriggerCondition.PutIntoGraveyardFromBattlefieldSelf -> "put-into-graveyard-from-the-battlefield"
@@ -217,4 +227,11 @@ private fun triggerDescription(trigger: PendingTrigger): String =
         TriggerCondition.MadnessCast -> "madness-may-cast"
         is TriggerCondition.DrewNthCardThisTurn -> "drew-card-number-${condition.n}"
         TriggerCondition.DealtCombatDamageToPlayerSelf -> "deals-combat-damage-to-a-player"
+        TriggerCondition.EnchantedPermanentBecomesTapped -> "enchanted-permanent-becomes-tapped"
+        TriggerCondition.EnchantedPermanentIsDealtDamage -> "enchanted-permanent-is-dealt-damage"
+        // CR 603.2: a disjunctive condition is one ability, so it gets one description — the patterns it
+        // watches, joined. Which of them actually fired is not recorded on the trigger and is not the
+        // ordering decision's business; the description exists to tell two *abilities* apart (ADR-005).
+        is TriggerCondition.AnyOf ->
+            condition.conditions.joinToString(separator = "-or-", transform = ::describeCondition)
     }

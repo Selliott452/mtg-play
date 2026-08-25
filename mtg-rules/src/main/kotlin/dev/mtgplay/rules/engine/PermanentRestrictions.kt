@@ -2,6 +2,7 @@ package dev.mtgplay.rules.engine
 
 import dev.mtgplay.core.card.CardType
 import dev.mtgplay.core.card.PrintedCharacteristics
+import dev.mtgplay.core.card.Subtype
 import dev.mtgplay.core.card.Supertype
 import dev.mtgplay.core.definition.PermanentRestriction
 import dev.mtgplay.core.identity.PlayerId
@@ -28,6 +29,9 @@ import dev.mtgplay.core.state.GameState
 
 /** The greatest in-game power a [PermanentRestriction.CREATURE_POWER_2_OR_LESS] target may have. */
 private const val POWER_TWO_OR_LESS_LIMIT: Int = 2
+
+/** The artifact subtype [PermanentRestriction.CREATURE_OR_VEHICLE]'s second arm names (CR 301.7). */
+private val VEHICLE: Subtype = Subtype("Vehicle")
 
 /**
  * Whether the battlefield object [candidate] satisfies [restriction] (CR 115.1b) for the deciding
@@ -64,12 +68,11 @@ internal fun satisfiesPermanentRestriction(
         // Guarded on creature-hood first — [effectivePower] fails loudly on an object with no P/T box.
         PermanentRestriction.CREATURE_POWER_2_OR_LESS ->
             isCreature && effectivePower(state, candidate.id) <= POWER_TWO_OR_LESS_LIMIT
-        PermanentRestriction.ARTIFACT -> CardType.ARTIFACT in characteristics.cardTypes
-        // CR 303: an Aura is an enchantment, so every Aura in the pool qualifies.
-        PermanentRestriction.ENCHANTMENT -> CardType.ENCHANTMENT in characteristics.cardTypes
-        // CR 305: any land. An artifact land satisfies this *and* [ARTIFACT] — a permanent has every
-        // card type printed on it (CR 205.1a) — which is why this is a card-type test, not an exclusion.
-        PermanentRestriction.LAND -> CardType.LAND in characteristics.cardTypes
+        PermanentRestriction.ARTIFACT,
+        PermanentRestriction.ENCHANTMENT,
+        PermanentRestriction.LAND,
+        PermanentRestriction.CREATURE_OR_VEHICLE,
+        -> satisfiesTypeRestriction(restriction, characteristics, isCreature)
         PermanentRestriction.RED_PERMANENT,
         PermanentRestriction.BLUE_PERMANENT,
         -> satisfiesColourRestriction(restriction, characteristics)
@@ -80,6 +83,36 @@ internal fun satisfiesPermanentRestriction(
         -> satisfiesControlRestriction(restriction, characteristics, candidate, you, isCreature)
     }
 }
+
+/**
+ * The **card-type** arms of [satisfiesPermanentRestriction] (CR 205.2), split out beside
+ * [satisfiesColourRestriction] and [satisfiesControlRestriction] to keep that `when` inside detekt's
+ * complexity budget. None of them reads the deciding player: what card types a permanent has is a
+ * property of the object alone.
+ *
+ * [PermanentRestriction.CREATURE_OR_VEHICLE] is the one arm that is not a bare card-type test, and it is
+ * here because it is *half* of one: a creature qualifies by card type (CR 302) and a Vehicle by the
+ * printed artifact subtype (CR 301.7), which is the only disjunction in the family that crosses those two
+ * axes. [isCreature] is passed in rather than recomputed so the caller's single read is the one answer.
+ */
+private fun satisfiesTypeRestriction(
+    restriction: PermanentRestriction,
+    characteristics: PrintedCharacteristics,
+    isCreature: Boolean,
+): Boolean =
+    when (restriction) {
+        PermanentRestriction.ARTIFACT -> CardType.ARTIFACT in characteristics.cardTypes
+        // CR 303: an Aura is an enchantment, so every Aura in the pool qualifies.
+        PermanentRestriction.ENCHANTMENT -> CardType.ENCHANTMENT in characteristics.cardTypes
+        // CR 305: any land. An artifact land satisfies this *and* [ARTIFACT] — a permanent has every
+        // card type printed on it (CR 205.1a) — which is why this is a card-type test, not an exclusion.
+        PermanentRestriction.LAND -> CardType.LAND in characteristics.cardTypes
+        // CR 302 / CR 301.7: a creature by card type, or a Vehicle by printed subtype. A crewed Vehicle
+        // qualifies both ways; crew is a layer-4 effect the engine does not have, so the subtype is
+        // read printed like every other subtype test.
+        PermanentRestriction.CREATURE_OR_VEHICLE -> isCreature || characteristics.hasSubtype(VEHICLE)
+        else -> error("CR 205.2: $restriction is not a card-type restriction")
+    }
 
 /** The card types Ghostly Flicker's "artifacts, creatures, and/or lands" admits (CR 205.2b). */
 private val BLINKABLE_TYPES: Set<CardType> = setOf(CardType.ARTIFACT, CardType.CREATURE, CardType.LAND)

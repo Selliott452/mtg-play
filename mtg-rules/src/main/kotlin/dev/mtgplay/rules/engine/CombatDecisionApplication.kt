@@ -63,10 +63,18 @@ private fun tapPermanent(
     val index = battlefield.indexOfFirst { it.id == id }
     require(index >= 0) { "attacker $id is not on the battlefield" }
     val obj = battlefield[index]
+    // CR 701.20a: an already-tapped permanent can't be tapped again, so it never "becomes" tapped here.
+    // A tapped creature cannot be declared as an attacker (CR 508.1a) either, so this is a real flip in
+    // every reachable case; the guard states the rule rather than guarding a case that arises.
+    if (obj.tapped) return state
     val tapped = battlefield.removingAt(index).addingAt(index, obj.copy(tapped = true))
-    return state
-        .copy(sharedZones = state.sharedZones.copy(battlefield = tapped))
-        .emit(GameEvent.ObjectTapped(obj.id, obj.card))
+    val attacking =
+        state
+            .copy(sharedZones = state.sharedZones.copy(battlefield = tapped))
+            .emit(GameEvent.ObjectTapped(obj.id, obj.card))
+    // CR 603.2/508.1f: being declared as an attacker is a way of becoming tapped, and it is the one that
+    // makes Cryoshatter a real card rather than a trick (`W8-C`).
+    return announceBecameTapped(attacking, obj.id)
 }
 
 /**

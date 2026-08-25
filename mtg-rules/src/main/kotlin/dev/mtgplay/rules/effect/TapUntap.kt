@@ -4,6 +4,7 @@ import dev.mtgplay.core.event.GameEvent
 import dev.mtgplay.core.identity.ObjectId
 import dev.mtgplay.core.state.GameObject
 import dev.mtgplay.core.state.GameState
+import dev.mtgplay.rules.engine.announceBecameTapped
 import dev.mtgplay.rules.engine.emit
 import dev.mtgplay.rules.engine.updateBattlefield
 
@@ -33,11 +34,12 @@ import dev.mtgplay.rules.engine.updateBattlefield
  *   happen (the choice is made *inside* the resolution), but a delayed or LKI-carrying caller could,
  *   and a silent no-op is what CR 608.2 prescribes for an instruction it cannot carry out. Contrast the
  *   cost-side `tapObjectForCost`, which fails loudly because ADR-005 guarantees its object is there.
- * - **No trigger is fired.** Nothing in the gauntlet watches for a permanent becoming tapped or
- *   untapped except a *triggered mana ability* (CR 605.1b), which fires off a mana activation rather
- *   than off the status change and is handled inside `resolveManaActivation`. A "whenever this becomes
- *   tapped" condition would be detected here, and there is none — which is why this is a note rather
- *   than a call.
+ * - **A "becomes tapped" trigger is fired, and only on a real flip.** This note used to record that
+ *   nothing in the gauntlet watched for a permanent becoming tapped; `W8-C` added Cryoshatter, so
+ *   [setTapped] now calls [announceBecameTapped] at the one point the status changes from untapped to
+ *   tapped (CR 701.20a). Untapping still fires nothing — no card in the pool watches for it. A
+ *   *triggered mana ability* (CR 605.1b) is unrelated and unchanged: it fires off a mana activation
+ *   rather than off the status change, and lives inside `resolveManaActivation`.
  */
 
 /**
@@ -107,9 +109,13 @@ private fun setTapped(
         } else {
             GameEvent.ObjectUntapped(objectId, permanent.card)
         }
-    return state
-        .updateBattlefield { it.removingAt(index).addingAt(index, permanent.copy(tapped = tapped)) }
-        .emit(event)
+    val flipped =
+        state
+            .updateBattlefield { it.removingAt(index).addingAt(index, permanent.copy(tapped = tapped)) }
+            .emit(event)
+    // CR 603.2/701.20a: a real untapped -> tapped flip is the "becomes tapped" event. Untapping fires
+    // nothing; no card in the pool watches for it.
+    return if (tapped) announceBecameTapped(flipped, objectId) else flipped
 }
 
 /**
