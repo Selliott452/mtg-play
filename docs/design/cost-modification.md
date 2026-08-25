@@ -559,3 +559,67 @@ formula reserves and a loud gate refuses to fake.
    modify power and/or toughness") and **P/T switching in 7d** (613.4d); there is no 613.4e. The enum is
    unpopulated so nothing is wrong today, but the citation and the slot's meaning are stale. Confirm whether to
    correct it, and where.
+
+---
+
+## 14. As implemented (`FW-COST`)
+
+Written after the packet landed. The note above is the design as reviewed; this section records where
+implementation diverged from it and how the open questions resolved.
+
+### 14.1 Open questions, resolved
+
+| # | Question | Resolution |
+|---|---|---|
+| 1 | Store or re-derive the determined cost | **Re-derive** (as recommended). No `PendingCast` field, no new fingerprint token, no new invariant. Lock-in is enforced *positionally* — by where the pipeline calls `totalCost` — not structurally. |
+| 2 | `ObjectPredicate` declarative or lambda | **Declarative, in `mtg-core`** (as recommended), for structural equality, serialisability, and rendering. |
+| 3 | Does `ChoosePaymentPlan` gain the determined cost | **Yes.** Additive `cost: ManaCost`, display and audit only. Protocol `5.0.0` → `6.0.0`. |
+| 4 | One declaration slot or two | **Two.** `SpellDefinition.costReduction` (self) and `CardDefinition.spellCostReductions` (other-object). The reader and the subject are different objects, and a reducer need not be castable. |
+| 5 | Is the pipeline stage reorder in scope for C2 | **Yes**, and it was a live correctness bug — see §14.3. |
+| 6 | Does F3 stop at cost modification | **Yes.** F10 stayed out and landed separately as `FW-MANA`. |
+| 7 | Is Tolarian Terror deferred | **Yes**, on ward (CR 702.21a). Cryptic Serpent carries the clause. |
+| 8 | Are L1/L2/R1 separate packets | **Yes**, untouched here. |
+| 9 | The stale `PT_COUNTERS` / CR 613.4e citation in `Layers.kt` | **Not addressed** — out of scope for this packet, still open. |
+
+### 14.2 Deviations from the note
+
+- **`ObjectPredicate` gained an `AnyOf` member** the note did not anticipate. "Each instant and sorcery
+  card" is a *disjunction* (CR 205.2a — no card is both), and encoding it with `And` would make the
+  reduction permanently zero. That is the one way to get the Terrors' clause silently wrong, so the
+  disjunction is a first-class member rather than a De Morgan spelling of `Not`/`And`.
+- **`CostReduction` has two members, not one.** The note modelled every reduction as a count; Of One
+  Mind is a **flat amount gated on a board condition** (`IfAll`), which a count cannot express — it is
+  worth `{2}` or nothing, never `{1}`. The note never saw that card.
+- **The CR 118.7b–g and cost-increase gates are type-level, not `error(...)` calls.** The note asked
+  for loud runtime gates. `CostReduction` carries only `Int` amounts of generic mana and no
+  declaration can express a coloured, hybrid, or increasing modifier, so a runtime gate would be
+  unreachable code under a zero-warning policy. The constraint is enforced by what is constructible;
+  the reasoning is in `totalCost`'s KDoc, including what must be revisited if such a shape arrives.
+- **Six cost sites, not four.** The note's table named four. `Activation.kt` and `Plot.kt` also build a
+  `ChoosePaymentPlan` and had to supply the new field. Neither routes through `totalCost`: an
+  activated ability's cost is modifiable in general (CR 602.2f) but nothing in the pool does it, and a
+  plot cost is paid by a special action that CR 601.2f never runs over. Both say so at the call site.
+
+### 14.3 The ordering bug was real
+
+`executeCastPipeline` ran `determineTotalCost` **after** `payAdditionalCosts`, `paySacrificeCosts`,
+and `payAdditionalDiscardCost`. Harmless while the cost was a constant, wrong the instant a reduction
+counts anything — and wrong in the direction CR 601.2h's own Altar's Reap example calls out. Fixed by
+moving determination to immediately after `establishTargets` and threading the result to `payCosts`;
+three lock-in tests, one per payment stage, now pin it.
+
+### 14.4 Cards
+
+Encoded: Myr Enforcer, Thoughtcast, Utrom Monitor, Cryptic Serpent, Of One Mind.
+
+Dropped, each needing a framework this packet does not own: **Tolarian Terror** (`FW-WARD`),
+**Refurbished Familiar** and **Deem Inferior** (`FW-NONCTRLDEC`; Deem Inferior additionally needs
+cards-drawn-this-turn tracking that no state field carries), **Ride's End** (`FW-TGTCOND` — cost
+determination correctly follows target choice inside the pipeline, but cast *legality* is decided
+before any target exists, so enumerating it needs "exists a target making this affordable"), and
+**Sunscape Familiar** (`FW-DEFENDERKW`).
+
+**Sunscape Familiar is the note's one factual error.** §10's C6 says "Defender is a separate, existing
+keyword". It is not: `Keyword.kt` has no `DEFENDER`, and `FW-DEFENDERKW` is already the recorded
+reason Overgrown Battlement is absent. The C6 *framework* — the other-object reducer — ships and is
+exercised by the `Fixture Warden` rules fixture; only the card is deferred.

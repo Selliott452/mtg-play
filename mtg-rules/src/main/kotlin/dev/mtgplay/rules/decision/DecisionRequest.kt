@@ -178,6 +178,17 @@ sealed interface DecisionRequest {
      * @property cardObjectId the hand object being cast (still in hand — see
      *   [dev.mtgplay.core.state.PendingCast]).
      * @property card the printed identity, for display.
+     * @property cost the **determined total cost** these plans pay (CR 601.2f,
+     *   docs/design/cost-modification.md) — after any alternative cost, cost increase, and cost
+     *   reduction, clamped at `{0}`. Display and audit only: it is exactly the cost every option in
+     *   [options] was enumerated against, so it adds no choice and reorders nothing.
+     *
+     *   Carried on the request because with cost modification the printed cost is no longer what the
+     *   plan pays. Without it `mtg-cli` would render "pay {7}" beside a four-payment plan for an
+     *   affinity spell, and an agent replaying a log could not distinguish a legitimately reduced cast
+     *   from a defect. It is *not* stored on [dev.mtgplay.core.state.PendingCast]: the value is a pure
+     *   function of the paused state (ADR-004), and a second source of truth for it would need its own
+     *   replay-fingerprint token and its own invariant.
      * @property options the distinct payment plans, in the deterministic order defined by
      *   docs/design/mana-payment.md; never empty (an unaffordable cast is never enumerated).
      */
@@ -185,6 +196,7 @@ sealed interface DecisionRequest {
         override val id: DecisionRequestId,
         val cardObjectId: ObjectId,
         val card: CardRef,
+        val cost: ManaCost,
         val options: List<PaymentPlan>,
     ) : SingleOptionSelection {
         override val optionCount: Int get() = options.size

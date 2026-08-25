@@ -60,13 +60,21 @@ sealed interface DecisionRequestDto {
         val options: List<TargetDto>,
     ) : SingleOptionSelectionDto
 
-    /** Wire form of [DecisionRequest.ChoosePaymentPlan] — a cast's payment choice (CR 601.2g). */
+    /**
+     * Wire form of [DecisionRequest.ChoosePaymentPlan] — a cast's payment choice (CR 601.2g).
+     *
+     * [cost] is the **determined total cost** in Scryfall brace syntax (CR 601.2f,
+     * docs/design/cost-modification.md), which since `FW-COST` is no longer inferable from [card]: an
+     * affinity spell's printed `{7}` may be a `{3}` by the time it is paid. Display and audit only —
+     * the option set is unaffected, so no enumerated index moves (ADR-005).
+     */
     @Serializable
     @SerialName("choose_payment_plan")
     data class ChoosePaymentPlan(
         override val id: DecisionRequestIdDto,
         val cardObjectId: Long,
         val card: String,
+        val cost: String,
         val options: List<PaymentPlanDto>,
     ) : SingleOptionSelectionDto
 

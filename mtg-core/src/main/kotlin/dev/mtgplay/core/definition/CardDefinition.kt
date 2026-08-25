@@ -102,4 +102,21 @@ interface CardDefinition {
      * expressible here; such a card stays unencoded rather than being approximated by `true` or `false`.
      */
     val entersTapped: Boolean get() = false
+
+    /**
+     * The cost reductions this card's static abilities apply to **other spells its controller casts**
+     * while it is a battlefield permanent (CR 604.5, CR 601.2f); empty for a card with no such
+     * ability. Additive, flagged core (`FW-COST`, docs/design/cost-modification.md §1, C6). Sunscape
+     * Familiar's "Green spells and blue spells you cast cost {1} less to cast" is the one shape the
+     * gauntlet prints.
+     *
+     * On [CardDefinition] rather than [SpellDefinition] because the reader is a permanent, not a
+     * spell: the reducer and the reduced are different objects, and a reducer need not be castable at
+     * all. A spell's *own* reduction (affinity) is [SpellDefinition.costReduction].
+     *
+     * `mtg-rules` applies each while the card is on the battlefield under the caster's control, once
+     * per matching permanent, at CR 601.2f only. Card definitions carry the *declaration*; the
+     * cost-modification framework carries the rules.
+     */
+    val spellCostReductions: PersistentList<SpellCostReduction> get() = persistentListOf()
 }

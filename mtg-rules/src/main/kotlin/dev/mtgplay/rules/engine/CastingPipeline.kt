@@ -57,10 +57,12 @@ internal fun executeCastPipeline(
     val (proposed, entry) = proposeSpell(casting, cast, targets)
     val moded = chooseModes(proposed)
     val targeted = establishTargets(moded, entry)
+    // CR 601.2f runs *here*, ahead of every cost-payment stage: see [determineTotalCost] for why the
+    // three stages below must not be able to re-price the spell.
+    val totalCost = determineTotalCost(targeted, cast, entry)
     val withAdditional = payAdditionalCosts(targeted, cast)
     val withSacrifice = paySacrificeCosts(withAdditional, cast)
     val withDiscard = payAdditionalDiscardCost(withSacrifice, cast)
-    val totalCost = determineTotalCost(entry)
     val paid = payCosts(withDiscard, entry, totalCost, plan)
     val complete = completeCast(paid, entry)
     return priorityAfterCast(complete, cast)
@@ -213,18 +215,42 @@ private fun establishTargets(
     }
 
 /**
- * Stage CR 601.2f — cost determination: the mana cost the payment plan pays. A cast via an alternative
- * permission (madness, flashback, escape) pays the permission's cost, which **replaces** the printed
- * mana cost entirely (CR 118.9); a normal cast pays the printed cost. The non-mana part of an
+ * Stage CR 601.2f — cost determination: the mana cost the payment plan pays, after cost modification
+ * (docs/design/cost-modification.md). A cast via an alternative permission (madness, flashback,
+ * escape) starts from the permission's cost, which **replaces** the printed mana cost entirely
+ * (CR 118.9); a normal cast starts from the printed cost. [totalCost] then applies every cost
+ * increase (none exist) and every cost reduction, clamped at `{0}`. The non-mana part of an
  * additional cost (escape's exile-N-others) is paid separately in [payAdditionalCosts] (CR 601.2h).
- * Fails loudly only for a normal cast of a card with no printed cost — no such card is castable.
+ *
+ * **This stage runs before every cost-payment stage, and the order is load-bearing.** CR 601.2f fixes
+ * the total cost and locks it in: "If effects would change the total cost after this time, they have
+ * no effect." Until `FW-COST` this stage sat *after* [payAdditionalCosts], [paySacrificeCosts], and
+ * [payAdditionalDiscardCost], which was harmless only while the cost was a constant. Each of those
+ * three breaks lock-in in a different direction the moment a reduction counts anything:
+ *
+ * - [paySacrificeCosts] removes permanents from the battlefield, so sacrificing an artifact would
+ *   re-price an affinity spell **upward** mid-cast. This is the CR 601.2h example exactly — "You cast
+ *   Altar's Reap … You sacrifice Thunderscape Familiar, whose effect makes your black spells cost {1}
+ *   less to cast. Because a spell's total cost is 'locked in' before payments are actually made, you
+ *   pay {B}, not {1}{B}" — and the engine got it backwards.
+ * - [payAdditionalDiscardCost] puts cards into the **graveyard**, so discarding an instant would make
+ *   a graveyard-counting spell one cheaper than the cost it was enumerated against.
+ * - [payAdditionalCosts] exiles cards **from** the graveyard (escape). Those cards must still count:
+ *   CR 601.2f precedes CR 601.2h, so escape fodder is counted and *then* exiled.
+ *
+ * The consequence of violating it is not a rules nicety — it is ADR-005's silent defect. The cast was
+ * enumerated and its `ChoosePaymentPlan` derived against one cost; paying a different one means the
+ * agent is handed plans that under- or over-pay, and `validatePlanShape` throws mid-cast at best.
+ *
+ * Determination deliberately does **not** hoist above [proposeSpell]: the card must already have left
+ * its source zone (CR 601.2a) when the count is taken, which is what stops a graveyard-cast spell from
+ * counting itself. It sits in the only position where both properties hold.
  */
-private fun determineTotalCost(entry: StackEntry.Spell): ManaCost =
-    entry.castVia?.cost
-        ?: entry.definition.manaCost
-        ?: error(
-            "CR 601.2f: ${entry.obj.card.name} has no mana cost and no alternative cost to cast it with",
-        )
+private fun determineTotalCost(
+    state: GameState,
+    cast: PendingCast,
+    entry: StackEntry.Spell,
+): ManaCost = totalCost(state, entry.controller, entry.definition, entry.castVia, castObjectId = cast.cardObjectId)
 
 /**
  * Stages CR 601.2g–h — mana abilities and payment, executing the chosen [PaymentPlan] (see

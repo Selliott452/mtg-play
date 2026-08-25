@@ -45,16 +45,18 @@ internal fun pendingCastRequest(
         cast.sacrificeCost == null -> chooseSacrificesRequest(state, cast, card.card, id)
         // CR 601.2b: then any additional discard cost selection (Grab the Prize).
         cast.additionalDiscard == null -> chooseDiscardForCostRequest(state, cast, definition, card.card, id)
-        // CR 601.2g: finally the payment plan for the (possibly alternative) mana cost.
+        // CR 601.2g: finally the payment plan for the determined total cost.
         else -> {
+            // CR 601.2f: the same shared function legality and the pipeline use, with the card still
+            // in its source zone and therefore excluded from its own zone counts (CR 601.2a) — which
+            // is what makes this cost equal the one `determineTotalCost` recomputes at execution.
             val cost =
-                cast.castingPermission?.cost
-                    ?: definition.manaCost
-                    ?: error("CR 601.2f: ${card.card.name} has no mana cost and no alternative cost")
+                totalCost(state, cast.caster, definition, cast.castingPermission, cast.cardObjectId)
             DecisionRequest.ChoosePaymentPlan(
                 id = id,
                 cardObjectId = cast.cardObjectId,
                 card = card.card,
+                cost = cost,
                 options = enumeratePaymentPlans(state, cast.caster, cost),
             )
         }

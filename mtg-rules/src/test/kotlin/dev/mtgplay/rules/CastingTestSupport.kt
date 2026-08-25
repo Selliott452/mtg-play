@@ -60,7 +60,7 @@ internal fun fixtureState(
                 life = setup.life,
                 library = objects(setup.library, owner),
                 hand = objects(setup.hand, owner),
-                graveyard = persistentListOf(),
+                graveyard = objects(setup.graveyard, owner),
                 priorityStatus = if (owner == holder) PriorityStatus.HOLDS_PRIORITY else PriorityStatus.NONE,
             )
         return player to battlefield

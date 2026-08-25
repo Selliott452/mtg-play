@@ -119,12 +119,18 @@ private val richPriorityWindow: DecisionRequest.ChooseAction =
         ),
     )
 
-/** A payment window exercising every [ManaActivation]/[SymbolPayment] shape. */
+/**
+ * A payment window exercising every [ManaActivation]/[SymbolPayment] shape, plus the `FW-COST`
+ * determined-cost field (CR 601.2f). The cost is deliberately **not** Lightning Bolt's printed `{R}`:
+ * a round trip that carried the printed cost would still pass if `toDto` derived the field from the
+ * card instead of transporting it, and the whole point of the field is that the two differ.
+ */
 private val richPaymentWindow: DecisionRequest.ChoosePaymentPlan =
     DecisionRequest.ChoosePaymentPlan(
         ID,
         ObjectId(1),
         CardRef("Lightning Bolt"),
+        ManaCost.parse("{2}{R}"),
         listOf(
             PaymentPlan(
                 listOf(
