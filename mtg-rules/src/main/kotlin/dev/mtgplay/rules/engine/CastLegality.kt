@@ -39,7 +39,8 @@ internal fun targetsAndCostAvailable(
     permission: CastingPermission?,
     self: ObjectId?,
 ): Boolean =
-    targetsAvailable(state, definition.targetSpec, seat, self) &&
+    // CR 601.2b–c: "its targets are available" means *some mode's* targets for a modal card (`FW-MODAL`).
+    someModeIsCastable(state, definition, seat, self) &&
         additionalSacrificeSatisfiable(state, seat, definition) &&
         enumeratePaymentPlans(
             state,

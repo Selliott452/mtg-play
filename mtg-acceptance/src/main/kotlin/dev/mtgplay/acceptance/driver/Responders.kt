@@ -63,6 +63,9 @@ object Responders {
                     } else {
                         error("the pass-everything responder never casts, but a targets request surfaced: $request")
                     }
+                // CR 601.2b: a mode is only ever chosen while casting, which this policy never does.
+                is DecisionRequest.ChooseModes ->
+                    error("the pass-everything responder never casts, but a mode request surfaced: $request")
                 is DecisionRequest.ChoosePaymentPlan ->
                     error("the pass-everything responder never casts, but a payment request surfaced: $request")
                 is DecisionRequest.OrderBlockers ->

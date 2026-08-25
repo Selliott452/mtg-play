@@ -14,11 +14,19 @@ import kotlinx.serialization.Serializable
  * public actions; object ids stay opaque `Long`s, naming no hidden card identity).
  */
 
-/** Wire form of [PendingCast] (CR 601.2): a cast gathering its choices. */
+/**
+ * Wire form of [PendingCast] (CR 601.2): a cast gathering its choices.
+ *
+ * [chosenModes] carries the modal half (CR 601.2b, `FW-MODAL`) and is listed **before** [chosenTargets]
+ * because that is the order the engine settles them in: a modal spell's targeting line is not determined
+ * until its mode is, so a view showing a non-null [chosenModes] and a null [chosenTargets] is a cast
+ * paused exactly between CR 601.2b and CR 601.2c.
+ */
 @Serializable
 data class PendingCastDto(
     val caster: Int,
     val cardObjectId: Long,
+    val chosenModes: List<Int>?,
     val chosenTargets: List<TargetDto>?,
     val source: CastSourceDto,
     val castingPermission: CastingPermissionDto?,
@@ -33,6 +41,7 @@ fun PendingCast.toDto(): PendingCastDto =
     PendingCastDto(
         caster = caster.seat,
         cardObjectId = cardObjectId.value,
+        chosenModes = chosenModes,
         chosenTargets = chosenTargets?.map { it.toDto() },
         source = source.toDto(),
         castingPermission = castingPermission?.toDto(),
@@ -47,6 +56,7 @@ fun PendingCastDto.toDomain(): PendingCast =
     PendingCast(
         caster = PlayerId(caster),
         cardObjectId = ObjectId(cardObjectId),
+        chosenModes = chosenModes?.toPersistentList(),
         chosenTargets = chosenTargets?.map { it.toDomain() }?.toPersistentList(),
         source = source.toDomain(),
         castingPermission = castingPermission?.toDomain(),

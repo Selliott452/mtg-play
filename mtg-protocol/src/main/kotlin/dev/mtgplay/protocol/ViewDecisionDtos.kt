@@ -59,6 +59,7 @@ fun PendingRevealViewDto.toDomain(): PendingRevealView =
 enum class DecisionRequestKindDto {
     CHOOSE_ACTION,
     CHOOSE_DISCARDS,
+    CHOOSE_MODES,
     CHOOSE_TARGETS,
     CHOOSE_MULTIPLE_TARGETS,
     CHOOSE_PAYMENT_PLAN,

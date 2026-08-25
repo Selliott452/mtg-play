@@ -68,7 +68,9 @@ private fun resolveSpell(
         }
     } else {
         val resolved =
-            entry.definition.resolution.resolve(
+            // CR 700.2: a modal spell runs the *chosen mode's* instructions, never the card's — which for
+            // a modal card do not exist (`FW-MODAL`, SpellModes.kt).
+            effectiveResolution(entry.definition, entry.chosenModes).resolve(
                 state,
                 ResolutionContext(
                     controller = entry.controller,
@@ -106,7 +108,10 @@ private fun fizzleSpell(
     state: GameState,
     entry: StackEntry.Spell,
 ): AdvanceResult? {
-    val spec = entry.definition.targetSpec
+    // CR 608.2b re-checks against the spec the spell was *cast* under, which for a modal spell is the
+    // chosen mode's — Blue Elemental Blast's counter mode fizzles when its target stops being a red
+    // spell, its destroy mode when its target stops being a red permanent (`FW-MODAL`).
+    val spec = effectiveTargetSpec(entry.definition, entry.chosenModes)
     if (!allTargetsIllegal(state, spec, entry.targets, entry.controller, entry.obj.id)) return null
     val left = putResolvedSpellOffStack(state, entry)
     val fizzled =
@@ -188,9 +193,14 @@ internal fun putResolvedSpellOntoBattlefield(
  * (CR 601.2c). A permanent spell that is not an Aura (no [TargetSpec.Enchantable]) attaches to
  * nothing. Fails loudly if an Aura's settled target is not a permanent — the CR 608.2b re-check has
  * already run, so reaching here with a gone/wrong target is an engine defect (ADR-005).
+ *
+ * Read through [effectiveTargetSpec] rather than off the definition, so a modal permanent spell would
+ * be asked about the mode it was actually cast under. No such card exists — the pool's modal cards are
+ * all instants, which never reach the battlefield — but reaching for `definition.targetSpec` here would
+ * throw on the day one does, and answering "attaches to nothing" for it would be worse.
  */
 private fun auraAttachmentTargetOf(entry: StackEntry.Spell): ObjectId? =
-    when (entry.definition.targetSpec) {
+    when (effectiveTargetSpec(entry.definition, entry.chosenModes)) {
         TargetSpec.None,
         TargetSpec.AnyTarget,
         TargetSpec.TargetPlayer,

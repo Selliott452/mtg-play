@@ -176,6 +176,10 @@ private fun StringBuilder.appendPendingCast(cast: dev.mtgplay.core.state.Pending
     }
     append(cast.caster.seat)
     append(':').append(cast.cardObjectId.value)
+    // CR 601.2b (`FW-MODAL`): the chosen mode decides both the spell's targeting line and its
+    // resolution, so two paused casts differing only in their mode are genuinely different states and
+    // must not digest alike. Digested before the targets, the order they are settled in.
+    append(':').append(cast.chosenModes?.joinToString("+") { it.toString() } ?: "-")
     append(':').append(cast.chosenTargets?.joinToString(",") { renderTarget(it) } ?: "-")
     // Cast-from-elsewhere (P5.2) and the P6.2a cost selections all shape how the pipeline executes.
     append(':').append(cast.source.name)

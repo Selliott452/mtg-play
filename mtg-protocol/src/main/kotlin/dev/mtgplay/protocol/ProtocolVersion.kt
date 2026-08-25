@@ -202,6 +202,30 @@ package dev.mtgplay.protocol
  * targets a single one does, and the ADR-007 answer is unchanged because the *zone* still decides
  * visibility (the `FW-ZONETGT` ruling), not the number of objects named.
  *
+ * *`FW-MODAL`* (docs/design/countering-spells.md §8). A spell can now have **modes** (CR 700.2), and
+ * choosing one is a **decision** — the sharper of the two break modes, and the one `4.0.0` set the
+ * standard for. [DecisionRequestDto] gains [DecisionRequestDto.ChooseModes] and
+ * [DecisionRequestKindDto] gains `CHOOSE_MODES`, so a peer that predates this wave meets the new
+ * `choose_modes` discriminator — and the new kind name in its `valueOf` mapping — as a **runtime**
+ * decode failure mid-match. It is answerable client→server too: a mode is picked by index like every
+ * other [DecisionRequestDto.SingleOptionSelectionDto], which is the explicit call this packet was
+ * asked to make.
+ *
+ * The break reaches the seat view as well, though no [SeatViewDto] field is added: [PendingCastDto]
+ * gains a required `chosenModes`, which an older peer's strict codec (`ignoreUnknownKeys = false`)
+ * rejects outright — the `4.0.0` break shape.
+ *
+ * **The new request's *position* is part of the contract, not an implementation detail.** A modal
+ * cast surfaces `choose_modes` **before** its `choose_targets` (CR 601.2b precedes CR 601.2c), and the
+ * target options the client receives next depend on the mode index it just sent back. A client that
+ * cached "the targets of card X" across the two requests would be wrong for exactly the cards this
+ * framework adds, since their modes target different *kinds* of object.
+ *
+ * It is folded into `6.0.0` rather than bumped to `7.0.0` on the premise this file has applied three
+ * times now: it lands in the same unreleased wave, so `5.0.0` remains the last version any consumer
+ * can have seen, and inflating the major count for a version nobody could have consumed would describe
+ * a break that never existed.
+ *
  * The version is a single major step even though several frameworks are landing in this wave for the
  * same reason `5.0.0` covered two: `5.0.0` is the last version any consumer can have seen, so one
  * bump carries every break in the wave. `FW-MULTITGT` lands inside that same unreleased wave, so it

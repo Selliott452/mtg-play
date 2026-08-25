@@ -4,6 +4,7 @@ import dev.mtgplay.core.card.CardType
 import dev.mtgplay.core.card.Supertype
 import dev.mtgplay.core.definition.PermanentRestriction
 import dev.mtgplay.core.identity.PlayerId
+import dev.mtgplay.core.mana.Color
 import dev.mtgplay.core.state.GameObject
 import dev.mtgplay.core.state.GameState
 
@@ -68,5 +69,10 @@ internal fun satisfiesPermanentRestriction(
         PermanentRestriction.PERMANENT_YOU_CONTROL -> candidate.owner == you
         // CR 102.1: "an opponent" is any player who is not the one choosing.
         PermanentRestriction.CREATURE_AN_OPPONENT_CONTROLS -> isCreature && candidate.owner != you
+        // CR 202.2: colour is derived from the printed mana cost, the same derivation
+        // [satisfiesSpellRestriction] makes for a spell on the stack and with the same CR 204 limit.
+        // A land has no mana cost and is therefore colourless (CR 105.2), so no land qualifies.
+        PermanentRestriction.RED_PERMANENT -> Color.RED in characteristics.colors
+        PermanentRestriction.BLUE_PERMANENT -> Color.BLUE in characteristics.colors
     }
 }

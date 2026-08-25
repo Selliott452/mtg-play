@@ -236,8 +236,12 @@ val lastBreath: SpellDefinition =
  * [TargetSpec.TargetPermanent]. Fails loudly on any other shape: the CR 608.2b re-check has already
  * run, so a resolving removal spell always holds exactly one legal permanent target (ADR-005) and
  * anything else is an engine defect rather than a rules case.
+ *
+ * `internal` rather than file-private since `FW-MODAL`: the Blasts' destroy and bounce modes ask the
+ * same question of the same spec, and two copies of this helper would be two places for "what does a
+ * `TargetPermanent` resolution hold?" to drift apart.
  */
-private fun targetedPermanent(
+internal fun targetedPermanent(
     targets: List<Target>,
     cardName: String,
 ): ObjectId =

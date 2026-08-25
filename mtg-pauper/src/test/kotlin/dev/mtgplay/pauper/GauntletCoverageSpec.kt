@@ -49,18 +49,18 @@ class GauntletCoverageSpec :
             } shouldBe
                 listOf(
                     Pinned("Elves", 8, 16, 3, 5),
-                    Pinned("Gates", 8, 17, 2, 5),
-                    Pinned("Grixis Affinity", 16, 22, 3, 7),
-                    Pinned("GW Bogles", 18, 18, 4, 8),
-                    Pinned("Jeskai Ephemerate", 15, 22, 1, 7),
-                    Pinned("Jund Wildfire", 15, 22, 3, 7),
-                    Pinned("Mono Blue Faeries", 6, 14, 2, 6),
-                    Pinned("Mono-Blue Terror", 11, 14, 3, 6),
-                    Pinned("Mono-Red Madness", 12, 12, 1, 5),
-                    Pinned("Mono Red Rally", 5, 13, 1, 5),
-                    Pinned("Monster Tron", 8, 21, 3, 6),
+                    Pinned("Gates", 8, 17, 3, 5),
+                    Pinned("Grixis Affinity", 16, 22, 5, 7),
+                    Pinned("GW Bogles", 18, 18, 5, 8),
+                    Pinned("Jeskai Ephemerate", 15, 22, 4, 7),
+                    Pinned("Jund Wildfire", 15, 22, 4, 7),
+                    Pinned("Mono Blue Faeries", 6, 14, 4, 6),
+                    Pinned("Mono-Blue Terror", 11, 14, 6, 6),
+                    Pinned("Mono-Red Madness", 12, 12, 2, 5),
+                    Pinned("Mono Red Rally", 5, 13, 2, 5),
+                    Pinned("Monster Tron", 8, 21, 4, 6),
                     Pinned("Spy Combo", 5, 21, 3, 8),
-                    Pinned("UWX Familiar", 11, 20, 3, 6),
+                    Pinned("UWX Familiar", 11, 20, 4, 6),
                 )
         }
 
@@ -108,11 +108,11 @@ private const val TOTAL_MISSING_MAIN = 77
 
 /** Distinct cards named by at least one gauntlet sideboard. */
 private const val TOTAL_DISTINCT_SIDEBOARD = 48
-private const val TOTAL_ENCODED_SIDEBOARD = 19
-private const val TOTAL_MISSING_SIDEBOARD = 29
+private const val TOTAL_ENCODED_SIDEBOARD = 24
+private const val TOTAL_MISSING_SIDEBOARD = 24
 
 /** The whole backlog: distinct undefined cards across both boards of all thirteen decks. */
-private const val TOTAL_MISSING_BOTH_BOARDS = 102
+private const val TOTAL_MISSING_BOTH_BOARDS = 97
 
 /** Of the backlog, the cards that appear only in sideboards. */
-private const val TOTAL_MISSING_SIDEBOARD_ONLY = 25
+private const val TOTAL_MISSING_SIDEBOARD_ONLY = 20

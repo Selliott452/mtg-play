@@ -9,9 +9,13 @@ import dev.mtgplay.rules.decision.DecisionRequestId
 
 /*
  * The pending decision a cast in progress is waiting on (CR 601.2), split from PendingDecision.kt so
- * each file stays within its function budget. The gathering order is fixed: targets (601.2c), then the
- * additional-exile / sacrifice / additional-discard cost selections (601.2b/h), then the payment plan
- * (601.2g) — always surfaced, even with a single plan, so replay logs stay canonical (P2.1).
+ * each file stays within its function budget. The gathering order is fixed: modes (601.2b), targets
+ * (601.2c), then the additional-exile / sacrifice / additional-discard cost selections (601.2b/h), then
+ * the payment plan (601.2g) — always surfaced, even with a single plan, so replay logs stay canonical
+ * (P2.1).
+ *
+ * Modes come first because CR 601.2b puts them first, and `FW-MODAL` is the packet that made the
+ * ordering observable: until then no card had modes, so the stage was a documented no-op.
  */
 
 /**
@@ -28,17 +32,38 @@ internal fun pendingCastRequest(
     val definition = spellDefinitionOf(state, card.card)
     val id = DecisionRequestId(cast.caster, state.player(cast.caster).decisionsAnswered)
     return when {
-        // CR 601.2c: targets first.
+        // CR 601.2b: modes first, and the precedence is load-bearing rather than ceremonial — a modal
+        // card's modes may target different *kinds* of object (Blue Elemental Blast counters a spell or
+        // destroys a permanent), so the targets branch below has no enumeration to run until the mode is
+        // settled. Only choosable modes are offered (ADR-005).
+        cast.chosenModes == null ->
+            DecisionRequest.ChooseModes(
+                id = id,
+                cardObjectId = cast.cardObjectId,
+                card = card.card,
+                options =
+                    castableModes(state, definition, cast.caster, self = cast.cardObjectId)
+                        .map { DecisionRequest.ChooseModes.Option(it, definition.modes[it].text) },
+            )
+        // CR 601.2c: then targets, enumerated against the spec the settled mode put in force. The modes
+        // are non-null in this branch, but they are a cross-module property so the compiler will not
+        // smart-cast them; `orEmpty()` is the same value, and a non-modal card's is empty anyway.
         cast.chosenTargets == null ->
             targetRequest(
                 id = id,
                 cardObjectId = cast.cardObjectId,
                 card = card.card,
-                spec = definition.targetSpec,
+                spec = effectiveTargetSpec(definition, cast.chosenModes.orEmpty()),
                 // CR 601.2c: the card is still in its source zone while gathering, so its id excludes
                 // nothing from the stack — and naming it here is what makes this enumeration equal the
                 // one `establishTargets` recomputes once the card is on the stack under a fresh id.
-                options = legalTargets(state, definition.targetSpec, cast.caster, self = cast.cardObjectId),
+                options =
+                    legalTargets(
+                        state,
+                        effectiveTargetSpec(definition, cast.chosenModes.orEmpty()),
+                        cast.caster,
+                        self = cast.cardObjectId,
+                    ),
             )
         // CR 601.2b: then any additional "exile N other cards" cost selection (escape).
         cast.additionalExileCost == null -> chooseCardsToExileRequest(state, cast, card.card, id)

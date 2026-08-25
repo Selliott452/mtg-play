@@ -80,6 +80,7 @@ class RandomRemoteAgent(
     // The number of options a "pick exactly one of these" request offers (no opt-out index).
     private fun singleOptionCount(request: DecisionRequestDto.SingleOptionSelectionDto): Int =
         when (request) {
+            is DecisionRequestDto.ChooseModes -> request.options.size
             is DecisionRequestDto.ChooseTargets -> request.options.size
             is DecisionRequestDto.ChoosePaymentPlan -> request.options.size
             is DecisionRequestDto.AssignTrampleDamage -> request.options.size

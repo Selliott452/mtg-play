@@ -75,4 +75,25 @@ enum class PermanentRestriction {
      * this member does not need to say so.
      */
     CREATURE_AN_OPPONENT_CONTROLS,
+
+    /**
+     * "Target red permanent" (CR 105, CR 202.2). Blue Elemental Blast's destroy mode. Additive, flagged
+     * core (`FW-MODAL`).
+     *
+     * The battlefield sibling of [SpellRestriction.OfColor]`(RED)`, and it carries that member's
+     * caveat unchanged: colour is derived from the permanent's printed mana cost
+     * ([dev.mtgplay.core.card.PrintedCharacteristics.colors]), which is correct for every card in the
+     * gauntlet and would silently mis-answer a permanent whose colour comes from a CR 204 colour
+     * indicator or from an effect. Notably a **land** is colourless (CR 105.2, no mana cost), so no
+     * land is ever a legal choice here — which is the right answer for the Blasts and worth stating,
+     * because "red permanent" reads as though a Mountain should qualify.
+     *
+     * An enum member per colour rather than a colour-carrying case, because [PermanentRestriction] is
+     * an enum for the reason its KDoc gives and the pool prints exactly these two.
+     */
+    RED_PERMANENT,
+
+    /** "Target blue permanent" (CR 105, CR 202.2). Red Elemental Blast's destroy mode. See
+     * [RED_PERMANENT] for the colour derivation and its limits. */
+    BLUE_PERMANENT,
 }

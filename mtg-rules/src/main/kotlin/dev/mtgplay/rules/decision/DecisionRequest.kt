@@ -169,6 +169,67 @@ sealed interface DecisionRequest {
     }
 
     /**
+     * The mode choice of a modal cast in progress (CR 601.2b, CR 700.2): [seat] is casting the modal
+     * [card] and must pick one of [options] — the modes that are legal on this board — by index.
+     * Additive, flagged (`FW-MODAL`, docs/design/countering-spells.md §8).
+     *
+     * **This request is surfaced before that cast's [ChooseTargets], and the order is the rules' own.**
+     * CR 601.2b (modes) precedes CR 601.2c (targets), and for these cards the precedence is mechanical
+     * rather than ceremonial: Blue Elemental Blast's two modes target a *spell on the stack* and a
+     * *battlefield permanent*, Steel Sabotage's a spell and an *artifact permanent*, so there is no
+     * target enumeration to run until the mode is known. An agent therefore sees a mode decision, and
+     * only then a target decision whose option list depends on the mode it just picked.
+     *
+     * **Only choosable modes appear** (ADR-005, CR 601.2b): a mode whose targets do not exist cannot be
+     * chosen, so offering it would hand the agent an option that dead-ends at the next stage. Blue
+     * Elemental Blast with a red permanent but no red spell surfaces exactly one option. That filtering
+     * is on *target availability* only — a mode whose **effect** is conditional (Hydroblast's "counter
+     * target spell if it's red") is always offered when its unrestricted target exists, because casting
+     * it is legal even when it will do nothing; filtering by the condition would be the enumeration gap
+     * docs/design/countering-spells.md §1.2 warns about.
+     *
+     * A [SingleOptionSelection] rather than a [ChoiceCountSelection]: choosing a mode is mandatory
+     * (CR 601.2b — a spell whose every mode is illegal cannot be cast at all, so it never reaches this
+     * request), and there is no opt-out index. Single-select because the pool prints only "Choose one —";
+     * "choose up to two" needs a count-bearing sibling shape and a target per chosen mode.
+     *
+     * @property cardObjectId the object being cast (still in its source zone — see
+     *   [dev.mtgplay.core.state.PendingCast]).
+     * @property card the printed identity, for display.
+     * @property options the choosable modes, in printed order; never empty.
+     */
+    data class ChooseModes(
+        override val id: DecisionRequestId,
+        val cardObjectId: ObjectId,
+        val card: CardRef,
+        val options: List<Option>,
+    ) : SingleOptionSelection {
+        override val optionCount: Int get() = options.size
+
+        init {
+            require(options.isNotEmpty()) {
+                "CR 601.2b: a mode request is only surfaced when a legal mode exists (ADR-005)"
+            }
+        }
+
+        /**
+         * One choosable mode of the modal card being cast (CR 700.2).
+         *
+         * [modeIndex] is the mode's **printed** index, not its index in [options] — the two differ
+         * whenever some mode is unavailable, and it is the printed one that goes onto the cast record
+         * and into the replay log. Carrying it explicitly is what keeps "mode 1 of Red Elemental Blast"
+         * meaning the same thing in every log line whatever the board looked like when it was chosen.
+         *
+         * @property modeIndex the mode's printed index on the card (CR 700.2).
+         * @property text the printed bullet, for display (ADR-005 — what the chosen index means).
+         */
+        data class Option(
+            val modeIndex: Int,
+            val text: String,
+        )
+    }
+
+    /**
      * The target choice of a cast in progress (CR 601.2c): [seat] is casting [card] and must
      * pick one of [options] — the engine-enumerated legal targets (ADR-005) — by index.
      * Surfaced only for a spell that targets, and only when at least one legal target exists

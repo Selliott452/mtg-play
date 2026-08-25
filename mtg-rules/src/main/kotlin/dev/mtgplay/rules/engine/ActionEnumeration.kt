@@ -133,7 +133,9 @@ private fun castIsLegal(
     castObjectId: ObjectId,
 ): Boolean =
     timingPermitsCast(state, seat, definition.timing) &&
-        targetsAvailable(state, definition.targetSpec, seat, self = castObjectId) &&
+        // CR 601.2b–c: a modal card is castable when *some* mode's targets exist, not when the card's
+        // do — it has none of its own (`FW-MODAL`, SpellModes.kt).
+        someModeIsCastable(state, definition, seat, self = castObjectId) &&
         additionalDiscardSatisfiable(state, seat, definition, castObjectId, CastSource.HAND) &&
         additionalSacrificeSatisfiable(state, seat, definition) &&
         enumeratePaymentPlans(

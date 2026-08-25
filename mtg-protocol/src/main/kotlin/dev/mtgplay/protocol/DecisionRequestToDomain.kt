@@ -3,13 +3,13 @@ package dev.mtgplay.protocol
 import dev.mtgplay.core.identity.CardRef
 import dev.mtgplay.core.identity.ObjectId
 import dev.mtgplay.core.identity.PlayerId
-import dev.mtgplay.core.mana.ManaCost
 import dev.mtgplay.rules.decision.DecisionRequest
 
 /*
  * DTO -> engine half of the exhaustive [DecisionRequest] mapping (ADR-008 amendment). Dispatch is
  * grouped by the five sealed families so every `when` stays flat and a new request kind breaks
- * compilation. The engine -> DTO half is in DecisionRequestToDto.kt.
+ * compilation. The engine -> DTO half is in DecisionRequestToDto.kt; the single-option family, which
+ * grows fastest, lives in SingleOptionRequestToDomain.kt so each file stays inside its function budget.
  */
 
 /** [DecisionRequestDto] back to the engine value. */
@@ -63,62 +63,6 @@ private fun declareBlockersToDomain(dto: DecisionRequestDto.DeclareBlockers): De
             )
         },
     )
-
-/** The "pick exactly one of these options" family (CR 601.2c/601.2g/702.19e/614.12/616.1/701.17a). */
-private fun singleOptionSelectionToDomain(dto: DecisionRequestDto.SingleOptionSelectionDto): DecisionRequest =
-    when (dto) {
-        is DecisionRequestDto.ChooseCounterPayment ->
-            DecisionRequest.ChooseCounterPayment(
-                dto.id.toDomain(),
-                CardRef(dto.card),
-                ManaCost.parse(dto.cost),
-                dto.options.map { it.toDomain() },
-            )
-        is DecisionRequestDto.ChooseTargets ->
-            DecisionRequest.ChooseTargets(
-                dto.id.toDomain(),
-                ObjectId(dto.cardObjectId),
-                CardRef(dto.card),
-                dto.options.map { it.toDomain() },
-            )
-        is DecisionRequestDto.ChoosePaymentPlan ->
-            DecisionRequest.ChoosePaymentPlan(
-                dto.id.toDomain(),
-                ObjectId(dto.cardObjectId),
-                CardRef(dto.card),
-                ManaCost.parse(dto.cost),
-                dto.options.map { it.toDomain() },
-            )
-        is DecisionRequestDto.AssignTrampleDamage ->
-            DecisionRequest.AssignTrampleDamage(
-                dto.id.toDomain(),
-                ObjectId(dto.attacker),
-                CardRef(dto.attackerCard),
-                PlayerId(dto.defendingPlayer),
-                dto.options,
-            )
-        is DecisionRequestDto.ChooseColor ->
-            DecisionRequest.ChooseColor(
-                dto.id.toDomain(),
-                ObjectId(dto.cardObjectId),
-                CardRef(dto.card),
-                dto.options.map { it.toDomain() },
-            )
-        is DecisionRequestDto.ChooseReplacement ->
-            DecisionRequest.ChooseReplacement(
-                dto.id.toDomain(),
-                dto.options.map { DecisionRequest.ChooseReplacement.Option(it.description) },
-            )
-        is DecisionRequestDto.ChooseLibraryArrangement ->
-            DecisionRequest.ChooseLibraryArrangement(
-                dto.id.toDomain(),
-                dto.prompt,
-                dto.pool.mapOptions { o, c -> DecisionRequest.ChooseLibraryArrangement.PoolCard(o, c) },
-                dto.options.map {
-                    DecisionRequest.ChooseLibraryArrangement.Option(it.toHand, it.toTop, it.toBottom)
-                },
-            )
-    }
 
 private fun sizedSelectionToDomain(dto: DecisionRequestDto.SizedSelectionDto): DecisionRequest =
     when (dto) {
@@ -253,6 +197,11 @@ private fun mulliganRequestToDomain(dto: DecisionRequestDto.MulliganRequestDto):
             )
     }
 
-/** Maps the shared card-option wire shape to a request's specific nested option via [factory]. */
-private inline fun <T> List<CardObjectOptionDto>.mapOptions(factory: (ObjectId, CardRef) -> T): List<T> =
+/**
+ * Maps the shared card-option wire shape to a request's specific nested option via [factory].
+ *
+ * `internal` rather than file-private since the single-option family moved to
+ * SingleOptionRequestToDomain.kt, which needs it for the library arrangement's pool.
+ */
+internal inline fun <T> List<CardObjectOptionDto>.mapOptions(factory: (ObjectId, CardRef) -> T): List<T> =
     map { factory(ObjectId(it.objectId), CardRef(it.card)) }

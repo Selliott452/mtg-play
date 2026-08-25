@@ -46,11 +46,19 @@ internal fun satisfiesEnchantRestriction(
  * The enchant restriction of the battlefield object [obj] if it is an Aura (a permanent whose
  * enchant ability is a [TargetSpec.Enchantable]), or `null` if it is not — the signal the CR 704.5m
  * fall-off check uses to find Auras. A definitionless object is never an Aura.
+ *
+ * A **modal** card is never an Aura here, and the early return is load-bearing rather than defensive: a
+ * modal card has no single targeting line and its `targetSpec` throws (`FW-MODAL`), so this asks about
+ * modality before it asks about enchant-ness. An Aura whose *enchant ability* were modal is not a card
+ * shape that exists — modality is chosen on the stack (CR 601.2b) while this reads a permanent already
+ * on the battlefield — so "not an Aura" is the honest answer rather than a dodge.
  */
 internal fun enchantRestrictionOf(
     state: GameState,
     obj: GameObject,
-): EnchantRestriction? {
-    val definition = state.definitions[obj.card] as? SpellDefinition ?: return null
-    return (definition.targetSpec as? TargetSpec.Enchantable)?.restriction
-}
+): EnchantRestriction? =
+    (state.definitions[obj.card] as? SpellDefinition)
+        // CR 601.2b: modality is asked *before* enchant-ness, because a modal card's `targetSpec` throws.
+        ?.takeIf { it.modes.isEmpty() }
+        ?.let { it.targetSpec as? TargetSpec.Enchantable }
+        ?.restriction
