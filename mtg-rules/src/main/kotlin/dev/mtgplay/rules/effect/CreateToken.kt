@@ -6,7 +6,7 @@ import dev.mtgplay.core.identity.CardRef
 import dev.mtgplay.core.identity.PlayerId
 import dev.mtgplay.core.state.GameObject
 import dev.mtgplay.core.state.GameState
-import dev.mtgplay.rules.engine.emit
+import dev.mtgplay.rules.engine.announceBattlefieldEntry
 import dev.mtgplay.rules.engine.updateBattlefield
 
 /**
@@ -21,6 +21,13 @@ import dev.mtgplay.rules.engine.updateBattlefield
  * state-based actions read the token's power/toughness and keywords through the same `definitions[card]`
  * path a real card uses — no new object field, and "this object is a token" is simply
  * `definitions[card] is TokenDefinition` (see [TokenDefinition]). Emits [GameEvent.TokenCreated].
+ *
+ * A token is a permanent entering the battlefield, so its own enters-the-battlefield abilities
+ * trigger (CR 603.6a) exactly as a resolved permanent spell's do — [TokenDefinition] carries
+ * `triggeredAbilities` like any other definition, so this is expressible, not hypothetical. That
+ * detection used to be missing here, the same silent gap the gauntlet triage records as **T18** for
+ * the play-land path; both now share [announceBattlefieldEntry] so neither can drift again. No token
+ * in the pool declares such a trigger today, so nothing observable changed when it was closed.
  */
 fun createToken(
     state: GameState,
@@ -39,7 +46,9 @@ fun createToken(
         }
     val (id, allocated) = registered.allocateObjectId()
     val created = GameObject(id = id, card = ref, owner = controller, summoningSick = true)
-    return allocated
-        .updateBattlefield { it.adding(created) }
-        .emit(GameEvent.TokenCreated(controller, id, ref))
+    return announceBattlefieldEntry(
+        allocated.updateBattlefield { it.adding(created) },
+        id,
+        GameEvent.TokenCreated(controller, id, ref),
+    )
 }

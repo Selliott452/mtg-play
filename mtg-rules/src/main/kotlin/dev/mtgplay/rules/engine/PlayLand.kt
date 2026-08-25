@@ -17,11 +17,20 @@ import dev.mtgplay.rules.AdvanceResult
  *    "this land enters tapped", which modifies the entering event itself and so takes effect here
  *    rather than as a subsequent tap;
  * 2. the turn's land-drop count advances (CR 305.2);
- * 3. [GameEvent.LandPlayed] narrates it;
+ * 3. [GameEvent.LandPlayed] narrates it, and the land's own enters-the-battlefield triggers fire
+ *    (CR 603.6a) — both through [announceBattlefieldEntry], which is one step rather than two;
  * 4. [player] receives priority again (CR 116.4 — taking a special action does not pass
  *    priority) in a fresh round: an action was taken, so every pass-flag resets and the
  *    CR 117.4 "all players pass in succession" count starts over. State-based actions are
- *    checked before the window opens (CR 704.3, inside [priorityTo]).
+ *    checked before the window opens (CR 704.3, inside [priorityTo]), and that is also where any
+ *    trigger fired in step 3 is put on the stack (CR 603.3b).
+ *
+ * **CR 603.6a applies to a played land exactly as it does to a resolving permanent.** Being played
+ * rather than cast (CR 305.1) changes how the object gets to the battlefield, not what happens once
+ * it is there — an object entered the battlefield, so its enters-the-battlefield abilities trigger.
+ * This transition used to narrate the entry and skip the triggers, which the gauntlet triage records
+ * as **T18**: unreachable while no encoded land had such a trigger, and completely silent, since a
+ * trigger that never fires leaves nothing behind to notice its absence.
  *
  * Legality is re-checked loudly: enumeration only offers legal plays (ADR-005), so a violation
  * here is an engine defect, never a player error.
@@ -51,6 +60,8 @@ internal fun executePlayLand(
             .updatePlayer(player) { it.copy(hand = it.hand.removingAt(index)) }
             .copy(turn = allocated.turn.copy(landsPlayedThisTurn = allocated.turn.landsPlayedThisTurn + 1))
             .let { it.copy(sharedZones = it.sharedZones.copy(battlefield = it.sharedZones.battlefield.adding(land))) }
-            .emit(GameEvent.LandPlayed(player, id, card.card))
+            // CR 603.6a: narrating the entry and firing the land's own enters-the-battlefield
+            // triggers are one indivisible step (T18).
+            .let { announceBattlefieldEntry(it, id, GameEvent.LandPlayed(player, id, card.card)) }
     return priorityTo(clearPriorityRound(played), player)
 }

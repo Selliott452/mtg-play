@@ -6,12 +6,16 @@ import dev.mtgplay.acceptance.mountains
 import dev.mtgplay.acceptance.playerWithZones
 import dev.mtgplay.acceptance.twoPlayerState
 import dev.mtgplay.cards.MvpCards
+import dev.mtgplay.core.card.CardType
+import dev.mtgplay.core.card.PrintedCharacteristics
 import dev.mtgplay.core.definition.AbilityCost
 import dev.mtgplay.core.definition.ActivatedAbility
+import dev.mtgplay.core.definition.CardDefinition
 import dev.mtgplay.core.definition.ResolutionEffect
 import dev.mtgplay.core.definition.TargetSpec
 import dev.mtgplay.core.definition.TriggerCondition
 import dev.mtgplay.core.definition.TriggeredAbility
+import dev.mtgplay.core.event.GameEvent
 import dev.mtgplay.core.identity.CardRef
 import dev.mtgplay.core.identity.ObjectId
 import dev.mtgplay.core.mana.Color
@@ -39,6 +43,7 @@ import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.persistentMapOf
+import kotlinx.collections.immutable.persistentSetOf
 import kotlinx.collections.immutable.toPersistentList
 import kotlinx.collections.immutable.toPersistentMap
 
@@ -548,7 +553,99 @@ class InvariantCheckerSpec :
                 )
             checkAbilityTargetSanity(paused).shouldBeEmpty()
         }
+
+        // --- ENTRY_TRIGGER_DETECTION -------------------------------------------------------
+
+        "CR 603.6a: a land that entered with its trigger lost is exactly one ENTRY_TRIGGER_DETECTION violation" {
+            // The T18 state itself: the log says the land arrived, and nothing anywhere says its
+            // enters-the-battlefield ability ever fired. This is the shape no other invariant can see.
+            val violations = checkEntryTriggerDetection(entryState(GameEvent.LandPlayed(alice, ObjectId(0), ETB_LAND)))
+
+            violations.map { it.invariant } shouldContainExactly listOf(Invariant.ENTRY_TRIGGER_DETECTION)
+        }
+
+        "CR 603.6a: the same land with its trigger put on the stack is clean" {
+            val clean =
+                entryState(
+                    GameEvent.LandPlayed(alice, ObjectId(0), ETB_LAND),
+                    GameEvent.TriggeredAbilityPutOnStack(alice, ETB_LAND),
+                )
+            checkEntryTriggerDetection(clean).shouldBeEmpty()
+        }
+
+        "CR 603.3b: a trigger still pending counts as fired — it has not reached the stack yet, but it will" {
+            val pending =
+                entryState(GameEvent.LandPlayed(alice, ObjectId(0), ETB_LAND))
+                    .copy(
+                        pendingTriggers =
+                            persistentListOf(PendingTrigger(ObjectId(0), ETB_LAND, alice, entryAbility())),
+                    )
+            checkEntryTriggerDetection(pending).shouldBeEmpty()
+        }
+
+        "CR 111.4: a created token whose enters-the-battlefield trigger was lost violates too — T18's twin" {
+            val violations =
+                checkEntryTriggerDetection(entryState(GameEvent.TokenCreated(alice, ObjectId(0), ETB_LAND)))
+
+            violations.map { it.invariant } shouldContainExactly listOf(Invariant.ENTRY_TRIGGER_DETECTION)
+        }
+
+        "CR 603.6a: a trigger fired with no entry to account for it violates in the other direction" {
+            // The fifth-path risk: an object reached the battlefield announcing nothing, so its
+            // trigger is on the stack with no entry event to justify it.
+            val violations =
+                checkEntryTriggerDetection(entryState(GameEvent.TriggeredAbilityPutOnStack(alice, ETB_LAND)))
+
+            violations.map { it.invariant } shouldContainExactly listOf(Invariant.ENTRY_TRIGGER_DETECTION)
+        }
+
+        "CR 603.6a: an empty log and a card that never entered produce no violation" {
+            checkEntryTriggerDetection(entryState()).shouldBeEmpty()
+        }
     })
+
+/** The fixture card the entry-trigger checks measure: one enters-the-battlefield ability, nothing else. */
+private val ETB_LAND: CardRef = CardRef("Fixture Entry Land")
+
+/** The fixture's single enters-the-battlefield ability (CR 603.6a). */
+private fun entryAbility(): TriggeredAbility =
+    TriggeredAbility(
+        condition = TriggerCondition.EnteredBattlefieldSelf,
+        effect = ResolutionEffect { state, _ -> state },
+    )
+
+/**
+ * A handcrafted state whose registry holds [ETB_LAND] — a card with exactly one
+ * enters-the-battlefield ability — and whose event log is [events]. The entry-trigger invariant is a
+ * property of the log and the registry, so both are supplied directly; a real engine transition
+ * cannot produce the losing log at all now that the defect is fixed, which is the point of building it
+ * by hand (the same reason zone conservation is violated through extracted data).
+ */
+private fun entryState(vararg events: GameEvent): GameState =
+    GameState(
+        players = persistentMapOf(alice to playerWithZones(), bob to playerWithZones()),
+        turn = Turn(alice, 3, TurnPhase.PRECOMBAT_MAIN, null),
+        sharedZones = SharedZones(persistentListOf(), persistentListOf(), persistentListOf()),
+        nextObjectId = 1,
+        rng = Rng(0),
+        events = events.toList().toPersistentList(),
+        definitions = persistentMapOf(ETB_LAND to entryLandDefinition),
+    )
+
+/** The registered definition of [ETB_LAND]: a land whose only triggered ability is its entry trigger. */
+private val entryLandDefinition: CardDefinition =
+    object : CardDefinition {
+        override val characteristics =
+            PrintedCharacteristics(
+                name = ETB_LAND.name,
+                manaCost = null,
+                supertypes = persistentSetOf(),
+                cardTypes = persistentSetOf(CardType.LAND),
+                subtypes = persistentSetOf(),
+                powerToughness = null,
+            )
+        override val triggeredAbilities = persistentListOf(entryAbility())
+    }
 
 /** A fixture triggered ability that targets nothing. */
 private fun untargetedAbility(): TriggeredAbility =

@@ -230,4 +230,24 @@ enum class Invariant {
      * pending trigger that genuinely targets, and no cast or activation gathering coexists.
      */
     ABILITY_TARGET_SANITY,
+
+    /**
+     * Every object that entered the battlefield fired the enters-the-battlefield abilities its
+     * definition declares (CR 603.6a): over the game so far, each measured card's entry count times
+     * its ETB-ability count equals the number of its triggers put on the stack plus those still
+     * pending. Added with the **T18** fix.
+     *
+     * The gap it backstops is unusual in being invisible to every other check. An entry path that
+     * forgets the CR 603.6a detector loses the trigger with no residue at all — nothing is enqueued,
+     * nothing is emitted, nothing throws — so the permanent arrives and the game proceeds plausibly
+     * and wrongly. Two of the engine's four entry paths (the played land of CR 305.1 and token
+     * creation) did exactly that. The engine fix makes announcing an entry and firing its triggers
+     * one indivisible step; this is what would notice a *new* path that does neither.
+     *
+     * Measured on the cards whose triggered abilities are all battlefield-scoped
+     * [dev.mtgplay.core.definition.TriggerCondition.EnteredBattlefieldSelf], because
+     * [dev.mtgplay.core.event.GameEvent.TriggeredAbilityPutOnStack] identifies a placement by source
+     * card rather than by source object or condition. See `checkEntryTriggerDetection`.
+     */
+    ENTRY_TRIGGER_DETECTION,
 }
