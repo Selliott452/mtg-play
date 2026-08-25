@@ -168,8 +168,9 @@ internal fun putResolvedSpellOntoBattlefield(
             owner = entry.obj.owner,
             attachedTo = auraAttachmentTargetOf(entry),
             // CR 614.1c: a permanent whose card says it enters tapped does so; the replacement modifies
-            // the entering event, so this is not a subsequent tap.
-            tapped = entry.definition.entersTapped,
+            // the entering event, so this is not a subsequent tap. Read against the battlefield the
+            // permanent has not yet joined, which is what makes a conditional clause count "other".
+            tapped = entersTappedNow(allocated, entry.obj.owner, entry.definition),
             // CR 614.12: the colour chosen as this object entered (Utopia Sprawl), or null.
             chosenColor = chosenColor,
         )

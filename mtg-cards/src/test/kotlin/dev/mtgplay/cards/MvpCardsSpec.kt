@@ -239,6 +239,7 @@ class MvpCardsSpec :
                     CardRef("Forest"),
                     CardRef("Fyndhorn Elves"),
                     CardRef("Galvanic Blast"),
+                    CardRef("Gingerbread Cabin"),
                     CardRef("Glacial Floodplain"),
                     CardRef("Gladecover Scout"),
                     CardRef("Gnaw to the Bone"),

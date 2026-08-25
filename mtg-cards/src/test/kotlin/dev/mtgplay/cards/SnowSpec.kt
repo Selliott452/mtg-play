@@ -4,6 +4,7 @@ import dev.mtgplay.core.card.CardType
 import dev.mtgplay.core.card.Subtype
 import dev.mtgplay.core.card.Supertype
 import dev.mtgplay.core.definition.CardDefinition
+import dev.mtgplay.core.definition.EntersTapped
 import dev.mtgplay.core.definition.ManaAbility
 import dev.mtgplay.core.definition.PermanentRestriction
 import dev.mtgplay.core.definition.SpellDefinition
@@ -12,8 +13,6 @@ import dev.mtgplay.core.definition.TimingClass
 import dev.mtgplay.core.identity.CardRef
 import dev.mtgplay.core.mana.ManaType
 import io.kotest.core.spec.style.StringSpec
-import io.kotest.matchers.booleans.shouldBeFalse
-import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
@@ -53,7 +52,7 @@ class SnowSpec :
                 // CR 305.6, authored explicitly per the P2.2 decision recorded in BasicLands.kt.
                 definition.manaAbilities shouldBe persistentListOf(ManaAbility(persistentListOf(produces)))
                 // CR 110.5a: no snow basic prints an enters-tapped clause.
-                definition.entersTapped.shouldBeFalse()
+                definition.entersTapped shouldBe EntersTapped.Never
             }
         }
 
@@ -87,7 +86,7 @@ class SnowSpec :
                 // CR 305.6: two separate intrinsic abilities, one per land type — the Idyllic Beachfront shape.
                 definition.manaAbilities shouldBe produces.map { ManaAbility(persistentListOf(it)) }
                 // CR 614.1c: "This land enters tapped" is the whole of its printed rules text.
-                definition.entersTapped.shouldBeTrue()
+                definition.entersTapped shouldBe EntersTapped.Always
             }
         }
 

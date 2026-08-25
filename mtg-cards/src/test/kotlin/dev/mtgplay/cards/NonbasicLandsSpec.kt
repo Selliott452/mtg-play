@@ -5,12 +5,12 @@ import dev.mtgplay.core.card.Keyword
 import dev.mtgplay.core.card.Subtype
 import dev.mtgplay.core.card.Supertype
 import dev.mtgplay.core.definition.CardDefinition
+import dev.mtgplay.core.definition.EntersTapped
 import dev.mtgplay.core.definition.ManaAbility
 import dev.mtgplay.core.definition.SpellDefinition
 import dev.mtgplay.core.mana.ManaType
 import io.kotest.core.spec.style.StringSpec
 import io.kotest.matchers.booleans.shouldBeFalse
-import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
@@ -49,7 +49,7 @@ class NonbasicLandsSpec :
                 }
                 definition.manaAbilities shouldBe persistentListOf(ManaAbility(persistentListOf(produces)))
                 // CR 110.5a: no enters-tapped clause is printed on these three.
-                definition.entersTapped.shouldBeFalse()
+                definition.entersTapped shouldBe EntersTapped.Never
             }
         }
 
@@ -72,7 +72,7 @@ class NonbasicLandsSpec :
                 }
                 // One printed ability offering a choice, not two — "{T}: Add {B} or {R}".
                 definition.manaAbilities shouldBe persistentListOf(ManaAbility(options))
-                definition.entersTapped.shouldBeTrue()
+                definition.entersTapped shouldBe EntersTapped.Always
             }
         }
 
@@ -92,7 +92,7 @@ class NonbasicLandsSpec :
                     ManaAbility(persistentListOf(ManaType.WHITE)),
                     ManaAbility(persistentListOf(ManaType.BLUE)),
                 )
-            idyllicBeachfront.entersTapped.shouldBeTrue()
+            idyllicBeachfront.entersTapped shouldBe EntersTapped.Always
         }
 
         "CR 305.1: none of the eight is castable, and none has any ability beyond producing mana" {

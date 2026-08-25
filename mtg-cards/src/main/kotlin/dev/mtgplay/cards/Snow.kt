@@ -5,6 +5,7 @@ import dev.mtgplay.core.card.PrintedCharacteristics
 import dev.mtgplay.core.card.Subtype
 import dev.mtgplay.core.card.Supertype
 import dev.mtgplay.core.definition.CardDefinition
+import dev.mtgplay.core.definition.EntersTapped
 import dev.mtgplay.core.definition.ManaAbility
 import dev.mtgplay.core.definition.PermanentRestriction
 import dev.mtgplay.core.definition.ResolutionEffect
@@ -186,7 +187,7 @@ private fun snowDualLand(
                 ManaAbility(persistentListOf(first.second)),
                 ManaAbility(persistentListOf(second.second)),
             )
-        override val entersTapped = true
+        override val entersTapped = EntersTapped.Always
     }
 
 /**

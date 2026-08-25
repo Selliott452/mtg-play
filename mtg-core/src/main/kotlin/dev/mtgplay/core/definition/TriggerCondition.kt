@@ -28,6 +28,25 @@ sealed interface TriggerCondition {
     data object EnteredBattlefieldSelf : TriggerCondition
 
     /**
+     * "When this permanent enters **untapped**" (CR 603.6a) — Gingerbread Cabin's "When this land
+     * enters untapped, create a Food token". Added by `P-TRIGCOND`.
+     *
+     * A narrower [EnteredBattlefieldSelf], not an intervening-if condition (CR 603.4). The
+     * distinction matters and the CR draws it sharply: the entering permanent's tapped status is part
+     * of the *event*, fixed by whatever CR 614.1c replacement applied as it entered, so the condition
+     * is evaluated once at that instant. An intervening-if would be re-checked when the ability would
+     * resolve (CR 603.4), and tapping the land in response would wrongly stop the token. Making it a
+     * condition rather than a check inside the effect is what keeps the trigger from firing at all
+     * when the land entered tapped — a trigger that never fires and a trigger that resolves doing
+     * nothing are different observable games (the second uses the stack).
+     *
+     * Paired with [EntersTapped.UnlessYouControl] by construction: a card that prints this condition
+     * prints a conditional enters-tapped clause, because a permanent with an unconditional clause
+     * would never fire it and one with no clause would always fire it.
+     */
+    data object EnteredBattlefieldUntappedSelf : TriggerCondition
+
+    /**
      * "When this permanent is put into a graveyard from the battlefield" (CR 603.6b, CR 603.10) — a
      * leaves-the-battlefield trigger. Rancor's "return this to its owner's hand" fires as the Aura
      * arrives in the graveyard (most often via the CR 704.5m fall-off when its creature dies). Per

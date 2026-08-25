@@ -28,8 +28,16 @@ internal fun enterResolvedPermanent(
     chosenColor: Color?,
 ): AdvanceResult {
     val (entered, battlefieldId) = putResolvedSpellOntoBattlefield(state, entry, chosenColor)
+    // CR 603.6a: narrating the entry and firing the permanent's own enters-the-battlefield triggers
+    // are one indivisible step ([announceBattlefieldEntry]); the fired triggers are put on the stack
+    // at the priority grant that follows (CR 603.3b). Detection emits nothing of its own, so the
+    // announcement stays the first word about this entry in the log.
     val announced =
-        entered.emit(GameEvent.PermanentEntered(entry.controller, entry.obj.id, entry.obj.card, battlefieldId))
+        announceBattlefieldEntry(
+            entered,
+            battlefieldId,
+            GameEvent.PermanentEntered(entry.controller, entry.obj.id, entry.obj.card, battlefieldId),
+        )
     // CR 303.4f: an Aura enters attached; announce the attachment after it has entered.
     val attachedTo = entered.battlefieldObject(battlefieldId).attachedTo
     val withAura =
@@ -38,9 +46,7 @@ internal fun enterResolvedPermanent(
         } else {
             announced.emit(GameEvent.AuraAttached(battlefieldId, attachedTo, entry.obj.card))
         }
-    // CR 603.6a: the permanent's own enters-the-battlefield triggers fire now; placed on the stack at the
-    // priority grant that follows (CR 603.3b).
-    return grantPriorityRound(detectEnterBattlefieldTriggers(withAura, battlefieldId))
+    return grantPriorityRound(withAura)
 }
 
 /**

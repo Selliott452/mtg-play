@@ -7,6 +7,7 @@ import dev.mtgplay.core.card.Supertype
 import dev.mtgplay.core.definition.AbilityCost
 import dev.mtgplay.core.definition.AbilityZoneScope
 import dev.mtgplay.core.definition.CardDefinition
+import dev.mtgplay.core.definition.EntersTapped
 import dev.mtgplay.core.definition.LibrarySearch
 import dev.mtgplay.core.definition.LibrarySearchFilter
 import dev.mtgplay.core.definition.TargetSpec
@@ -94,7 +95,7 @@ class ColorlessArtifactsSpec :
                 definition.triggeredManaAbilities.shouldBeEmpty()
                 definition.staticContinuousEffects.shouldBeEmpty()
                 // CR 110.5a: neither prints an enters-tapped clause.
-                definition.entersTapped shouldBe false
+                definition.entersTapped shouldBe EntersTapped.Never
             }
         }
 

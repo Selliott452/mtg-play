@@ -6,6 +6,7 @@ import dev.mtgplay.core.definition.ActivatedAbility
 import dev.mtgplay.core.definition.ManaAmount
 import dev.mtgplay.core.definition.PermanentFilter
 import dev.mtgplay.core.identity.ObjectId
+import dev.mtgplay.core.identity.PlayerId
 import dev.mtgplay.core.mana.ManaType
 import dev.mtgplay.core.state.GameObject
 import dev.mtgplay.core.state.GameState
@@ -236,9 +237,9 @@ private fun manaAmountOf(
 ): Int =
     when (amount) {
         is ManaAmount.Fixed -> amount.count
-        is ManaAmount.PerPermanent -> countMatching(state, obj, amount.each)
+        is ManaAmount.PerPermanent -> countMatching(state, obj.owner, amount.each)
         is ManaAmount.Conditional ->
-            if (amount.requires.all { countMatching(state, obj, it) > 0 }) amount.ifMet else amount.otherwise
+            if (amount.requires.all { countMatching(state, obj.owner, it) > 0 }) amount.ifMet else amount.otherwise
     }
 
 /**
@@ -251,8 +252,8 @@ private fun manaAmountOf(
  * that a mana ability's live CR 605.2 read and an until-end-of-turn effect's frozen CR 608.2h read
  * stay distinguishable at the type level.
  */
-private fun countMatching(
+internal fun countMatching(
     state: GameState,
-    obj: GameObject,
+    you: PlayerId,
     filter: PermanentFilter,
-): Int = countMatchingPermanents(state, filter, obj.owner)
+): Int = countMatchingPermanents(state, filter, you)

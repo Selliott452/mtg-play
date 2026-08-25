@@ -5,6 +5,7 @@ import dev.mtgplay.core.card.Keyword
 import dev.mtgplay.core.card.PrintedCharacteristics
 import dev.mtgplay.core.card.Subtype
 import dev.mtgplay.core.definition.CardDefinition
+import dev.mtgplay.core.definition.EntersTapped
 import dev.mtgplay.core.definition.ManaAbility
 import dev.mtgplay.core.mana.ManaType
 import kotlinx.collections.immutable.PersistentList
@@ -106,7 +107,7 @@ val idyllicBeachfront: CardDefinition =
                 ManaAbility(persistentListOf(ManaType.WHITE)),
                 ManaAbility(persistentListOf(ManaType.BLUE)),
             )
-        override val entersTapped = true
+        override val entersTapped = EntersTapped.Always
     }
 
 /**
@@ -155,5 +156,5 @@ private fun bridge(
             )
         override val manaAbilities: PersistentList<ManaAbility> =
             persistentListOf(ManaAbility(persistentListOf(first, second)))
-        override val entersTapped = true
+        override val entersTapped = EntersTapped.Always
     }

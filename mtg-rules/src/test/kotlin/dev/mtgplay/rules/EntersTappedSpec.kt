@@ -4,6 +4,7 @@ import dev.mtgplay.core.card.CardType
 import dev.mtgplay.core.card.PrintedCharacteristics
 import dev.mtgplay.core.card.PrintedPowerToughness
 import dev.mtgplay.core.definition.CardDefinition
+import dev.mtgplay.core.definition.EntersTapped
 import dev.mtgplay.core.definition.ManaAbility
 import dev.mtgplay.core.definition.ResolutionEffect
 import dev.mtgplay.core.definition.SpellDefinition
@@ -165,7 +166,7 @@ private fun landFixture(
                 powerToughness = null,
             )
         override val manaAbilities = persistentListOf(ManaAbility(persistentListOf(produces)))
-        override val entersTapped = tapped
+        override val entersTapped = if (tapped) EntersTapped.Always else EntersTapped.Never
     }
 
 /** A `{1}` 2/2 creature-spell fixture that enters tapped (CR 614.1c on a cast permanent). */
@@ -183,7 +184,7 @@ private val tappedGolem: SpellDefinition =
         override val timing = TimingClass.SORCERY_SPEED
         override val targetSpec = TargetSpec.None
         override val resolution = ResolutionEffect { state, _ -> state }
-        override val entersTapped = true
+        override val entersTapped = EntersTapped.Always
     }
 
 /** The fixtures this spec registers, keyed by ref. */

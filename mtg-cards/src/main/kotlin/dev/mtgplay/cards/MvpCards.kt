@@ -164,6 +164,7 @@ object MvpCards {
             forest,
             fyndhornElves,
             galvanicBlast,
+            gingerbreadCabin,
             glacialFloodplain,
             gladecoverScout,
             gnawToTheBone,

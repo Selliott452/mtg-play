@@ -45,8 +45,13 @@ const val MALEVOLENT_RUMBLE_REVEAL: Int = 4
  * The Eldrazi Spawn token (CR 111.4) Malevolent Rumble creates: a 0/1 colorless Eldrazi Spawn creature
  * with the mana ability "Sacrifice this token: Add {C}" — a [ManaAbility] whose activation cost is
  * sacrifice rather than tap ([ManaAbility.viaSacrifice], CR 605.1a). Being a mana ability it is carried on
- * the [TokenDefinition] directly (unlike Blood's non-mana activated ability, which the token type cannot
- * yet hold — see [bloodToken]).
+ * the [TokenDefinition] directly and uses no stack (CR 605.3).
+ *
+ * This KDoc used to add "unlike Blood's non-mana activated ability, which the token type cannot yet
+ * hold". That has been untrue since P6.2c completed [TokenDefinition.activatedAbilities]: Blood itself
+ * carries "{1}, {T}, Discard a card, Sacrifice this token: Draw a card", and Gingerbread Cabin's Food
+ * token carries "{2}, {T}, Sacrifice this token: You gain 3 life". The distinction that survives is
+ * the CR 605.3 one only — a mana ability uses no stack, a non-mana activated ability does.
  */
 val eldraziSpawnToken: TokenDefinition =
     TokenDefinition(

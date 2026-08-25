@@ -94,14 +94,18 @@ interface CardDefinition {
      * declared on the castable [SpellDefinition] refinement and a land is never cast (CR 305.1).
      *
      * `mtg-rules` applies it at every point a permanent enters the battlefield: the play-land special
-     * action (CR 305.1) and a resolving permanent spell's entry (CR 608.3). `false` for every permanent
-     * that enters untapped by the CR 110.5a default.
+     * action (CR 305.1) and a resolving permanent spell's entry (CR 608.3). [EntersTapped.Never] for
+     * every permanent that enters untapped by the CR 110.5a default.
      *
-     * **Unconditional only.** A conditional clause ("enters tapped unless you control three or more other
-     * Forests") is a different shape — it reads the game state as the permanent enters — and is not
-     * expressible here; such a card stays unencoded rather than being approximated by `true` or `false`.
+     * **Conditional clauses live here too, since `P-ETBTAPPED`.** This property was a `Boolean`, and
+     * its KDoc recorded that "enters tapped unless you control three or more other Forests" was "a
+     * different shape — it reads the game state as the permanent enters — and is not expressible
+     * here; such a card stays unencoded rather than being approximated by `true` or `false`".
+     * Gingerbread Cabin is that card, so the promise was kept by widening the type rather than by
+     * approximating: [EntersTapped] is a sealed set of shapes, and the condition is read as the
+     * permanent enters, exactly where the CR puts it.
      */
-    val entersTapped: Boolean get() = false
+    val entersTapped: EntersTapped get() = EntersTapped.Never
 
     /**
      * The cost reductions this card's static abilities apply to **other spells its controller casts**

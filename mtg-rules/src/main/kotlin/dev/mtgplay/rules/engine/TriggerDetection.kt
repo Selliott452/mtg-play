@@ -3,6 +3,7 @@ package dev.mtgplay.rules.engine
 import dev.mtgplay.core.definition.TriggerCondition
 import dev.mtgplay.core.definition.TriggerZoneScope
 import dev.mtgplay.core.definition.TriggeredAbility
+import dev.mtgplay.core.event.GameEvent
 import dev.mtgplay.core.identity.ObjectId
 import dev.mtgplay.core.identity.PlayerId
 import dev.mtgplay.core.state.GameObject
@@ -87,13 +88,26 @@ internal fun detectDrawCountTriggers(
  * entered: each of its own [TriggerCondition.EnteredBattlefieldSelf] abilities fires, carrying the
  * entered object as its subject. Cartouche of Solidarity and Abundant Growth trigger here. A no-op if
  * the object is not on the battlefield or has no definition.
+ *
+ * [TriggerCondition.EnteredBattlefieldUntappedSelf] fires here too, and only when the object in fact
+ * arrived untapped — Gingerbread Cabin's "when this land enters untapped, create a Food token". The
+ * status is read off the entered object rather than recomputed, so whatever CR 614.1c replacement
+ * applied as it entered is what the trigger sees; the two are decided at the same instant and can
+ * never disagree. A land that entered tapped fires **nothing**, which is a different game from firing
+ * an ability that resolves doing nothing (that one would use the stack).
  */
 internal fun detectEnterBattlefieldTriggers(
     state: GameState,
     enteredId: ObjectId,
 ): GameState {
     val obj = state.sharedZones.battlefield.firstOrNull { it.id == enteredId } ?: return state
-    return battlefieldTriggersOf(state, obj.card, TriggerCondition.EnteredBattlefieldSelf)
+    val conditions =
+        buildList {
+            add(TriggerCondition.EnteredBattlefieldSelf)
+            if (!obj.tapped) add(TriggerCondition.EnteredBattlefieldUntappedSelf)
+        }
+    return conditions
+        .flatMap { condition -> battlefieldTriggersOf(state, obj.card, condition) }
         .fold(state) { current, ability ->
             enqueuePendingTrigger(
                 current,
@@ -101,6 +115,40 @@ internal fun detectEnterBattlefieldTriggers(
             )
         }
 }
+
+/**
+ * Announces that [battlefieldId] has entered the battlefield and fires its CR 603.6a
+ * enters-the-battlefield triggers — **the one home every entry path shares**.
+ *
+ * The [announcement] is whichever [GameEvent] narrates this particular entry — a resolved permanent
+ * spell's [GameEvent.PermanentEntered], a played land's [GameEvent.LandPlayed] (CR 305.1: a land is
+ * played, not cast, and takes its own transition), a created token's [GameEvent.TokenCreated] — and
+ * is emitted before the detector runs. Detection appends to [GameState.pendingTriggers] and emits
+ * nothing itself, so the announcement stays the first word about the entry in the log.
+ *
+ * **Why this exists rather than four careful call sites.** Every path that puts an object onto the
+ * battlefield has to remember two things: narrate the entry, and fire CR 603.6a. Two of the four
+ * remembered both, and two — [dev.mtgplay.rules.engine.executePlayLand] and
+ * [dev.mtgplay.rules.effect.createToken] — remembered only the first. The failure is *silent*: the
+ * permanent arrives, the trigger is simply lost, and no invariant, no test and no crash notices,
+ * because a trigger that never fired leaves no trace to check against. The gauntlet triage records
+ * the land half as **T18**.
+ *
+ * Correcting the two call sites would have left the hazard exactly where it was, so the derivation
+ * is given one home instead — the same move `P-MANASICK` and `FW-MANA` made for
+ * [sourceClassKeyOf] after the identical "a future change that misses a call site fails the same
+ * way" reasoning. Announcing an entry and firing its triggers are now a single indivisible step: a
+ * new entry path cannot narrate an entry without also firing CR 603.6a, because there is no
+ * remaining way to narrate one.
+ *
+ * The residual risk — a fifth path that adds to the battlefield and announces *nothing* — is what
+ * `Invariant.ENTRY_TRIGGER_DETECTION` covers from the acceptance side.
+ */
+internal fun announceBattlefieldEntry(
+    state: GameState,
+    battlefieldId: ObjectId,
+    announcement: GameEvent,
+): GameState = detectEnterBattlefieldTriggers(state.emit(announcement), battlefieldId)
 
 /**
  * Detects put-into-graveyard-from-battlefield-self triggers (CR 603.6b, CR 603.10) for [leftObject],
