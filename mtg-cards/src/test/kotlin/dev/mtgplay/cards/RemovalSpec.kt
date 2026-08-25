@@ -126,9 +126,10 @@ class RemovalSpec :
             // Raze landed with `P-ABILSOURCE`, in LandDestruction.kt rather than here: its target
             // noun is a land (CR 305), so it belongs to the gauntlet's land destruction family.
             (CardRef("Raze") in MvpCards.definitions) shouldBe true
-            // Cryoshatter is still deliberately unencoded — it needs trigger conditions for a
-            // permanent becoming tapped or being dealt damage, which nothing in the engine watches
-            // for; a framework, not a primitive (see Removal.kt's file comment).
-            (CardRef("Cryoshatter") in MvpCards.definitions) shouldBe false
+            // Cryoshatter landed with `W8-C`, in BurnAndRemoval.kt rather than here: the two trigger
+            // conditions this file recorded as missing — a permanent becoming tapped (CR 701.20a) and a
+            // permanent being dealt damage (CR 120.3d) — are now `TriggerCondition` members with a
+            // detection site each, so the diagnosis this line used to carry is discharged.
+            (CardRef("Cryoshatter") in MvpCards.definitions) shouldBe true
         }
     })

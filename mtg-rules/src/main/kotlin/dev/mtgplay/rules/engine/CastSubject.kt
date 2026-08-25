@@ -4,10 +4,12 @@ import dev.mtgplay.core.definition.CastingPermission
 import dev.mtgplay.core.definition.SpellDefinition
 import dev.mtgplay.core.identity.ObjectId
 import dev.mtgplay.core.state.PendingCast
+import dev.mtgplay.core.state.Target
 
 /**
- * The three things that together say *which cast* is being priced or bounded (CR 601.2): what card, by
- * what permission, from which object. Additive with `FW-X`.
+ * The four things that together say *which cast* is being priced or bounded (CR 601.2): what card, by
+ * what permission, from which object, at what targets. Additive with `FW-X`; [targets] added by
+ * `FW-TGTCOND`.
  *
  * **A bundle rather than three parameters, because they are never meaningful apart.** [totalCost] is
  * the engine's one cost function and it has four call sites that must agree exactly — cast legality,
@@ -25,20 +27,37 @@ import dev.mtgplay.core.state.PendingCast
  * @property castObjectId the object being cast, excluded from every zone count the cost reduction takes
  *   (CR 601.2a — the card has left its source zone by the time the cost is determined); `null` where the
  *   caller has none.
+ * @property targets the targets this cast has chosen (CR 601.2c), read by a
+ *   [dev.mtgplay.core.definition.CostReduction.IfTargets] and by nothing else. Additive (`FW-TGTCOND`).
+ *   Empty for every cast of every card that does not print a target-conditional reduction, which is all
+ *   but one, so the field costs those casts nothing.
+ *
+ *   **At a legality gate this carries the *candidate* targets rather than the chosen ones**, and the
+ *   difference is deliberate. CR 601.2c precedes CR 601.2f, so by the time a cast is really priced the
+ *   choice is made and this is that choice; but `castIsLegal` runs before any choice exists and must still
+ *   answer "is *some* cast of this card payable". Passing every legal target there prices the spell at the
+ *   cheapest cost any choice could reach — the same "cheapest announcement" reasoning
+ *   [CostAnnouncements.NONE] already applies to kicker and X — so a legal play is never hidden. See
+ *   [cheapestTargetsFor].
  */
 internal data class CastSubject(
     val definition: SpellDefinition,
     val permission: CastingPermission? = null,
     val castObjectId: ObjectId? = null,
+    val targets: List<Target> = emptyList(),
 )
 
 /**
  * The [CastSubject] an open [PendingCast] describes, given the [definition] its card resolves to. The
- * one conversion, so a gathering's price and its execution's price are built from the same three values
+ * one conversion, so a gathering's price and its execution's price are built from the same four values
  * by construction rather than by two call sites agreeing.
+ *
+ * Unsettled targets read as **empty**, which is the honest value: a cast that has not chosen its targets
+ * yet targets nothing, so a target-conditional reduction does not apply and the cast is priced at its
+ * printed cost. That branch is only ever reached before the CR 601.2c stage, where no cost is charged.
  */
 internal fun PendingCast.subject(definition: SpellDefinition): CastSubject =
-    CastSubject(definition, castingPermission, cardObjectId)
+    CastSubject(definition, castingPermission, cardObjectId, chosenTargets.orEmpty())
 
 /**
  * The CR 601.2b cost announcements settled while casting: whether the kicker is being paid

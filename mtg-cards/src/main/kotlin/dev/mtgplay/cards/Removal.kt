@@ -37,14 +37,12 @@ import kotlinx.collections.immutable.persistentSetOf
  * The framework this note said it needed, an [dev.mtgplay.core.definition.AdditionalCost] member for
  * a sacrifice, arrived with the sacrifice-cost packet and Crop Rotation.
  *
- * One card of the same family is deliberately **not** here, because it needs a framework rather
- * than a primitive, and an approximation of it would be a plausible-looking wrong card (PLAN.md §7):
- * - **Cryoshatter** ("Enchant creature. Enchanted creature gets -5/-0. When enchanted creature
- *   becomes tapped or is dealt damage, destroy it.") needs two new
- *   [dev.mtgplay.core.definition.TriggerCondition] members and the detection sites to match them:
- *   nothing in the engine watches a permanent *becoming tapped* or *being dealt* damage.
- *
- * See the packet report for what each needs in full.
+ * **Cryoshatter has since landed** — in BurnAndRemoval.kt rather than here, with the gauntlet's other
+ * `W8-C` answers. This comment recorded it as blocked on "two new
+ * [dev.mtgplay.core.definition.TriggerCondition] members and the detection sites to match them:
+ * nothing in the engine watches a permanent *becoming tapped* or *being dealt* damage", and that is
+ * exactly what `W8-C` added — plus [dev.mtgplay.core.definition.TriggerCondition.AnyOf], so the card's
+ * one printed ability stays one declared ability rather than two.
  */
 
 /** The damage Smash to Smithereens deals to the destroyed artifact's controller (CR 120.3a). */

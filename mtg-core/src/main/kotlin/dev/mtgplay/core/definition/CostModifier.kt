@@ -19,6 +19,8 @@ import kotlinx.collections.immutable.PersistentSet
  *   and the Terrors' "{1} less for each instant and sorcery card in your graveyard".
  * - [IfAll] is a **flat amount gated on a board condition** — Of One Mind's "{2} less if you control
  *   a Human creature and a non-Human creature".
+ * - [IfTargets] is a **flat amount gated on the spell's own chosen targets** — Ride's End's "{3} less to
+ *   cast if it targets a tapped permanent" (`FW-TGTCOND`).
  *
  * Both are declared on the *spell* ([SpellDefinition.costReduction]). The other-object shape — a
  * battlefield permanent reducing *other* spells — is [SpellCostReduction], declared on
@@ -55,6 +57,73 @@ sealed interface CostReduction {
             require(conditions.isNotEmpty()) { "a conditional reduction states at least one condition" }
         }
     }
+
+    /**
+     * Reduce by [amount] generic mana when **at least one of the spell's own chosen targets** satisfies
+     * [condition]; by nothing otherwise (CR 601.2f). Ride's End's "This spell costs {3} less to cast if it
+     * targets a tapped permanent". Additive, flagged core (`FW-TGTCOND`).
+     *
+     * **The first cost input that is not a property of the board.** [PerMatching] and [IfAll] both read
+     * zones; this one reads the *choice the caster just made*, which is what makes it a genuinely different
+     * shape rather than a third predicate. CR 601.2 already sequences it correctly and the engine's
+     * pipeline already follows that sequence — targets are chosen at CR 601.2c, the total cost is
+     * determined at CR 601.2f, and the payment plan is enumerated after both — so no stage moves to
+     * support this. What it does force are two things `mtg-rules` owns and states in full:
+     *
+     * 1. **Cast legality is decided before targets exist**, so the castability gate must price the spell at
+     *    the *cheapest cost any legal target choice could reach*, not at the printed cost. Pricing it
+     *    unreduced would hide the two-mana Ride's End from a seat holding two mana and a tapped blocker,
+     *    which is ADR-005's silent defect in the direction that deletes a legal play.
+     * 2. **The target enumeration must then be filtered by affordability**, so a seat that can pay only the
+     *    reduced cost is not offered a target that would price the cast out of reach mid-cast. CR 601.2h
+     *    answers that case with a rewind (CR 728) the engine has no representation for, and offering an
+     *    option that dead-ends is ADR-005's other direction. It is the same gate the kicker announcement
+     *    already applies to itself.
+     *
+     * **Only one instance of the word "target"** is contemplated here: "at least one chosen target" is the
+     * printed reading of every card in the family, and a spell whose cost depended on a *combination* of
+     * several chosen targets would make the affordability filter a subset enumeration rather than a
+     * per-option test. `mtg-rules` refuses that case loudly rather than filtering wrongly.
+     *
+     * @property amount the generic mana to reduce by; at least one.
+     * @property condition what a chosen target must satisfy for the reduction to apply.
+     */
+    data class IfTargets(
+        val amount: Int,
+        val condition: TargetCondition,
+    ) : CostReduction {
+        init {
+            require(amount > 0) { "a target-conditional reduction reduces by at least 1, was $amount" }
+        }
+    }
+}
+
+/**
+ * What a chosen target must be for a [CostReduction.IfTargets] to apply (CR 601.2f) — the noun half of
+ * "if it targets a tapped permanent". Additive, flagged core (`FW-TGTCOND`).
+ *
+ * A closed enum rather than a predicate, for [PermanentRestriction]'s reasons: a card definition is data
+ * (ADR-003), the value takes part in the structural equality this engine leans on, and a new condition must
+ * break the rules-side `when` rather than slip through. Members exist only where a card in the pool prints
+ * them, which today is one.
+ *
+ * **Distinct from [PermanentRestriction], which it superficially resembles.** That type says which
+ * permanents may be *chosen*; this one says which chosen permanents make the spell cheaper. Ride's End
+ * targets any creature or Vehicle and is discounted by a tapped one, so the two are different sets on the
+ * same card and folding them together would make the discount decide legality.
+ */
+enum class TargetCondition {
+    /**
+     * A **tapped permanent** (CR 110.5b) — Ride's End's condition. Read off the chosen target's live
+     * status, at CR 601.2f, once: the cost is locked in there, so untapping the permanent in response to
+     * the spell does not re-price it (and cannot, since no player has priority between CR 601.2f and the
+     * spell being cast).
+     *
+     * A target that is not a permanent at all — a player, a spell on the stack, a card in a graveyard —
+     * simply does not satisfy this, rather than being an error: "targets a tapped permanent" is false for
+     * them in exactly the way the printed card means.
+     */
+    TAPPED_PERMANENT,
 }
 
 /**

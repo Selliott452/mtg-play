@@ -221,7 +221,10 @@ private fun tapForManaAbility(
         state.sharedZones.battlefield.firstOrNull { it.id == id }
             ?: error("CR 602.2a: a {T} cost taps a battlefield source, but $id is not there")
     require(!obj.tapped) { "CR 602.2a: a {T} cost requires an untapped source, but $id is tapped" }
-    return state.replacingBattlefieldObject(obj.copy(tapped = true)).emit(GameEvent.ObjectTapped(id, obj.card))
+    val tapped = state.replacingBattlefieldObject(obj.copy(tapped = true)).emit(GameEvent.ObjectTapped(id, obj.card))
+    // CR 603.2/701.20a: tapping for mana is a way of becoming tapped like any other, and it covers both
+    // the source's own {T} and Saruli Caretaker's "tap another untapped creature you control" (`W8-C`).
+    return announceBecameTapped(tapped, id)
 }
 
 /**

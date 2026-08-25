@@ -248,6 +248,27 @@ import dev.mtgplay.core.identity.CardRef
  * disjunctive one, `ARTIFACT_CREATURE_OR_LAND_YOU_CONTROL`) and two `mtg-rules` primitives,
  * `flickerPermanents` (exile all, *then* return all) and `exileGraveyard`.
  *
+ * The `W8-C` burn-and-removal packet adds three answers (BurnAndRemoval.kt). [dustToDust] is the pool's
+ * second card with an **exact** target count above one — "exile two target artifacts", castable only
+ * against a board holding two — and it needed no new mechanism at all, `FW-MULTITGT` and the removal
+ * packet's exile between them. [cryoshatter] is the card Removal.kt and this file have both listed as
+ * absent since the removal packet: it brings the two [dev.mtgplay.core.definition.TriggerCondition]
+ * members nothing in the engine watched for — a permanent *becoming tapped* (CR 701.20a) and a permanent
+ * *being dealt* damage (CR 120.3d) — plus `AnyOf`, the "When X **or** Y" combinator that keeps one printed
+ * ability one declared ability, and a single announcement site reached by all four ways a permanent becomes
+ * tapped. [ridesEnd] closes the `FW-TGTCOND` gap `FW-COST` recorded: a spell that prices itself off its own
+ * chosen target, which needs the castability gate to price the *cheapest* target choice and the target
+ * request to be narrowed to what the seat can pay for. Four of the packet's seven cards stay absent, each
+ * on a framework it does not own, and BurnAndRemoval.kt's header carries the full diagnoses: **Searing
+ * Blaze** prints two separate — and *dependent* — instances of the word "target"; **Torch the Tower** needs
+ * an optional additional *sacrifice* cost, a token-aware sacrifice filter, and above all a **delayed**
+ * CR 614 replacement keyed on the permanents it damaged; **Gorilla Shaman** needs `{X}` on an *activated*
+ * ability plus the CR 601.2b announcement moved back above the target stage, which
+ * `PendingCastRequest.kt`'s header already names it as the card that would force; and **Cleansing
+ * Wildfire** needs a library search whose decider is not the resolving spell's controller, whose shuffle is
+ * conditional on choosing to search, and which is followed by a further instruction — a *mid*-resolution
+ * clause where `FW-CLAUSEHOOK` shipped a post-resolution one.
+ *
  * The `FW-TAPUNTAP` packet adds the pool's first cards that **tap, untap, or choose a permanent of
  * their own** (TapEffects.kt): [sleepOfTheDead] (tap target creature, and it does not untap next untap
  * step), [quirionRanger] (return a Forest you control: untap target
@@ -291,10 +312,12 @@ object MvpCards {
             contaminatedLandscape,
             counterspell,
             cropRotation,
+            cryoshatter,
             crypticSerpent,
             dispel,
             drossforgeBridge,
             duress,
+            dustToDust,
             elvishMystic,
             endTheFestivities,
             envelop,
@@ -382,6 +405,7 @@ object MvpCards {
             redElementalBlast,
             refurbishedFamiliar,
             removeSoul,
+            ridesEnd,
             saruliCaretaker,
             scourFromExistence,
             seaGateOracle,

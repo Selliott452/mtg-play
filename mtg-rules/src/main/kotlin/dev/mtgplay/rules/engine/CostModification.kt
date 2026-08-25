@@ -11,6 +11,7 @@ import dev.mtgplay.core.mana.Color
 import dev.mtgplay.core.mana.ManaCost
 import dev.mtgplay.core.mana.ManaSymbol
 import dev.mtgplay.core.state.GameState
+import dev.mtgplay.core.state.Target
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toPersistentList
 
@@ -63,7 +64,9 @@ import kotlinx.collections.immutable.toPersistentList
  *    {2} more to cast" is an increase applied to *somebody else's* spell and conditioned on that
  *    spell's chosen targets; see the `FW-X` packet report for what it needs;
  * 5. **minus cost reductions** — the spell's own static ability ([SpellDefinition.costReduction]) plus
- *    every battlefield reducer [seat] controls ([spellCostReductions]), summed;
+ *    every battlefield reducer [seat] controls ([spellCostReductions]), summed. Since `FW-TGTCOND` the
+ *    spell's own reduction may read [CastSubject.targets] rather than a zone — Ride's End's "{3} less if
+ *    it targets a tapped permanent" — which is well-defined here because CR 601.2c has already run;
  * 6. clamped so the mana component never falls below `{0}` ([reduceGeneric]).
  *
  * **A reduction may eat into the X mana, and that is correct.** By the time step 5 runs, an announced
@@ -97,7 +100,7 @@ internal fun totalCost(
     // CR 601.2f: additional costs are added before reductions are subtracted (CR 702.33a for kicker).
     val withAdditional = if (announcements.kicked) plusKicker(definition, base) else base
     val reduction =
-        selfReduction(state, seat, definition, subject.castObjectId) +
+        selfReduction(state, seat, definition, subject.castObjectId, subject.targets) +
             otherObjectReduction(state, seat, definition)
     return reduceGeneric(withAdditional, reduction)
 }
@@ -154,6 +157,7 @@ private fun selfReduction(
     seat: PlayerId,
     definition: SpellDefinition,
     castObjectId: ObjectId?,
+    targets: List<Target>,
 ): Int =
     when (val declared = definition.costReduction) {
         null -> 0
@@ -162,6 +166,9 @@ private fun selfReduction(
                 countMatching(state, seat, declared.scope, declared.predicate, excluding = castObjectId)
         is CostReduction.IfAll ->
             if (declared.conditions.all { holds(state, seat, it, castObjectId) }) declared.amount else 0
+        // CR 601.2f/601.2c: read off the choice already made, not off the board (`FW-TGTCOND`).
+        is CostReduction.IfTargets ->
+            if (targets.any { satisfiesTargetCondition(state, declared.condition, it) }) declared.amount else 0
     }
 
 /** Whether [condition]'s count threshold is met right now, with [castObjectId] excluded (CR 601.2a). */

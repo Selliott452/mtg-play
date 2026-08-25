@@ -12,10 +12,12 @@ import dev.mtgplay.core.definition.CountCondition
 import dev.mtgplay.core.definition.CountScope
 import dev.mtgplay.core.definition.ManaAbility
 import dev.mtgplay.core.definition.ObjectPredicate
+import dev.mtgplay.core.definition.PermanentRestriction
 import dev.mtgplay.core.definition.ResolutionEffect
 import dev.mtgplay.core.definition.SacrificeRequirement
 import dev.mtgplay.core.definition.SpellCostReduction
 import dev.mtgplay.core.definition.SpellDefinition
+import dev.mtgplay.core.definition.TargetCondition
 import dev.mtgplay.core.definition.TargetSpec
 import dev.mtgplay.core.definition.TimingClass
 import dev.mtgplay.core.identity.CardRef
@@ -252,6 +254,43 @@ internal val fixtureRecall: SpellDefinition =
             listOf(CastingPermission.Flashback(cost = ManaCost.parse("{3}{U}")))
     }
 
+/**
+ * "Fixture Lasso" — a `{4}{U}` instant that costs `{3}` less while it targets a **tapped** permanent
+ * (CR 601.2f). Ride's End's shape, and the only fixture whose cost is a function of a *choice* rather
+ * than of the board.
+ *
+ * It targets plain "target creature" rather than the real card's creature-or-Vehicle, because the
+ * targeting noun is not what this framework is about: what matters is that the set the caster picks
+ * from and the set that discounts the spell are **different** sets on the same card, so an untapped
+ * creature is a legal target that prices the cast at five.
+ */
+internal val fixtureLasso: SpellDefinition =
+    object : SpellDefinition by spellFixtureOf(
+        name = "Fixture Lasso",
+        cost = "{4}{U}",
+        cardType = CardType.INSTANT,
+    ) {
+        override val targetSpec = TargetSpec.TargetPermanent(PermanentRestriction.CREATURE)
+        override val costReduction =
+            CostReduction.IfTargets(
+                amount = FIXTURE_LASSO_REDUCTION,
+                condition = TargetCondition.TAPPED_PERMANENT,
+            )
+    }
+
+/** What [fixtureLasso] takes off its cost when its chosen target is tapped, and nothing otherwise. */
+internal const val FIXTURE_LASSO_REDUCTION: Int = 3
+
+/** "Fixture Ox" — a plain 2/2 creature body: the thing [fixtureLasso] points at, tapped or not. */
+internal val fixtureOx: SpellDefinition =
+    permanentFixture(
+        name = "Fixture Ox",
+        cost = "{2}",
+        cardTypes = persistentSetOf(CardType.CREATURE),
+        subtypes = persistentSetOf(),
+        powerToughness = PrintedPowerToughness(power = 2, toughness = 2),
+    )
+
 /** The registry the cost-modification specs run against: the shared fixtures plus this file's. */
 internal val costFixtureDefinitions: Map<CardRef, CardDefinition> =
     fixtureDefinitions +
@@ -270,6 +309,8 @@ internal val costFixtureDefinitions: Map<CardRef, CardDefinition> =
             fixtureStone,
             fixtureReckoning,
             fixtureRecall,
+            fixtureLasso,
+            fixtureOx,
         ).associateBy { CardRef(it.characteristics.name) }
 
 /** A permanent spell fixture: sorcery-speed, untargeted, resolving onto the battlefield (CR 608.3). */
