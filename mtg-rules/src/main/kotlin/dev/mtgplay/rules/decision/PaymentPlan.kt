@@ -1,6 +1,7 @@
 package dev.mtgplay.rules.decision
 
 import dev.mtgplay.core.definition.ManaAbilityCost
+import dev.mtgplay.core.definition.ManaAbilityRider
 import dev.mtgplay.core.identity.CardRef
 import dev.mtgplay.core.mana.ManaType
 
@@ -86,11 +87,25 @@ data class ManaActivation(
  * @property oncePerTurn whether activating this alternative spends the source's CR 602.5b "Activate
  *   only once each turn" allowance for the rest of the turn. Part of the key so that a spent source
  *   and an unspent one are never the same class — the spent one is not a source at all.
+ * @property rider the **non-mana** effect this activation performs beside adding its mana
+ *   (CR 605.1a) — Elves of Deep Shadow's "This creature deals 1 damage to you" — or `null` for the
+ *   overwhelming majority of alternatives, which perform none. Additive (`W8-B`).
+ *
+ *   Here rather than only on the [dev.mtgplay.core.definition.ManaAbility] because this is what the
+ *   executor is handed: a source printing two mana abilities that cost and produce the same thing and
+ *   differ only in their rider would otherwise collapse to one alternative — [SourceClassKey] requires
+ *   its profile's entries to be distinct — and the executor would have no way to tell which of the two
+ *   it just activated. Carrying it makes the two genuinely different alternatives, which they are.
+ *
+ *   It is also therefore part of the payment-equivalence key, which is correct rather than incidental:
+ *   two sources that add the same mana at the same cost but charge different life are **not**
+ *   interchangeable, and collapsing them would hide a real choice from an agent (ADR-005).
  */
 data class ProductionAlternative(
     val cost: List<ManaAbilityCost>,
     val produced: List<ManaType>,
     val oncePerTurn: Boolean = false,
+    val rider: ManaAbilityRider? = null,
 ) {
     init {
         require(cost.isNotEmpty()) { "CR 602.1: an activated ability has a cost, and a mana ability is one" }

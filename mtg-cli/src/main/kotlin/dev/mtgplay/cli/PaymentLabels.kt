@@ -1,5 +1,6 @@
 package dev.mtgplay.cli
 
+import dev.mtgplay.core.definition.ManaAbilityRider
 import dev.mtgplay.core.mana.ManaType
 import dev.mtgplay.rules.decision.ManaActivation
 import dev.mtgplay.rules.decision.PaymentPlan
@@ -42,6 +43,11 @@ private fun symbolPaymentLabel(payment: SymbolPayment): String =
  * Since `FW-MANACOST` the activation may cost mana of its own, and the label says so — "pay {G}, tap
  * Giant's Boulder for {R}" — because two plans that differ only in which mana funded the activation
  * are genuinely different lines and a player choosing by index has to be able to tell them apart.
+ *
+ * Since `W8-B` it may also carry a CR 605.1a **rider**, and the label says that too — "tap Elves of
+ * Deep Shadow for {B} (1 damage to you)". The rider is not a cost and never stops a plan being
+ * offered, so the *only* way a player choosing by index learns the line costs life is by reading it
+ * here.
  */
 private fun activationLabel(activation: ManaActivation): String {
     val verb = if (activation.alternative.viaSacrifice) "sacrifice" else "tap"
@@ -52,8 +58,20 @@ private fun activationLabel(activation: ManaActivation): String {
         } else {
             "pay ${activation.costPayment.joinToString("") { manaGlyph(it) }}, "
         }
-    return "$paid$verb ${activation.sourceClass.card.name} for $mana"
+    return "$paid$verb ${activation.sourceClass.card.name} for $mana${riderLabel(activation)}"
 }
+
+/**
+ * The parenthesised tail naming an activation's CR 605.1a rider, or the empty string for the
+ * overwhelming majority that have none. Exhaustive over
+ * [dev.mtgplay.core.definition.ManaAbilityRider], so a rider shape the menu cannot describe breaks
+ * compilation rather than being silently omitted from what the player is shown.
+ */
+private fun riderLabel(activation: ManaActivation): String =
+    when (val rider = activation.alternative.rider) {
+        null -> ""
+        is ManaAbilityRider.DamageToController -> " (${rider.amount} damage to you)"
+    }
 
 /** The brace glyph of a produced mana type (CR 106.1b), e.g. {R} for red or {C} for colorless. */
 fun manaGlyph(mana: ManaType): String =

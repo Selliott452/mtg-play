@@ -44,18 +44,25 @@ import kotlinx.collections.immutable.persistentSetOf
  *   chooses, which no decision request in this engine could surface. That framework has since landed
  *   (docs/design/exile-and-return.md §6) and the card is encoded in `ExileAndReturn.kt`, reusing this
  *   file's [affinityForArtifacts] unchanged: its cost half needed nothing further.
- * - **Deem Inferior** reduces "for each card you've drawn this turn": a **turn-scoped event count** the
- *   state does not track at all, and its effect lets the *owner* choose a library position
- *   (`FW-NONCTRLDEC`).
+ * - **Deem Inferior** reduces "for each card you've drawn this turn". `FW-COST` recorded that as a
+ *   turn-scoped event count "the state does not track at all", and `W8-B` found that **wrong**:
+ *   [dev.mtgplay.core.state.PlayerState.drawsThisTurn] has existed since Sneaky Snacker's
+ *   [dev.mtgplay.core.definition.TriggerCondition.DrewNthCardThisTurn], so the reduction is a
+ *   [CountScope]-sized addition rather than a state change. What still keeps the card out is its
+ *   *effect*: "the owner of target nonland permanent puts it into their library second from the top or
+ *   on the bottom" is a library-position insertion nothing in the engine performs, chosen by somebody
+ *   other than the caster (`FW-NONCTRLDEC` landed only as an opponent *discard*).
  * - **Ride's End** reduces "{3} less if it targets a tapped permanent" — a cost that depends on the
  *   chosen target. Cost determination now correctly follows target choice inside the pipeline, but cast
  *   *legality* is decided before any target is chosen, so enumerating it needs "exists a target making
  *   this affordable" (`FW-TGTCOND`).
  * - **Sunscape Familiar** is the other-object reducer this framework's C6 half exists for, and its
  *   declaration slot ([dev.mtgplay.core.definition.CardDefinition.spellCostReductions]) ships and is
- *   exercised by rules fixtures. The card itself stays absent because it prints **Defender**, a keyword
- *   `mtg-core` does not have (`FW-DEFENDERKW` — the same absence that keeps Overgrown Battlement out of
- *   ManaCreatures.kt). Encoding it without Defender would put a 0/3 Wall in the pool that can attack.
+ *   exercised by rules fixtures. It was absent because it prints **Defender**, a keyword `mtg-core` did
+ *   not have — encoding it without Defender would have put a 0/3 Wall in the pool that can attack.
+ *   `FW-COUNTERS` added `Keyword.DEFENDER` with its CR 702.3b effect and `W8-B` encoded the card, in
+ *   CostReduction.kt: the *other-object* shape reads a different object from everything in this file,
+ *   and the two declaration slots read as two files.
  */
 
 /**

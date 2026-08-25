@@ -8,6 +8,7 @@ import dev.mtgplay.core.card.Subtype
 import dev.mtgplay.core.definition.CardDefinition
 import dev.mtgplay.core.definition.ManaAbility
 import dev.mtgplay.core.definition.ManaAbilityCost
+import dev.mtgplay.core.definition.ManaAbilityRider
 import dev.mtgplay.core.definition.ManaAmount
 import dev.mtgplay.core.definition.PermanentFilter
 import dev.mtgplay.core.definition.ResolutionEffect
@@ -487,6 +488,70 @@ internal val fixtureWall =
             )
     }
 
+/**
+ * "Fixture Blood Elf" — Elves of Deep Shadow's shape: `{T}: Add {B}. This creature deals
+ * [FIXTURE_BLOOD_ELF_DAMAGE] damage to you.` The fixture for a CR 605.1a mana ability with a
+ * **non-mana rider** (`W8-B`).
+ *
+ * It is still a mana ability by CR 605.1a's own test — no target, could add mana, not a loyalty
+ * ability — so it is stackless and belongs to the payment planner exactly as [fixtureManaElf] does.
+ * The rider is what makes it a distinct fixture rather than a colour swap: it is the only mana source
+ * whose activation changes something *other* than the pool and the battlefield, so it is the only one
+ * that can prove the executor performs the rider and the planner does not price it as a cost.
+ */
+internal val fixtureBloodElf =
+    object : CardDefinition {
+        override val characteristics =
+            PrintedCharacteristics(
+                name = "Fixture Blood Elf",
+                manaCost = null,
+                supertypes = persistentSetOf(),
+                cardTypes = persistentSetOf(CardType.CREATURE),
+                subtypes = persistentSetOf(),
+                powerToughness = PrintedPowerToughness(power = 1, toughness = 1),
+            )
+        override val manaAbilities =
+            persistentListOf(
+                ManaAbility(
+                    persistentListOf(ManaType.BLACK),
+                    rider = ManaAbilityRider.DamageToController(FIXTURE_BLOOD_ELF_DAMAGE),
+                ),
+            )
+    }
+
+/** The damage [fixtureBloodElf]'s rider deals its controller (CR 120.3a). */
+internal const val FIXTURE_BLOOD_ELF_DAMAGE: Int = 1
+
+/**
+ * "Fixture Petal" — Lotus Petal's shape: `{T}, Sacrifice this artifact: Add one mana of any color`.
+ * The fixture for a composite cost that both **taps and consumes** its source (`W8-B`), which the
+ * gauntlet triage records as trap **T2**.
+ *
+ * No prior fixture pairs the two components, and the pairing is the whole point: a `{T}` cost demands
+ * an untapped source (CR 602.2a) while a sacrifice cost does not care whether the source is tapped, so
+ * the old either/or `viaSacrifice` flag made a *tapped* Petal a live mana source. Fixture Mana Spawn is
+ * its deliberate contrast — sacrifice alone, usable while tapped and while summoning sick.
+ */
+internal val fixturePetal =
+    object : CardDefinition {
+        override val characteristics =
+            PrintedCharacteristics(
+                name = "Fixture Petal",
+                manaCost = null,
+                supertypes = persistentSetOf(),
+                cardTypes = persistentSetOf(CardType.ARTIFACT),
+                subtypes = persistentSetOf(),
+                powerToughness = null,
+            )
+        override val manaAbilities =
+            persistentListOf(
+                ManaAbility(
+                    persistentListOf(ManaType.WHITE, ManaType.BLUE, ManaType.BLACK, ManaType.RED, ManaType.GREEN),
+                    cost = persistentListOf(ManaAbilityCost.TapSelf, ManaAbilityCost.SacrificeSelf),
+                ),
+            )
+    }
+
 /** Every fixture definition, keyed by ref — the registry fixture configs and states use. */
 
 internal val fixtureDefinitions: Map<CardRef, CardDefinition> =
@@ -499,6 +564,8 @@ internal val fixtureDefinitions: Map<CardRef, CardDefinition> =
         fixtureManaElf,
         fixtureHastyElf,
         fixtureManaSpawn,
+        fixtureBloodElf,
+        fixturePetal,
         fixturePylon,
         fixtureReactor,
         fixtureElder,

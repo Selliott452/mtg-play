@@ -1,6 +1,7 @@
 package dev.mtgplay.protocol
 
 import dev.mtgplay.core.definition.ManaAbilityCost
+import dev.mtgplay.core.definition.ManaAbilityRider
 import dev.mtgplay.core.mana.ManaCost
 import dev.mtgplay.rules.decision.ProductionAlternative
 import kotlinx.collections.immutable.persistentMapOf
@@ -23,13 +24,38 @@ import kotlinx.serialization.Serializable
  *   `["COLORLESS", "COLORLESS", "COLORLESS"]` for an Urza's Tower with Tron assembled. Never empty.
  * @property oncePerTurn whether taking this alternative spends the source's CR 602.5b
  *   "Activate only once each turn" allowance.
+ * @property rider the **non-mana** effect this activation also performs (CR 605.1a) — Elves of Deep
+ *   Shadow's "This creature deals 1 damage to you" — or `null` for the overwhelming majority of
+ *   alternatives, which perform none. Additive, wire-visible (`W8-B`).
+ *
+ *   **It has to cross the wire, for two independent reasons.** A remote agent choosing between plans
+ *   needs to know that one of them costs it life, or the option set it sees is not the option set the
+ *   engine offered (ADR-005). And the round trip must be lossless: the rider is part of the
+ *   payment-equivalence key, so a reconstructed alternative that dropped it would no longer be in its
+ *   own source class and the executor's CR 601.2g membership check would refuse the plan outright.
  */
 @Serializable
 data class ProductionAlternativeDto(
     val cost: List<ManaAbilityCostDto>,
     val produced: List<ManaTypeDto>,
     val oncePerTurn: Boolean,
+    val rider: ManaAbilityRiderDto? = null,
 )
+
+/**
+ * Wire form of a [dev.mtgplay.core.definition.ManaAbilityRider] (CR 605.1a). Sealed for
+ * [ManaAbilityCostDto]'s reason: a peer meeting an unknown discriminator fails loudly rather than
+ * silently dropping the half of an ability that costs its controller something.
+ */
+@Serializable
+sealed interface ManaAbilityRiderDto {
+    /** "This creature deals [amount] damage to you" (CR 120.1) — dealt by the source to the activator. */
+    @Serializable
+    @SerialName("damage_to_controller")
+    data class DamageToController(
+        val amount: Int,
+    ) : ManaAbilityRiderDto
+}
 
 /**
  * Wire form of one [ManaAbilityCost] component (CR 602.1, CR 605.1a). Sealed, so a peer that meets an
@@ -78,11 +104,28 @@ sealed interface ManaAbilityCostDto {
 
 /** [ProductionAlternative] to its wire form. */
 fun ProductionAlternative.toDto(): ProductionAlternativeDto =
-    ProductionAlternativeDto(cost.map { it.toDto() }, produced.map { it.toDto() }, oncePerTurn)
+    ProductionAlternativeDto(cost.map { it.toDto() }, produced.map { it.toDto() }, oncePerTurn, rider?.toDto())
 
 /** [ProductionAlternativeDto] back to the engine value. */
 fun ProductionAlternativeDto.toDomain(): ProductionAlternative =
-    ProductionAlternative(cost.map { it.toDomain() }, produced.map { it.toDomain() }, oncePerTurn)
+    ProductionAlternative(
+        cost.map { it.toDomain() },
+        produced.map { it.toDomain() },
+        oncePerTurn,
+        rider?.toDomain(),
+    )
+
+/** [ManaAbilityRider] to its wire form. */
+fun ManaAbilityRider.toDto(): ManaAbilityRiderDto =
+    when (this) {
+        is ManaAbilityRider.DamageToController -> ManaAbilityRiderDto.DamageToController(amount)
+    }
+
+/** [ManaAbilityRiderDto] back to the engine value. */
+fun ManaAbilityRiderDto.toDomain(): ManaAbilityRider =
+    when (this) {
+        is ManaAbilityRiderDto.DamageToController -> ManaAbilityRider.DamageToController(amount)
+    }
 
 /** [ManaAbilityCost] to its wire form. */
 fun ManaAbilityCost.toDto(): ManaAbilityCostDto =

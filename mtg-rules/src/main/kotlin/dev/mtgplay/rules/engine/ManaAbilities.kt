@@ -1,14 +1,18 @@
 package dev.mtgplay.rules.engine
 
 import dev.mtgplay.core.definition.ManaAbilityCost
+import dev.mtgplay.core.definition.ManaAbilityRider
 import dev.mtgplay.core.event.GameEvent
 import dev.mtgplay.core.identity.ObjectId
 import dev.mtgplay.core.identity.PlayerId
+import dev.mtgplay.core.state.DamageSource
 import dev.mtgplay.core.state.GameObject
 import dev.mtgplay.core.state.GameState
+import dev.mtgplay.core.state.Target
 import dev.mtgplay.rules.decision.ManaActivation
 import dev.mtgplay.rules.decision.ProductionAlternative
 import dev.mtgplay.rules.decision.SourceClassKey
+import dev.mtgplay.rules.effect.dealDamage
 import dev.mtgplay.rules.effect.putCounters
 
 /**
@@ -26,6 +30,10 @@ import dev.mtgplay.rules.effect.putCounters
  * Triggered mana abilities that trigger off this activation (Utopia Sprawl, CR 605.1b) resolve here,
  * immediately after the intrinsic ability adds its mana and before control returns to payment — extra
  * mana joins the pool without touching the plan shape.
+ *
+ * A CR 605.1a **rider** — the non-mana half of "{T}: Add {B}. This creature deals 1 damage to you" —
+ * runs last, in [applyManaAbilityRider]. It changes nothing about the plan either: it is not a cost,
+ * it cannot fail, and nothing gates activation on surviving it.
  *
  * **Planner/executor correspondence under a CR 605.2 count** (docs/design/mana-payment.md §8.3).
  * A mana ability's amount is read when it *resolves*, so an ability that adds "{C}{C}{C} if you
@@ -78,10 +86,50 @@ internal fun resolveManaActivation(
     // now — no stack, no priority — adding their mana to the same controller's pool. Whatever the
     // payment does not consume floats until the step ends (CR 500.4). The bonus is read from the state
     // *before* the cost was paid, because a sacrifice cost has since removed the source.
-    return triggeredManaBonus(announced, source.id).fold(withPrimary) { current, bonus ->
-        addManaToPool(current, player, bonus)
-    }
+    val withBonus =
+        triggeredManaBonus(announced, source.id).fold(withPrimary) { current, bonus ->
+            addManaToPool(current, player, bonus)
+        }
+    return applyManaAbilityRider(withBonus, player, source, alternative)
 }
+
+/**
+ * Performs the CR 605.1a **rider** of the mana ability just resolved — Elves of Deep Shadow's "This
+ * creature deals 1 damage to you" — or returns the state untouched for the overwhelming majority of
+ * activations, which have none.
+ *
+ * **After the mana, deliberately.** CR 605.1a's own wording is "add {B}. This creature deals 1 damage
+ * to you", and the order is observable at 1 life: the mana is in the pool before the damage is dealt,
+ * so a payment whose last activation kills its own controller has still produced everything the plan
+ * promised. The state-based action that ends the game runs later (CR 704.3), never inside a payment.
+ *
+ * **The damage's source is the ability's source object, as last-known information** (CR 113.7c). It is
+ * captured from the [source] the executor located *before* the cost was paid, which matters for the
+ * general shape rather than for this card: a `{T}` cost leaves the Elf on the battlefield, but a rider
+ * on a sacrifice-cost ability would be dealt by a permanent that no longer exists, and
+ * [dev.mtgplay.core.state.DamageSource] is built to answer for exactly that (docs/design/protection.md
+ * §3). Routing through [dealDamage] rather than subtracting life is what keeps CR 615 prevention and
+ * CR 702.16e protection applicable to it.
+ *
+ * Exhaustive over [ManaAbilityRider], so a rider shape the pool does not print breaks compilation here
+ * rather than being silently skipped mid-payment.
+ */
+private fun applyManaAbilityRider(
+    state: GameState,
+    player: PlayerId,
+    source: GameObject,
+    alternative: ProductionAlternative,
+): GameState =
+    when (val rider = alternative.rider) {
+        null -> state
+        is ManaAbilityRider.DamageToController ->
+            dealDamage(
+                state,
+                DamageSource(objectId = source.id, card = source.card),
+                Target.Player(player),
+                rider.amount,
+            )
+    }
 
 /**
  * Pays one mana ability's whole activation cost (CR 602.1 through CR 605.1a), component by component

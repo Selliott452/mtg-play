@@ -76,12 +76,23 @@ import kotlinx.collections.immutable.persistentListOf
  *   activations per **object** (CR 602.5b: the restriction follows the object, not its controller)
  *   and drops the ability from that object's production profile once it is spent, so a spent source
  *   is simply not a source until the turn ends.
+ * @property rider the **non-mana** effect this ability performs beside adding its mana (CR 605.1a),
+ *   or `null` for the overwhelming majority that perform none. Additive, flagged core (`W8-B`) —
+ *   Elves of Deep Shadow's "`{T}`: Add `{B}`. This creature deals 1 damage to you."
+ *
+ *   It is a field here rather than a reason to demote the card to an [ActivatedAbility] because
+ *   CR 605.1a's test is about what the ability *requires* and *could do*, not about what else it does:
+ *   an ability that does not target, could add mana, and is not a loyalty ability **is** a mana
+ *   ability however much else it says. Demoting it would put the ability on the stack (CR 605.3a says
+ *   it never goes there), take the Elf out of the payment planner, and delete the only line the card
+ *   is played for. See [ManaAbilityRider].
  */
 data class ManaAbility(
     val options: PersistentList<ManaType>,
     val cost: PersistentList<ManaAbilityCost> = persistentListOf(ManaAbilityCost.TapSelf),
     val amount: ManaAmount = ManaAmount.Fixed(1),
     val oncePerTurn: Boolean = false,
+    val rider: ManaAbilityRider? = null,
 ) {
     init {
         require(options.isNotEmpty()) { "CR 605.1a: a mana ability adds mana; options cannot be empty" }

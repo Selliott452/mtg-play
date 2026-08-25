@@ -5,17 +5,22 @@ import dev.mtgplay.core.card.PrintedPowerToughness
 import dev.mtgplay.core.card.Subtype
 import dev.mtgplay.core.definition.ManaAbility
 import dev.mtgplay.core.definition.ManaAbilityCost
+import dev.mtgplay.core.definition.ManaAbilityRider
 import dev.mtgplay.core.definition.ManaAmount
 import dev.mtgplay.core.definition.PermanentFilter
 import dev.mtgplay.core.definition.SpellDefinition
 import dev.mtgplay.core.definition.TargetSpec
 import dev.mtgplay.core.definition.TimingClass
+import dev.mtgplay.core.definition.TriggerCondition
 import dev.mtgplay.core.identity.CardRef
+import dev.mtgplay.core.mana.Color
 import dev.mtgplay.core.mana.ManaCost
+import dev.mtgplay.core.mana.ManaSymbol
 import dev.mtgplay.core.mana.ManaType
 import io.kotest.core.spec.style.StringSpec
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldBeIn
+import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import kotlinx.collections.immutable.persistentListOf
@@ -93,6 +98,88 @@ class ManaCreaturesSpec :
 
         "both mana Elves are in the registry under their printed names (CR 201)" {
             elves.forEach { (definition, name) ->
+                MvpCards.definitions[CardRef(name)] shouldBe definition
+            }
+        }
+
+        // ---- W8-B ------------------------------------------------------------------------------
+
+        "CR 201-208: Elves of Deep Shadow is a {G} 1/1 Elf Druid" {
+            val printed = elvesOfDeepShadow.characteristics
+            printed.name shouldBe "Elves of Deep Shadow"
+            printed.manaCost shouldBe ManaCost.parse("{G}")
+            printed.supertypes.shouldBeEmpty()
+            printed.cardTypes shouldBe persistentSetOf(CardType.CREATURE)
+            printed.subtypes shouldBe persistentSetOf(Subtype("Elf"), Subtype("Druid"))
+            printed.powerToughness shouldBe PrintedPowerToughness(power = 1, toughness = 1)
+            printed.keywords.shouldBeEmpty()
+        }
+
+        "CR 605.1a: Elves of Deep Shadow taps for {B} — a green Elf that makes black" {
+            val ability = elvesOfDeepShadow.manaAbilities.single()
+            // Not {G}. The colour is the reason the card is in Spy Combo at all, and a green
+            // one-drop Elf that taps for green is a different card the deck does not want.
+            ability.options shouldBe listOf(ManaType.BLACK)
+            ability.cost shouldBe persistentListOf(ManaAbilityCost.TapSelf)
+            ability.amount shouldBe ManaAmount.Fixed(1)
+        }
+
+        "CR 605.1a: the '1 damage to you' clause is a rider on the mana ability, not a second ability" {
+            // The whole encoding decision. It does not target, it could add mana, and it is not a
+            // loyalty ability, so CR 605.1a keeps it a mana ability — stackless, unrespondable, and
+            // in the payment planner. Demoting it to an activated ability would delete the card.
+            elvesOfDeepShadow.manaAbilities.single().rider shouldBe ManaAbilityRider.DamageToController(1)
+            elvesOfDeepShadow.activatedAbilities.shouldBeEmpty()
+            elvesOfDeepShadow.triggeredAbilities.shouldBeEmpty()
+        }
+
+        "CR 201-208: Burning-Tree Emissary is a {R/G}{R/G} 2/2 Human Shaman" {
+            val printed = burningTreeEmissary.characteristics
+            printed.name shouldBe "Burning-Tree Emissary"
+            printed.manaCost shouldBe ManaCost.parse("{R/G}{R/G}")
+            printed.supertypes.shouldBeEmpty()
+            printed.cardTypes shouldBe persistentSetOf(CardType.CREATURE)
+            printed.subtypes shouldBe persistentSetOf(Subtype("Human"), Subtype("Shaman"))
+            printed.powerToughness shouldBe PrintedPowerToughness(power = 2, toughness = 2)
+            printed.keywords.shouldBeEmpty()
+        }
+
+        "CR 107.4: the Emissary's cost is two hybrid symbols, and CR 202.2 makes it both red and green" {
+            val cost = burningTreeEmissary.characteristics.manaCost
+            cost.shouldNotBeNull()
+            cost.symbols shouldBe
+                listOf(
+                    ManaSymbol.Hybrid(Color.RED, Color.GREEN),
+                    ManaSymbol.Hybrid(Color.RED, Color.GREEN),
+                )
+            // Two hybrids, not "{R}{G}": each half is independently payable either way, which is what
+            // lets an Emissary's own {R}{G} cast the next one whichever colours are floating.
+            burningTreeEmissary.characteristics.colors shouldBe persistentSetOf(Color.RED, Color.GREEN)
+        }
+
+        "CR 106.1: the Emissary's entry trigger adds {R}{G} and is not a mana ability" {
+            val trigger = burningTreeEmissary.triggeredAbilities.single()
+            trigger.condition shouldBe TriggerCondition.EnteredBattlefieldSelf
+            trigger.addsMana shouldBe persistentListOf(ManaType.RED, ManaType.GREEN)
+            // CR 605.1b wants a trigger off a *mana ability*; entering the battlefield is not one. So
+            // this uses the stack and is respondable — which is why it is not declared here.
+            burningTreeEmissary.triggeredManaAbilities.shouldBeEmpty()
+            burningTreeEmissary.manaAbilities.shouldBeEmpty()
+        }
+
+        "CR 302.1: both W8-B creatures are sorcery-speed, untargeted creature spells" {
+            listOf(elvesOfDeepShadow, burningTreeEmissary).forEach { definition ->
+                definition.timing shouldBe TimingClass.SORCERY_SPEED
+                definition.targetSpec shouldBe TargetSpec.None
+                definition.staticContinuousEffects.shouldBeEmpty()
+            }
+        }
+
+        "both W8-B creatures are in the registry under their printed names (CR 201)" {
+            mapOf(
+                elvesOfDeepShadow to "Elves of Deep Shadow",
+                burningTreeEmissary to "Burning-Tree Emissary",
+            ).forEach { (definition, name) ->
                 MvpCards.definitions[CardRef(name)] shouldBe definition
             }
         }

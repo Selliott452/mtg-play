@@ -4,6 +4,8 @@ import dev.mtgplay.core.card.Subtype
 import dev.mtgplay.core.definition.AbilityZoneScope
 import dev.mtgplay.core.definition.CastSource
 import dev.mtgplay.core.definition.CastingPermission
+import dev.mtgplay.core.definition.ManaAbilityCost
+import dev.mtgplay.core.definition.ManaAbilityRider
 import dev.mtgplay.core.definition.OptionalCostMode
 import dev.mtgplay.core.definition.SacrificeRequirement
 import dev.mtgplay.core.identity.CardRef
@@ -128,6 +130,17 @@ private val richPriorityWindow: DecisionRequest.ChooseAction =
     )
 
 /**
+ * Elves of Deep Shadow's alternative (CR 605.1a): `{T}: Add {B}`, with the non-mana rider "This
+ * creature deals 1 damage to you" riding along — the `W8-B` wire addition.
+ */
+private val bloodElfAlternative: ProductionAlternative =
+    ProductionAlternative(
+        cost = listOf(ManaAbilityCost.TapSelf),
+        produced = listOf(ManaType.BLACK),
+        rider = ManaAbilityRider.DamageToController(1),
+    )
+
+/**
  * A payment window exercising every [ManaActivation]/[SymbolPayment] shape, plus the `FW-COST`
  * determined-cost field (CR 601.2f). The cost is deliberately **not** Lightning Bolt's printed `{R}`:
  * a round trip that carried the printed cost would still pass if `toDto` derived the field from the
@@ -164,6 +177,15 @@ private val richPaymentWindow: DecisionRequest.ChoosePaymentPlan =
                             listOf(ProductionAlternative.sacrificing(ManaType.COLORLESS)),
                         ),
                         ProductionAlternative.sacrificing(ManaType.COLORLESS),
+                    ),
+                    // CR 605.1a (`W8-B`): an alternative carrying a **non-mana rider**. It must survive
+                    // the round trip intact, and not only so an agent can see that the plan costs it
+                    // life: the rider is part of the payment-equivalence key, so an alternative
+                    // reconstructed without it would not be in its own source class and the executor's
+                    // CR 601.2g membership check would refuse the plan.
+                    ManaActivation(
+                        SourceClassKey(CardRef("Elves of Deep Shadow"), listOf(bloodElfAlternative)),
+                        bloodElfAlternative,
                     ),
                 ),
                 listOf(

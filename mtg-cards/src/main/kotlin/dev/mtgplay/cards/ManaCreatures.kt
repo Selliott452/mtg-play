@@ -6,12 +6,15 @@ import dev.mtgplay.core.card.PrintedCharacteristics
 import dev.mtgplay.core.card.PrintedPowerToughness
 import dev.mtgplay.core.card.Subtype
 import dev.mtgplay.core.definition.ManaAbility
+import dev.mtgplay.core.definition.ManaAbilityRider
 import dev.mtgplay.core.definition.ManaAmount
 import dev.mtgplay.core.definition.PermanentFilter
 import dev.mtgplay.core.definition.ResolutionEffect
 import dev.mtgplay.core.definition.SpellDefinition
 import dev.mtgplay.core.definition.TargetSpec
 import dev.mtgplay.core.definition.TimingClass
+import dev.mtgplay.core.definition.TriggerCondition
+import dev.mtgplay.core.definition.TriggeredAbility
 import dev.mtgplay.core.mana.ManaCost
 import dev.mtgplay.core.mana.ManaType
 import kotlinx.collections.immutable.PersistentSet
@@ -47,6 +50,34 @@ import kotlinx.collections.immutable.persistentSetOf
  * beside the two other cards whose mana abilities cost something — filed by the *problem* they pose
  * (payment capacity, docs/design/mana-payment.md §11) rather than by the creature type they share
  * with these two.
+ *
+ * `W8-B` adds the two creature mana sources that are not "{T}: Add one mana" at all, and each brings
+ * a piece of core vocabulary the file's earlier residents did not need:
+ *
+ * - [elvesOfDeepShadow] — "{T}: Add {B}. **This creature deals 1 damage to you.**" A mana ability
+ *   with a non-mana **rider** ([dev.mtgplay.core.definition.ManaAbilityRider]). CR 605.1a still makes
+ *   it a mana ability — it does not target, it could add mana, it is not a loyalty ability — so it
+ *   stays stackless and stays in the payment planner. Demoting it to an ordinary activated ability to
+ *   get the rider would have deleted the card.
+ * - [burningTreeEmissary] — "When this creature enters, add {R}{G}." Not a mana ability at all
+ *   (CR 605.1b wants a trigger off a *mana ability*, not off entering the battlefield), so it uses the
+ *   stack and the mana arrives in the priority window its resolution hands back. Declared as
+ *   [dev.mtgplay.core.definition.TriggeredAbility.addsMana] rather than written into a lambda, so the
+ *   acceptance module's floating-mana invariant can see which decks may legitimately hold mana at a
+ *   pause. Its `{R/G}{R/G}` is the pool's second hybrid cost after Slippery Bogle's, and the first on a
+ *   card whose two halves are the *same* pair of colours twice.
+ *
+ * **Tinder Wall stays out**, and only its second ability is the reason; the first —
+ * `ManaAbility(options = [RED], cost = [SacrificeSelf], amount = Fixed(2))` — is expressible today.
+ * "{R}, Sacrifice this creature: It deals 2 damage to target creature **it's blocking**" needs a
+ * targeting restriction stated relative to the ability's *source object*, and the engine's
+ * `Chooser.Ability` deliberately carries only the source's [dev.mtgplay.core.identity.CardRef] and no
+ * id — the card's own KDoc names Tinder Wall as the reason, because a sacrifice cost has already made
+ * the source a new object in a graveyard (CR 400.7) before the ability is even on the stack. So the
+ * blocking relationship must be captured as last-known information at activation (CR 608.2h, CR
+ * 113.7c) and re-checked from that capture at CR 608.2b. That is a combat-relative targeting framework
+ * plus an ability-LKI capture, neither of which this packet owns; encoding only the ritual half would
+ * hand an agent a card that cannot do the thing it is held up for.
  */
 
 /**
@@ -58,6 +89,12 @@ private val entersTheBattlefield: ResolutionEffect = ResolutionEffect { state, _
 
 /** Overgrown Battlement's printed toughness (CR 208.2) — a 0/4 Wall. */
 private const val OVERGROWN_BATTLEMENT_TOUGHNESS: Int = 4
+
+/** The damage Elves of Deep Shadow's mana ability deals to its controller (CR 120.3a). */
+private const val ELVES_OF_DEEP_SHADOW_DAMAGE: Int = 1
+
+/** Burning-Tree Emissary's printed power and toughness (CR 208.2) — a 2/2. */
+private const val BURNING_TREE_EMISSARY_SIZE: Int = 2
 
 /** The creature types both mana Elves print (CR 205.3m). */
 private val ELF_DRUID: PersistentSet<Subtype> = persistentSetOf(Subtype("Elf"), Subtype("Druid"))
@@ -202,6 +239,114 @@ val overgrownBattlement: SpellDefinition =
                                 keyword = Keyword.DEFENDER,
                             ),
                         ),
+                ),
+            )
+    }
+
+/**
+ * Elves of Deep Shadow — `{G}` Creature — Elf Druid, a 1/1 with "`{T}`: Add `{B}`. This creature deals
+ * 1 damage to you."
+ *
+ * The pool's first mana ability with a **rider** (CR 605.1a). Four things about the printed line are
+ * load-bearing, and three of them are ways to get the card silently wrong:
+ *
+ * - **It is still a mana ability**, so it never uses the stack (CR 605.3a), it resolves inside
+ *   CR 601.2g in the middle of paying another cost, and an opponent gets no window to respond to it.
+ *   CR 605.1a's test is that the ability does not require a target, could add mana as it resolves, and
+ *   is not a loyalty ability — all three hold, and none of them is about how much *else* the ability
+ *   says. Encoding it as an [dev.mtgplay.core.definition.ActivatedAbility] to get the damage would put
+ *   a mana ability on the stack and remove the Elf from the payment planner entirely.
+ * - **It taps for `{B}`, not `{G}`.** A green Elf that produces black is the whole point of the card
+ *   in Spy Combo, whose black comes from almost nowhere else.
+ * - **The damage is dealt by the creature to *you*** — its controller, who is also the activator.
+ *   Damage, not life loss: it has a source (CR 120.1), so CR 615 prevention and CR 702.16e protection
+ *   both apply to it, which they would not to a bare life subtraction.
+ * - **Nothing gates the activation on surviving it.** A player at 1 life may tap the Elf, go to 0, and
+ *   lose to CR 704.5a at the next state-based-action check (CR 704.3). Refusing to enumerate that plan
+ *   would remove a legal line of play, which ADR-005 makes a defect rather than a mercy — sometimes
+ *   the mana wins the game first.
+ *
+ * Being an activated ability with `{T}` in its cost on a creature, it adds nothing while the Elf is
+ * summoning sick (CR 302.6, the `P-MANASICK` gate).
+ */
+val elvesOfDeepShadow: SpellDefinition =
+    object : SpellDefinition {
+        override val characteristics =
+            PrintedCharacteristics(
+                name = "Elves of Deep Shadow",
+                manaCost = ManaCost.parse("{G}"),
+                supertypes = persistentSetOf(),
+                cardTypes = persistentSetOf(CardType.CREATURE),
+                subtypes = ELF_DRUID,
+                powerToughness = PrintedPowerToughness(power = 1, toughness = 1),
+            )
+
+        override val timing = TimingClass.SORCERY_SPEED
+        override val targetSpec = TargetSpec.None
+        override val resolution = entersTheBattlefield
+        override val manaAbilities =
+            persistentListOf(
+                ManaAbility(
+                    options = persistentListOf(ManaType.BLACK),
+                    rider = ManaAbilityRider.DamageToController(ELVES_OF_DEEP_SHADOW_DAMAGE),
+                ),
+            )
+    }
+
+/**
+ * Burning-Tree Emissary — `{R/G}{R/G}` Creature — Human Shaman, a 2/2 with "When this creature enters,
+ * add `{R}{G}`."
+ *
+ * Mono Red Rally's free 2/2, and the pool's first triggered ability that **adds mana without being a
+ * mana ability**. Three readings of the printed line decide whether the card works at all:
+ *
+ * - **It is not a CR 605.1b triggered mana ability.** That rule wants an ability that triggers off the
+ *   activation or resolution of a *mana ability*; this triggers off a permanent entering the
+ *   battlefield (CR 603.2). So it is an ordinary triggered ability: it goes on the stack, it can be
+ *   responded to, and — because CR 603.3 makes it independent of its source — killing the Emissary in
+ *   response does not stop the `{R}{G}` arriving. Encoding it as a
+ *   [dev.mtgplay.core.definition.TriggeredManaAbility] would make it stackless and unrespondable,
+ *   which is a different card.
+ * - **The mana must survive into the priority window the resolution hands back**, or the card does
+ *   nothing at all. It does: mana empties at the *end of each step and phase* (CR 500.4), not when
+ *   priority changes hands, so the `{R}{G}` sits in the pool for the rest of the main phase and casts
+ *   the next Emissary. That is the whole reason the card is played.
+ * - **`{R/G}{R/G}` is two hybrid symbols, not one and not `{R}{G}`** (CR 107.4). Each is independently
+ *   payable with red *or* green, so an Emissary's own `{R}{G}` casts the next one either way round, and
+ *   the card is both red and green (CR 202.2) — which matters for a colour-gated cost reduction like
+ *   [sunscapeFamiliar]'s and for the Blasts.
+ *
+ * Its mana is declared ([dev.mtgplay.core.definition.TriggeredAbility.addsMana]) rather than added by
+ * its [dev.mtgplay.core.definition.ResolutionEffect], so the engine — and the acceptance module's
+ * floating-mana invariant — can see from the definition alone that this deck may hold mana at a pause.
+ */
+val burningTreeEmissary: SpellDefinition =
+    object : SpellDefinition {
+        override val characteristics =
+            PrintedCharacteristics(
+                name = "Burning-Tree Emissary",
+                manaCost = ManaCost.parse("{R/G}{R/G}"),
+                supertypes = persistentSetOf(),
+                cardTypes = persistentSetOf(CardType.CREATURE),
+                subtypes = persistentSetOf(Subtype("Human"), Subtype("Shaman")),
+                powerToughness =
+                    PrintedPowerToughness(
+                        power = BURNING_TREE_EMISSARY_SIZE,
+                        toughness = BURNING_TREE_EMISSARY_SIZE,
+                    ),
+            )
+
+        override val timing = TimingClass.SORCERY_SPEED
+        override val targetSpec = TargetSpec.None
+        override val resolution = entersTheBattlefield
+        override val triggeredAbilities =
+            persistentListOf(
+                TriggeredAbility(
+                    condition = TriggerCondition.EnteredBattlefieldSelf,
+                    // CR 608.2c: the whole instruction is the mana, and the engine performs it from the
+                    // declaration beside it. There is nothing left for an effect to do.
+                    effect = entersTheBattlefield,
+                    addsMana = persistentListOf(ManaType.RED, ManaType.GREEN),
                 ),
             )
     }

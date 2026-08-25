@@ -120,4 +120,33 @@ class CostedManaSourcesSpec :
             // CR 602.5a's default: no printed timing restriction, so it is instant speed.
             ability.timing shouldBe TimingClass.INSTANT_SPEED
         }
+
+        // ---- Lotus Petal (W8-B) ----------------------------------------------------------------
+
+        "Oracle: Lotus Petal is a {0} artifact with no subtypes and no power/toughness" {
+            val printed = lotusPetal.characteristics
+            printed.name shouldBe "Lotus Petal"
+            // CR 202.1: {0} is a real printed cost, not the absence of one — it enumerates exactly one
+            // payment plan, the empty one, and still surfaces the decision.
+            printed.manaCost?.render() shouldBe "{0}"
+            printed.cardTypes shouldContainExactly setOf(CardType.ARTIFACT)
+            printed.powerToughness.shouldBeNull()
+            MvpCards.definitions[CardRef("Lotus Petal")] shouldBe lotusPetal
+        }
+
+        "trap T2: Lotus Petal's mana ability costs {T} AND a sacrifice, not one or the other" {
+            // The trap the old `viaSacrifice` flag walked into. A sacrifice source was deliberately
+            // usable while tapped, so encoding this card with the flag gave a *tapped* Lotus Petal a
+            // live mana ability. A composite cost has no such either/or: the {T} demands an untapped
+            // source (CR 602.2a) and the sacrifice then removes it (CR 701.17).
+            val ability = lotusPetal.manaAbilities.single()
+            ability.cost shouldContainExactly
+                listOf(ManaAbilityCost.TapSelf, ManaAbilityCost.SacrificeSelf)
+            ability.options shouldContainExactly
+                listOf(ManaType.WHITE, ManaType.BLUE, ManaType.BLACK, ManaType.RED, ManaType.GREEN)
+            ability.oncePerTurn shouldBe false
+            // Nothing else is printed on it — no activated ability, no trigger.
+            lotusPetal.activatedAbilities shouldContainExactly emptyList()
+            lotusPetal.triggeredAbilities shouldContainExactly emptyList()
+        }
     })

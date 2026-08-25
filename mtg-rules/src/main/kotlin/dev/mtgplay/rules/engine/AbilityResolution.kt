@@ -23,6 +23,13 @@ import dev.mtgplay.rules.AdvanceResult
  * was put on the stack with **no** targets — its controller had no legal choice (CR 603.3d) — is
  * vacuously all-illegal, and correctly does nothing.
  *
+ * **Mana added by a triggered ability (CR 106.1).** An ability declaring
+ * [dev.mtgplay.core.definition.TriggeredAbility.addsMana] puts that mana in its controller's pool as it
+ * resolves. It is *not* a CR 605.1b mana ability — it triggers off a permanent entering, not off a mana
+ * ability — so it went on the stack, was respondable, and its mana arrives only now. The priority round
+ * granted below is the window Burning-Tree Emissary is played for: the mana is in the pool and stays
+ * there until the step ends (CR 500.4).
+ *
  * Afterwards the active player receives priority (CR 117.3b) in a fresh round, exactly as after a spell
  * resolves.
  */
@@ -56,7 +63,16 @@ internal fun resolveAbility(
             // source is by definition already gone by the time it resolves.
             linkedExiled = trigger.linkedExiled,
         )
-    val resolved = trigger.ability.effect.resolve(state, context)
+    val effected = trigger.ability.effect.resolve(state, context)
+    // CR 106.1, CR 106.4: a triggered ability that *adds mana* but is not a CR 605.1b mana ability —
+    // Burning-Tree Emissary's "When this creature enters, add {R}{G}" — puts its mana in the
+    // controller's pool as it resolves, here on the stack rather than inside a payment. Whatever the
+    // controller does not spend before the step ends empties (CR 500.4); until then it is spendable in
+    // the very priority window this resolution hands back, which is the whole reason the card is played.
+    val resolved =
+        trigger.ability.addsMana.fold(effected) { current, mana ->
+            addManaToPool(current, trigger.controller, mana)
+        }
     // Relaxed by `FW-COUNTER` from "the stack is unchanged", which is false for any ability that
     // counters a spell (Spellstutter Sprite's, CR 701.5a). What must still hold is that the resolving
     // *ability* is still the topmost object: its CR 113.7a cessation is the engine's move alone.

@@ -261,6 +261,37 @@ import dev.mtgplay.core.identity.CardRef
  * fired no CR 603.6c leaves-the-battlefield trigger, so bouncing a [journeyToNowhere] left the creature
  * it held exiled forever. Sewer-veillance Cam and Stonehorn Dignitary stay absent — modal resolution for
  * a *triggered ability* and CR 500.6 phase-skipping are frameworks this packet does not own.
+ *
+ * `W8-B` adds four cards about **making mana and spending less of it**, three of which were previously
+ * blocked and one of which needed nothing at all. [elvesOfDeepShadow] (ManaCreatures.kt) is the pool's
+ * first mana ability with a non-mana **rider** ("This creature deals 1 damage to you"), which stays a
+ * mana ability under CR 605.1a and therefore stays stackless and stays in the payment planner;
+ * [burningTreeEmissary] (ManaCreatures.kt) is the first triggered ability that **adds mana without
+ * being one** (CR 605.1b wants a trigger off a mana ability, and entering the battlefield is not one),
+ * so its `{R}{G}` arrives on the stack and floats into the priority window that pays for the next
+ * Emissary; [lotusPetal] (CostedManaSources.kt) is trap **T2** finally encodable, its `{T}` *and*
+ * sacrifice cost being exactly what `FW-MANACOST`'s composite [dev.mtgplay.core.definition.ManaAbilityCost]
+ * list exists to say; and [sunscapeFamiliar] (CostReduction.kt) is the card `FW-COST`'s C6 half was
+ * built for and could not ship, needing only `Keyword.DEFENDER` — which `FW-COUNTERS` supplied. The
+ * packet adds [dev.mtgplay.core.definition.ManaAbilityRider] and
+ * [dev.mtgplay.core.definition.TriggeredAbility.addsMana] in core, carries the rider through the
+ * payment-equivalence key so two sources charging different life never collapse (ADR-005), and widens
+ * the acceptance module's floating-mana invariant with its second declared exception.
+ *
+ * Three of its cards stay absent, each on a framework it does not own and each with its cost or mana
+ * half already expressible. **Tinder Wall**'s ritual is `ManaAbility(cost = [SacrificeSelf], amount =
+ * Fixed(2))` today; its "{R}, Sacrifice this creature: It deals 2 damage to target creature **it's
+ * blocking**" needs a targeting restriction stated relative to the ability's *source object*, captured
+ * as last-known information at activation because the sacrifice cost has already made that source a new
+ * object in a graveyard (CR 400.7, CR 113.7c) — the engine's `Chooser.Ability` carries a
+ * [dev.mtgplay.core.identity.CardRef] and deliberately no id. **Tolarian Terror** prints
+ * [crypticSerpent]'s graveyard clause exactly and adds **ward {2}** (CR 702.21a), a triggered
+ * pay-or-be-countered ability needing a becomes-the-target trigger condition, a parameterised keyword,
+ * and the ability to counter an *ability* on the stack (`FW-WARD`). **Deem Inferior**'s "{1} less for
+ * each card you've drawn this turn" is expressible — [dev.mtgplay.core.state.PlayerState.drawsThisTurn]
+ * has existed since Sneaky Snacker — but its effect puts a permanent "into their library second from the
+ * top or on the bottom" **at its owner's choice**, which is a library-position insertion nothing
+ * performs plus a non-controller mid-resolution decision.
  */
 object MvpCards {
     /** Every defined card, keyed by its printed-name [CardRef] (CR 201). */
@@ -283,6 +314,7 @@ object MvpCards {
             blueElementalBlast,
             barrelsOfBlastingJelly,
             brainstorm,
+            burningTreeEmissary,
             breathWeapon,
             brinebarrowIntruder,
             cartoucheOfSolidarity,
@@ -295,6 +327,7 @@ object MvpCards {
             dispel,
             drossforgeBridge,
             duress,
+            elvesOfDeepShadow,
             elvishMystic,
             endTheFestivities,
             envelop,
@@ -352,6 +385,7 @@ object MvpCards {
             lightningBolt,
             lorienRevealed,
             lotlethGiant,
+            lotusPetal,
             makeshiftMunitions,
             maskOfLawAndGrace,
             malevolentRumble,
@@ -406,6 +440,7 @@ object MvpCards {
             steelSabotage,
             spiritLink,
             standingTroops,
+            sunscapeFamiliar,
             swamp,
             tamiyosSafekeeping,
             terminate,
