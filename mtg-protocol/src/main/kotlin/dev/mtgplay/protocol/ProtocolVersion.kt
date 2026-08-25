@@ -143,5 +143,27 @@ package dev.mtgplay.protocol
  * already carries gain a required field each — [PendingCastDto] gains `additionalSacrifice` and
  * [PendingActivationDto] gains `chosenSacrifice` — which a `5.0.0` peer's strict codec rejects outright,
  * the `4.0.0` break shape.
+ *
+ * *`FW-COUNTERS`* — *`FW-COUNTERS`*. Permanents can now carry counters (CR 122), and **counters on a
+ * permanent are public information** (ADR-007): a `+1/+1` counter is visible across the table to
+ * everyone, exactly like the tapped status and marked damage. So they ride in the seat view
+ * unredacted, and they ride there as a **required** field:
+ *
+ * 1. [GameObjectDto] gains a required `counters: List<CounterDto>`. Every game object on the wire is
+ *    a [GameObjectDto] — the battlefield, exile, and the viewer's own hand all carry them — so a
+ *    `5.0.0` peer's strict codec (`ignoreUnknownKeys = false`) rejects **every seat view**, not just
+ *    the ones with a counter on the board. That is the same break shape `5.0.0` recorded for
+ *    `SeatViewDto.pendingCounterPayment`, and it is why the field is not made optional to dodge the
+ *    bump: an omitted-by-default field would let an old client render a board it is silently
+ *    misreading, and a permanent's counters change what its power and toughness *are*.
+ * 2. [CounterDto] is a new sealed hierarchy with the `power_toughness` and `keyword` discriminators.
+ *
+ * No `DecisionRequest` kind is added: nothing about a counter is a decision. Nothing in the
+ * client→server direction changes shape either — this is a one-directional break, the smaller of the
+ * two modes, but a break in every message that carries a game object.
+ *
+ * The version is a single major step even though several frameworks are landing in this wave for the
+ * same reason `5.0.0` covered two: `5.0.0` is the last version any consumer can have seen, so one
+ * bump carries every break in the wave.
  */
 const val PROTOCOL_VERSION: String = "6.0.0"

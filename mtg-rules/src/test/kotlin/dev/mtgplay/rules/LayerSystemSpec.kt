@@ -30,6 +30,7 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.persistentMapOf
 import kotlinx.collections.immutable.persistentSetOf
 import kotlinx.collections.immutable.toPersistentList
 
@@ -223,7 +224,10 @@ class LayerSystemSpec :
                     toughnessMod = effect.toughnessMod,
                     timestamp = 1,
                 )
-            val error = shouldThrow<IllegalArgumentException> { applyLayer(state, base, Layer.TYPE, listOf(active)) }
+            val error =
+                shouldThrow<IllegalArgumentException> {
+                    applyLayer(state, base, Layer.TYPE, listOf(active), persistentMapOf())
+                }
             error.message.shouldBeInstanceOf<String>() shouldContain "613"
         }
     })

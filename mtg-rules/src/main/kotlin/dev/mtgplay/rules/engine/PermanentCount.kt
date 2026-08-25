@@ -48,9 +48,10 @@ fun countMatchingPermanents(
     you: PlayerId,
 ): Int =
     state.sharedZones.battlefield.count { candidate ->
-        (!filter.controlledByYou || candidate.owner == you) &&
-            state.definitions[candidate.card]
-                ?.characteristics
-                ?.subtypes
-                ?.contains(filter.subtype) == true
+        val characteristics = state.definitions[candidate.card]?.characteristics
+        characteristics != null &&
+            (!filter.controlledByYou || candidate.owner == you) &&
+            (filter.subtype == null || filter.subtype in characteristics.subtypes) &&
+            (filter.cardType == null || filter.cardType in characteristics.cardTypes) &&
+            (filter.keyword == null || filter.keyword in effectiveKeywords(state, candidate.id))
     }

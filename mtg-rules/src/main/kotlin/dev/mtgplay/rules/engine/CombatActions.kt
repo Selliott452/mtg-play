@@ -31,13 +31,25 @@ import dev.mtgplay.rules.decision.DecisionRequestId
 /**
  * The active player's creatures eligible to be declared as attackers (CR 508.1a), in battlefield
  * order: a creature they control (owner in P3.1, until control-changing effects arrive), untapped,
- * and not summoning sick (CR 302.6). No creature type in the MVP pool has haste, so summoning
- * sickness is an absolute bar.
+ * not barred from attacking by defender (CR 702.3b), and either not summoning sick (CR 302.6) or
+ * possessed of haste (CR 702.10b).
+ *
+ * Both keyword clauses are read through the effective-keyword seam ([hasHaste], [hasDefender]), so a
+ * granted haste or a haste counter (CR 122.1b) lifts the bar and a granted defender imposes one,
+ * without this function knowing where the keyword came from. Under ADR-005 this list *is* the
+ * enumerated attack action space, so each clause is the difference between an option existing and
+ * not existing — never a rule applied after the fact.
  */
 internal fun eligibleAttackers(state: GameState): List<GameObject> {
     val active = state.turn.activePlayer
     return state.sharedZones.battlefield.filter { obj ->
-        obj.owner == active && isCreature(state, obj) && !obj.tapped && !obj.summoningSick
+        obj.owner == active &&
+            isCreature(state, obj) &&
+            !obj.tapped &&
+            // CR 702.3b: a creature with defender can't attack, sick or not, tapped or not.
+            !hasDefender(state, obj.id) &&
+            // CR 302.6, lifted by CR 702.10b.
+            (!obj.summoningSick || hasHaste(state, obj.id))
     }
 }
 
@@ -76,30 +88,39 @@ internal fun eligibleBlockPairings(
 
 /**
  * Whether [blocker] may legally block [attacker] given the attacker's evasion (CR 509.1b). Two
- * evasions in the pool require a flying blocker: flying itself (a flying attacker is blockable only
- * by a flyer, no reach exists) and Silhana Ledgewalker's "can't be blocked except by creatures with
- * flying" ([Evasion.BLOCKABLE_ONLY_BY_FLYING]). They impose the identical requirement, so they
- * compose here — either one demands the blocker have flying; otherwise any creature may block.
+ * evasions in the pool restrict who may block, and — since `FW-COUNTERS` added [Keyword.REACH] —
+ * they are **not** the same restriction and no longer compose:
+ *
+ * - **Flying** (CR 702.9b): "a creature with flying can't be blocked except by creatures with flying
+ *   and/or reach". A reaching blocker satisfies it.
+ * - **Silhana Ledgewalker's** "can't be blocked except by creatures with flying"
+ *   ([Evasion.BLOCKABLE_ONLY_BY_FLYING]): the printed line says flying and only flying. Reach does
+ *   not satisfy it.
+ *
+ * Until reach existed the two demanded the same thing and shared one predicate; keeping that sharing
+ * would have quietly let a reaching Wall block a Ledgewalker. Both restrictions apply
+ * independently — an attacker that had both would need a blocker with flying — so each is its own
+ * conjunct here rather than a branch of one "requires a flying blocker" test.
  */
 private fun canBlock(
     state: GameState,
     blocker: ObjectId,
     attacker: ObjectId,
-): Boolean =
-    if (requiresFlyingBlocker(state, attacker)) {
-        Keyword.FLYING in effectiveKeywords(state, blocker)
-    } else {
-        true
-    }
+): Boolean {
+    val blockerHasFlying = Keyword.FLYING in effectiveKeywords(state, blocker)
+    // CR 702.9b: flying is beaten by flying or reach.
+    val beatsFlying = blockerHasFlying || hasReach(state, blocker)
+    val flyingSatisfied = Keyword.FLYING !in effectiveKeywords(state, attacker) || beatsFlying
+    // Silhana Ledgewalker: flying literally, reach does not help.
+    val evasionSatisfied = !printsFlyingOnlyEvasion(state, attacker) || blockerHasFlying
+    return flyingSatisfied && evasionSatisfied
+}
 
-// Whether [attacker]'s evasion demands a flying blocker (CR 509.1b): it has flying, or it prints the
-// "blockable only by flying" evasion. The evasion is a printed characteristic no MVP effect grants
-// or removes, so it is read straight from the definition (like the printed type read).
-private fun requiresFlyingBlocker(
+// Whether [attacker] prints the "can't be blocked except by creatures with flying" evasion.
+private fun printsFlyingOnlyEvasion(
     state: GameState,
     attacker: ObjectId,
 ): Boolean {
-    if (Keyword.FLYING in effectiveKeywords(state, attacker)) return true
     val evasions =
         state.definitions[state.battlefieldObject(attacker).card]
             ?.characteristics

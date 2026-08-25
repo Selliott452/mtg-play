@@ -22,6 +22,9 @@ import kotlinx.serialization.Serializable
  * @property awaitingMadness the exile madness marker (CR 702.35a), or `false`.
  * @property plottedTurn the turn this card was plotted (CR 702.140), or `null`.
  * @property chosenColor the colour chosen as this permanent entered (CR 614.12), or `null`.
+ * @property counters the counters on this permanent (CR 122.1), as one entry per kind; empty for a
+ *   permanent with none and for every object off the battlefield. Public information (ADR-007),
+ *   unredacted. Added by `FW-COUNTERS`.
  */
 @Serializable
 data class GameObjectDto(
@@ -35,6 +38,7 @@ data class GameObjectDto(
     val awaitingMadness: Boolean,
     val plottedTurn: Int?,
     val chosenColor: ColorDto?,
+    val counters: List<CounterDto>,
 )
 
 /** [GameObject] to its wire form. */
@@ -50,6 +54,7 @@ fun GameObject.toDto(): GameObjectDto =
         awaitingMadness = awaitingMadness,
         plottedTurn = plottedTurn,
         chosenColor = chosenColor?.toDto(),
+        counters = counters.toDto(),
     )
 
 /** [GameObjectDto] back to the engine value. */
@@ -65,4 +70,5 @@ fun GameObjectDto.toDomain(): GameObject =
         awaitingMadness = awaitingMadness,
         plottedTurn = plottedTurn,
         chosenColor = chosenColor?.toDomain(),
+        counters = counters.toDomain(),
     )

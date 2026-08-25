@@ -1,6 +1,7 @@
 package dev.mtgplay.acceptance.replay
 
 import dev.mtgplay.acceptance.invariant.ZoneResidence
+import dev.mtgplay.core.state.Counter
 import dev.mtgplay.core.state.GameState
 import dev.mtgplay.core.state.StackEntry
 import dev.mtgplay.core.zone.ZoneId
@@ -201,7 +202,7 @@ private fun StringBuilder.appendSeats(state: GameState) {
 }
 
 // Digests one object's residence line: its zone, id, and printed card, plus its battlefield-only
-// statuses (tapped, marked damage, summoning sickness, and the Aura-attachment cause, §5).
+// statuses (tapped, marked damage, summoning sickness, the Aura-attachment cause, and counters, §5).
 private fun StringBuilder.appendResidence(residence: ZoneResidence) {
     append("|@").append(residence.zone)
     append('=').append(residence.obj.id.value)
@@ -219,6 +220,19 @@ private fun StringBuilder.appendResidence(residence: ZoneResidence) {
         // The as-enters chosen colour (CR 614.12) is rules-relevant — it fixes a triggered mana ability's
         // output (Utopia Sprawl).
         residence.obj.chosenColor?.let { append(":colour=").append(it.name) }
+        // Counters (CR 122.1) are battlefield-only state that changes what the permanent *is* — its
+        // power and toughness (CR 613.4c) and its keywords (CR 122.1b) — so two positions differing
+        // only in counters must hash apart. Digested as the *cause* (the multiset), not the computed
+        // P/T it implies, for the same reason the Aura attachment is
+        // (docs/design/layer-system.md §5). Iterated in the map's own deterministic order.
+        for ((kind, count) in residence.obj.counters) {
+            val tag =
+                when (kind) {
+                    is Counter.PowerToughness -> "%+d/%+d".format(kind.power, kind.toughness)
+                    is Counter.KeywordCounter -> kind.keyword.name
+                }
+            append(":ctr=").append(tag).append('x').append(count)
+        }
     }
     // The madness marker (CR 702.35a) is an exile-only status — a card waiting on its reflexive cast.
     if (residence.zone == ZoneId.Exile && residence.obj.awaitingMadness) append(":madness")

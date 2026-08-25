@@ -21,6 +21,7 @@ import dev.mtgplay.core.identity.ObjectId
 import dev.mtgplay.core.identity.PlayerId
 import dev.mtgplay.core.mana.ManaCost
 import dev.mtgplay.core.random.Rng
+import dev.mtgplay.core.state.Counter
 import dev.mtgplay.core.state.GameObject
 import dev.mtgplay.core.state.GameState
 import dev.mtgplay.core.state.PlayerState
@@ -123,12 +124,25 @@ internal val combatDefinitions: Map<CardRef, CardDefinition> =
         // (CR 702.15f — no damage dealt).
         creature("Meek", 0, 1, setOf(Keyword.LIFELINK)),
         creature("Skulker", 1, 1, evasions = setOf(Evasion.BLOCKABLE_ONLY_BY_FLYING)),
+        // `FW-COUNTERS` keyword bodies. Hasty attacks the turn it arrives (CR 702.10b); Bulwark is a
+        // plain defender Wall (CR 702.3b); Sentry has defender *and* haste, the pair that proves the
+        // two clauses are independent — haste lifts summoning sickness and defender still bars the
+        // attack. Reacher blocks flyers (CR 702.17b) without flying itself.
+        creature("Hasty", 2, 2, setOf(Keyword.HASTE)),
+        creature("Bulwark", 0, 5, setOf(Keyword.DEFENDER)),
+        creature("Sentry", 1, 4, setOf(Keyword.DEFENDER, Keyword.HASTE)),
+        creature("Reacher", 2, 3, setOf(Keyword.REACH)),
         creature("Warden", 2, 2, setOf(Keyword.HEXPROOF)),
         // P5.3 keyword-granting Auras (layer 6): hexproof, lifelink, and trample-with-+2/+0
         // (Rancor's shape). "Bloodfeast" is the Armadillo-Cloak analogue: a damage-triggered
         // gain-that-much-life for the Aura's controller — a trigger, distinct from the lifelink grant.
         aura("Hex Aura", StaticContinuousEffect(grantedKeywords = persistentSetOf(Keyword.HEXPROOF))),
         aura("Vamp Aura", StaticContinuousEffect(grantedKeywords = persistentSetOf(Keyword.LIFELINK))),
+        // `FW-COUNTERS` keyword-granting Auras (layer 6), so each new keyword is exercised through the
+        // effective-keyword seam and not only as a printed characteristic.
+        aura("Haste Aura", StaticContinuousEffect(grantedKeywords = persistentSetOf(Keyword.HASTE))),
+        aura("Reach Aura", StaticContinuousEffect(grantedKeywords = persistentSetOf(Keyword.REACH))),
+        aura("Wall Aura", StaticContinuousEffect(grantedKeywords = persistentSetOf(Keyword.DEFENDER))),
         aura(
             "Fixture Rancor",
             StaticContinuousEffect(grantedKeywords = persistentSetOf(Keyword.TRAMPLE), powerMod = Magnitude.Fixed(2)),
@@ -160,6 +174,8 @@ internal data class Combatant(
     val tapped: Boolean = false,
     val summoningSick: Boolean = false,
     val damageMarked: Int = 0,
+    /** Counters the creature enters the scenario with (CR 122.1) — `FW-COUNTERS`. */
+    val counters: Map<Counter, Int> = emptyMap(),
 )
 
 /**
@@ -189,6 +205,7 @@ internal fun handcraftedCombat(
                 tapped = spec.tapped,
                 damageMarked = spec.damageMarked,
                 summoningSick = spec.summoningSick,
+                counters = spec.counters.toPersistentMap(),
             )
         }
 

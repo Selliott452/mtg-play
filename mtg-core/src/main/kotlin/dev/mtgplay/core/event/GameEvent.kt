@@ -6,6 +6,7 @@ import dev.mtgplay.core.identity.PlayerId
 import dev.mtgplay.core.mana.ManaType
 import dev.mtgplay.core.state.AttackerAssignment
 import dev.mtgplay.core.state.BlockAssignment
+import dev.mtgplay.core.state.Counter
 import dev.mtgplay.core.state.Target
 import dev.mtgplay.core.state.TurnPhase
 import dev.mtgplay.core.state.TurnStep
@@ -613,6 +614,32 @@ sealed interface GameEvent {
         val player: PlayerId,
         val objectId: ObjectId,
         val card: CardRef,
+    ) : GameEvent
+
+    /**
+     * [amount] counters of kind [counter] were **put on** the permanent [objectId] ([card])
+     * (CR 122.1) — Unexpected Fangs' `+1/+1` and lifelink counters. Added by `FW-COUNTERS`. One event
+     * per kind, so a spell that places two different kinds emits two events in the order it places
+     * them. [amount] is always positive; removal is [CountersRemoved].
+     */
+    data class CountersPlaced(
+        val objectId: ObjectId,
+        val card: CardRef,
+        val counter: Counter,
+        val amount: Int,
+    ) : GameEvent
+
+    /**
+     * [amount] counters of kind [counter] were **removed from** the permanent [objectId] ([card])
+     * (CR 122.1). Added by `FW-COUNTERS`. The reachable emitter today is the CR 704.5q state-based
+     * action, which removes equal numbers of `+1/+1` and `-1/-1` counters and so emits this twice —
+     * once per kind. [amount] is always positive.
+     */
+    data class CountersRemoved(
+        val objectId: ObjectId,
+        val card: CardRef,
+        val counter: Counter,
+        val amount: Int,
     ) : GameEvent
 
     /** [player] lost the game (CR 104.3) for [reason]. */

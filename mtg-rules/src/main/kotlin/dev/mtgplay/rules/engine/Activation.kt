@@ -94,7 +94,7 @@ internal fun abilityCostPayable(
             AbilityCost.TapSelf ->
                 scope == AbilityZoneScope.Battlefield &&
                     !source.tapped &&
-                    !(isCreature(state, source) && source.summoningSick)
+                    !(isCreature(state, source) && source.summoningSick && !hasHaste(state, source.id))
             AbilityCost.SacrificeSelf -> scope == AbilityZoneScope.Battlefield
             AbilityCost.DiscardSelf -> scope == AbilityZoneScope.Hand
             AbilityCost.DiscardACard -> discardableForAbility(state, seat, source, scope).isNotEmpty()

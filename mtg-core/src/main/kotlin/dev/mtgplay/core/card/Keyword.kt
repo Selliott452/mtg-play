@@ -14,16 +14,22 @@ package dev.mtgplay.core.card
  * (never by reading a definition directly), so Phase 4 can reroute the read without touching the
  * combat rules.
  *
- * All eight change engine behaviour: [FLYING], [FIRST_STRIKE], and [VIGILANCE] since P3.1;
+ * All eleven change engine behaviour: [FLYING], [FIRST_STRIKE], and [VIGILANCE] since P3.1;
  * [TRAMPLE], [HEXPROOF], and [LIFELINK] since P5.3 (the trample assignment decision, the targeting
  * restriction on enumeration, and the damage-result lifegain, respectively); [INDESTRUCTIBLE] since
  * P8.4 (the CR 704.5g lethal-damage exemption, and the CR 701.7a destroy effect since the removal
- * packet); and [DEVOID], which alone among them changes a characteristic rather than combat — it
- * makes [PrintedCharacteristics.colors] colorless (CR 105.2, CR 702.114a) instead of deriving
- * colour from the mana cost.
+ * packet); [HASTE], [DEFENDER], and [REACH] since `FW-COUNTERS` (the summoning-sickness bypass, the
+ * attack bar, and the flying-blocker permission, respectively); and [DEVOID], which alone among them
+ * changes a characteristic rather than combat — it makes [PrintedCharacteristics.colors] colorless
+ * (CR 105.2, CR 702.114a) instead of deriving colour from the mana cost.
+ *
+ * **No member is ever a bare enum entry.** A keyword joins this set with the rules effect it names,
+ * honoured at every site that decides the thing it changes, and read only through the
+ * effective-keyword accessor. Adding one without its effect would print a line on a card that the
+ * engine silently does not play.
  */
 enum class Keyword {
-    /** Flying (CR 702.9): can be blocked only by creatures with flying or reach. */
+    /** Flying (CR 702.9): can be blocked only by creatures with flying or [REACH] (CR 702.9b). */
     FLYING,
 
     /** First strike (CR 702.7): deals combat damage before creatures without it (CR 510.5). */
@@ -64,7 +70,7 @@ enum class Keyword {
 
     /**
      * Indestructible (CR 702.12): the permanent can't be destroyed — "destroy" effects and lethal
-     * damage do not destroy it (CR 702.12b). It is *not* general protection from dying: a
+     * damage do not destroy it (CR 702.12b). It is **not** general protection from dying: a
      * toughness-0-or-less permanent still goes to the graveyard (CR 704.5f), because that is not
      * destruction (see the `CreatureDeathCause` distinction in `mtg-rules`).
      *
@@ -75,4 +81,48 @@ enum class Keyword {
      * keyword live on a Bridge — an opposing Ancient Grudge now finds one and destroys nothing.
      */
     INDESTRUCTIBLE,
+
+    /**
+     * Haste (CR 702.10): a static ability that lifts the CR 302.6 summoning-sickness restriction in
+     * both directions it applies. A creature with haste **can attack** even though it has not been
+     * controlled by its controller continuously since their most recent turn began (CR 702.10b), and
+     * its controller **can activate its `{T}` abilities** under the same condition (CR 702.10c).
+     * Multiple instances are redundant (CR 702.10d) — free, since the keyword set is a set. Added by
+     * `FW-COUNTERS`.
+     *
+     * Three engine sites decide something CR 302.6 gates, and haste is honoured at all three through
+     * the one effective-keyword seam: attacker eligibility (`eligibleAttackers`), the `{T}` component
+     * of a non-mana activated ability's cost (`abilityCostPayable`), and mana-source usability
+     * (`manaSourceUsable`) — the last of which is the *shared* predicate the payment planner and the
+     * payment executor both call, so one honouring covers both halves of payment and they cannot
+     * drift (docs/design/mana-payment.md §10).
+     *
+     * Clockwork Percussionist and Gingerbrute print it; Goblin Tomb Raider grants it conditionally.
+     */
+    HASTE,
+
+    /**
+     * Defender (CR 702.3): a static ability meaning "this creature can't attack" (CR 702.3b). Not an
+     * evasion and not a blocking restriction — a creature with defender blocks normally; it is simply
+     * never offered as an attacker (`eligibleAttackers`). Multiple instances are redundant
+     * (CR 702.3c). Added by `FW-COUNTERS`.
+     *
+     * The Walls print it, and Overgrown Battlement's mana ability counts creatures that have it — a
+     * keyword read that is not a combat read, and the reason the keyword had to exist before that
+     * card's mana half could be encoded at all.
+     */
+    DEFENDER,
+
+    /**
+     * Reach (CR 702.17): a static ability letting the creature block a creature with flying
+     * (CR 702.17b) — "a creature with flying can't be blocked except by creatures with flying and/or
+     * reach". It grants no evasion of its own and changes nothing about attacking. Multiple instances
+     * are redundant (CR 702.17c). Added by `FW-COUNTERS`.
+     *
+     * Reach satisfies **flying** and nothing else. It does *not* satisfy
+     * [Evasion.BLOCKABLE_ONLY_BY_FLYING] (Silhana Ledgewalker's "can't be blocked except by creatures
+     * with flying"), which demands flying literally; the two restrictions read alike and are not the
+     * same, and `canBlock` in `mtg-rules` keeps them apart.
+     */
+    REACH,
 }

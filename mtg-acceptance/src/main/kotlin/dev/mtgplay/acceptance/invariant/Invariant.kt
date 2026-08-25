@@ -249,4 +249,21 @@ enum class Invariant {
      * is needed either: none of the three properties depends on state-based-action quiescence.
      */
     TIMED_EFFECT_SANITY,
+
+    /**
+     * Every permanent's counter multiset is well-formed (CR 122). Added with `FW-COUNTERS`, which is
+     * the packet that gave [dev.mtgplay.core.state.GameObject.counters] its meaning — new state,
+     * new property, same packet. Three arms: every recorded multiplicity is strictly positive
+     * (CR 122.1 — a kind an object has none of is absent, not present with a zero, which is what
+     * keeps equal positions comparing equal and hashing alike); no object off the battlefield carries
+     * any (CR 122.2 — counters are not retained across a zone change, they cease to exist, so the
+     * CR 400.7 rebirth must drop them); and no permanent has both a `+1/+1` and a `-1/-1` counter at
+     * a pause (CR 704.5q — the state-based action annihilates the matching pairs whenever a player
+     * would receive priority, so surviving pairs mean it did not fire).
+     *
+     * The third arm is the sibling of [CREATURE_LETHALITY_RESOLVED] and exists for the same reason: a
+     * state-based action that silently fails to apply is invisible until something far away reads a
+     * power it should never have seen.
+     */
+    COUNTER_SCOPE,
 }

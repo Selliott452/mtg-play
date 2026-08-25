@@ -58,6 +58,51 @@ internal fun isIndestructible(
 ): Boolean = Keyword.INDESTRUCTIBLE in effectiveKeywords(state, id)
 
 /**
+ * Whether the battlefield object [id] has haste right now (CR 702.10) — the single seam every
+ * CR 302.6 summoning-sickness gate consults, so a granted or counter-given haste (CR 613 layer 6,
+ * CR 122.1b) is honoured automatically at all of them.
+ *
+ * There are exactly three such gates, and each calls this rather than testing
+ * [dev.mtgplay.core.state.GameObject.summoningSick] alone:
+ * - [eligibleAttackers] — CR 702.10b, which creatures are *offered* as attackers (ADR-005);
+ * - [abilityCostPayable]'s [dev.mtgplay.core.definition.AbilityCost.TapSelf] arm — CR 702.10c, the
+ *   `{T}` component of a non-mana activated ability;
+ * - [manaSourceUsable] — CR 702.10c again, for a mana ability (CR 605.1a is an activated ability
+ *   too). That predicate is deliberately shared by the payment **planner**
+ *   ([manaSourceClasses]) and the payment **executor** ([resolveTapForMana]), so honouring haste
+ *   once there covers both and they cannot disagree about which sources a plan may use
+ *   (docs/design/mana-payment.md §10).
+ *
+ * A missed gate would not merely mis-play the keyword: it would enumerate the wrong action set,
+ * which under ADR-005 is either a silently illegal option or a silently missing one.
+ */
+internal fun hasHaste(
+    state: GameState,
+    id: ObjectId,
+): Boolean = Keyword.HASTE in effectiveKeywords(state, id)
+
+/**
+ * Whether the battlefield object [id] has defender right now (CR 702.3) — "this creature can't
+ * attack" (CR 702.3b). Read at attacker enumeration ([eligibleAttackers]) and, unusually for a
+ * keyword, at a *mana* read: Overgrown Battlement's "for each creature you control with defender"
+ * counts through this same seam.
+ */
+internal fun hasDefender(
+    state: GameState,
+    id: ObjectId,
+): Boolean = Keyword.DEFENDER in effectiveKeywords(state, id)
+
+/**
+ * Whether the battlefield object [id] has reach right now (CR 702.17) — it may block a creature with
+ * flying (CR 702.17b). Read only at [eligibleBlockPairings]'s legality check, and only against
+ * flying: reach does **not** satisfy [dev.mtgplay.core.card.Evasion.BLOCKABLE_ONLY_BY_FLYING].
+ */
+internal fun hasReach(
+    state: GameState,
+    id: ObjectId,
+): Boolean = Keyword.REACH in effectiveKeywords(state, id)
+
+/**
  * The in-game power of the battlefield creature [id] (CR 208.1, CR 613 sublayer 7c), via
  * [layeredCharacteristics]. Fails loudly on a non-creature — a combatant is always a creature, so
  * reaching this without a P/T box is an engine defect.

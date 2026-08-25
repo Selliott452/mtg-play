@@ -30,8 +30,18 @@ The precise inventory, every continuous effect in either 75:
 
 Everything else is absent and verified so: no copy (1), control-change (2), text (3), type (4), or
 colour (5) effect; no characteristic-defining P/T (7a) — `PrintedPowerToughness` already rejects `*`;
-no "becomes a 1/1" set-effect (7b); **no +1/+1 counters anywhere** (7d). The GameObject KDoc's
+no "becomes a 1/1" set-effect (7b); no P/T **switching** (7d). The GameObject KDoc's
 "control-changing effects arrive in Phase 4" is aspirational: layer 2 gets a *slot*, never an effect.
+
+> **Superseded by `FW-COUNTERS`.** This paragraph originally read "**no +1/+1 counters anywhere**
+> (7d)". Counters (CR 122) now exist, and they were never a 7d concern: **CR 613.4c** puts "effects
+> **and counters** that modify power and/or toughness" in sublayer **7c**, alongside the Aura
+> modifiers this design already covered, and **CR 613.4d** is P/T *switching*. **There is no rule
+> 613.4e** — the citation `Layers.kt` carried was invented, and it had shifted every 7a–7d citation
+> in that enum one letter to make room. Checked against the Comprehensive Rules of 2026-08-19 and
+> corrected; the enum member is now `PT_SWITCHING`, and 7d remains an unpopulated loud gate because
+> no gauntlet card switches power and toughness. A keyword counter (CR 122.1b) lands in layer 6 by
+> the same reading of CR 613.1f that granted keywords already used.
 
 **Decision — full skeleton, sparse population.** The apply loop implements the entire ordered spine,
 layers 1→7 and sublayers 7a→7d, as real ordered stages (PLAN.md §6 P4.0: "implement the full
@@ -248,8 +258,10 @@ fixture auras; the dynamic-count interactions become meaningful only with the P4
 
 Out of design scope, with where each would slot: **copy** (layer 1), **control-change** (layer 2 —
 note the GameObject KDoc), **text-change** (3), **type-change** (4), **colour-change** (5),
-**characteristic-defining P/T** (7a), **set-P/T "becomes a 1/1"** (7b), **counters** (7d) — no +1/+1
-counter exists in the pool; **totem armor** — not in the final decklists; **until-EOT / fixed
+**characteristic-defining P/T** (7a), **set-P/T "becomes a 1/1"** (7b), **P/T switching** (7d) — no
+gauntlet card switches power and toughness (**counters** were listed here as 7d and are neither out of
+scope nor 7d any longer: `FW-COUNTERS` implemented them at 7c per CR 613.4c and at layer 6 per
+CR 122.1b); **totem armor** — not in the final decklists; **until-EOT / fixed
 durations** — deferred with Tamiyo's Safekeeping, hooked at the effect-collection step (§2); **Utopia
 Sprawl's triggered mana ability and its "choose a colour" linked info** — P5 (its static "enchant
 Forest" attachment *is* P4.1 substrate; only the grant is deferred). Each is a layer *slot* the
