@@ -5,6 +5,7 @@ import dev.mtgplay.core.card.PrintedPowerToughness
 import dev.mtgplay.core.card.Subtype
 import dev.mtgplay.core.definition.AbilityCost
 import dev.mtgplay.core.definition.AbilityZoneScope
+import dev.mtgplay.core.definition.AsEntersColorChoice
 import dev.mtgplay.core.definition.EnchantRestriction
 import dev.mtgplay.core.definition.LibraryReveal
 import dev.mtgplay.core.definition.LibrarySearch
@@ -61,7 +62,7 @@ class BoglesUtilitySpec :
             }
             utopiaSprawl.timing shouldBe TimingClass.SORCERY_SPEED
             utopiaSprawl.targetSpec shouldBe TargetSpec.Enchantable(EnchantRestriction.FOREST)
-            utopiaSprawl.choosesColorAsItEnters shouldBe true
+            utopiaSprawl.asEntersColorChoice shouldBe AsEntersColorChoice()
             utopiaSprawl.triggeredManaAbilities shouldContainExactly listOf(TriggeredManaAbility.AddChosenColor(1))
         }
 
@@ -90,7 +91,7 @@ class BoglesUtilitySpec :
             // "Enchant land", not Utopia Sprawl's "Enchant Forest" (CR 303.4a).
             wildGrowth.targetSpec shouldBe TargetSpec.Enchantable(EnchantRestriction.LAND)
             // The bonus mana is printed, so — unlike Utopia Sprawl — there is no as-it-enters choice.
-            wildGrowth.choosesColorAsItEnters shouldBe false
+            wildGrowth.asEntersColorChoice.shouldBeNull()
             wildGrowth.triggeredManaAbilities shouldContainExactly
                 listOf(TriggeredManaAbility.AddFixedMana(ManaType.GREEN, 1))
             wildGrowth.staticContinuousEffects.shouldBeEmpty()

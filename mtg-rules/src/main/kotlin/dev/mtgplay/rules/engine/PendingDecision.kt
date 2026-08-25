@@ -160,6 +160,8 @@ private fun midTransitionPauseRequest(state: GameState): DecisionRequest? =
             }
         // CR 601.3b: the bare optional draw clause's yes/no (`FW-OPTDRAW`, Ninja of the Deep Hours).
         state.pendingOptionalDraw != null -> pendingOptionalDrawRequest(state)
+        // CR 603.2: the "you may" that wraps a whole triggered ability (`W8-A`, Mortuary Mire).
+        state.pendingOptionalTrigger != null -> pendingOptionalTriggerRequest(state)
         state.pendingResolutionDiscard != null -> pendingResolutionDiscardRequest(state)
         // CR 609.4: an untargeted mid-resolution choice of battlefield permanents (Snap, Azorius
         // Chancery) — decided by the resolving object's controller, who need not hold priority.

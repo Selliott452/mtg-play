@@ -68,6 +68,9 @@ import kotlinx.collections.immutable.persistentMapOf
  * @property pendingOptionalDraw a bare optional "you may draw N" clause the engine is resolving
  *   (CR 601.3b), or `null`. Additive, flagged core (`FW-OPTDRAW`). Non-null only at that yes/no pause,
  *   where the clause's ability has already ceased to exist — see [PendingOptionalDraw].
+ * @property pendingOptionalTrigger a resolving triggered ability whose whole effect is inside a printed
+ *   "you may" (CR 603.2), or `null`. Additive, flagged core (`W8-A`). Non-null only at that yes/no
+ *   pause, where the ability is still on top of the stack — see [PendingOptionalTrigger].
  * @property pendingColorChoice an "as this permanent enters, choose a colour" choice gathered
  *   mid-resolution (CR 614.12), or `null`. Additive, flagged core (P6.2a). Non-null only at that pause,
  *   where the resolving permanent spell is still on top of the stack — see [PendingColorChoice].
@@ -161,6 +164,7 @@ data class GameState(
     val pendingRebound: PendingRebound? = null,
     val pendingNinjutsu: PendingNinjutsu? = null,
     val pendingOptionalDraw: PendingOptionalDraw? = null,
+    val pendingOptionalTrigger: PendingOptionalTrigger? = null,
     val pendingPermanentSelection: PendingPermanentSelection? = null,
     val timedEffects: PersistentList<TimedContinuousEffect> = persistentListOf(),
 ) {
@@ -205,6 +209,18 @@ data class GameState(
             require(caster.hand.any { it.id == plot.cardObjectId }) {
                 "CR 702.140: a pending plot's card must still be in the caster's hand until it executes; " +
                     "${plot.cardObjectId} is not there for ${plot.caster}"
+            }
+        }
+        val colorChoice = pendingColorChoice
+        val playedLand = colorChoice?.playedLand
+        if (colorChoice != null && playedLand != null) {
+            val decider = players[colorChoice.decider]
+            requireNotNull(decider) { "pending colour choice names unseated decider ${colorChoice.decider}" }
+            // CR 614.12, CR 305.1: the choice is made *as* the land enters, so the card is still in
+            // hand — the land joins the battlefield only once the colour arrives.
+            require(decider.hand.any { it.id == playedLand }) {
+                "CR 614.12: a played land choosing a colour must still be in its controller's hand until " +
+                    "the choice is answered; $playedLand is not there for ${colorChoice.decider}"
             }
         }
         val ninjutsu = pendingNinjutsu

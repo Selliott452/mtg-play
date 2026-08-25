@@ -60,7 +60,7 @@ private fun resolveSpell(
     return if (isPermanentSpell(entry)) {
         // CR 614.12: a permanent that chooses a colour as it enters (Utopia Sprawl) pauses here for the
         // choice before it enters; the spell stays on top of the stack until the colour arrives.
-        if (entry.definition.choosesColorAsItEnters && state.pendingColorChoice == null) {
+        if (entry.definition.asEntersColorChoice != null && state.pendingColorChoice == null) {
             val paused = state.copy(pendingColorChoice = PendingColorChoice(entry.controller))
             AdvanceResult.NeedsDecision(paused, pendingColorChoiceRequest(paused))
         } else {

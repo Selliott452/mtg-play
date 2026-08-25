@@ -3,6 +3,7 @@ package dev.mtgplay.rules
 import dev.mtgplay.core.card.CardType
 import dev.mtgplay.core.card.PrintedCharacteristics
 import dev.mtgplay.core.card.Subtype
+import dev.mtgplay.core.definition.AsEntersColorChoice
 import dev.mtgplay.core.definition.CardDefinition
 import dev.mtgplay.core.definition.EnchantRestriction
 import dev.mtgplay.core.definition.ResolutionEffect
@@ -63,6 +64,6 @@ private fun rampAura(
         override val timing = TimingClass.SORCERY_SPEED
         override val targetSpec = TargetSpec.Enchantable(restriction)
         override val resolution = ResolutionEffect { state, _ -> state }
-        override val choosesColorAsItEnters = choosesColor()
+        override val asEntersColorChoice = if (choosesColor()) AsEntersColorChoice() else null
         override val triggeredManaAbilities = persistentListOf(ability)
     }

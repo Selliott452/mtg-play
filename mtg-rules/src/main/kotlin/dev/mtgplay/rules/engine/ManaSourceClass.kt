@@ -370,7 +370,31 @@ private fun producedMultisets(
             is ManaAmount.Conditional ->
                 if (amount.requires.all { countMatching(state, obj.owner, it) > 0 }) amount.ifMet else amount.otherwise
         }
-    return if (count <= 0) emptyList() else ability.options.map { option -> List(count) { option } }
+    return if (count <= 0) emptyList() else productionOptions(obj, ability).map { option -> List(count) { option } }
+}
+
+/**
+ * The mana types one activation of [ability] on [obj] may choose between (CR 605.1a): the printed
+ * [ManaAbility.options], plus — for an ability that says "or one mana of the chosen color" — the colour
+ * [obj] chose as it entered the battlefield (CR 614.12, [GameObject.chosenColor]).
+ *
+ * The chosen colour is read from the **object**, never from the card, which is what makes two Citadel
+ * Gates that chose differently two different source classes rather than one: [sourceClassKeyOf] derives
+ * the key from this profile, so the difference is carried without the equivalence relation knowing
+ * anything about colour choices.
+ *
+ * Deduplicated, because [ManaAbility] requires its printed options to be distinct and a printed line that
+ * excludes its own fixed colour ("Add {W} or one mana of the chosen color", where the choice is "other
+ * than white") cannot collide — but a printing that did would otherwise produce a duplicated alternative
+ * that means nothing. An object that made no choice contributes nothing extra and taps for its printed
+ * options alone.
+ */
+private fun productionOptions(
+    obj: GameObject,
+    ability: ManaAbility,
+): List<ManaType> {
+    val chosen = if (ability.includesChosenColor) obj.chosenColor else null
+    return if (chosen == null) ability.options else (ability.options + manaTypeOf(chosen)).distinct()
 }
 
 /**

@@ -756,6 +756,26 @@ sealed interface GameEvent {
     ) : GameEvent
 
     /**
+     * [player] surveilled [card] into their graveyard (CR 701.44a): a card they had looked at on top of
+     * their library was put into their graveyard, becoming the new object [objectId] there (CR 400.7).
+     * One event per card, in the order placed. Added by `W8-A`.
+     *
+     * **Not [CardMilled], for the reason [CardMilled] is not [CardDiscarded]**: the two look identical
+     * from the outside and are different game actions (CR 701.13a versus CR 701.44a), so anything that
+     * ever watches for one must not see the other. Nothing in the gauntlet watches either yet, which is
+     * precisely why the distinction has to be made now rather than after a card makes it observable.
+     *
+     * The cards a surveil keeps on **top** are deliberately silent: they never left the library, so
+     * CR 400.7 narrates nothing and their order stays private to the player who chose it (CR 701.14a).
+     * A surveil is therefore *partly* public, and this event is the whole of the public part.
+     */
+    data class CardSurveilled(
+        val player: PlayerId,
+        val objectId: ObjectId,
+        val card: CardRef,
+    ) : GameEvent
+
+    /**
      * [amount] counters of kind [counter] were **put on** the permanent [objectId] ([card])
      * (CR 122.1) — Unexpected Fangs' `+1/+1` and lifelink counters. Added by `FW-COUNTERS`. One event
      * per kind, so a spell that places two different kinds emits two events in the order it places

@@ -8,12 +8,19 @@ import dev.mtgplay.core.definition.AbilityCost
 import dev.mtgplay.core.definition.ActivatedAbility
 import dev.mtgplay.core.definition.CardDefinition
 import dev.mtgplay.core.definition.EntersTapped
+import dev.mtgplay.core.definition.GraveyardCardRestriction
+import dev.mtgplay.core.definition.GraveyardScope
+import dev.mtgplay.core.definition.LibraryLook
+import dev.mtgplay.core.definition.LibraryLookMode
 import dev.mtgplay.core.definition.ManaAbility
+import dev.mtgplay.core.definition.ManaAbilityCost
 import dev.mtgplay.core.definition.PermanentFilter
 import dev.mtgplay.core.definition.PermanentRestriction
 import dev.mtgplay.core.definition.ResolutionEffect
 import dev.mtgplay.core.definition.TargetSpec
 import dev.mtgplay.core.definition.TimingClass
+import dev.mtgplay.core.definition.TriggerCondition
+import dev.mtgplay.core.definition.TriggeredAbility
 import dev.mtgplay.core.identity.CardRef
 import dev.mtgplay.core.identity.ObjectId
 import dev.mtgplay.core.mana.ManaCost
@@ -21,6 +28,7 @@ import dev.mtgplay.core.mana.ManaType
 import dev.mtgplay.core.state.ContinuousModification
 import dev.mtgplay.core.state.Target
 import dev.mtgplay.rules.effect.applyUntilEndOfTurn
+import dev.mtgplay.rules.effect.putGraveyardCardOnTopOfOwnersLibrary
 import dev.mtgplay.rules.engine.countMatchingPermanents
 import kotlinx.collections.immutable.PersistentList
 import kotlinx.collections.immutable.persistentListOf
@@ -29,7 +37,9 @@ import kotlinx.collections.immutable.persistentSetOf
 /*
  * The gauntlet's nonbasic lands whose whole printed text is mana production plus — at most — the
  * CR 614.1c "this land enters tapped" self-replacement: the three Mirrodin artifact lands, the four
- * Modern Horizons Bridges, and Idyllic Beachfront.
+ * Modern Horizons Bridges, and Idyllic Beachfront. Basilisk Gate joined them with a `+X/+X` ability, and
+ * `W8-A` added the two utility lands at the foot of the file, [mortuaryMire] and [conduitPylons], whose
+ * enters-the-battlefield triggers are the first things here that are neither mana nor a static.
  *
  * Like the basics (BasicLands.kt) each is *played*, not cast (CR 305.1, CR 116.2a), so every one is a
  * plain [CardDefinition] and never a [dev.mtgplay.core.definition.SpellDefinition].
@@ -40,11 +50,13 @@ import kotlinx.collections.immutable.persistentSetOf
  * than derived, exactly as Mountain's `{T}: Add {R}` is. The Bridges' and artifact lands' abilities are
  * printed rules text, not type-derived, so no such question arises for them.
  *
- * Every mechanism used is a published primitive (ADR-003); the nonbasic lands of the gauntlet that need
- * more than these — a colour chosen as the land enters and then produced, two mana from one activation,
- * a targeted enters-the-battlefield trigger, a search that puts a land onto the battlefield, surveil, a
- * costed mana ability, a conditional enters-tapped clause — are deliberately absent rather than
- * approximated.
+ * Every mechanism used is a published primitive (ADR-003). This paragraph used to list what the rest of
+ * the gauntlet's nonbasic lands needed — "a colour chosen as the land enters and then produced, two mana
+ * from one activation, a targeted enters-the-battlefield trigger, a search that puts a land onto the
+ * battlefield, surveil, a costed mana ability, a conditional enters-tapped clause". Every one of those has
+ * since landed: the colour choice and its production in Gates.kt (`W8-A`), surveil on [conduitPylons]
+ * below, the targeted enters-the-battlefield trigger on [mortuaryMire], and the rest across
+ * `FW-TAPUNTAP`, `P-SEARCH`, `FW-MANACOST` and `P-ETBTAPPED`.
  */
 
 /**
@@ -267,3 +279,149 @@ val basiliskGate: CardDefinition =
 private fun pumpedCreature(targets: List<Target>): ObjectId =
     (targets.singleOrNull() as? Target.Permanent)?.id
         ?: error("CR 115.1b: ${BASILISK_GATE.name}'s ability targets exactly one permanent, got $targets")
+
+private val MORTUARY_MIRE: CardRef = CardRef("Mortuary Mire")
+
+/** The land type Conduit Pylons carries (CR 205.3i); no ability in the pool counts it. */
+private val DESERT: Subtype = Subtype("Desert")
+
+/** What Conduit Pylons' filtering mana ability costs in generic mana (CR 602.1). */
+private const val CONDUIT_PYLONS_FILTER_COST: String = "{1}"
+
+/** How many cards Conduit Pylons' enters-the-battlefield trigger surveils (CR 701.44a). */
+private const val CONDUIT_PYLONS_SURVEIL: Int = 1
+
+/** The five colours an "add one mana of any color" ability offers, in WUBRG order (CR 105.1). */
+private val ANY_COLOR =
+    persistentListOf(ManaType.WHITE, ManaType.BLUE, ManaType.BLACK, ManaType.RED, ManaType.GREEN)
+
+/**
+ * Mortuary Mire — Land. "This land enters tapped. When this land enters, you may put target creature card
+ * from your graveyard on top of your library. `{T}`: Add `{B}`."
+ *
+ * **The card `FW-ZONETGT` dropped, and the diagnosis it wrote has expired.** GraveyardTargets.kt recorded
+ * it as blocked because "`executePlayLand` does not call `detectEnterBattlefieldTriggers` (triage T18)";
+ * that path now fires a played land's triggers through the same `announceBattlefieldEntry` a resolving
+ * permanent uses, and [bojukaBog] is the card that proved it. What was left is the **"you may"**, and that
+ * is this packet's [TriggeredAbility.optional] — the whole of the ability's effect sits inside it.
+ *
+ * **Two decisions, a priority round apart, and neither collapses into the other.** The target is chosen as
+ * the trigger goes on the stack (CR 603.3d) and the "may" is answered when it resolves (CR 608.2c). That
+ * gap is the card: an opponent who exiles the graveyard in response makes the target illegal and the
+ * trigger fizzles before the question is ever asked, while a controller who drew well in the meantime
+ * declines. Encoding the pair as "up to one target" would settle both at CR 603.3d and delete the second.
+ *
+ * **Declining is a real play**, which is why the "may" is printed and why the engine must offer it:
+ * accepting *replaces* the controller's next draw with a card they already know about, so a graveyard
+ * holding nothing better than an average draw is a graveyard to leave alone.
+ *
+ * The target is a **creature card** in the controller's **own** graveyard
+ * ([GraveyardCardRestriction.CREATURE], [GraveyardScope.YOURS]) — the narrower of the two creature-ish
+ * restrictions, so a land card is never offered. With no creature card there the trigger still goes on the
+ * stack with no targets and then does nothing (CR 603.3d, CR 608.2b), which is the common case early.
+ */
+val mortuaryMire: CardDefinition =
+    object : CardDefinition {
+        override val characteristics =
+            PrintedCharacteristics(
+                name = MORTUARY_MIRE.name,
+                manaCost = null,
+                supertypes = persistentSetOf(),
+                cardTypes = persistentSetOf(CardType.LAND),
+                subtypes = persistentSetOf(),
+                powerToughness = null,
+            )
+
+        override val entersTapped = EntersTapped.Always
+
+        override val manaAbilities: PersistentList<ManaAbility> =
+            persistentListOf(ManaAbility(persistentListOf(ManaType.BLACK)))
+
+        override val triggeredAbilities =
+            persistentListOf(
+                TriggeredAbility(
+                    condition = TriggerCondition.EnteredBattlefieldSelf,
+                    // CR 603.2: the printed "you may" wraps the whole instruction, so it gates the effect.
+                    optional = true,
+                    targetSpec =
+                        TargetSpec.CardInGraveyard(
+                            restriction = GraveyardCardRestriction.CREATURE,
+                            scope = GraveyardScope.YOURS,
+                        ),
+                    effect =
+                        ResolutionEffect { state, context ->
+                            putGraveyardCardOnTopOfOwnersLibrary(state, recoveredCreature(context.targets))
+                        },
+                ),
+            )
+    }
+
+/**
+ * Conduit Pylons — Land — Desert. "When this land enters, surveil 1. `{T}`: Add `{C}`. `{1}`, `{T}`: Add
+ * one mana of any color."
+ *
+ * **The card docs/design/mana-payment.md §11.7 filed as blocked on exactly one thing**, and this packet is
+ * that thing: surveil (CR 701.44a), the destination docs/design/library-look.md §12 listed as a documented
+ * non-goal and predicted would be "this hierarchy plus a fourth destination in the arrangement". It is
+ * [LibraryLookMode.Surveil], carried on the enters-the-battlefield trigger through the `FW-CLAUSEHOOK`
+ * carrier — the same [LibraryLook] clause Preordain declares, on an ability instead of a spell.
+ *
+ * **Surveil 1 is a two-option decision and both options are real**: the looked-at card goes to the
+ * graveyard, where the gauntlet's graveyard decks can use it, or stays on top to be drawn. That is not
+ * scry — a scryed card put on the bottom is still in the library — which is why surveil is its own mode
+ * rather than a destination flag on [LibraryLookMode.Scry].
+ *
+ * **Two mana abilities on one source, and the second costs mana** — the "two costs, one source" shape
+ * docs/design/mana-payment.md §11.1 was built around, and the card it was built around. The free
+ * `{T}`: Add `{C}` sorts ahead of the `{1}`, `{T}` filter in the production profile, so the cheap line sits
+ * at the low plan indices; a Pylons cannot fund its own `{1}`, because the filter's `{T}` component
+ * reserves the source (trap T17); and two Pylons cannot fund each other, because the enumerator derives an
+ * execution order and finds none.
+ *
+ * It is a **Desert** (CR 205.3i) and the pool's first; nothing in the gauntlet counts Deserts, so the
+ * subtype is printed characteristics and nothing more.
+ */
+val conduitPylons: CardDefinition =
+    object : CardDefinition {
+        override val characteristics =
+            PrintedCharacteristics(
+                name = "Conduit Pylons",
+                manaCost = null,
+                supertypes = persistentSetOf(),
+                cardTypes = persistentSetOf(CardType.LAND),
+                subtypes = persistentSetOf(DESERT),
+                powerToughness = null,
+            )
+
+        override val manaAbilities: PersistentList<ManaAbility> =
+            persistentListOf(
+                ManaAbility(persistentListOf(ManaType.COLORLESS)),
+                ManaAbility(
+                    options = ANY_COLOR,
+                    // CR 602.1: printed order — the {1}, then the tap.
+                    cost =
+                        persistentListOf(
+                            ManaAbilityCost.Mana(ManaCost.parse(CONDUIT_PYLONS_FILTER_COST)),
+                            ManaAbilityCost.TapSelf,
+                        ),
+                ),
+            )
+
+        override val triggeredAbilities =
+            persistentListOf(
+                TriggeredAbility(
+                    condition = TriggerCondition.EnteredBattlefieldSelf,
+                    // CR 608.2c: the surveil is the clause; the ability has no other instruction.
+                    effect = ResolutionEffect { state, _ -> state },
+                    libraryLook = LibraryLook(LibraryLookMode.Surveil(CONDUIT_PYLONS_SURVEIL)),
+                ),
+            )
+    }
+
+/**
+ * The graveyard card Mortuary Mire's trigger was told to recover (CR 115.1b), failing loudly on any other
+ * target kind or arity: the CR 608.2b re-check has already run (ADR-005).
+ */
+private fun recoveredCreature(targets: List<Target>): ObjectId =
+    (targets.singleOrNull() as? Target.CardInGraveyard)?.id
+        ?: error("CR 115.1b: ${MORTUARY_MIRE.name}'s ability targets exactly one graveyard card, got $targets")

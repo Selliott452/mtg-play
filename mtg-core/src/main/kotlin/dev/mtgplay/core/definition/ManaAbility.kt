@@ -70,6 +70,21 @@ import kotlinx.collections.immutable.persistentListOf
  *   Additive, flagged core (`FW-MANACOST`); `[ManaAbilityCost.TapSelf]` for an ordinary source.
  * @property amount how many mana of the chosen option one activation adds (CR 605.1a, CR 605.2);
  *   [ManaAmount.Fixed] `1` for an ordinary source. Additive, flagged core (`FW-MANA`).
+ * @property includesChosenColor whether this ability offers, **in addition to** [options], one mana of
+ *   the colour its source chose as it entered the battlefield (CR 614.12) — the second half of the Gate
+ *   cycle's "{T}: Add {W} **or one mana of the chosen color**". Additive, flagged core (`W8-A`).
+ *
+ *   A flag beside [options] rather than a sixth [ManaType], because it names *where to read a type* and
+ *   not a type: the answer lives on the entering object
+ *   ([dev.mtgplay.core.state.GameObject.chosenColor]), so two Citadel Gates that chose differently are
+ *   two different source classes and neither of them is a property of the card. `mtg-rules` appends the
+ *   chosen colour to [options] when it builds the source's production profile, and appends nothing at
+ *   all for a source that made no choice — an object whose colour is somehow absent taps for its printed
+ *   options alone rather than for nothing.
+ *
+ *   It composes with [amount] as [options] does, and is refused alongside [ManaAmount.FixedMultiset]
+ *   below for that member's own reason: a mixed production names its own types outright, so there is no
+ *   option list for a chosen colour to join.
  * @property oncePerTurn whether the printed text restricts this ability to one activation each turn
  *   (CR 602.5b) — Barrels of Blasting Jelly's and Wall of Roots' "Activate only once each turn".
  *   Additive, flagged core (`FW-MANACOST`). A restriction, not a cost: `mtg-rules` tracks the
@@ -93,6 +108,7 @@ data class ManaAbility(
     val amount: ManaAmount = ManaAmount.Fixed(1),
     val oncePerTurn: Boolean = false,
     val rider: ManaAbilityRider? = null,
+    val includesChosenColor: Boolean = false,
 ) {
     init {
         require(options.isNotEmpty()) { "CR 605.1a: a mana ability adds mana; options cannot be empty" }
@@ -109,6 +125,12 @@ data class ManaAbility(
             "CR 605.1a: a mixed production's options are the distinct types it adds, in " +
                 "WUBRG-then-colorless order; ${mixed?.types} needs " +
                 "${mixed?.types?.distinct()?.sortedBy(ManaType::ordinal)}, got $options"
+        }
+        // CR 605.1a: a mixed production supplies its own types, so it has no option list for a CR 614.12
+        // chosen colour to be added to; the two declarations would contradict each other.
+        require(!(includesChosenColor && amount is ManaAmount.FixedMultiset)) {
+            "CR 605.1a: a mixed production names its own mana, so it cannot also add one mana of the " +
+                "chosen colour; got $amount with includesChosenColor"
         }
         require(cost.count { it is ManaAbilityCost.Mana } <= 1) {
             "CR 601.2g: a mana ability has at most one mana component; the payment plan records one " +

@@ -65,13 +65,18 @@ interface CardDefinition {
     val triggeredManaAbilities: PersistentList<TriggeredManaAbility> get() = persistentListOf()
 
     /**
-     * Whether this permanent chooses a colour as it enters the battlefield (CR 614.12) — Utopia
-     * Sprawl's "As this Aura enters, choose a colour". Additive, flagged core (P6.2a). `mtg-rules`
-     * surfaces the colour decision during the permanent's resolution and stores the choice on the
-     * entering object ([dev.mtgplay.core.state.GameObject.chosenColor]), where the card's
-     * [triggeredManaAbilities] read it. `false` for every card that makes no such choice.
+     * The colour this permanent chooses as it enters the battlefield (CR 614.12) — Utopia Sprawl's "As
+     * this Aura enters, choose a colour" and the Gate cycle's "As this land enters, choose a color other
+     * than white" — or `null` for every card that makes no such choice. Additive, flagged core (P6.2a),
+     * widened from a `Boolean` to [AsEntersColorChoice] by `W8-A`.
+     *
+     * `mtg-rules` surfaces the colour decision as the permanent enters — during a permanent spell's
+     * resolution (CR 608.3) or during the play-land special action (CR 305.1), whichever route the card
+     * takes — and stores the choice on the entering object
+     * ([dev.mtgplay.core.state.GameObject.chosenColor]), where the card's [triggeredManaAbilities]
+     * (Utopia Sprawl) or [manaAbilities] (the Gates) read it.
      */
-    val choosesColorAsItEnters: Boolean get() = false
+    val asEntersColorChoice: AsEntersColorChoice? get() = null
 
     /**
      * The activated abilities this card has (CR 602); empty for a card with none. Additive, flagged core
@@ -89,7 +94,7 @@ interface CardDefinition {
      *
      * A self-replacement effect, not an ability: it modifies the entering event itself, so it never uses
      * the stack, generates no trigger, and cannot be responded to. It is declared as a property here — the
-     * shape [choosesColorAsItEnters] already established for CR 614.12 as-enters modifications on a
+     * shape [asEntersColorChoice] already established for CR 614.12 as-enters modifications on a
      * [CardDefinition] — rather than as a [ReplacementEffect] member, because [ReplacementEffect] is
      * declared on the castable [SpellDefinition] refinement and a land is never cast (CR 305.1).
      *
@@ -106,6 +111,26 @@ interface CardDefinition {
      * permanent enters, exactly where the CR puts it.
      */
     val entersTapped: EntersTapped get() = EntersTapped.Never
+
+    /**
+     * Whether this permanent also untaps during the untap step of **each player other than its
+     * controller** (CR 502.2) — Bender's Waterskin's "Untap this artifact during each other player's
+     * untap step". `false` for every permanent that untaps only in its controller's untap step, which is
+     * the CR 502.2 default. Additive, flagged core (`W8-A`).
+     *
+     * **A rules-modifying static ability (CR 613.11), declared rather than layered**, and it belongs
+     * here for [entersTapped]'s reason rather than in [staticContinuousEffects]. The CR 613 layer system
+     * modifies an object's *characteristics*; this modifies a **turn-based action** — which permanents
+     * the untap step untaps — and has no layer to sit in. Encoding it as a continuous effect would
+     * require inventing one. `mtg-rules` reads it in the untap step's turn-based actions, the single
+     * place CR 502.2 is implemented.
+     *
+     * **Not the same as untapping twice, and not a triggered ability.** Nothing goes on the stack, no
+     * one can respond, and the permanent is simply among those that untap in a step it otherwise would
+     * not. On a permanent that is already untapped it does nothing at all, which is why it needs no
+     * "if tapped" qualifier.
+     */
+    val untapsInEachOtherPlayersUntapStep: Boolean get() = false
 
     /**
      * The cost reductions this card's static abilities apply to **other spells its controller casts**

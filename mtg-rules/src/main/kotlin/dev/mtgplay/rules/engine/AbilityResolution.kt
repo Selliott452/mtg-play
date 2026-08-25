@@ -38,7 +38,6 @@ internal fun resolveAbility(
     entry: StackEntry.Ability,
 ): AdvanceResult {
     check(state.sharedZones.stack.lastOrNull() == entry) { "CR 608.1: only the topmost stack object may resolve" }
-    val trigger = entry.trigger
     // CR 608.2b precedes CR 608.2c: an ability that does not resolve performs nothing at all, and must
     // not begin an orchestrated "you may" flow it would then have to unwind. Then two triggered "you may"
     // clauses are engine-orchestrated rather than plain effects: madness's reflexive cast (CR 702.35b)
@@ -47,7 +46,37 @@ internal fun resolveAbility(
         fizzleTrigger(state, entry)
             ?: interveningIfFailure(state, entry)
             ?: resolveOrchestratedTrigger(state, entry)
-    if (early != null) return early
+            ?: optionalTriggerPause(state, entry)
+    return early ?: performTriggerEffect(state, entry)
+}
+
+/**
+ * The CR 603.2 "you may" pause of an ability whose **whole** effect is inside that permission — Mortuary
+ * Mire's — or `null` for a mandatory one, which is every other ability in the pool.
+ *
+ * Ordered last among [resolveAbility]'s early returns and that placement is the rule: an ability that
+ * does not resolve at all performs nothing (CR 608.2b, CR 603.4), so its controller must never be asked a
+ * "may" the engine would then have to unwind. Orchestrated in OptionalTrigger.kt.
+ */
+private fun optionalTriggerPause(
+    state: GameState,
+    entry: StackEntry.Ability,
+): AdvanceResult? = if (entry.trigger.ability.optional) orchestrateOptionalTrigger(state, entry) else null
+
+/**
+ * Performs a resolving triggered ability's instructions (CR 608.2c) and then runs any post-resolution
+ * clause it carries, which is where it finally leaves the stack (CR 113.7a).
+ *
+ * Split from [resolveAbility] because it is reached twice: directly, for an ordinary trigger, and from
+ * [applyOptionalTriggerYesNo] when a "you may" ability's controller accepts. Everything before it — the
+ * CR 608.2b re-check, the CR 603.4 intervening-if, and the orchestrated conditions — has already run in
+ * both paths.
+ */
+internal fun performTriggerEffect(
+    state: GameState,
+    entry: StackEntry.Ability,
+): AdvanceResult {
+    val trigger = entry.trigger
     val context =
         ResolutionContext(
             controller = trigger.controller,

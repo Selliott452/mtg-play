@@ -907,6 +907,32 @@ piece a later packet will otherwise re-derive.
 | Basilisk Gate | `{T}: Add {C}` — expressible since P2.1 | A **snapshotted** `+X/+X` where X counts Gates (triage T16: `Magnitude.Dynamic` is the opposite semantics), plus the same missing plain-permanent target. Its "Activate only as a sorcery" **is** now expressible — `ActivatedAbility.timing`, CR 602.5d — which is the half this packet supplied. |
 | Bender's Waterskin | `{T}: Add one mana of any color` — expressible since P2.1 | "Untap this artifact during each other player's untap step", a CR 613.11 rules-modifying static over the CR 502.2 turn-based action. It needs **nothing** from this framework. |
 
+**Amendment (`W8-A`): two of the four have landed, and neither needed anything from this framework —
+which is what the table above claimed and is worth recording as confirmed rather than predicted.**
+*Conduit Pylons* is encoded (NonbasicLands.kt) on `LibraryLookMode.Surveil` (CR 701.44a,
+library-look.md §12); its two mana abilities went in exactly as written here, the free `{T}: Add {C}`
+sorting ahead of the `{1}, {T}` filter by `PRODUCTION_ALTERNATIVE_ORDER`, with the T17 reservation
+keeping it out of its own `{1}` and the §11.2 ordering search keeping two Pylons from funding each
+other. *Bender's Waterskin* is encoded (BendersWaterskin.kt) on
+`CardDefinition.untapsInEachOtherPlayersUntapStep`, a declared property read by
+`untapStepTurnBasedActions` — the shape `entersTapped` already established for a CR 614.1c
+self-replacement, chosen for the same reason: a rules-modifying static (CR 613.11) modifies a
+turn-based action rather than a characteristic, so no CR 613 layer can hold it.
+
+**One measurement is now owed and is deliberately not taken here.** §11.6's warning — "if a gauntlet
+deck ever runs four Conduit Pylons alongside another any-colour source, this is the number to
+re-measure before assuming the enumeration stays tractable" — is live rather than hypothetical now that
+both cards exist. `W8-A` adds no board to the pinned budget specs, so no pinned count moved and nothing
+regressed; whoever next widens payment enumeration should measure a Pylons-plus-Waterskin board first.
+
+**The Gate cycle adds a production shape and no capacity problem** (`W8-A`, Gates.kt). "`{T}`: Add
+`{W}` or one mana of the chosen color" is one ability with two options, the second read off the
+**object** (`GameObject.chosenColor`, CR 614.12) rather than the card
+(`ManaAbility.includesChosenColor`). It costs this model nothing structural: `productionProfile` is
+already derived per object, so two Citadel Gates that chose different colours are simply two source
+classes, and the §2.1 equivalence relation needed no change at all. The plan-space cost is a two-option
+land's, which the Bridges already pay.
+
 The `ActivatedAbility.timing` field is worth calling out separately, because it is the one addition
 here that is not about mana at all. Without it "Activate only as a sorcery" is unexpressible, and
 Basilisk Gate and Timberwatch Elf would encode as instant-speed tricks — an enumerated-but-illegal

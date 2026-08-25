@@ -43,6 +43,22 @@ import kotlinx.collections.immutable.persistentListOf
  * shapes are [InterveningIf]'s sealed extension point and still must not be written into [effect].
  *
  * @property condition the event pattern that fires this ability (CR 603.2).
+ * @property optional whether the ability's **whole** effect is inside a printed "you may" (CR 603.2,
+ *   CR 601.3b) — Mortuary Mire's "you may put target creature card from your graveyard on top of your
+ *   library". Additive, flagged core (`W8-A`). `mtg-rules` pauses for the controller's yes/no when the
+ *   ability resolves, after the CR 608.2b target re-check and the CR 603.4 intervening-if check, and
+ *   performs [effect] only on acceptance.
+ *
+ *   **A flag on the ability rather than a clause, because the "may" wraps everything.** It is exact only
+ *   for a printed line whose *entire* instruction set is optional, which is what every "you may &lt;do
+ *   this&gt;" trigger in the gauntlet prints. A trigger with a mandatory half and an optional half is a
+ *   different shape and must not be encoded with this flag — that would make the mandatory half
+ *   declinable, which is the plausible-looking wrong card PLAN.md §7 is about; such a card needs a
+ *   clause carrying its own effect, and is the extension point.
+ *
+ *   **It is not `TargetCount.UpTo(1)` in disguise.** A target is chosen as the ability goes on the stack
+ *   (CR 603.3d) and the "may" is answered when it resolves, a whole priority round later and with
+ *   different information; collapsing the two would move a real decision earlier (ADR-005).
  * @property interveningIf the CR 603.4 "intervening if" clause, or `null` for an ability with none.
  *   Checked **twice**: the ability does not trigger at all unless it holds, and it is removed from the
  *   stack doing nothing if it has stopped holding on resolution. Goblin Bushwhacker's "if it was
@@ -87,6 +103,7 @@ import kotlinx.collections.immutable.persistentListOf
 data class TriggeredAbility(
     val condition: TriggerCondition,
     val effect: ResolutionEffect,
+    val optional: Boolean = false,
     val zoneScope: TriggerZoneScope = TriggerZoneScope.Battlefield,
     val interveningIf: InterveningIf? = null,
     val optionalDiscardDraw: OptionalDiscardDraw? = null,

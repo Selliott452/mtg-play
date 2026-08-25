@@ -178,6 +178,7 @@ private fun applyChosenYesNo(
         state.pendingCast?.kicked == null && state.pendingCast != null -> applyChosenKicker(state, accept)
         state.pendingOptionalDiscardDraw != null -> applyOptionalDiscardYesNo(state, accept)
         state.pendingOptionalDraw != null -> applyOptionalDrawYesNo(state, accept)
+        state.pendingOptionalTrigger != null -> applyOptionalTriggerYesNo(state, accept)
         state.pendingLibraryLook != null -> applyLibraryLookShuffle(state, accept)
         state.pendingMadness != null -> applyMadnessCastChoice(state, accept)
         state.pendingRebound != null -> applyReboundCastChoice(state, accept)

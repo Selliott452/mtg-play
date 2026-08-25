@@ -116,6 +116,6 @@ private fun libraryArrangementToDomain(
         dto.prompt,
         dto.pool.mapOptions { o, c -> DecisionRequest.ChooseLibraryArrangement.PoolCard(o, c) },
         dto.options.map {
-            DecisionRequest.ChooseLibraryArrangement.Option(it.toHand, it.toTop, it.toBottom)
+            DecisionRequest.ChooseLibraryArrangement.Option(it.toHand, it.toTop, it.toBottom, it.toGraveyard)
         },
     )

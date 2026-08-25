@@ -538,5 +538,38 @@ package dev.mtgplay.protocol
  *    fewer entries on some boards. `8.0.0`'s own entry already makes this argument for deathtouch and the
  *    haste evasion: an option list is a payload the wire carries, and which options are in it is what
  *    ADR-005 is about, not what the schema is.
+ * ## `9.0.0` — `W8-A`: Gates, surveil, and a "you may" that wraps a whole trigger
+ *
+ * **Call: bump to `9.0.0`.** Three required-field additions and no new request kind — the milder of the
+ * two break modes throughout, but three separate instances of the shape `4.0.0` and `6.0.0` were bumped
+ * for, and the recorded standard is to name a break rather than argue that nobody is listening.
+ *
+ * 1. **[LibraryArrangementDto] gains a required `toGraveyard`** — surveil's fourth destination
+ *    (CR 701.44a). It is the option payload of every `choose_library_arrangement`, so an `8.0.0` peer's
+ *    strict codec (`ignoreUnknownKeys = false`) rejects **every** look decision, not only a surveil's:
+ *    Preordain's scry and Ponder's reorder break too. That is the sharpest of the three, and the field is
+ *    required rather than defaulted for the reason `FW-COUNTERS` gave: an omitted destination would let
+ *    an old client render an arrangement it is silently misreading, and the difference between the bottom
+ *    of a library and a graveyard is the whole of the card.
+ * 2. **[SeatViewDto] gains a required `pendingOptionalTrigger`** (CR 603.2) — the yes/no pause of a
+ *    triggered ability whose whole effect is inside a printed "you may" (Mortuary Mire). The break shape
+ *    `4.0.0` recorded for `pendingLibraryLook` and `7.0.0` for `pendingOptionalDraw`.
+ * 3. **[PendingColorChoiceDto] gains a required `playedLand`** (CR 614.12, CR 305.1). An as-enters colour
+ *    choice can now interrupt the play-land special action as well as a resolving permanent spell — a
+ *    land is never cast — and the record says which route it interrupted, because there is no stack entry
+ *    to read it off. It rides inside [SeatViewDto], so an `8.0.0` peer rejects any seat view carrying one.
+ *
+ * **No `DecisionRequest` kind, no [DecisionRequestKindDto] value, and no [TargetDto] member are added**,
+ * which is the packet's central wire claim and worth stating because all three of its decisions are new
+ * *positions*. A Gate's colour choice reuses `choose_color` unchanged — only its option **list** is
+ * shorter, and under ADR-005 a narrower enumeration of an existing request is not a new decision. A
+ * surveil reuses `choose_library_arrangement`, exactly as `W7-C`'s filtered look did. And the "you may"
+ * reuses `choose_yes_no`, the seventh flow to share that request, routed by which `pending*` record is
+ * open. So the client→server direction changes shape nowhere; only what the server sends does.
+ *
+ * `CardDefinition.untapsInEachOtherPlayersUntapStep` (Bender's Waterskin, CR 613.11) and
+ * [dev.mtgplay.core.event.GameEvent.CardSurveilled] add **nothing** to the wire: card definitions are
+ * static match configuration that never travels, and the event log is not part of [SeatViewDto] at all —
+ * the same exclusion the `FW-PREVENT` note records for the damage source.
  */
-const val PROTOCOL_VERSION: String = "8.0.0"
+const val PROTOCOL_VERSION: String = "9.0.0"

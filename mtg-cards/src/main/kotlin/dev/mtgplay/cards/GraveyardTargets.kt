@@ -43,6 +43,12 @@ import kotlinx.collections.immutable.persistentSetOf
  *   type.
  * - **Mortuary Mire** is a land whose enters-the-battlefield trigger would never fire: `executePlayLand`
  *   does not call `detectEnterBattlefieldTriggers` (triage T18).
+ *
+ * **Mortuary Mire has since landed** (NonbasicLands.kt, `W8-A`). The T18 diagnosis above expired when
+ * `executePlayLand` was routed through `announceBattlefieldEntry`, and the second half of that card —
+ * the printed "**you may**" wrapping its whole instruction — is now
+ * [dev.mtgplay.core.definition.TriggeredAbility.optional], answered when the ability resolves rather
+ * than folded into its CR 603.3d target choice.
  */
 
 /** The life Pulse of Murasa's controller gains (CR 119.3). */

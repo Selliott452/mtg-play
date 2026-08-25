@@ -1614,15 +1614,20 @@ sealed interface DecisionRequest {
          * @property toTop the cards put on top of the library, **topmost first**.
          * @property toBottom the cards put on the bottom of the library, in placement order — the first
          *   ends up above the last, the convention [ChooseCardsToBottom] already documents (CR 103.5).
+         * @property toGraveyard the cards put into the deciding seat's graveyard, in placement order —
+         *   surveil's "put any number of them into your graveyard" (CR 701.44a). The **fourth**
+         *   destination, added by `W8-A`; empty for every other mode, and the one destination that makes
+         *   part of a private look public the moment it is applied (CR 400.2).
          */
         data class Option(
             val toHand: List<Int>,
             val toTop: List<Int>,
             val toBottom: List<Int>,
+            val toGraveyard: List<Int> = emptyList(),
         ) {
             /** Whether this arrangement assigns each of [poolSize] pool indices exactly once (CR 701.17a). */
             fun isTotalOver(poolSize: Int): Boolean {
-                val all = toHand + toTop + toBottom
+                val all = toHand + toTop + toBottom + toGraveyard
                 return all.size == poolSize && all.toSet() == (0 until poolSize).toSet()
             }
         }
