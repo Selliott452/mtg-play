@@ -8,7 +8,6 @@ import dev.mtgplay.core.definition.TargetSpec
 import dev.mtgplay.core.definition.TimingClass
 import dev.mtgplay.core.identity.ObjectId
 import dev.mtgplay.core.identity.PlayerId
-import dev.mtgplay.core.mana.ManaCost
 import dev.mtgplay.core.state.GameState
 import dev.mtgplay.core.state.TurnPhase
 import dev.mtgplay.rules.decision.PriorityOption
@@ -112,8 +111,15 @@ internal fun playLandIsLegal(
 
 /**
  * Whether every CR 601.2 gate passes for [seat] casting the hand card [castObjectId] defined by
- * [definition] normally: timing, targets, an affordable printed cost, and any intrinsic additional
- * discard cost (Grab the Prize).
+ * [definition] normally: timing, targets, an affordable **modified** cost, and any intrinsic
+ * additional discard cost (Grab the Prize).
+ *
+ * The cost is priced by the shared [totalCost] (CR 601.2f, docs/design/cost-modification.md), not by
+ * the printed cost: an affinity spell is legal to cast exactly when its *reduced* cost is payable,
+ * and pricing it here against the printed cost would hide a legal option from the agent (ADR-005 in
+ * the direction that silently shrinks the action space). The private `castableCost` this replaced was
+ * one of four independent cost expressions that had to agree by coincidence; all four sites now call
+ * [totalCost], so agreement is structural rather than a property somebody has to maintain.
  */
 private fun castIsLegal(
     state: GameState,
@@ -124,15 +130,11 @@ private fun castIsLegal(
     timingPermitsCast(state, seat, definition.timing) &&
         targetsAvailable(state, definition.targetSpec, seat, self = castObjectId) &&
         additionalDiscardSatisfiable(state, seat, definition, castObjectId, CastSource.HAND) &&
-        enumeratePaymentPlans(state, seat, castableCost(definition)).isNotEmpty()
-
-/** The cost enumeration prices (CR 601.2f); loud on a castable definition with no mana cost. */
-private fun castableCost(definition: SpellDefinition): ManaCost =
-    definition.manaCost
-        ?: error(
-            "CR 601.2f: castable definition ${definition.characteristics.name} has no mana cost; casting " +
-                "without one requires an alternative cost, which arrives in Phase 5 (docs/decklists.md)",
-        )
+        enumeratePaymentPlans(
+            state,
+            seat,
+            totalCost(state, seat, definition, permission = null, castObjectId = castObjectId),
+        ).isNotEmpty()
 
 /**
  * Whether [timing] permits [seat] to cast from the current window (CR 117.1a): instant speed

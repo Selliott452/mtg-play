@@ -53,9 +53,16 @@ private fun targetMenu(
         numbered(request.options.map { targetLabel(view, it) }) +
         SINGLE_HINT
 
-/** A cast's payment choice (CR 601.2g); each plan shows its per-symbol assignments. */
+/**
+ * A cast's payment choice (CR 601.2g); each plan shows its per-symbol assignments.
+ *
+ * The header names the **determined** cost (CR 601.2f) rather than the card's printed cost, because
+ * since `FW-COST` they differ: an affinity Myr Enforcer printed at `{7}` reads "pay {3}" with four
+ * artifacts out, and the plans below it pay three symbols. Rendering the printed cost here would make
+ * every reduced cast look like a defect.
+ */
 private fun paymentMenu(request: DecisionRequest.ChoosePaymentPlan): List<String> =
-    listOf("Choose how to pay for ${request.card.name} (CR 601.2g):") +
+    listOf("Choose how to pay ${request.cost.render()} for ${request.card.name} (CR 601.2g):") +
         numbered(request.options.map { paymentPlanLabel(it) }) +
         SINGLE_HINT
 

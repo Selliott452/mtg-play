@@ -88,5 +88,26 @@ package dev.mtgplay.protocol
  * through the existing `ChooseTargets` request, and the ADR-007 ruling is deliberately that **no** new
  * per-seat filtering is needed, because a graveyard is a public zone (CR 400.2) whose contents
  * [SeatViewDto] already carries for both seats.
+ *
+ * **6.0.0** covers the wave-4 frameworks; none shipped separately, so `5.0.0`
+ * is the last version any consumer can have seen and one major bump carries them all.
+ *
+ * * `FW-COST`** (docs/design/cost-modification.md §5). A spell's cost can now be modified
+ * before it is paid (CR 601.2f), so the cost a payment plan pays is no longer inferable from the card
+ * it is being paid for: an affinity Myr Enforcer printed `{7}` is genuinely a `{3}` on a board with
+ * four artifacts. [DecisionRequestDto.ChoosePaymentPlan] therefore gains a **required** `cost` string
+ * in Scryfall brace syntax, which a `5.0.0` peer's strict codec rejects outright in the server→client
+ * direction, and which a `5.0.0` client would fail to supply coming back.
+ *
+ * It is the smallest break in this file's history and the bump is still major, for the reason `3.0.0`
+ * recorded: the standard here is to name a wire break rather than to argue that no peer is listening.
+ *
+ * **The option set is deliberately unchanged**, and that is the framework's central claim rather than
+ * an accident. A [PaymentPlanDto] is a flat list aligned to the expanded symbols of *the cost it pays*;
+ * cost modification changes which cost is expanded and introduces no new payment kind, no new source
+ * class, and no new choice. So no `DecisionRequest` kind is added, no enumerated index moves, and
+ * `{4}` reduced to `{2}` differs from a printed `{2}` in nothing an agent can observe (ADR-005). The
+ * upstream brief predicted this request would "change shape"; it does not, and the added field is
+ * display and audit only.
  */
-const val PROTOCOL_VERSION: String = "5.0.0"
+const val PROTOCOL_VERSION: String = "6.0.0"

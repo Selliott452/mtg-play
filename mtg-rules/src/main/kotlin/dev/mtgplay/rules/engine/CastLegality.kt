@@ -7,7 +7,6 @@ import dev.mtgplay.core.definition.SacrificeRequirement
 import dev.mtgplay.core.definition.SpellDefinition
 import dev.mtgplay.core.identity.ObjectId
 import dev.mtgplay.core.identity.PlayerId
-import dev.mtgplay.core.mana.ManaCost
 import dev.mtgplay.core.state.GameObject
 import dev.mtgplay.core.state.GameState
 
@@ -17,18 +16,24 @@ import dev.mtgplay.core.state.GameState
  */
 
 /**
- * Whether every target [definition] requires is available and [cost] can be paid (CR 601.2c, g). [self]
- * is the card that would be cast, excluded from its own target enumeration.
+ * Whether every target [definition] requires is available and its cost via [permission] can be paid
+ * (CR 601.2c, g). [self] is the card that would be cast, excluded from its own target enumeration
+ * **and** from every zone count the cost reduction takes (CR 601.2a).
+ *
+ * The cost comes from the shared [totalCost] (CR 601.2f, docs/design/cost-modification.md) rather than
+ * from a caller-supplied `ManaCost`. Taking the permission instead of an already-priced cost is what
+ * makes divergence unrepresentable here: a caller can no longer hand this the printed cost while the
+ * pipeline pays a reduced one.
  */
 internal fun targetsAndCostAvailable(
     state: GameState,
     seat: PlayerId,
     definition: SpellDefinition,
-    cost: ManaCost,
+    permission: CastingPermission?,
     self: ObjectId?,
 ): Boolean =
     targetsAvailable(state, definition.targetSpec, seat, self) &&
-        enumeratePaymentPlans(state, seat, cost).isNotEmpty()
+        enumeratePaymentPlans(state, seat, totalCost(state, seat, definition, permission, self)).isNotEmpty()
 
 /**
  * Whether [seat] may cast the card [sourceObject] via [permission] from a priority window (CR 117.1a):
@@ -47,7 +52,7 @@ internal fun permissionCastIsLegal(
         sacrificeSatisfiable(state, seat, permission.sacrifice) &&
         additionalDiscardSatisfiable(state, seat, definition, sourceObject.id, permission.source) &&
         plotMarkerAllows(state, permission, sourceObject) &&
-        targetsAndCostAvailable(state, seat, definition, permission.cost, self = sourceObject.id)
+        targetsAndCostAvailable(state, seat, definition, permission, self = sourceObject.id)
 
 /**
  * Whether a [CastingPermission.Plot] free cast is allowed for [sourceObject] right now (CR 702.140): the
@@ -137,4 +142,4 @@ internal fun madnessCastViable(
     definition: SpellDefinition,
     permission: CastingPermission,
     exiledObjectId: ObjectId,
-): Boolean = targetsAndCostAvailable(state, owner, definition, permission.cost, self = exiledObjectId)
+): Boolean = targetsAndCostAvailable(state, owner, definition, permission, self = exiledObjectId)

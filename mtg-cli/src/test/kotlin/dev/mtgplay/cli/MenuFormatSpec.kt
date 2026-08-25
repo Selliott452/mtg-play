@@ -3,6 +3,7 @@ package dev.mtgplay.cli
 import dev.mtgplay.core.identity.CardRef
 import dev.mtgplay.core.identity.ObjectId
 import dev.mtgplay.core.mana.Color
+import dev.mtgplay.core.mana.ManaCost
 import dev.mtgplay.core.mana.ManaType
 import dev.mtgplay.rules.decision.DecisionRequest
 import dev.mtgplay.rules.decision.DecisionRequestId
@@ -13,6 +14,7 @@ import dev.mtgplay.rules.decision.SourceClassKey
 import dev.mtgplay.rules.decision.SymbolPayment
 import io.kotest.core.spec.style.StringSpec
 import io.kotest.matchers.string.shouldContain
+import io.kotest.matchers.string.shouldNotContain
 
 /**
  * The numbered decision menus (P6.4 deliverable 2). Each request kind renders meaningful labels -
@@ -54,10 +56,43 @@ class MenuFormatSpec :
                     ),
                     listOf(SymbolPayment.WithMana(ManaType.RED)),
                 )
-            val request = DecisionRequest.ChoosePaymentPlan(rid, ObjectId(4), CardRef("Lightning Bolt"), listOf(plan))
+            val request =
+                DecisionRequest.ChoosePaymentPlan(
+                    rid,
+                    ObjectId(4),
+                    CardRef("Lightning Bolt"),
+                    ManaCost.parse("{R}"),
+                    listOf(plan),
+                )
             val text = menu(request)
             text shouldContain "tap Mountain for {R}"
             text shouldContain "pay {R}"
+        }
+
+        "CR 601.2f: a payment menu headlines the determined cost, not the card's printed cost" {
+            // A reduced affinity cast: printed {7}, determined {3}. Rendering the printed cost here
+            // would make every legitimately reduced cast read as a defect.
+            val plan =
+                PaymentPlan(
+                    listOf(
+                        ManaActivation(
+                            SourceClassKey(CardRef("Mountain"), listOf(listOf(ManaType.RED))),
+                            listOf(ManaType.RED),
+                        ),
+                    ),
+                    listOf(SymbolPayment.WithMana(ManaType.RED)),
+                )
+            val request =
+                DecisionRequest.ChoosePaymentPlan(
+                    rid,
+                    ObjectId(4),
+                    CardRef("Myr Enforcer"),
+                    ManaCost.parse("{3}"),
+                    listOf(plan),
+                )
+            val text = menu(request)
+            text shouldContain "pay {3} for Myr Enforcer"
+            text shouldNotContain "{7}"
         }
 
         "CR 508.1: a declare-attackers menu shows each attacker's effective P/T and its defender" {

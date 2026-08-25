@@ -114,6 +114,10 @@ internal fun pendingPlotRequest(state: GameState): DecisionRequest.ChoosePayment
         id = DecisionRequestId(plot.caster, state.player(plot.caster).decisionsAnswered),
         cardObjectId = plot.cardObjectId,
         card = card.card,
+        // CR 702.140b: the plot cost is paid by a special action, not by casting, so CR 601.2f never
+        // runs over it and no cost reduction applies (docs/design/cost-modification.md §12). The
+        // determined cost is the printed plot cost.
+        cost = permission.plotCost,
         options = enumeratePaymentPlans(state, plot.caster, permission.plotCost),
     )
 }

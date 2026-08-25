@@ -86,4 +86,20 @@ interface SpellDefinition :
      * target fizzles, and **nobody is ever asked to pay**.
      */
     val counterUnlessPaid: CounterUnlessPaid? get() = null
+
+    /**
+     * This spell's **own** static cost-reduction ability (CR 601.2f), or `null` for a spell with none.
+     * Additive, flagged core (`FW-COST`, docs/design/cost-modification.md §1). Affinity for artifacts
+     * (CR 702.41a), the Terrors' graveyard count, and Of One Mind's conditional `{2}` all live here.
+     *
+     * A static ability of the spell itself, functioning while the spell is on the stack (CR 702.41a
+     * says so for affinity, CR 604.5 generally) — which is why the declaration sits on the castable
+     * refinement and not on [CardDefinition]. The other-object shape, where a *battlefield permanent*
+     * reduces somebody's spells, is [CardDefinition.spellCostReductions] instead.
+     *
+     * The engine reads this exactly once per cast, at CR 601.2f, and the resulting total cost is
+     * **locked in**: nothing paid afterwards re-prices the spell (the CR 601.2h example — sacrificing
+     * the reducer as an additional cost still pays the reduced cost).
+     */
+    val costReduction: CostReduction? get() = null
 }

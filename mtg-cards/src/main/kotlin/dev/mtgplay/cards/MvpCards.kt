@@ -102,6 +102,19 @@ import dev.mtgplay.core.identity.CardRef
  * untapped creature you control" — an activation cost shape the payment model cannot express
  * (docs/design/mana-payment.md §9).
  *
+ * The `FW-COST` packet adds the pool's first spells whose **total cost is not their printed cost**
+ * (CR 601.2f, docs/design/cost-modification.md): Grixis Affinity's [myrEnforcer], [thoughtcast] and
+ * [utromMonitor] (affinity for artifacts, CR 702.41a), Mono-Blue Terror's [crypticSerpent] (a
+ * graveyard count, floored at `{U}{U}` by CR 118.7a), and Mono Blue Faeries' [ofOneMind] (a flat `{2}`
+ * gated on a two-part board condition). Five siblings from the same triage rows stay absent, each on a
+ * framework that packet does not own: **Tolarian Terror** prints Cryptic Serpent's clause plus **ward
+ * {2}** (CR 702.21a, a triggered ability — `FW-WARD`), **Refurbished Familiar** and **Deem Inferior**
+ * both need a decision put to a player who is not the spell's controller (`FW-NONCTRLDEC`, and Deem
+ * Inferior additionally needs cards-drawn-this-turn tracking the state does not keep), **Ride's End**
+ * prices off its chosen target while cast legality is decided before targets exist (`FW-TGTCOND`), and
+ * **Sunscape Familiar** — whose other-object reducer the framework does implement and test — prints
+ * **Defender**, the same missing keyword (`FW-DEFENDERKW`) that keeps Overgrown Battlement out.
+ *
  * [definitions] is shaped for direct `MatchConfig.definitions` consumption: the engine carries
  * it into `GameState` in canonical name-sorted order regardless of this map's own order
  * (ADR-009 — definitions ride in the state; a [CardRef] without an entry is inert). The pool
@@ -123,6 +136,7 @@ object MvpCards {
             cartoucheOfSolidarity,
             castDown,
             counterspell,
+            crypticSerpent,
             dispel,
             drossforgeBridge,
             elvishMystic,
@@ -167,7 +181,9 @@ object MvpCards {
             mistvaultBridge,
             mountain,
             murmuringMystic,
+            myrEnforcer,
             negate,
+            ofOneMind,
             outlawMedic,
             plains,
             ponder,
@@ -197,6 +213,7 @@ object MvpCards {
             standingTroops,
             swamp,
             terminate,
+            thoughtcast,
             thoughtScour,
             unfathomableTruths,
             unionOfTheThirdPath,
@@ -204,6 +221,7 @@ object MvpCards {
             urzasPowerPlant,
             urzasTower,
             utopiaSprawl,
+            utromMonitor,
             vaultOfWhispers,
             volatileFjord,
             voldarenEpicure,

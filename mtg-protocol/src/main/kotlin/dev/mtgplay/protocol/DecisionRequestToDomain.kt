@@ -75,6 +75,7 @@ private fun singleOptionSelectionToDomain(dto: DecisionRequestDto.SingleOptionSe
                 dto.id.toDomain(),
                 ObjectId(dto.cardObjectId),
                 CardRef(dto.card),
+                ManaCost.parse(dto.cost),
                 dto.options.map { it.toDomain() },
             )
         is DecisionRequestDto.AssignTrampleDamage ->

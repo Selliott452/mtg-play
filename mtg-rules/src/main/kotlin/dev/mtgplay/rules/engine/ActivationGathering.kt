@@ -115,6 +115,11 @@ internal fun pendingActivationRequest(state: GameState): DecisionRequest {
                 id = id,
                 cardObjectId = pending.sourceObjectId,
                 card = source.card,
+                // CR 602.2f: an activated ability's mana cost is modifiable in general, but nothing in
+                // the pool modifies one and no declaration can express it (docs/design/cost-modification.md
+                // §12) — so the determined cost *is* the printed component, and saying so here keeps the
+                // request's cost field meaning the same thing it means for a spell.
+                cost = mana.cost,
                 // Same reservation the legality check used (triage trap T17): the options offered
                 // must be exactly the ones execution can carry out (ADR-005), so the source cannot
                 // appear here as a payer for a cost that also taps or sacrifices it.
