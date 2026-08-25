@@ -21,10 +21,11 @@ import java.security.MessageDigest
  * it is not a card, but its id and name appear in the residence line like any other object.
  *
  * Continuous-effect (CR 613) characteristics are digested by their **cause** — an object's
- * attachment — not their computed values: computed P/T and keywords are a pure function of state
- * the digest already covers, so two states with different continuous effects already differ in
- * which Auras are attached where and thus hash apart, without re-implementing layer logic here
- * (docs/design/layer-system.md §5).
+ * attachment, and a running timed effect's own record — not their computed values: computed P/T and
+ * keywords are a pure function of state the digest already covers, so two states with different
+ * continuous effects already differ in which Auras are attached where, or in what the
+ * [dev.mtgplay.core.state.GameState.timedEffects] store holds, and thus hash apart without
+ * re-implementing layer logic here (docs/design/layer-system.md §5, docs/design/duration.md §7).
  *
  * The [event log][GameState.events] is deliberately excluded: events are derived observability
  * (ADR-006), so they are fingerprinted separately and compared on their own, keeping "the game
@@ -73,6 +74,7 @@ internal fun canonicalDescriptor(state: GameState): String =
         appendSeats(state)
         ZoneResidence.of(state).forEach { appendResidence(it) }
         appendStackAndTriggers(state)
+        appendTimedEffects(state)
     }
 
 // Digests every gathering/pause position by cause (which card, whose choice), never by a computed value.

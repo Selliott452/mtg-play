@@ -301,6 +301,7 @@ class MvpCardsSpec :
                     CardRef("Terminate"),
                     CardRef("Thoughtcast"),
                     CardRef("Thought Scour"),
+                    CardRef("Timberwatch Elf"),
                     CardRef("Unfathomable Truths"),
                     CardRef("Union of the Third Path"),
                     CardRef("Urza's Mine"),

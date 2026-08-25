@@ -1,6 +1,7 @@
 package dev.mtgplay.rules.engine
 
 import dev.mtgplay.core.event.GameEvent
+import dev.mtgplay.core.state.EffectDuration
 import dev.mtgplay.core.state.GameState
 import kotlinx.collections.immutable.toPersistentList
 
@@ -37,18 +38,46 @@ internal fun untapStepTurnBasedActions(state: GameState): GameState {
 internal fun drawStepTurnBasedAction(state: GameState): GameState = drawCard(state, state.turn.activePlayer)
 
 /**
- * The cleanup step's simultaneous turn-based actions after the discard (CR 514.2): remove all
- * marked damage and end "until end of turn" / "this turn" effects.
+ * The cleanup step's **simultaneous** turn-based actions after the discard (CR 514.2): remove all
+ * marked damage and end every "until end of turn" continuous effect, in one transition.
  *
- * P3.1 fills in the damage half: all damage marked on battlefield objects (CR 120.3d) wears off
- * at once. "Until end of turn" / "this turn" effects arrive in Phase 4 and end here too. No event
- * narrates the wear-off — like the untap step's status change it is silent bookkeeping, and the
- * acceptance invariant checker confirms no marked damage survives a completed turn.
+ * Both halves are now real. All damage marked on battlefield objects (CR 120.3d) wears off, and
+ * every [dev.mtgplay.core.state.EffectDuration.UntilEndOfTurn] effect leaves
+ * [GameState.timedEffects] (`FW-DURATION`, docs/design/duration.md §5.4).
+ *
+ * **The simultaneity is load-bearing, not a formality.** A 1/2 pumped to a 4/5 that took 4 combat
+ * damage survives (4 < 5). If the pump ended *before* the damage cleared, the creature would
+ * momentarily be a 1/2 with 4 marked damage and die to the CR 704.5g state-based action — a
+ * reachable, silently-wrong death. Doing both in a single state transition, before
+ * `performStateBasedActions` runs, is what makes CR 514.2's "simultaneously" true here.
+ *
+ * No CR 514.2 wear-off in the implemented effect set can make a state-based action applicable, so
+ * the CR 514.3a repeat-cleanup path is unreachable *from a duration*: a positive P/T modifier ending
+ * lowers toughness only in the same instant all damage is removed, and a negative one ending raises
+ * it. The first effect kind that breaks that (a set-P/T wearing off) reaches the existing repeat
+ * path, which already works.
+ *
+ * The `when` over [dev.mtgplay.core.state.EffectDuration] is exhaustive so a new duration cannot
+ * default into ending here.
+ *
+ * No event narrates the wear-off — like the untap step's status change it is silent bookkeeping, and
+ * the acceptance invariant checker confirms that neither marked damage nor a timed effect survives a
+ * completed turn.
  */
 internal fun cleanupRemoveDamageAndEndEffects(state: GameState): GameState {
     val cleared =
         state.sharedZones.battlefield
             .map { obj -> if (obj.damageMarked != 0) obj.copy(damageMarked = 0) else obj }
             .toPersistentList()
-    return state.copy(sharedZones = state.sharedZones.copy(battlefield = cleared))
+    val surviving =
+        state.timedEffects
+            .filterNot { effect ->
+                when (effect.duration) {
+                    EffectDuration.UntilEndOfTurn -> true
+                }
+            }.toPersistentList()
+    return state.copy(
+        sharedZones = state.sharedZones.copy(battlefield = cleared),
+        timedEffects = surviving,
+    )
 }

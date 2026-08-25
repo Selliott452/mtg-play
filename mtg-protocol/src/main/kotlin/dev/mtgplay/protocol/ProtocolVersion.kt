@@ -109,5 +109,18 @@ package dev.mtgplay.protocol
  * `{4}` reduced to `{2}` differs from a printed `{2}` in nothing an agent can observe (ADR-005). The
  * upstream brief predicted this request would "change shape"; it does not, and the added field is
  * display and audit only.
+ *
+ * *`FW-DURATION`* (docs/design/duration.md §13). Spells and abilities can now create
+ * continuous effects with a duration (CR 611.2), and a seat must be able to see them: [SeatViewDto]
+ * gains a **required** `timedEffects` list of [TimedContinuousEffectDto], which a `5.0.0` peer's
+ * strict codec rejects outright. That is the same break shape `4.0.0` recorded for
+ * `pendingLibraryLook` and `3.0.0` for `pendingTriggerTargets`, and the recorded standard is to say
+ * so with a major bump rather than to argue that nobody is listening.
+ *
+ * The break is **server→client only**, and the milder of the two modes: no
+ * [DecisionRequestDto] member, no [DecisionRequestKindDto] member, and no [TargetDto] member are
+ * added, so nothing fails at `valueOf` mid-match. An until-end-of-turn effect is something an agent
+ * *observes*, never something it decides — which is exactly why the client→server direction is
+ * untouched.
  */
 const val PROTOCOL_VERSION: String = "6.0.0"

@@ -41,3 +41,34 @@ internal fun renderTarget(target: Target): String =
         is Target.SpellOnStack -> "spell${target.id.value}"
         is Target.CardInGraveyard -> "graveyard${target.id.value}"
     }
+
+/**
+ * Digests the running resolution-generated continuous effects (CR 611.2, `FW-DURATION`,
+ * docs/design/duration.md §7), in store order — which is creation order, which is timestamp order,
+ * because the store is append-only, so the token is order-stable without a sort.
+ *
+ * This is the first cause with no residence line. docs/design/layer-system.md §5's rule is to digest
+ * the *cause* of a continuous effect and never its computed values, and an Aura's cause is its
+ * `attachedTo`, already covered. A timed effect hangs off no object at all: without a token of its
+ * own, two states differing only in whether a pump resolved would hash identically and a replay
+ * divergence there would be invisible.
+ *
+ * The snapshotted modifiers **are** the cause here, not a computed value (CR 608.2h, CR 611.2d): they
+ * were frozen at creation and no state the digest already covers determines them any more — the Gate
+ * count that produced a `+3/+3` may since have changed. Digesting them therefore follows §5's rule
+ * rather than excepting it, and omitting them would let two differently-sized pumps hash alike.
+ * `createdOnTurn` is left out on the same principle: it equals `turn.number` for every effect the
+ * store may legally hold, so it can never vary independently.
+ */
+internal fun StringBuilder.appendTimedEffects(state: GameState) {
+    state.timedEffects.forEach { effect ->
+        append("|timed=").append(effect.affected.value)
+        append(':').append(effect.modification.powerMod)
+        append('/').append(effect.modification.toughnessMod)
+        append(':').append(effect.modification.grantedKeywords.joinToString("+") { it.name })
+        append(':').append(effect.duration::class.simpleName)
+        append('@').append(effect.timestamp)
+        append(':').append(effect.sourceCard.name)
+        append('@').append(effect.source?.value ?: "-")
+    }
+}

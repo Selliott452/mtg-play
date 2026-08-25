@@ -108,8 +108,11 @@ fun PrintedCardViewDto.toDomain(): PrintedCardView = PrintedCardView(characteris
 /**
  * The [E] member printed as [word], or a loud failure naming the vocabulary — a wire word this
  * schema's engine version does not know is a version skew, never something to drop silently.
+ *
+ * Internal rather than file-private since `FW-DURATION`: [TimedContinuousEffectDto] carries the same
+ * [Keyword] vocabulary and must fail identically on an unknown word rather than with its own message.
  */
-private inline fun <reified E : Enum<E>> parseVocabulary(
+internal inline fun <reified E : Enum<E>> parseVocabulary(
     word: String,
     vocabulary: String,
 ): E =

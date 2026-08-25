@@ -215,6 +215,7 @@ object MvpCards {
             terminate,
             thoughtcast,
             thoughtScour,
+            timberwatchElf,
             unfathomableTruths,
             unionOfTheThirdPath,
             urzasMine,
