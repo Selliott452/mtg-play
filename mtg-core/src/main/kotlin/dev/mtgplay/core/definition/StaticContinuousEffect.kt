@@ -16,14 +16,23 @@ import kotlinx.collections.immutable.persistentSetOf
  * logic and live in `mtg-rules`. Core says a modifier is +N/+N and grants a keyword; rules decides
  * that grants are layer 6 and P/T modifiers are layer 7c (docs/design/layer-system.md §2).
  *
- * The effect is active exactly while its source permanent is on the battlefield with its
- * [affects] set non-empty — for an Aura, while it is attached to a legal object (CR 604.3). There
- * is no resolution-generated, floating, or duration-bounded effect in the MVP pool, so this
- * carries no timestamp or duration: the timestamp is the source's battlefield-entry order and
- * duration is uniformly "while the static ability is active" (docs/design/layer-system.md §2, §3).
+ * The effect is active exactly while its source permanent is on the battlefield, its [affects] set is
+ * non-empty — for an Aura, while it is attached to a legal object (CR 604.3) — and its [condition], if
+ * it has one, holds. It carries no timestamp or duration: the timestamp is the source's
+ * battlefield-entry order and duration is uniformly "while the static ability is active"
+ * (docs/design/layer-system.md §2, §3). A *resolution*-generated effect with a duration is the other
+ * generator entirely and lives in [dev.mtgplay.core.state.TimedContinuousEffect]
+ * (docs/design/duration.md).
  *
- * @property affects which objects the effect modifies (CR 611.2c); [AffectedSet.Enchanted] for
- *   every MVP effect — the one object the Aura enchants.
+ * @property affects which objects the effect modifies (CR 611.2c); [AffectedSet.Enchanted] for every
+ *   Aura — the one object it enchants — and [AffectedSet.Self] for a permanent whose static ability
+ *   modifies only itself (`FW-CONDSTATIC`).
+ * @property condition the "as long as …" clause gating the whole effect (CR 604.3), or `null` for an
+ *   unconditional static ability. Additive, flagged (`FW-CONDSTATIC`) — Goblin Tomb Raider's "as long
+ *   as you control an artifact". CR 604.3 makes this a *continuous* re-evaluation with no trigger and
+ *   no stack: the effect stops applying the instant the condition fails and resumes the instant it
+ *   holds again, which the compute-on-read layer engine gives for free (docs/design/layer-system.md §5)
+ *   and which a triggered-ability encoding of the same text would get wrong.
  * @property grantedKeywords keyword abilities the affected object gains (CR 613.3 layer 6); the
  *   in-game keyword set unions these on (Rancor grants trample).
  * @property grantedManaAbilities mana abilities the affected object gains (CR 613.3 layer 6); how
@@ -44,4 +53,5 @@ data class StaticContinuousEffect(
     val grantedProtections: PersistentSet<Quality> = persistentSetOf(),
     val powerMod: Magnitude = Magnitude.Zero,
     val toughnessMod: Magnitude = Magnitude.Zero,
+    val condition: StaticCondition? = null,
 )

@@ -29,11 +29,13 @@ import dev.mtgplay.core.state.GameState
  *
  * - **Controller is owner**, the same standing simplification the rest of the engine makes until
  *   control-changing effects exist (CR 613 layer 2, docs/design/layer-system.md §4).
- * - **Subtypes are printed, not layered.** [LayeredCharacteristics] carries power, toughness,
- *   keywords and mana abilities, and no card in the gauntlet pool changes a permanent's subtypes
- *   (that is `FW-TYPECHANGE`, its own framework). Reading printed subtypes is therefore exact today;
- *   when a type-changing effect lands it must extend [LayeredCharacteristics] and this line must
- *   follow it, and the reason it will be found is that this is the only place subtypes are counted.
+ * - **Subtypes are read through the one changeling-aware seam**, [hasSubtype], not by testing the
+ *   printed set directly. [dev.mtgplay.core.card.Keyword.CHANGELING] (CR 702.73a) makes a
+ *   Shapeshifter every creature type, so Priest of Titania and Wellwisher must count Rooftop Percher
+ *   as an Elf while Gingerbread Cabin must **not** count it as a Forest — a distinction the seam draws
+ *   with [dev.mtgplay.core.card.Subtype.isCreatureType] and a bare set membership cannot draw at all.
+ *   Layer-4 type *changing* remains absent (`FW-TYPECHANGE`, its own framework); when it lands it
+ *   extends [LayeredCharacteristics] and the seam follows it, and this line does not move again.
  *
  * An object with no definition is inert and matches nothing — the engine cannot know what it is.
  *
@@ -46,12 +48,14 @@ fun countMatchingPermanents(
     state: GameState,
     filter: PermanentFilter,
     you: PlayerId,
-): Int =
-    state.sharedZones.battlefield.count { candidate ->
+): Int {
+    val subtype = filter.subtype
+    return state.sharedZones.battlefield.count { candidate ->
         val characteristics = state.definitions[candidate.card]?.characteristics
         characteristics != null &&
             (!filter.controlledByYou || candidate.owner == you) &&
-            (filter.subtype == null || filter.subtype in characteristics.subtypes) &&
+            (subtype == null || hasSubtype(state, candidate.id, subtype)) &&
             (filter.cardType == null || filter.cardType in characteristics.cardTypes) &&
             (filter.keyword == null || filter.keyword in effectiveKeywords(state, candidate.id))
     }
+}

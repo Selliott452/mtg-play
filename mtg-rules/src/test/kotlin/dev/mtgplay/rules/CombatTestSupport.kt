@@ -7,11 +7,14 @@ import dev.mtgplay.core.card.PrintedCharacteristics
 import dev.mtgplay.core.card.PrintedPowerToughness
 import dev.mtgplay.core.card.Quality
 import dev.mtgplay.core.card.Subtype
+import dev.mtgplay.core.definition.AffectedSet
 import dev.mtgplay.core.definition.CardDefinition
 import dev.mtgplay.core.definition.EnchantRestriction
 import dev.mtgplay.core.definition.Magnitude
+import dev.mtgplay.core.definition.PermanentFilter
 import dev.mtgplay.core.definition.ResolutionEffect
 import dev.mtgplay.core.definition.SpellDefinition
+import dev.mtgplay.core.definition.StaticCondition
 import dev.mtgplay.core.definition.StaticContinuousEffect
 import dev.mtgplay.core.definition.TargetSpec
 import dev.mtgplay.core.definition.TimingClass
@@ -220,6 +223,59 @@ internal val combatDefinitions: Map<CardRef, CardDefinition> =
                     ),
                 ),
         ),
+        // Keyword-tail bodies. "Venomous" is a plain 2/2 deathtoucher: one point from it is lethal to
+        // anything (CR 702.2b). "Venomtrampler" pairs deathtouch with trample, which is where the two
+        // interact — CR 702.19b excess is power minus *1* per blocker, not power minus toughness.
+        // "Ironhide" is the CR 702.12b control: dealt deathtouch damage and correctly not destroyed.
+        creature("Venomous", 2, 2, setOf(Keyword.DEATHTOUCH)),
+        creature("Venomtrampler", 4, 4, setOf(Keyword.DEATHTOUCH, Keyword.TRAMPLE)),
+        creature("Ironhide", 2, 2, setOf(Keyword.INDESTRUCTIBLE)),
+        // "Ghost" prints the haste evasion so block legality is testable without activating anything;
+        // Gingerbrute's own copy is granted, and DurationSpec covers that half through the layer seam.
+        creature("Ghost", 1, 1, evasions = setOf(Evasion.BLOCKABLE_ONLY_BY_HASTE)),
+        // "Mimic" is the changeling fixture: it prints *no* subtype at all, so every subtype it
+        // matches comes from CR 702.73a and nothing else.
+        creature("Mimic", 2, 2, setOf(Keyword.CHANGELING)),
+        // A granted deathtouch (CR 613.1f layer 6), so the keyword is exercised through the effective
+        // seam and not only as a printed characteristic — the shape Toxin Analysis actually has.
+        aura("Venom Aura", StaticContinuousEffect(grantedKeywords = persistentSetOf(Keyword.DEATHTOUCH))),
+        // `FW-CONDSTATIC` fixtures. "Raider" is Goblin Tomb Raider's shape: a conditional static
+        // ability affecting its own source (CR 604.3, AffectedSet.Self). "Trinket" is a bare
+        // noncreature artifact — the permanent whose presence switches the condition on and off.
+        object : CardDefinition {
+            override val characteristics =
+                PrintedCharacteristics(
+                    name = "Raider",
+                    manaCost = null,
+                    supertypes = persistentSetOf(),
+                    cardTypes = persistentSetOf(CardType.CREATURE),
+                    subtypes = persistentSetOf(),
+                    powerToughness = PrintedPowerToughness(1, 2),
+                )
+            override val staticContinuousEffects =
+                persistentListOf(
+                    StaticContinuousEffect(
+                        affects = AffectedSet.Self,
+                        condition =
+                            StaticCondition.YouControl(
+                                filter = PermanentFilter(cardType = CardType.ARTIFACT, controlledByYou = true),
+                            ),
+                        grantedKeywords = persistentSetOf(Keyword.HASTE),
+                        powerMod = Magnitude.Fixed(1),
+                    ),
+                )
+        },
+        object : CardDefinition {
+            override val characteristics =
+                PrintedCharacteristics(
+                    name = "Trinket",
+                    manaCost = null,
+                    supertypes = persistentSetOf(),
+                    cardTypes = persistentSetOf(CardType.ARTIFACT),
+                    subtypes = persistentSetOf(),
+                    powerToughness = null,
+                )
+        },
     ).associateBy { CardRef(it.characteristics.name) }
 
 /**

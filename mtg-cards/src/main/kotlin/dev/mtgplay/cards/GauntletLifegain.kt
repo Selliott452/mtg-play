@@ -19,6 +19,7 @@ import dev.mtgplay.core.state.GameObject
 import dev.mtgplay.core.state.GameState
 import dev.mtgplay.rules.effect.drawCards
 import dev.mtgplay.rules.effect.gainLife
+import dev.mtgplay.rules.engine.hasSubtype
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.persistentSetOf
 
@@ -75,17 +76,6 @@ private fun isCreatureCard(
         ?.characteristics
         ?.cardTypes
         ?.contains(CardType.CREATURE) == true
-
-/** Whether the object [obj] has the printed creature type [subtype] (CR 205.3); an inert object has none. */
-private fun hasSubtype(
-    state: GameState,
-    obj: GameObject,
-    subtype: Subtype,
-): Boolean =
-    state.definitions[obj.card]
-        ?.characteristics
-        ?.subtypes
-        ?.contains(subtype) == true
 
 /**
  * Healer of the Glade — `{G}` Creature — Elemental, a 1/2. "When this creature enters, you gain 3
@@ -304,7 +294,7 @@ val wellwisher: SpellDefinition =
                     cost = persistentListOf(AbilityCost.TapSelf),
                     effect =
                         ResolutionEffect { state, context ->
-                            val elves = state.sharedZones.battlefield.count { hasSubtype(state, it, ELF) }
+                            val elves = state.sharedZones.battlefield.count { hasSubtype(state, it.id, ELF) }
                             gainLife(state, context.controller, WELLWISHER_LIFE_PER_ELF * elves)
                         },
                 ),

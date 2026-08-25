@@ -1,11 +1,14 @@
 package dev.mtgplay.rules.engine
 
+import dev.mtgplay.core.card.Evasion
 import dev.mtgplay.core.card.Keyword
 import dev.mtgplay.core.card.Quality
 import dev.mtgplay.core.definition.AffectedSet
 import dev.mtgplay.core.definition.Magnitude
 import dev.mtgplay.core.definition.ManaAbility
+import dev.mtgplay.core.definition.StaticCondition
 import dev.mtgplay.core.identity.ObjectId
+import dev.mtgplay.core.identity.PlayerId
 import dev.mtgplay.core.state.GameObject
 import dev.mtgplay.core.state.GameState
 import kotlinx.collections.immutable.PersistentList
@@ -32,6 +35,12 @@ import kotlinx.collections.immutable.persistentSetOf
  *   protections unioned with layer-6 grants active on the object — how a Mask-of-Law-and-Grace-
  *   enchanted creature gains protection from black and from red (`FW-PROTECT`). A set, so
  *   CR 702.16m's "multiple instances … are redundant" needs no code.
+ * @property evasions the layered block-legality restrictions (CR 509.1b): printed evasions unioned
+ *   with layer-6 grants active on the object — how Gingerbrute gains "can't be blocked except by
+ *   creatures with haste" for a turn from its own activated ability. Combat reads this rather than
+ *   the printed set, which is the change the keyword-tail packet had to make before any evasion could
+ *   be granted at all: [dev.mtgplay.rules.engine.eligibleBlockPairings] previously read evasions
+ *   straight off the definition registry, bypassing CR 613 entirely.
  */
 data class LayeredCharacteristics(
     val power: Int?,
@@ -39,6 +48,7 @@ data class LayeredCharacteristics(
     val keywords: PersistentSet<Keyword>,
     val manaAbilities: PersistentList<ManaAbility>,
     val protections: PersistentSet<Quality> = persistentSetOf(),
+    val evasions: PersistentSet<Evasion> = persistentSetOf(),
 )
 
 /**
@@ -62,6 +72,7 @@ fun layeredCharacteristics(
             keywords = printed?.keywords ?: persistentSetOf(),
             manaAbilities = definition?.manaAbilities ?: persistentListOf(),
             protections = printed?.protections ?: persistentSetOf(),
+            evasions = printed?.evasions ?: persistentSetOf(),
         )
     // CR 122.1: the object's own counters are applied by the same walk, at the layers the rules give
     // them — layer 6 for a keyword counter (CR 122.1b), sublayer 7c for a P/T counter (CR 613.4c).
@@ -115,7 +126,18 @@ internal fun activeEffectsOn(
     affectedId: ObjectId,
 ): List<ActiveEffect> = staticEffectsOn(state, affectedId) + timedEffectsOn(state, affectedId)
 
-/** The CR 604.3 static half of [activeEffectsOn]: attached-and-active Aura statics. */
+/**
+ * The CR 604.3 static half of [activeEffectsOn]: the static abilities of battlefield permanents whose
+ * affected set is non-empty and names [affectedId], and whose "as long as …" condition — if they have
+ * one — currently holds.
+ *
+ * **The condition is evaluated here, on every read, and that is CR 604.3 rather than an optimisation**
+ * (`FW-CONDSTATIC`). A conditional static ability's effect applies exactly while its condition is
+ * true, with no trigger, no stack and no player receiving priority in between — so Goblin Tomb
+ * Raider's haste appears the instant an artifact enters and is gone the instant the last one leaves.
+ * Because characteristics are computed on read and never cached (docs/design/layer-system.md §5), that
+ * continuity costs exactly this one filter and no invalidation machinery.
+ */
 private fun staticEffectsOn(
     state: GameState,
     affectedId: ObjectId,
@@ -124,7 +146,7 @@ private fun staticEffectsOn(
         val definition = state.definitions[source.card] ?: return@flatMap emptyList()
         definition.staticContinuousEffects.mapNotNull { effect ->
             val affected = affectedObjectOf(state, source, effect.affects) ?: return@mapNotNull null
-            if (affected != affectedId) {
+            if (affected != affectedId || !conditionHolds(state, source, effect.condition)) {
                 null
             } else {
                 // CR 613.7c: an Aura's timestamp is when it became attached; in the MVP that is its
@@ -160,6 +182,7 @@ private fun timedEffectsOn(
                 source = effect.source,
                 affected = effect.affected,
                 grantedKeywords = effect.modification.grantedKeywords,
+                grantedEvasions = effect.modification.grantedEvasions,
                 powerMod = Magnitude.Fixed(effect.modification.powerMod),
                 toughnessMod = Magnitude.Fixed(effect.modification.toughnessMod),
                 timestamp = effect.timestamp,
@@ -183,4 +206,35 @@ private fun affectedObjectOf(
             val attached = source.attachedTo
             if (attached != null && state.sharedZones.battlefield.any { it.id == attached }) attached else null
         }
+        // CR 611.2c: a permanent whose static ability modifies only itself. The walk that reaches here
+        // is over battlefield permanents, so the source is present by construction and the set is
+        // never empty — the one way [AffectedSet.Self] is simpler than [AffectedSet.Enchanted].
+        AffectedSet.Self -> source.id
     }
+
+/**
+ * Whether [source]'s conditional static ability is currently active (CR 604.3): vacuously true for an
+ * unconditional ability (a `null` condition), otherwise the board-state question the condition asks.
+ * Exhaustive over [StaticCondition] so a new condition shape breaks compilation — the specific silent
+ * failure being guarded against is a new condition falling through to "true", which turns a
+ * conditional ability into an unconditional one that still looks right in every log.
+ *
+ * "You" is the source's controller, which is its owner across this pool (no layer-2 control-changing
+ * effect exists, docs/design/layer-system.md §4). The count runs through the one shared
+ * [countMatchingPermanents] seam rather than a private scan, so a conditional static and Gingerbread
+ * Cabin's CR 614.1c "unless you control three or more other Forests" cannot disagree about what
+ * counts.
+ */
+private fun conditionHolds(
+    state: GameState,
+    source: GameObject,
+    condition: StaticCondition?,
+): Boolean =
+    when (condition) {
+        null -> true
+        is StaticCondition.YouControl ->
+            countMatchingPermanents(state, condition.filter, controllerOf(source)) >= condition.atLeast
+    }
+
+/** The controller of [source] (CR 108.4); ownership across this pool. */
+private fun controllerOf(source: GameObject): PlayerId = source.owner

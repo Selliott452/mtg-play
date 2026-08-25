@@ -1,6 +1,7 @@
 package dev.mtgplay.acceptance.invariant
 
 import dev.mtgplay.core.card.CardType
+import dev.mtgplay.core.card.Keyword
 import dev.mtgplay.core.definition.SpellDefinition
 import dev.mtgplay.core.definition.TargetSpec
 import dev.mtgplay.core.definition.TokenDefinition
@@ -11,6 +12,7 @@ import dev.mtgplay.core.state.GameState
 import dev.mtgplay.core.state.PriorityStatus
 import dev.mtgplay.core.state.StackEntry
 import dev.mtgplay.core.zone.ZoneId
+import dev.mtgplay.rules.engine.layeredCharacteristics
 import dev.mtgplay.rules.engine.layeredToughness
 
 /**
@@ -303,6 +305,17 @@ internal fun checkMarkedDamageScope(residences: List<ZoneResidence>): List<Viola
                     ),
                 )
             }
+        residences
+            .filter { it.zone != ZoneId.Battlefield && it.obj.dealtDeathtouchDamage }
+            .forEach {
+                add(
+                    Violation(
+                        Invariant.MARKED_DAMAGE_SCOPE,
+                        "CR 704.5h: object ${it.obj.id.value} records deathtouch damage in ${it.zone}, " +
+                            "but that record describes marked damage and is battlefield-only",
+                    ),
+                )
+            }
     }
 
 /**
@@ -384,13 +397,24 @@ private fun aPlayerLossIsPending(state: GameState): Boolean =
 
 /**
  * [Invariant.CREATURE_LETHALITY_RESOLVED]: no battlefield creature has a met death condition at a
- * non-final pause (CR 704.5f/g) — toughness stays above 0 and marked damage stays below it, because
- * state-based actions run before any pause (CR 704.3). Reads the **layered** toughness
- * ([layeredToughness]) so an Aura-buffed creature is measured at its in-game toughness (CR 613
- * sublayer 7c) — the single source of truth combat and the death SBA also read
- * (docs/design/layer-system.md §5). A no-op once a player loss is pending ([aPlayerLossIsPending]):
- * a lethal creature in the final game-over state is correct, not a failed SBA. Top-level so the
- * checker object stays small.
+ * non-final pause (CR 704.5f/g/h) — toughness stays above 0, marked damage stays below it, and no
+ * destructible creature carries a deathtouch record, because state-based actions run before any pause
+ * (CR 704.3). Reads the **layered** toughness ([layeredToughness]) so an Aura-buffed creature is
+ * measured at its in-game toughness (CR 613 sublayer 7c) — the single source of truth combat and the
+ * death SBA also read (docs/design/layer-system.md §5). A no-op once a player loss is pending
+ * ([aPlayerLossIsPending]): a lethal creature in the final game-over state is correct, not a failed
+ * SBA. Top-level so the checker object stays small.
+ *
+ * **CR 702.12b is an exemption on the two *destruction* conditions and not on CR 704.5f**, and the
+ * keyword-tail packet had to state it out loud because both destruction conditions became reachable on
+ * an indestructible creature at once: Tamiyo's Safekeeping grants indestructible, and Toxin Analysis
+ * grants deathtouch, so a creature that is flagged and correctly alive is now an ordinary board rather
+ * than a corruption. Toughness 0 or less is not destruction (CR 704.5f) and indestructible never stops
+ * it, so that branch keeps no exemption.
+ *
+ * The keyword re-read goes through the public [layeredCharacteristics] rather than the engine's own
+ * `isIndestructible`, which keeps the checker's independence rule: it consults the layer engine's
+ * published output, exactly as it already does for toughness, and shares none of the SBA's logic.
  */
 internal fun checkCreatureLethalityResolved(state: GameState): List<Violation> {
     if (aPlayerLossIsPending(state)) return emptyList()
@@ -399,11 +423,16 @@ internal fun checkCreatureLethalityResolved(state: GameState): List<Violation> {
         if (CardType.CREATURE !in characteristics.cardTypes) return@mapNotNull null
         if (characteristics.powerToughness == null) return@mapNotNull null
         val toughness = layeredToughness(state, obj.id)
+        // CR 702.12b: an indestructible permanent is not destroyed, so neither destruction condition
+        // below applies to it.
+        val destructible = Keyword.INDESTRUCTIBLE !in layeredCharacteristics(state, obj.id).keywords
         val condition =
             when {
                 toughness <= 0 -> "CR 704.5f: toughness $toughness is 0 or less"
-                obj.damageMarked >= toughness ->
+                obj.damageMarked >= toughness && destructible ->
                     "CR 704.5g: marked damage ${obj.damageMarked} is lethal to toughness $toughness"
+                obj.dealtDeathtouchDamage && destructible ->
+                    "CR 704.5h: it was dealt damage by a source with deathtouch"
                 else -> return@mapNotNull null
             }
         Violation(

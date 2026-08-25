@@ -77,6 +77,13 @@ enum class Invariant {
      * [dev.mtgplay.core.state.GameObject.damageMarked] is at least zero, and any object off the
      * battlefield has none — an object reborn off the battlefield carries no marked damage
      * (CR 400.7), and cleanup wears it off at turn's end (CR 514.2). Added in P3.1.
+     *
+     * The keyword-tail packet extended it to the damage's **deathtouch record**
+     * ([dev.mtgplay.core.state.GameObject.dealtDeathtouchDamage], CR 704.5h), which shares every one
+     * of those properties because it describes that same damage: battlefield-only, wiped by the same
+     * CR 514.2 cleanup transition, and absent on the fresh object born of any zone move. Checking it
+     * here rather than in an invariant of its own is the point — the two must go and come together, and
+     * a state where the record outlived its damage is exactly the corruption worth catching.
      */
     MARKED_DAMAGE_SCOPE,
 

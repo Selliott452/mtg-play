@@ -76,4 +76,32 @@ data class PrintedCharacteristics(
      */
     val colors: Set<Color>
         get() = if (Keyword.DEVOID in keywords) emptySet() else (manaCost?.colors ?: emptySet())
+
+    /**
+     * Whether the card has the subtype [subtype] (CR 205.3) — the **single** predicate every subtype
+     * read in the engine goes through, rather than testing `subtype in subtypes` directly.
+     *
+     * It is a function rather than a set membership because of [Keyword.CHANGELING] (CR 702.73a):
+     * "this card is every creature type". A changeling's printed subtype line says `Shapeshifter` and
+     * the card is nonetheless an Elf, a Goblin and a Dragon, so the true subtype set is not the printed
+     * one and cannot be precomputed — [Subtype] is a value class over an open word space, so "every
+     * creature type" has no finite value to expand into.
+     *
+     * **Only creature types** (CR 205.3m), which is the half that is easy to lose. Changeling grants
+     * creature types and nothing else, so this answers `false` for a land type on a changeling: a
+     * Shapeshifter is not a Forest for Gingerbread Cabin's count and not a Mountain for Fireblast's
+     * sacrifice cost. [Subtype.isCreatureType] draws that line and fails loudly on a word it cannot
+     * categorise, so the gate can never be silently skipped.
+     *
+     * **Printed, and correct in every zone.** CR 702.73a says changeling "works everywhere, even
+     * outside the game", which is exactly why it belongs here beside [colors]/[Keyword.DEVOID] rather
+     * than only in the battlefield layer system: a changeling card in a library, a hand or a graveyard
+     * is an Elf there too, and the library-search, cost-reduction and graveyard reads all get the right
+     * answer from this one accessor. `mtg-rules` layers a *granted* changeling on top of this for
+     * battlefield objects (`hasSubtype` in `EffectiveCharacteristics.kt`); nothing in the pool grants
+     * one, so today the two answers coincide.
+     */
+    fun hasSubtype(subtype: Subtype): Boolean =
+        subtype in subtypes ||
+            (Keyword.CHANGELING in keywords && subtype.isCreatureType())
 }

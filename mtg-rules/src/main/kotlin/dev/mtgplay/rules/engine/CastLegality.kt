@@ -152,8 +152,10 @@ internal fun minimalSacrificeReservation(
 
 /**
  * The battlefield permanents [seat] controls that satisfy [requirement] (CR 601.2h): its own
- * permanents whose printed subtypes include the requirement's subtype (Mountain), in battlefield
- * order. Control is ownership in the MVP pool.
+ * permanents whose subtypes include the requirement's subtype (Mountain), in battlefield order.
+ * Control is ownership in the MVP pool. The read goes through
+ * [dev.mtgplay.core.card.PrintedCharacteristics.hasSubtype], so a changeling is correctly **not**
+ * offered here: CR 702.73a grants creature types, and Mountain is a land type.
  */
 internal fun sacrificeableFor(
     state: GameState,
@@ -164,8 +166,7 @@ internal fun sacrificeableFor(
         obj.owner == seat &&
             state.definitions[obj.card]
                 ?.characteristics
-                ?.subtypes
-                ?.contains(requirement.subtype) == true
+                ?.hasSubtype(requirement.subtype) == true
     }
 
 /**

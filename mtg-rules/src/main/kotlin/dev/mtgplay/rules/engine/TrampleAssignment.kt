@@ -96,6 +96,10 @@ internal fun applyTrampleAssignment(
  * a non-trampler), and the leftover onto the last blocker (overkill, outcome-irrelevant). Assigning
  * the player's share first guarantees each blocker still receives its full lethal, since [toPlayer]
  * never exceeds the above-lethal excess.
+ *
+ * **What counts as lethal depends on the attacker** (CR 702.2b): with deathtouch, *any* nonzero amount
+ * is lethal, so one damage per blocker discharges CR 510.1c and everything above that is free. That is
+ * why [lethalTo] takes the attacker rather than only the blocker.
  */
 internal fun assignBlockedDamage(
     state: GameState,
@@ -112,7 +116,12 @@ internal fun assignBlockedDamage(
     }
     orderedSurvivors.forEachIndexed { index, blocker ->
         // The last blocker absorbs the whole remainder: its lethal plus any overkill.
-        val amount = if (index == orderedSurvivors.lastIndex) remaining else minOf(remaining, lethalTo(state, blocker))
+        val amount =
+            if (index == orderedSurvivors.lastIndex) {
+                remaining
+            } else {
+                minOf(remaining, lethalTo(state, attacker, blocker))
+            }
         remaining -= amount
         assignments.add(DamageAssignment(attacker, Target.Permanent(blocker), amount))
     }
@@ -121,14 +130,34 @@ internal fun assignBlockedDamage(
 
 // The above-lethal excess of [attacker] over its surviving blockers (CR 702.19e): its power minus
 // the sum of each survivor's remaining lethal, floored at zero when the blockers can soak it all.
+// With deathtouch each survivor's lethal is 1 (CR 702.2b), so the excess — and therefore the size of
+// the enumerated assignment decision (ADR-005) — is much larger.
 private fun trampleExcess(
     state: GameState,
     attacker: ObjectId,
     survivors: List<ObjectId>,
-): Int = effectivePower(state, attacker) - survivors.sumOf { lethalTo(state, it) }
+): Int = effectivePower(state, attacker) - survivors.sumOf { lethalTo(state, attacker, it) }
 
-// CR 510.1c: lethal to a blocker is its toughness minus damage already marked, never negative.
+/*
+ * CR 510.1c: lethal to a blocker is its toughness minus damage already marked, never negative — unless
+ * the attacker has deathtouch, in which case CR 702.2b makes any nonzero amount lethal and the answer
+ * is a flat 1.
+ *
+ * The deathtouch answer is **1 rather than 0** even for a blocker that already has lethal damage
+ * marked: CR 702.2b says a *nonzero* amount is considered lethal, so zero never discharges the
+ * requirement. It is also independent of marked damage, which is why the subtraction is skipped
+ * entirely rather than applied to a toughness of 1.
+ */
 private fun lethalTo(
     state: GameState,
+    attacker: ObjectId,
     blocker: ObjectId,
-): Int = (effectiveToughness(state, blocker) - state.battlefieldObject(blocker).damageMarked).coerceAtLeast(0)
+): Int =
+    if (hasDeathtouch(state, attacker)) {
+        DEATHTOUCH_LETHAL
+    } else {
+        (effectiveToughness(state, blocker) - state.battlefieldObject(blocker).damageMarked).coerceAtLeast(0)
+    }
+
+/** CR 702.2b: the amount of damage from a deathtouch source that counts as lethal to a creature. */
+private const val DEATHTOUCH_LETHAL: Int = 1

@@ -72,7 +72,10 @@ private fun matches(
     return when (predicate) {
         ObjectPredicate.Anything -> true
         is ObjectPredicate.HasCardType -> predicate.cardType in characteristics.cardTypes
-        is ObjectPredicate.HasSubtype -> predicate.subtype in characteristics.subtypes
+        // CR 702.73a: changeling works in every zone, which is why this reads the printed
+        // characteristics' own subtype accessor rather than the raw set — a Shapeshifter in a
+        // graveyard is a Human there too.
+        is ObjectPredicate.HasSubtype -> characteristics.hasSubtype(predicate.subtype)
         is ObjectPredicate.Not -> !matches(state, obj, predicate.predicate)
         is ObjectPredicate.And -> predicate.predicates.all { matches(state, obj, it) }
         is ObjectPredicate.AnyOf -> predicate.predicates.any { matches(state, obj, it) }

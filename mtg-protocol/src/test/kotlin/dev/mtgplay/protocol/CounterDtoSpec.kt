@@ -66,12 +66,18 @@ class CounterDtoSpec :
                 .toDomain() shouldBe obj
         }
 
-        "the protocol version records the FW-MANACOST break" {
+        "the protocol version records the keyword-tail break" {
             // `FW-COUNTERS` made GameObjectDto.counters required, which took the wire to 6.0.0.
-            // `FW-MANACOST` breaks it again and harder: PaymentPlanDto's SourceClassKeyDto.profile
-            // changes element type, loses `viaSacrifice`, and ManaActivationDto gains a required
-            // `costPayment` — a both-directions break in the most frequent request in a match.
-            // Pinned here so neither bump can be quietly reverted.
-            PROTOCOL_VERSION shouldBe "7.0.0"
+            // `FW-MANACOST` broke it again and harder, taking it to 7.0.0: PaymentPlanDto's
+            // SourceClassKeyDto.profile changes element type, loses `viaSacrifice`, and
+            // ManaActivationDto gains a required `costPayment` — a both-directions break in the most
+            // frequent request in a match.
+            // The keyword-tail packet breaks it twice more, which is why this is 8.0.0 rather than
+            // folded into 7.0.0: GameObjectDto gains a **required** `dealtDeathtouchDamage`
+            // (CR 704.5h), so a strict 7.0.0 codec rejects every seat view; and Keyword gains
+            // DEATHTOUCH and CHANGELING while Evasion gains BLOCKABLE_ONLY_BY_HASTE, all of which
+            // ride in PrintedCardDto's strict `parseVocabulary` and so fail at *runtime*, mid-match.
+            // Pinned here so no bump in the chain can be quietly reverted.
+            PROTOCOL_VERSION shouldBe "8.0.0"
         }
     })

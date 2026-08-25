@@ -1,5 +1,6 @@
 package dev.mtgplay.rules.engine
 
+import dev.mtgplay.core.card.Evasion
 import dev.mtgplay.core.card.Keyword
 import dev.mtgplay.core.card.Quality
 import dev.mtgplay.core.definition.Magnitude
@@ -135,6 +136,7 @@ internal data class ActiveEffect(
     val grantedKeywords: PersistentSet<Keyword> = persistentSetOf(),
     val grantedManaAbilities: PersistentList<ManaAbility> = persistentListOf(),
     val grantedProtections: PersistentSet<Quality> = persistentSetOf(),
+    val grantedEvasions: PersistentSet<Evasion> = persistentSetOf(),
     val powerMod: Magnitude = Magnitude.Zero,
     val toughnessMod: Magnitude = Magnitude.Zero,
     val timestamp: Long,
@@ -152,19 +154,26 @@ internal data class ActiveEffect(
  */
 internal fun layersOf(active: ActiveEffect): Set<Layer> =
     buildSet {
-        if (active.grantedKeywords.isNotEmpty() ||
-            active.grantedManaAbilities.isNotEmpty() ||
-            // CR 613.1f: a protection grant is an ability grant like any other — the same layer, the
-            // same additive union. It is its own field only because protection carries a quality and
-            // Keyword cannot (docs/design/protection.md §5).
-            active.grantedProtections.isNotEmpty()
-        ) {
+        if (grantsAnAbility(active)) {
             add(Layer.ABILITY_ADDING)
         }
         if (active.powerMod != Magnitude.Zero || active.toughnessMod != Magnitude.Zero) {
             add(Layer.PT_MODIFYING)
         }
     }
+
+/**
+ * Whether [active] adds an ability to the object it affects, and therefore contributes to CR 613.1f
+ * layer 6. All four kinds are the same rule: keywords, mana abilities, protections and evasions are
+ * each *an ability*, unioned additively. They are four fields rather than one only because [Keyword]
+ * is a parameterless enum and cannot carry protection's quality (docs/design/protection.md §5), and
+ * because an evasion is ability *text* rather than a named CR 702 keyword.
+ */
+private fun grantsAnAbility(active: ActiveEffect): Boolean =
+    active.grantedKeywords.isNotEmpty() ||
+        active.grantedManaAbilities.isNotEmpty() ||
+        active.grantedProtections.isNotEmpty() ||
+        active.grantedEvasions.isNotEmpty()
 
 /**
  * Applies the active continuous effects [active] to the printed [base] characteristics of an object,
@@ -278,8 +287,8 @@ private fun requireImplementedKind(active: ActiveEffect) {
 }
 
 /**
- * Layer 6 (CR 613.1f): unions [active]'s granted keywords, mana abilities and protections onto the
- * object. Every grant is additive, which is what keeps the within-layer order unobservable and the
+ * Layer 6 (CR 613.1f): unions [active]'s granted keywords, mana abilities, protections and evasions
+ * onto the object. Every grant is additive, which is what keeps the within-layer order unobservable and the
  * CR 613.8 dependency gate correct-by-construction — a protection grant changes neither whether
  * another effect exists, nor what it applies to, nor what it does (docs/design/protection.md §5).
  */
@@ -288,6 +297,7 @@ private fun LayeredCharacteristics.granting(active: ActiveEffect): LayeredCharac
         keywords = keywords.addingAll(active.grantedKeywords),
         manaAbilities = manaAbilities.addingAll(active.grantedManaAbilities),
         protections = protections.addingAll(active.grantedProtections),
+        evasions = evasions.addingAll(active.grantedEvasions),
     )
 
 /**

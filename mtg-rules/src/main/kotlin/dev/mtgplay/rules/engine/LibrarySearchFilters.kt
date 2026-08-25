@@ -46,6 +46,6 @@ private fun matchesSearchFilter(
     val characteristics = state.definitions[obj.card]?.characteristics ?: return false
     val isLand = CardType.LAND in characteristics.cardTypes
     val basicEnough = !filter.basic || Supertype.BASIC in characteristics.supertypes
-    val typedEnough = filter.landTypes.isEmpty() || filter.landTypes.any { it in characteristics.subtypes }
+    val typedEnough = filter.landTypes.isEmpty() || filter.landTypes.any { characteristics.hasSubtype(it) }
     return isLand && basicEnough && typedEnough
 }
