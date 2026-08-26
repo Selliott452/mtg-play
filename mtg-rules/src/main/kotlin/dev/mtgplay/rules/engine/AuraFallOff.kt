@@ -36,7 +36,9 @@ private fun moveAuraToGraveyard(
     // a delayed death replacement catches a Torched Aura that then falls off its dead creature.
     replaceBattlefieldDeath(state, objectId)?.let { return it }
     val aura = battlefield[index]
-    val (graveyardId, allocated) = state.allocateObjectId()
+    // CR 608.2h: the layered power this permanent leaves with, for a reader that resolves after it
+    // is gone (Monstrous Emergence). Captured before the removal — it cannot be computed after.
+    val (graveyardId, allocated) = rememberLastKnownPower(state, objectId).allocateObjectId()
     val reborn = GameObject(id = graveyardId, card = aura.card, owner = aura.owner)
     val moved =
         allocated

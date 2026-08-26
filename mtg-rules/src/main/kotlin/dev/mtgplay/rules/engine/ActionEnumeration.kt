@@ -219,6 +219,9 @@ private fun castIsLegal(
         someModeIsCastable(state, definition, seat, Chooser.Spell(castObjectId)) &&
         additionalDiscardSatisfiable(state, seat, definition, castObjectId, source) &&
         additionalSacrificeSatisfiable(state, seat, definition) &&
+        // CR 601.2b (`W9-D`): a non-consuming additional cost needs something to name; with an empty
+        // board and an empty hand Monstrous Emergence is not castable at all.
+        powerSourceCostSatisfiable(state, seat, definition, castObjectId, source) &&
         enumeratePaymentPlans(
             state,
             seat,

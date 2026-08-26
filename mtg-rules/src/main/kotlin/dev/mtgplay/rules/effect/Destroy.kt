@@ -8,6 +8,7 @@ import dev.mtgplay.rules.engine.announceBattlefieldDeparture
 import dev.mtgplay.rules.engine.clearCombatReferences
 import dev.mtgplay.rules.engine.emit
 import dev.mtgplay.rules.engine.isIndestructible
+import dev.mtgplay.rules.engine.rememberLastKnownPower
 import dev.mtgplay.rules.engine.replaceBattlefieldDeath
 import dev.mtgplay.rules.engine.updateBattlefield
 import dev.mtgplay.rules.engine.updatePlayer
@@ -64,7 +65,9 @@ fun destroy(
         if (isIndestructible(state, objectId)) state else replaceBattlefieldDeath(state, objectId)
     if (notDestroyed != null) return notDestroyed
     val permanent = battlefield[index]
-    val (graveyardId, allocated) = state.allocateObjectId()
+    // CR 608.2h: the layered power this permanent leaves with, for a reader that resolves after it
+    // is gone (Monstrous Emergence). Captured before the removal — it cannot be computed after.
+    val (graveyardId, allocated) = rememberLastKnownPower(state, objectId).allocateObjectId()
     val reborn = GameObject(id = graveyardId, card = permanent.card, owner = permanent.owner)
     val moved =
         allocated

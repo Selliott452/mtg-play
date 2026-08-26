@@ -234,6 +234,7 @@ class MvpCardsSpec :
                     CardRef("Ancestral Mask"),
                     CardRef("Ancient Grudge"),
                     CardRef("Torch the Tower"),
+                    CardRef("Monstrous Emergence"),
                     CardRef("Ancient Stirrings"),
                     CardRef("Annul"),
                     CardRef("Archaeomancer"),

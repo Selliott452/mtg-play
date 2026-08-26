@@ -5,9 +5,11 @@ import dev.mtgplay.core.card.Keyword
 import dev.mtgplay.core.card.PrintedCharacteristics
 import dev.mtgplay.core.card.PrintedPowerToughness
 import dev.mtgplay.core.card.Subtype
+import dev.mtgplay.core.definition.AdditionalCost
 import dev.mtgplay.core.definition.CastingPermission
 import dev.mtgplay.core.definition.ChosenTypeReveal
 import dev.mtgplay.core.definition.InterveningIf
+import dev.mtgplay.core.definition.PermanentRestriction
 import dev.mtgplay.core.definition.ResolutionEffect
 import dev.mtgplay.core.definition.RevealedCardFilter
 import dev.mtgplay.core.definition.SpellDefinition
@@ -16,8 +18,11 @@ import dev.mtgplay.core.definition.TimingClass
 import dev.mtgplay.core.definition.TriggerCondition
 import dev.mtgplay.core.definition.TriggeredAbility
 import dev.mtgplay.core.mana.ManaCost
+import dev.mtgplay.core.state.Target
+import dev.mtgplay.rules.effect.dealDamage
 import dev.mtgplay.rules.effect.drawCards
 import dev.mtgplay.rules.effect.exileTopCardsPlayableUntilEndOfYourNextTurn
+import dev.mtgplay.rules.effect.powerOfChosenSource
 import dev.mtgplay.rules.effect.sacrificePermanent
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.persistentSetOf
@@ -58,18 +63,17 @@ import kotlinx.collections.immutable.persistentSetOf
  *   mid-resolution decision, i.e. a new [dev.mtgplay.core.definition.ResolutionClauses] member with a
  *   branch no existing clause has. Encoding the card without the token would delete half of it — the
  *   token is why the card is played over a plain draw-two — so it waits.
- * - **Monstrous Emergence** — `{1}{G}` Sorcery, "As an additional cost to cast this spell, choose a
- *   creature you control **or** reveal a creature card from your hand. Monstrous Emergence deals damage
- *   equal to the power of the creature you chose or the card you revealed to target creature." The
- *   additional cost is a **choice between two differently-shaped costs**, and neither shape exists:
- *   [dev.mtgplay.core.definition.AdditionalCost] has [dev.mtgplay.core.definition.AdditionalCost.DiscardCards]
- *   and [dev.mtgplay.core.definition.AdditionalCost.Sacrifice], both of which *consume* the object they
- *   name, while this cost consumes nothing — it chooses or reveals, and the object stays where it is.
- *   Worse for an approximation, the two branches read power from different places: a chosen creature's is
- *   its CR 613 layered power on the battlefield, and a revealed card's is its **printed** power, because
- *   the layer system does not reach a hand (CR 109.3). A single "choose a creature" encoding would be a
- *   card that cannot be cast off an empty board, and a single "reveal from hand" one would silently
- *   ignore every pump effect. Both are the failure PLAN.md §7 names.
+ *
+ * `W9-D` takes **[monstrousEmergence]** off that list, and W8-D's diagnosis of it was exactly right on
+ * both counts. The cost is a shape nothing had — a **non-consuming** additional cost
+ * ([dev.mtgplay.core.definition.AdditionalCost.ChooseCreatureOrRevealCreatureCard]) that only points at
+ * something — and its two branches really do read power from two different rules, which is why the answer
+ * is a [dev.mtgplay.core.state.ChosenPowerSource] rather than an object id. The piece W8-D did not name
+ * is the one that took the most work: CR 608.2h calculates the value **as the spell resolves**, so a
+ * chosen creature killed in response falls back to last known information, and the engine had no store
+ * for it (`LastKnownPower.kt`, `W9-D`).
+ *
+ * **Fanatical Offering stays absent**, on explore alone; the diagnosis above is unchanged.
  */
 
 /** The cards Mulldrifter's enters-the-battlefield trigger draws (CR 120.1). */
@@ -266,5 +270,92 @@ val recklessImpulse: SpellDefinition =
         override val resolution =
             ResolutionEffect { state, context ->
                 exileTopCardsPlayableUntilEndOfYourNextTurn(state, context.controller, RECKLESS_IMPULSE_EXILE)
+            }
+    }
+
+/**
+ * Monstrous Emergence — `{1}{G}` Sorcery. "As an additional cost to cast this spell, choose a creature you
+ * control or reveal a creature card from your hand. Monstrous Emergence deals damage equal to the power of
+ * the creature you chose or the card you revealed to target creature."
+ *
+ * Green's removal spell, priced at two mana and paid for with a big creature it never loses. Every green
+ * deck in the gauntlet already runs the fat; this turns it into a Terminate that also answers the creature
+ * green is worst against. The hand branch is why it is not a dead card off an empty board: reveal the
+ * uncastable seven-drop and point it at whatever is attacking.
+ *
+ * **The additional cost consumes nothing**, and that is the whole reason it is a new shape rather than a
+ * variation on one. [dev.mtgplay.core.definition.AdditionalCost.DiscardCards] and
+ * [dev.mtgplay.core.definition.AdditionalCost.Sacrifice] both spend what they name; this one only points.
+ * The consequences are visible at the table: the chosen creature is still there to block, it is still a
+ * legal target for the spell itself (pointing Monstrous Emergence at your own creature to shrink a board
+ * is legal and occasionally right), and a chosen mana creature may still be **tapped for mana to pay for
+ * this very spell**, because naming it never spent it. An encoding that reused the sacrifice cost would
+ * have got every one of those wrong in the same direction.
+ *
+ * **One decision over a two-zone pool.** The card prints one "or", so the engine offers one list — the
+ * creatures you control, then the creature cards in your hand — and the answer says which kind it was
+ * ([dev.mtgplay.core.state.ChosenPowerSource]). A mode choice first would add a pause the card does not
+ * print and would let a seat pick the half of the pool that is empty (ADR-005).
+ *
+ * **The two branches read power from two different rules, and this is the part that must be right.**
+ *
+ * - A **chosen creature** has the CR 613 layered power the board gives it *at resolution* (CR 608.2h).
+ *   Pump it in response and the damage grows; Cryoshatter it for `-5/-0` in response and the damage
+ *   shrinks to nothing. Both are real lines and both are the reason the value is read live rather than
+ *   captured when the cost was paid.
+ * - A **revealed card** has its **printed** power and can have no other (CR 109.3): no continuous effect
+ *   in this pool reaches a hand, and routing a hand card through the layer system would fail looking for
+ *   a battlefield object that is not there.
+ *
+ * [dev.mtgplay.rules.effect.powerOfChosenSource] is the one primitive that knows both rules, which is
+ * what keeps the card from having to choose one and be wrong on the other branch.
+ *
+ * **A chosen creature killed in response still deals its damage** (CR 608.2h, CR 113.7a), at the power it
+ * last had — so Terminating the fatty in response does not blank the spell, and shrinking it *before*
+ * killing it does. That is `LastKnownPower.kt`, the CR 608.2h store this card needed and the engine did
+ * not have; without it the only encodings available were a crash on an ordinary line or a silent zero.
+ *
+ * **Zero or negative power deals no damage at all** (CR 120.8), and the spell still resolves: a revealed
+ * `0/4` wall is a legal, useless payment, and the engine neither refuses the cast nor clamps the number.
+ *
+ * **Castable only when something can be named** (CR 601.2b, ADR-005). With no creature on your battlefield
+ * and no creature card in hand the cost cannot be paid, so the spell is absent from the priority window
+ * rather than offered and then dead-ending.
+ */
+val monstrousEmergence: SpellDefinition =
+    object : SpellDefinition {
+        override val characteristics =
+            PrintedCharacteristics(
+                name = "Monstrous Emergence",
+                manaCost = ManaCost.parse("{1}{G}"),
+                supertypes = persistentSetOf(),
+                cardTypes = persistentSetOf(CardType.SORCERY),
+                subtypes = persistentSetOf(),
+                powerToughness = null,
+            )
+        override val timing = TimingClass.SORCERY_SPEED
+        override val targetSpec = TargetSpec.TargetPermanent(PermanentRestriction.CREATURE)
+
+        // CR 601.2b: "choose a creature you control or reveal a creature card from your hand" — the cost
+        // that names something without spending it.
+        override val additionalCost = AdditionalCost.ChooseCreatureOrRevealCreatureCard
+        override val resolution =
+            ResolutionEffect { state, context ->
+                val named =
+                    context.costPowerSource
+                        ?: error(
+                            "CR 601.2b: Monstrous Emergence resolves only after its additional cost " +
+                                "named a creature or a card",
+                        )
+                dealDamage(
+                    state,
+                    context.damageSource(),
+                    Target.Permanent(targetedPermanent(context.targets, "Monstrous Emergence")),
+                    // CR 120.8 handles a non-positive amount; CR 208.3 permits one, so it is not clamped
+                    // here. `coerceAtLeast(0)` is the primitive's own precondition, not a rules decision:
+                    // [dealDamage] requires a non-negative amount and CR 120.8 makes 0 and -3 the same
+                    // event — none at all.
+                    powerOfChosenSource(state, named).coerceAtLeast(0),
+                )
             }
     }

@@ -8,6 +8,7 @@ import dev.mtgplay.core.state.GameObject
 import dev.mtgplay.core.state.GameState
 import dev.mtgplay.rules.engine.announceBattlefieldDeparture
 import dev.mtgplay.rules.engine.clearCombatReferences
+import dev.mtgplay.rules.engine.rememberLastKnownPower
 import dev.mtgplay.rules.engine.emit
 import dev.mtgplay.rules.engine.satisfiesGraveyardCardRestriction
 import dev.mtgplay.rules.engine.updateBattlefield
@@ -142,7 +143,9 @@ fun returnPermanentToOwnersHand(
     val index = battlefield.indexOfFirst { it.id == objectId }
     require(index >= 0) { "CR 400.7: a bounced permanent must be on the battlefield, but $objectId is not" }
     val permanent = battlefield[index]
-    val (handId, allocated) = state.allocateObjectId()
+    // CR 608.2h: the layered power this permanent leaves with, for a reader that resolves after it
+    // is gone (Monstrous Emergence). Captured before the removal — it cannot be computed after.
+    val (handId, allocated) = rememberLastKnownPower(state, objectId).allocateObjectId()
     val reborn = GameObject(id = handId, card = permanent.card, owner = permanent.owner)
     val moved =
         allocated

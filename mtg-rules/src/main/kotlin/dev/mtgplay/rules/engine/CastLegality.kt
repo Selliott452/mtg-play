@@ -5,8 +5,11 @@ import dev.mtgplay.core.definition.CastSource
 import dev.mtgplay.core.definition.CastingPermission
 import dev.mtgplay.core.definition.SacrificeRequirement
 import dev.mtgplay.core.definition.SpellDefinition
+import dev.mtgplay.core.card.CardType
+import dev.mtgplay.core.identity.CardRef
 import dev.mtgplay.core.identity.ObjectId
 import dev.mtgplay.core.identity.PlayerId
+import dev.mtgplay.core.state.ChosenPowerSource
 import dev.mtgplay.core.state.GameObject
 import dev.mtgplay.core.state.GameState
 
@@ -80,6 +83,8 @@ internal fun permissionCastIsLegal(
         sacrificeSatisfiable(state, seat, permission.sacrifice) &&
         tapSatisfiable(state, seat, permission.tap) &&
         additionalDiscardSatisfiable(state, seat, definition, sourceObject.id, permission.source) &&
+        // CR 702.34a's "and any additional costs" applies to a permission cast too (`W9-D`).
+        powerSourceCostSatisfiable(state, seat, definition, sourceObject.id, permission.source) &&
         plotMarkerAllows(state, permission, sourceObject) &&
         targetsAndCostAvailable(state, seat, definition, permission, self = sourceObject.id)
 
@@ -131,6 +136,83 @@ internal fun additionalSacrificeSatisfiable(
     if (cost !is AdditionalCost.Sacrifice) return true
     return sacrificeableMatching(state, seat, cost.filter).size >= cost.count
 }
+
+/**
+ * The things that may be named to pay a card's **non-consuming** additional cost (Monstrous Emergence's
+ * "choose a creature you control or reveal a creature card from your hand" — CR 601.2b), in the order the
+ * request offers them: the caster's battlefield creatures first, then the creature cards in their hand.
+ *
+ * The card being cast is excluded from the hand half and only from it — it is in the hand while the cast is
+ * gathering (CR 601.2a), and CR 601.2b's "a creature card from your hand" cannot mean the spell itself,
+ * which is not a card in hand at all any more. Nothing needs excluding from the battlefield half, where the
+ * card being cast has never been.
+ *
+ * "Creature" is [isCreature] on the battlefield — the CR 302.1 question the layer system answers — and the
+ * **printed** card types in hand (CR 109.3): no continuous effect in this pool reaches a hand, so a hand
+ * card's types are its printed ones and asking the layer system about an object that is not on the
+ * battlefield would fail.
+ *
+ * Empty for a definition with no such cost, which is what makes [powerSourceCostSatisfiable] a single
+ * emptiness test.
+ */
+internal fun powerSourceOptions(
+    state: GameState,
+    seat: PlayerId,
+    definition: SpellDefinition,
+    castObjectId: ObjectId,
+    source: CastSource,
+): List<PowerSourceOption> {
+    if (definition.additionalCost != AdditionalCost.ChooseCreatureOrRevealCreatureCard) return emptyList()
+    val player = state.player(seat)
+    val controlled =
+        state.sharedZones.battlefield
+            .filter { it.owner == seat && isCreature(state, it) }
+            .map { PowerSourceOption(ChosenPowerSource.ChosenCreature(it.id), it.card, effectivePower(state, it.id)) }
+    val revealable =
+        player.hand
+            .filter { !(source == CastSource.HAND && it.id == castObjectId) }
+            .mapNotNull { card ->
+                val printed = state.definitions[card.card]?.characteristics ?: return@mapNotNull null
+                if (CardType.CREATURE !in printed.cardTypes) return@mapNotNull null
+                // CR 109.3: a card outside the battlefield has its printed characteristics and no others,
+                // so a creature card with no printed power is a contradiction the definition registry
+                // would have to have produced; there is none, and `0` is not silently substituted.
+                val power =
+                    printed.powerToughness?.power
+                        ?: error("CR 208.1: creature card ${card.card.name} has no printed power")
+                PowerSourceOption(ChosenPowerSource.RevealedCard(card.card), card.card, power)
+            }
+    return controlled + revealable
+}
+
+/**
+ * One thing that may be named to pay a non-consuming additional cost: what naming it produces, its printed
+ * identity for display, and the power it would supply right now (CR 613 for a battlefield creature,
+ * CR 109.3 for a hand card).
+ */
+internal data class PowerSourceOption(
+    val source: ChosenPowerSource,
+    val card: CardRef,
+    val power: Int,
+)
+
+/**
+ * Whether a card's **non-consuming** additional cost (CR 601.2b) can be paid: there is at least one thing
+ * to name. Trivially true when the definition has no such cost.
+ *
+ * The whole payability question, because nothing is spent — a cost that only points at something is
+ * payable exactly when there is something to point at, and it can never compete with the mana payment for
+ * a resource (which is why it has no counterpart to [minimalSacrificeReservation]).
+ */
+internal fun powerSourceCostSatisfiable(
+    state: GameState,
+    seat: PlayerId,
+    definition: SpellDefinition,
+    castObjectId: ObjectId,
+    source: CastSource,
+): Boolean =
+    definition.additionalCost != AdditionalCost.ChooseCreatureOrRevealCreatureCard ||
+        powerSourceOptions(state, seat, definition, castObjectId, source).isNotEmpty()
 
 /**
  * The mana sources a cast's sacrifice additional cost forces out of its own payment plans — the

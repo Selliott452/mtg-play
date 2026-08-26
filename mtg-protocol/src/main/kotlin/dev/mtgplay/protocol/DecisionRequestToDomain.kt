@@ -93,6 +93,7 @@ private fun sizedSelectionToDomain(dto: DecisionRequestDto.SizedSelectionDto): D
         is DecisionRequestDto.ChooseSacrifices,
         is DecisionRequestDto.ChooseTapsForCost,
         is DecisionRequestDto.ChooseOptionalCostSacrifice,
+        is DecisionRequestDto.ChooseCostPowerSource,
         is DecisionRequestDto.ChooseCardsToDiscardForCost,
         is DecisionRequestDto.ChooseSacrificesForCost,
         is DecisionRequestDto.ChooseAbilitySacrifice,
@@ -126,6 +127,7 @@ private fun costSizedSelectionToDomain(dto: DecisionRequestDto.SizedSelectionDto
             )
         is DecisionRequestDto.ChooseOptionalCostSacrifice,
         is DecisionRequestDto.ChooseTapsForCost,
+        is DecisionRequestDto.ChooseCostPowerSource,
         -> nonManaCostSelectionToDomain(dto)
         is DecisionRequestDto.ChooseCardsToDiscardForCost ->
             DecisionRequest.ChooseCardsToDiscardForCost(

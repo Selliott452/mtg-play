@@ -591,6 +591,7 @@ object MvpCards {
             thoughtScour,
             thrabenCharm,
             timberwatchElf,
+            monstrousEmergence,
             torchTheTower,
             toxinAnalysis,
             trollOfKhazadDum,

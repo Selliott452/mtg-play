@@ -69,7 +69,9 @@ private fun sacrificeOnePermanent(
     // death, and a delayed replacement may exile it instead. The cost was still paid — CR 701.17a's
     // requirement is that the permanent be sacrificed, not that it reach a graveyard.
     replaceBattlefieldDeath(state, objectId)?.let { return it }
-    val (graveyardId, allocated) = state.allocateObjectId()
+    // CR 608.2h: the layered power this permanent leaves with, for a reader that resolves after it
+    // is gone (Monstrous Emergence). Captured before the removal — it cannot be computed after.
+    val (graveyardId, allocated) = rememberLastKnownPower(state, objectId).allocateObjectId()
     val reborn = GameObject(id = graveyardId, card = permanent.card, owner = permanent.owner)
     val moved =
         allocated

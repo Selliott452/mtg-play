@@ -117,6 +117,13 @@ enum class DecisionRequestKindDto {
     CHOOSE_SACRIFICES,
     CHOOSE_TAPS_FOR_COST,
     CHOOSE_OPTIONAL_COST_SACRIFICE,
+
+    /**
+     * [dev.mtgplay.rules.DecisionRequestKind.CHOOSE_COST_POWER_SOURCE] — a CR 601.2b **non-consuming**
+     * additional cost naming a creature to read the power of (`W9-D`).
+     */
+    @SerialName("choose_cost_power_source")
+    CHOOSE_COST_POWER_SOURCE,
     CHOOSE_CARDS_TO_DISCARD_FOR_COST,
     CHOOSE_SACRIFICES_FOR_COST,
     CHOOSE_ABILITY_SACRIFICE,

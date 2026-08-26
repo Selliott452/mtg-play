@@ -58,6 +58,8 @@ class RandomRemoteAgent(
                 is DecisionRequestDto.ChooseSacrifices -> request.options.size to request.count
                 is DecisionRequestDto.ChooseTapsForCost -> request.options.size to request.count
                 is DecisionRequestDto.ChooseOptionalCostSacrifice -> request.options.size to request.count
+                // CR 601.2b (`W9-D`): exactly one power source is named, always.
+                is DecisionRequestDto.ChooseCostPowerSource -> request.options.size to 1
                 is DecisionRequestDto.ChooseCardsToDiscardForCost -> request.options.size to request.count
                 is DecisionRequestDto.ChooseSacrificesForCost -> request.options.size to request.count
                 else -> abilityOrResolutionBounds(request)

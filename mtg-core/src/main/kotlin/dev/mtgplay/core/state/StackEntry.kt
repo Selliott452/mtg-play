@@ -76,6 +76,15 @@ sealed interface StackEntry {
      *   mana value of 2 or of 4; a permanent spell carries it onward to the entering object
      *   ([GameObject.kickedWhenCast]), because the permanent is a different object (CR 400.7) and would
      *   otherwise have no way to know.
+     * @property costPowerSource what was named to pay a **non-consuming** additional cost as this spell
+     *   was put on the stack (CR 601.2b) — Monstrous Emergence's chosen creature or revealed card; `null`
+     *   for every spell without such a cost. Additive, flagged core (`W9-D`).
+     *
+     *   On the cast record for [discardedForCost]'s reason and one sharper: nothing was consumed, so
+     *   there is no zone change to infer it from afterwards. The chosen creature is still on the
+     *   battlefield among all the others and the revealed card is still in hand among all the others —
+     *   without this field the resolution could not tell which one the caster pointed at, and no amount
+     *   of looking at the board would recover it.
      * @property chosenX the value announced for the variable symbol as this spell was put on the stack
      *   (CR 107.3, CR 601.2b); `0` for a spell whose cost carries none. Additive, flagged core (`FW-X`).
      *
@@ -97,6 +106,7 @@ sealed interface StackEntry {
         val kicked: Boolean = false,
         val optionalCostPaid: Boolean = false,
         val chosenX: Int = 0,
+        val costPowerSource: ChosenPowerSource? = null,
     ) : StackEntry {
         init {
             require(chosenX >= 0) { "CR 601.2b: an announced value of X is non-negative, was $chosenX" }

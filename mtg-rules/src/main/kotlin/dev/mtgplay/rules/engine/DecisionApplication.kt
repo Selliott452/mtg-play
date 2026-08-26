@@ -100,6 +100,9 @@ private fun applySizedSelection(
             applyChosenAdditionalDiscard(state, decision.indices.map { request.options[it].objectId })
         is DecisionRequest.ChooseSacrificesForCost ->
             applyChosenAdditionalSacrifice(state, decision.indices.map { request.options[it].objectId })
+        // CR 601.2b: the non-consuming cost names exactly one thing and moves nothing (`W9-D`).
+        is DecisionRequest.ChooseCostPowerSource ->
+            applyChosenPowerSource(state, request.options[decision.indices.single()].source)
         else -> applyAbilityOrResolutionSelection(state, request, decision)
     }
 }

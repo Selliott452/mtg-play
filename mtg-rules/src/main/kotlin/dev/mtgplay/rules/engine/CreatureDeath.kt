@@ -48,7 +48,9 @@ private fun moveDeadCreatureToGraveyard(
     // (Torch the Tower's exile). The replaced event never happens (CR 614.6), so nothing below runs.
     replaceBattlefieldDeath(state, objectId)?.let { return it }
     val dead = battlefield[index]
-    val (graveyardId, allocated) = state.allocateObjectId()
+    // CR 608.2h: the layered power this permanent leaves with, for a reader that resolves after it
+    // is gone (Monstrous Emergence). Captured before the removal — it cannot be computed after.
+    val (graveyardId, allocated) = rememberLastKnownPower(state, objectId).allocateObjectId()
     val reborn = GameObject(id = graveyardId, card = dead.card, owner = dead.owner)
     val moved =
         allocated

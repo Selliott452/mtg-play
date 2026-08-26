@@ -8,6 +8,7 @@ import dev.mtgplay.core.definition.TargetSpec
 import dev.mtgplay.core.identity.CardRef
 import dev.mtgplay.core.identity.ObjectId
 import dev.mtgplay.core.identity.PlayerId
+import dev.mtgplay.core.state.ChosenPowerSource
 import dev.mtgplay.core.state.GameState
 import dev.mtgplay.core.state.PendingCast
 import dev.mtgplay.core.state.Target
@@ -72,6 +73,15 @@ internal fun beginCastGathering(
     // costs"), so it is read off the definition rather than off the permission.
     val additionalSacrifice: PersistentList<ObjectId>? =
         if (definition.additionalCost is AdditionalCost.Sacrifice) null else persistentListOf()
+    // A non-consuming additional cost (Monstrous Emergence) needs something named; every other cast
+    // settles empty. Like the sacrifice above it is read off the definition rather than the permission,
+    // because CR 702.34a's "and any additional costs" applies to a permission cast too.
+    val costPowerSource: PersistentList<ChosenPowerSource>? =
+        if (definition.additionalCost == AdditionalCost.ChooseCreatureOrRevealCreatureCard) {
+            null
+        } else {
+            persistentListOf()
+        }
     // CR 601.2b/702.33a: a kicker announcement is due only for a card printing the keyword *and* only
     // when the kicked cost is affordable — a seat that cannot pay it has nothing to announce, and
     // offering a yes/no whose "yes" dead-ends is the ADR-005 defect. Every other cast settles `false`.
@@ -106,6 +116,7 @@ internal fun beginCastGathering(
                     tapCost = tapCost,
                     additionalDiscard = additionalDiscard,
                     additionalSacrifice = additionalSacrifice,
+                    costPowerSource = costPowerSource,
                     kicked = kicked,
                     optionalCostTaken = optionalCostTaken,
                     optionalCostObjects = optionalCostObjects,
@@ -257,6 +268,26 @@ internal fun applyChosenAdditionalSacrifice(
     require(cast.additionalSacrifice == null) { "CR 601.2b: this cast's additional sacrifice cost is already chosen" }
     return pauseForNextCastDecision(
         state.copy(pendingCast = cast.copy(additionalSacrifice = sacrificeObjectIds.toPersistentList())),
+    )
+}
+
+/**
+ * Records what the caster named to pay a **non-consuming** additional cost (Monstrous Emergence —
+ * CR 601.2b) on the open [PendingCast] and suspends for the next stage.
+ *
+ * Nothing is spent here and nothing will be spent when the cast executes: the chosen creature stays on the
+ * battlefield and the revealed card stays in hand. So unlike [applyChosenAdditionalSacrifice] this reserves
+ * nothing against the payment plan that is enumerated next — a chosen mana creature may still be tapped
+ * for mana on this very cast, which is a real line and not an oversight.
+ */
+internal fun applyChosenPowerSource(
+    state: GameState,
+    chosen: ChosenPowerSource,
+): AdvanceResult {
+    val cast = state.pendingCast ?: error("no cast is gathering decisions")
+    require(cast.costPowerSource == null) { "CR 601.2b: this cast's power source is already chosen" }
+    return pauseForNextCastDecision(
+        state.copy(pendingCast = cast.copy(costPowerSource = persistentListOf(chosen))),
     )
 }
 

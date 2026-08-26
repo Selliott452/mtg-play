@@ -91,6 +91,10 @@ internal fun pendingCastRequest(
         cast.additionalDiscard == null -> chooseDiscardForCostRequest(state, cast, definition, card.card, id)
         // CR 601.2b: then any intrinsic sacrifice additional cost selection (Eviscerator's Insight).
         cast.additionalSacrifice == null -> chooseSacrificeForCostRequest(state, cast, definition, card.card, id)
+        // CR 601.2b: then any **non-consuming** additional cost's naming (Monstrous Emergence). It sits
+        // beside the mandatory costs above because it is one, and after them because it reserves nothing
+        // and so constrains nothing that follows.
+        cast.costPowerSource == null -> choosePowerSourceRequest(state, cast, definition, card.card, id)
         // CR 601.2b/702.166a: then the optional additional cost's announcement and, if taken, its
         // object selection. Both sit here rather than beside the mandatory costs above because a
         // declined announcement must settle the selection too, and the pair reads as a pair.
@@ -306,6 +310,25 @@ private fun chooseSacrificeForCostRequest(
         count = additional.count,
     )
 }
+
+// CR 601.2b: everything the caster may name to pay a non-consuming additional cost (Monstrous Emergence) —
+// their battlefield creatures, then the creature cards in their hand. The pool is derived by the same
+// function cast legality used, so a cast that was enumerated always has at least one option here.
+private fun choosePowerSourceRequest(
+    state: GameState,
+    cast: PendingCast,
+    definition: SpellDefinition,
+    card: CardRef,
+    id: DecisionRequestId,
+): DecisionRequest.ChooseCostPowerSource =
+    DecisionRequest.ChooseCostPowerSource(
+        id = id,
+        cardObjectId = cast.cardObjectId,
+        card = card,
+        options =
+            powerSourceOptions(state, cast.caster, definition, cast.cardObjectId, cast.source)
+                .map { DecisionRequest.ChooseCostPowerSource.Option(it.source, it.card, it.power) },
+    )
 
 // CR 601.2b: every card in the caster's hand except the one being cast is a discard-cost option (Grab the Prize).
 private fun chooseDiscardForCostRequest(

@@ -167,6 +167,10 @@ private fun proposeSpell(
             optionalCostPaid = cast.optionalCostTaken ?: false,
             // CR 202.3b: the announced value, which is what X *is* while this spell is on the stack.
             chosenX = cast.chosenX ?: 0,
+            // CR 601.2b: what was named to pay a non-consuming additional cost. Unlike `sacrificedForCost`
+            // next door this is **not** captured last-known information: nothing was consumed, so a chosen
+            // creature is still on the battlefield and the resolution reads its live power (CR 608.2h).
+            costPowerSource = cast.costPowerSource?.singleOrNull(),
         )
     val proposed =
         removeFromZone(allocated, cast.caster, cast.source, cast.cardObjectId)

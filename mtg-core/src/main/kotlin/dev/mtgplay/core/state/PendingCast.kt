@@ -69,6 +69,17 @@ import kotlinx.collections.immutable.PersistentList
  *   (docs/design/mana-payment.md §2.2). The permanents are sacrificed when the cast executes, *after*
  *   the mana payment — tapping a land for mana and then sacrificing it is legal (CR 601.2g precedes
  *   CR 601.2h), and that plan stays enumerable.
+ * @property costPowerSource what the caster named to pay a **non-consuming** additional cost
+ *   (Monstrous Emergence's "choose a creature you control or reveal a creature card from your hand" —
+ *   CR 601.2b): `null` before the selection is answered when the definition demands one, an (empty)
+ *   list once settled or when no such cost applies, and a one-element list once named. Additive,
+ *   flagged core (`W9-D`).
+ *
+ *   A list of at most one, matching the shape every sibling selection here uses, so "unsettled" and
+ *   "settled with nothing to do" stay distinguishable without a second flag. It reserves **nothing**
+ *   against the payment plan and excludes nothing from funding the mana, which is the observable
+ *   difference from [additionalSacrifice]: naming a creature does not spend it, so a chosen mana
+ *   creature may still be tapped for mana on the same cast.
  * @property kicked whether the caster announced that they are paying the kicker cost (CR 601.2b,
  *   CR 702.33a): `null` before the announcement is made when the card has kicker, `false` once declined
  *   or when the card has no kicker, `true` once accepted. Additive, flagged core (`FW-OPTCOST`).
@@ -103,6 +114,7 @@ data class PendingCast(
     val tapCost: PersistentList<ObjectId>? = null,
     val additionalDiscard: PersistentList<ObjectId>? = null,
     val additionalSacrifice: PersistentList<ObjectId>? = null,
+    val costPowerSource: PersistentList<ChosenPowerSource>? = null,
     val kicked: Boolean? = null,
     val optionalCostTaken: Boolean? = null,
     val optionalCostObjects: PersistentList<ObjectId>? = null,
@@ -111,6 +123,9 @@ data class PendingCast(
     init {
         require(chosenX == null || chosenX >= 0) {
             "CR 601.2b: an announced value of X is non-negative, was $chosenX"
+        }
+        require(costPowerSource == null || costPowerSource.size <= 1) {
+            "CR 601.2b: a non-consuming additional cost names at most one power source, was $costPowerSource"
         }
     }
 }

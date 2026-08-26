@@ -171,6 +171,19 @@ import kotlinx.collections.immutable.persistentMapOf
  *   interception point of a death, rather than at characteristic computation or at CR 615 (see
  *   [TimedDeathReplacement]). Empty outside the turn a replacement was created on — the same CR 514.2
  *   turn-based action ends all three.
+ * @property lastKnownPower the CR 613 layered power each permanent had as it **left** the battlefield
+ *   (CR 608.2h, CR 113.7a), keyed by the battlefield object id it had there. Additive, flagged core
+ *   (`W9-D`) — Monstrous Emergence's "damage equal to the power of the creature you chose", whose chosen
+ *   creature may be killed in response.
+ *
+ *   The engine's first *pull*-shaped last-known information, and the reason it is a state field rather
+ *   than a capture on the thing that reads it: the reader is a spell already on the stack, and the moment
+ *   of capture — the departure — belongs to whatever removed the permanent, which has no idea anybody is
+ *   watching. See `LastKnownPower.kt` for why it records power alone and why it is turn-scoped, pruned by
+ *   the same CR 514.2 cleanup as the three effect stores.
+ *
+ *   Not carried on any [dev.mtgplay.core.definition.CardDefinition]-visible view (ADR-007): it is derived
+ *   from public history every seat already watched, it changes no option list, and no decision reads it.
  */
 data class GameState(
     val players: PersistentMap<PlayerId, PlayerState>,
@@ -211,6 +224,7 @@ data class GameState(
     val preventionEffects: PersistentList<TimedPreventionEffect> = persistentListOf(),
     val pendingChosenColor: PendingChosenColor? = null,
     val deathReplacements: PersistentList<TimedDeathReplacement> = persistentListOf(),
+    val lastKnownPower: PersistentMap<ObjectId, Int> = persistentMapOf(),
 ) {
     init {
         require(players.isNotEmpty()) { "a game has at least one seated player" }

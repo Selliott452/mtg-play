@@ -87,6 +87,7 @@ private fun resolveSpell(
                     optionalCostPaid = entry.optionalCostPaid,
                     // CR 202.3b: the announced value, which is what an "X damage" resolution deals.
                     chosenX = entry.chosenX,
+                    costPowerSource = entry.costPowerSource,
                 ),
             )
         // Relaxed by `FW-COUNTER` from "the stack is unchanged" to what that assertion actually meant.

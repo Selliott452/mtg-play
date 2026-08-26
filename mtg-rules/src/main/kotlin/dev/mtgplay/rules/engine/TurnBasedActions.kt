@@ -4,6 +4,7 @@ import dev.mtgplay.core.event.GameEvent
 import dev.mtgplay.core.state.EffectDuration
 import dev.mtgplay.core.state.GameObject
 import dev.mtgplay.core.state.GameState
+import kotlinx.collections.immutable.persistentMapOf
 import kotlinx.collections.immutable.toPersistentList
 
 /** The maximum hand size players discard down to during cleanup (CR 402.2, CR 514.1). */
@@ -165,5 +166,9 @@ internal fun cleanupRemoveDamageAndEndEffects(state: GameState): GameState {
         timedEffects = surviving,
         preventionEffects = survivingPrevention,
         deathReplacements = survivingDeathReplacements,
+        // CR 608.2h's last-known-power record is turn-scoped too (`W9-D`, `LastKnownPower.kt`): every
+        // reader of it is an object that was already on the stack when the permanent left, so nothing
+        // can ask across a turn boundary and an un-pruned map would only grow.
+        lastKnownPower = persistentMapOf(),
     )
 }

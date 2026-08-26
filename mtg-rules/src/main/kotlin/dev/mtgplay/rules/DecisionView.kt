@@ -103,6 +103,12 @@ enum class DecisionRequestKind {
     /** [DecisionRequest.ChooseTapsForCost] — a non-mana tap cost (CR 601.2h, CR 702.34c). */
     CHOOSE_TAPS_FOR_COST,
 
+    /**
+     * [DecisionRequest.ChooseCostPowerSource] — a **non-consuming** additional cost naming a creature to
+     * read the power of (CR 601.2b, `W9-D`). Monstrous Emergence.
+     */
+    CHOOSE_COST_POWER_SOURCE,
+
     /** [DecisionRequest.ChooseOptionalCostSacrifice] — an announced bargain (CR 601.2b, CR 702.166a). */
     CHOOSE_OPTIONAL_COST_SACRIFICE,
 
@@ -270,6 +276,7 @@ private fun sizedSelectionKind(request: DecisionRequest.SizedSelection): Decisio
         is DecisionRequest.ChooseSacrifices -> DecisionRequestKind.CHOOSE_SACRIFICES
         is DecisionRequest.ChooseTapsForCost -> DecisionRequestKind.CHOOSE_TAPS_FOR_COST
         is DecisionRequest.ChooseOptionalCostSacrifice -> DecisionRequestKind.CHOOSE_OPTIONAL_COST_SACRIFICE
+        is DecisionRequest.ChooseCostPowerSource -> DecisionRequestKind.CHOOSE_COST_POWER_SOURCE
         is DecisionRequest.ChooseCardsToDiscardForCost -> DecisionRequestKind.CHOOSE_CARDS_TO_DISCARD_FOR_COST
         is DecisionRequest.ChooseSacrificesForCost -> DecisionRequestKind.CHOOSE_SACRIFICES_FOR_COST
         else -> abilityOrResolutionSelectionKind(request)
