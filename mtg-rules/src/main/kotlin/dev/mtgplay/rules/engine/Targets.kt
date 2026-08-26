@@ -131,23 +131,10 @@ internal fun legalTargets(
                     .map { Target.Permanent(it.id) }
         // CR 115.1b: every battlefield permanent satisfying the restriction, in battlefield order
         // (CR 302.1); no player is ever offered.
-        is TargetSpec.TargetPermanent ->
-            state.sharedZones.battlefield
-                .filter {
-                    satisfiesPermanentRestriction(state, spec.restriction, it, you) &&
-                        targetableBy(state, it, you, chooser)
-                }.map { Target.Permanent(it.id) }
-        is TargetSpec.Enchantable ->
-            state.sharedZones.battlefield
-                .filter {
-                    satisfiesEnchantRestriction(
-                        state,
-                        spec.restriction,
-                        it,
-                        you,
-                    ) &&
-                        targetableBy(state, it, you, chooser)
-                }.map { Target.Permanent(it.id) }
+        is TargetSpec.TargetPermanent,
+        is TargetSpec.Enchantable,
+        TargetSpec.CreatureBlockedBySource,
+        -> battlefieldTargets(state, spec, you, chooser)
         // CR 115.1/111.1: every spell on the stack satisfying the restriction, bottom-up, never the
         // choosing spell itself and never an ability (CR 113.7a — no card, so no id to name it by,
         // which is also why an ability excludes nothing here: [excludedFromStack] is null for one).
@@ -186,6 +173,43 @@ private fun graveyardsInScope(
         GraveyardScope.YOURS -> state.players.keys.filter { it == you }
         GraveyardScope.ANY -> state.players.keys.toList()
     }
+
+/**
+ * The three specs whose pool is the **battlefield alone** and whose members carry a restriction of their
+ * own (CR 115.1b) — a permanent noun, an Aura's enchant, and Tinder Wall's "creature it's blocking".
+ *
+ * Split out of [legalTargets] only to keep that dispatch inside detekt's complexity budget; there is no
+ * seam in the rules here, and [TargetSpec.AnyTarget] deliberately stays behind because its pool is not
+ * the battlefield alone — it offers players first (CR 115.4). The `else` is exhaustive by construction —
+ * every other member is matched by the caller — and fails loudly, because a spec that silently
+ * enumerated nothing would be a legal play an agent never sees (ADR-005).
+ */
+private fun battlefieldTargets(
+    state: GameState,
+    spec: TargetSpec,
+    you: PlayerId,
+    chooser: Chooser,
+): List<Target> =
+    state.sharedZones.battlefield
+        .filter { candidate ->
+            val admitted =
+                when (spec) {
+                    is TargetSpec.TargetPermanent ->
+                        satisfiesPermanentRestriction(state, spec.restriction, candidate, you)
+                    is TargetSpec.Enchantable ->
+                        satisfiesEnchantRestriction(state, spec.restriction, candidate, you)
+                    // CR 115.1b with CR 509.1: the attackers the choosing ability's source was blocking
+                    // as the choice was made, still on the battlefield and still creatures. Drawn from
+                    // the **chooser's** last-known information rather than from the live combat state,
+                    // because the source of Tinder Wall's ability has left the battlefield by the
+                    // CR 608.2b re-check (CR 113.7c, CR 608.2h) — and for anything but an ability there
+                    // is no source to have been blocking anything, so the set is empty and so is this.
+                    TargetSpec.CreatureBlockedBySource ->
+                        candidate.id in blockedByChooser(chooser) && isCreature(state, candidate)
+                    else -> error("CR 115.1b: $spec is not enumerated from the battlefield alone")
+                }
+            admitted && targetableBy(state, candidate, you, chooser)
+        }.map { Target.Permanent(it.id) }
 
 /**
  * Whether the deciding player [you], choosing for the object [chooser], may target the battlefield

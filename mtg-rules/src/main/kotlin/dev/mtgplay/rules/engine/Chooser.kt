@@ -2,6 +2,8 @@ package dev.mtgplay.rules.engine
 
 import dev.mtgplay.core.identity.CardRef
 import dev.mtgplay.core.identity.ObjectId
+import kotlinx.collections.immutable.PersistentSet
+import kotlinx.collections.immutable.persistentSetOf
 
 /*
  * *What* a target enumeration is being made for (`P-ABILSOURCE`) — the parameter `legalTargets` and
@@ -69,9 +71,24 @@ internal sealed interface Chooser {
      * It excludes nothing from a stack enumeration: there is no id to exclude (CR 113.7a), and an
      * ability's source is a permanent or a card in hand, never a spell on the stack beside the one
      * being targeted.
+     *
+     * @property sourceCard the source's printed identity (CR 113.7b/c) — what CR 702.16b protection
+     *   tests the ability against.
+     * @property blocking the attackers the source was blocking as this enumeration was made
+     *   (CR 509.1), captured as last-known information for the same CR 113.7c reason [sourceCard] is,
+     *   and empty for every ability that does not ask. Read by
+     *   [dev.mtgplay.core.definition.TargetSpec.CreatureBlockedBySource] — Tinder Wall's "target
+     *   creature **it's blocking**", whose source has already left combat *and* the battlefield by the
+     *   CR 608.2b re-check, so a live read of [dev.mtgplay.core.state.CombatState] would offer nothing
+     *   and fizzle every activation. Added by `W9-F`.
+     *
+     *   **A second LKI field rather than an id, for the reason the type carries no id at all.** An id
+     *   captured at activation would name a dead object (CR 400.7); the *relation* it stood for is what
+     *   the printed line actually needs, so the relation is what is captured.
      */
     data class Ability(
         val sourceCard: CardRef,
+        val blocking: PersistentSet<ObjectId> = persistentSetOf(),
     ) : Chooser
 
     /**

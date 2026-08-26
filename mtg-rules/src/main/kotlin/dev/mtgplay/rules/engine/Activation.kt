@@ -74,7 +74,14 @@ private fun MutableList<PriorityOption.ActivateAbility>.addAbilities(
                 // that source's characteristics, and this is where a missed protection check would
                 // become a phantom *action* rather than merely a phantom target
                 // (docs/design/protection.md §6, row 3).
-                targetsAvailable(state, ability.targetSpec, seat, Chooser.Ability(source.card)) &&
+                targetsAvailable(
+                    state,
+                    ability.targetSpec,
+                    seat,
+                    // CR 113.7c: the source is still on the battlefield here, so its combat relation is
+                    // read live and captured; by resolution its own cost may have removed it (`W9-F`).
+                    Chooser.Ability(source.card, creaturesBlockedBy(state, source.id)),
+                ) &&
                 abilityCostPayable(state, seat, source, scope, ability)
         if (offerable) {
             add(PriorityOption.ActivateAbility(source.id, source.card, index, scope))

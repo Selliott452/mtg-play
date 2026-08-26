@@ -583,6 +583,7 @@ object MvpCards {
             tamiyosSafekeeping,
             terminate,
             thoughtcast,
+            tinderWall,
             thoughtScour,
             thrabenCharm,
             timberwatchElf,

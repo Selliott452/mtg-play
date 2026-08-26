@@ -63,7 +63,13 @@ internal fun beginActivation(
                     // CR 601.2c: an untargeted ability — and an "up to N" one with nothing legal to
                     // point at — settles its (empty) target list immediately.
                     chosenTargets =
-                        if (targetChoiceIsVacuous(state, ability.targetSpec, seat, Chooser.Ability(source.card))) {
+                        if (targetChoiceIsVacuous(
+                                state,
+                                ability.targetSpec,
+                                seat,
+                                Chooser.Ability(source.card, creaturesBlockedBy(state, source.id)),
+                            )
+                        ) {
                             persistentListOf()
                         } else {
                             null
@@ -119,7 +125,7 @@ internal fun pendingActivationRequest(state: GameState): DecisionRequest {
                         state,
                         ability.targetSpec,
                         pending.activator,
-                        Chooser.Ability(source.card),
+                        Chooser.Ability(source.card, creaturesBlockedBy(state, source.id)),
                     ),
             )
         pending.chosenDiscard == null ->

@@ -225,6 +225,7 @@ class MvpCardsSpec :
                     CardRef("Cleansing Wildfire"),
                     CardRef("Deem Inferior"),
                     CardRef("Masked Vandal"),
+                    CardRef("Tinder Wall"),
                     CardRef("Faerie Miscreant"),
                     CardRef("God-Pharaoh's Faithful"),
                     CardRef("Gatecreeper Vine"),

@@ -212,4 +212,36 @@ sealed interface TargetSpec {
         val scope: GraveyardScope,
         override val count: TargetCount = TargetCount.ONE,
     ) : TargetSpec
+
+    /**
+     * "Target creature **it's blocking**" (CR 115.1b, CR 509.1) — Tinder Wall's *"{R}, Sacrifice this
+     * creature: It deals 2 damage to target creature it's blocking."* Additive, flagged core (`W9-F`).
+     *
+     * **The first spec whose legal set is a property of the *choosing object* rather than of the
+     * board**, and the reason it cannot be a [PermanentRestriction]. Every restriction in that enum is
+     * a question about a candidate permanent — its card types, its colours, who controls it — answerable
+     * without knowing what is doing the asking. "It's blocking" is a *relation* between the candidate
+     * and the ability's own source, so it is answered from the chooser, exactly as CR 702.16b protection
+     * already is.
+     *
+     * **The relation is read as last-known information, and that is the whole difficulty** (CR 113.7c,
+     * CR 608.2h). Tinder Wall's ability sacrifices its own source as a cost, so by the time the ability
+     * is on the stack the Wall is a new object in a graveyard (CR 400.7) and is blocking nothing at all.
+     * The engine therefore captures the attackers the source was blocking **at activation** — CR 601.2c
+     * chooses targets before CR 601.2h pays costs, so the Wall is still in combat when the choice is
+     * enumerated — and the CR 608.2b re-check reads that capture rather than the live combat state.
+     * Re-deriving it live would fizzle every activation of this ability, which is to say delete the card.
+     *
+     * Its [count] is [TargetCount.ONE] and is not a constructor parameter: the only printing names one
+     * creature, and in this engine a creature blocks at most one attacker (CR 509.1a as
+     * [dev.mtgplay.core.state.CombatState] enforces it), so the set this draws from holds at most one
+     * object anyway.
+     *
+     * **A blocking creature is still a permanent**, so hexproof (CR 702.11) and protection (CR 702.16b)
+     * are checked here exactly as they are for [TargetPermanent] — blocking is not targeting (CR 509.1),
+     * but *this* is.
+     */
+    data object CreatureBlockedBySource : TargetSpec {
+        override val count: TargetCount get() = TargetCount.ONE
+    }
 }

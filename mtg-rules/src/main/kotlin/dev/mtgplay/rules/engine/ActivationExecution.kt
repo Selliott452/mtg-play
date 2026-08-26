@@ -80,6 +80,9 @@ internal fun executeActivation(
             controller = pending.activator,
             ability = ability,
             targets = targets,
+            // CR 113.7c/608.2h: the source is still in combat *here* and will not be by the CR 608.2b
+            // re-check, because the cost below may sacrifice it. Captured, never re-derived.
+            blockingAtActivation = creaturesBlockedBy(state, source.id),
         )
     val cleared = state.copy(pendingActivation = null)
     establishActivationTargets(cleared, entry)
@@ -114,7 +117,13 @@ private fun establishActivationTargets(
     // is what makes this re-validation ask the identical question.
     // CR 601.2c: announceable, not merely legal — the same set the gathering offered, requirements and
     // all (`W8-G`). The CR 608.2b re-check below stays on `legalTargets`, where legality is the question.
-    val options = announceableTargets(state, spec, entry.controller, Chooser.Ability(entry.sourceCard))
+    val options =
+        announceableTargets(
+            state,
+            spec,
+            entry.controller,
+            Chooser.Ability(entry.sourceCard, entry.blockingAtActivation),
+        )
     requireWellFormedTargetChoice(spec, entry.targets, options.size, "${entry.sourceCard.name}'s ability")
     entry.targets.forEach { target ->
         require(target in options) {
@@ -136,7 +145,7 @@ private fun fizzleActivatedAbility(
     // CR 113.7a: an ability on the stack is not a card and has no residence id, so it excludes nothing.
     // CR 113.7c: its source's characteristics are last known information — which is exactly the case
     // here, since an ability whose cost sacrificed its own source is still on the stack.
-    val chooser = Chooser.Ability(entry.sourceCard)
+    val chooser = Chooser.Ability(entry.sourceCard, entry.blockingAtActivation)
     if (!allTargetsIllegal(state, entry.ability.targetSpec, entry.targets, entry.controller, chooser)) {
         return null
     }

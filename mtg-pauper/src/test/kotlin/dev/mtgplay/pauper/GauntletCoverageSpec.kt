@@ -47,8 +47,8 @@ class GauntletCoverageSpec :
                     sideboardDistinct = report.sideboard.distinctCount,
                 )
             } shouldBe
-                // `W9-F` added Cleansing Wildfire, Deem Inferior, and Masked Vandal: three cards across
-                // five rows, all three mainboard cards, which is why only Spy Combo's sideboard moves.
+                // `W9-F` added Cleansing Wildfire, Deem Inferior, Masked Vandal, and Tinder Wall: four
+                // cards across five rows, all four mainboard cards, so only Spy Combo's sideboard moves.
                 listOf(
                     Pinned("Elves", 13, 16, 3, 5),
                     Pinned("Gates", 15, 17, 5, 5),
@@ -66,7 +66,7 @@ class GauntletCoverageSpec :
                     // `W8-E` added Troll of Khazad-dûm: 14 -> 15.
                     Pinned("Monster Tron", 17, 21, 5, 6),
                     // `W8-E` added Gatecreeper Vine and Bramble Wurm: 12 -> 14.
-                    Pinned("Spy Combo", 19, 21, 6, 8),
+                    Pinned("Spy Combo", 20, 21, 6, 8),
                     // `W8-E` added God-Pharaoh's Faithful: 16 -> 17.
                     Pinned("UWX Familiar", 20, 20, 6, 6),
                 )
@@ -111,8 +111,8 @@ private const val SIDEBOARD_SIZE = 15
 private const val TOTAL_DISTINCT_MAIN = 178
 
 /** Of those, how many `mtg-cards` defines — the number this burn-down drives to [TOTAL_DISTINCT_MAIN]. */
-private const val TOTAL_ENCODED_MAIN = 161
-private const val TOTAL_MISSING_MAIN = 17
+private const val TOTAL_ENCODED_MAIN = 162
+private const val TOTAL_MISSING_MAIN = 16
 
 /** Distinct cards named by at least one gauntlet sideboard. */
 private const val TOTAL_DISTINCT_SIDEBOARD = 48
@@ -120,7 +120,7 @@ private const val TOTAL_ENCODED_SIDEBOARD = 38
 private const val TOTAL_MISSING_SIDEBOARD = 10
 
 /** The whole backlog: distinct undefined cards across both boards of all thirteen decks. */
-private const val TOTAL_MISSING_BOTH_BOARDS = 26
+private const val TOTAL_MISSING_BOTH_BOARDS = 25
 
 /** Of the backlog, the cards that appear only in sideboards. */
 private const val TOTAL_MISSING_SIDEBOARD_ONLY = 9
