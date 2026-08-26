@@ -39,6 +39,9 @@ private fun declareAttackersToDomain(dto: DecisionRequestDto.DeclareAttackers): 
                 PlayerId(it.defendingPlayer),
             )
         },
+        dto.required.map {
+            DecisionRequest.DeclareAttackers.Required(ObjectId(it.attacker), CardRef(it.card), PlayerId(it.goadedBy))
+        },
     )
 
 private fun declareBlockersToDomain(dto: DecisionRequestDto.DeclareBlockers): DecisionRequest =

@@ -157,6 +157,7 @@ sealed interface DecisionRequestDto {
     data class DeclareAttackers(
         override val id: DecisionRequestIdDto,
         val options: List<AttackerOptionDto>,
+        val required: List<RequiredAttackerDto> = emptyList(),
     ) : DecisionRequestDto
 
     /** Wire form of [DecisionRequest.DeclareBlockers] (CR 509.1). */

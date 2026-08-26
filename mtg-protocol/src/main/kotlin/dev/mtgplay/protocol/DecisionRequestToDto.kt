@@ -19,6 +19,7 @@ fun DecisionRequest.toDto(): DecisionRequestDto =
             DecisionRequestDto.DeclareAttackers(
                 id.toDto(),
                 options.map { AttackerOptionDto(it.attacker.value, it.card.name, it.defendingPlayer.seat) },
+                required.map { RequiredAttackerDto(it.attacker.value, it.card.name, it.goadedBy.seat) },
             )
         is DecisionRequest.DeclareBlockers ->
             DecisionRequestDto.DeclareBlockers(

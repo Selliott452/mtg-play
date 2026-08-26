@@ -26,7 +26,10 @@ fun parseDecision(
         is DecisionRequest.SingleOptionSelection -> singleSelect(request.id, trimmed, request.optionCount)
         is DecisionRequest.ChoiceCountSelection -> singleSelect(request.id, trimmed, request.choiceCount)
         is DecisionRequest.ChooseYesNo -> parseYesNo(request, trimmed)
-        is DecisionRequest.DeclareAttackers -> parseSubset(request.id, trimmed, request.options.size, exactly = null)
+        // CR 508.1: any distinct subset — but CR 508.1d's requirements are not optional, so a
+        // declaration that leaves a goaded creature at home is rejected here and re-prompted rather
+        // than being handed to the engine to refuse.
+        is DecisionRequest.DeclareAttackers -> parseAttackerSubset(request, trimmed)
         is DecisionRequest.DeclareBlockers -> parseBlockSubset(request, trimmed)
         is DecisionRequest.SizedSelection ->
             parseSubset(request.id, trimmed, request.optionCount, exactly = request.requiredCount)
@@ -39,6 +42,19 @@ fun parseDecision(
         is DecisionRequest.PermutationSelection -> parsePermutation(request.id, trimmed, request.permutationSize)
         is DecisionRequest.MulliganRequest -> parseMulligan(request, trimmed)
     }
+}
+
+/**
+ * Parses a declare-attackers answer (CR 508.1): a distinct in-range subset that includes every
+ * attacker the request published as required (CR 508.1d, CR 701.38a). `null` — which re-prompts — for
+ * an out-of-range, repeated, or requirement-violating answer.
+ */
+private fun parseAttackerSubset(
+    request: DecisionRequest.DeclareAttackers,
+    input: String,
+): Decision? {
+    val subset = parseSubset(request.id, input, request.options.size, exactly = null) ?: return null
+    return if (request.requiredIndices.all { it in subset.indices }) subset else null
 }
 
 /** Parses one one-based number into a single-select over [count] options, or `null` if out of range. */

@@ -36,17 +36,25 @@ private fun priorityMenu(request: DecisionRequest.ChooseAction): List<String> =
         numbered(request.options.map { priorityOptionLabel(it) }) +
         "  Enter one number; [Enter] = pass."
 
-/** The declare-attackers turn-based action (CR 508.1): any subset of the eligible attackers. */
+/**
+ * The declare-attackers turn-based action (CR 508.1): any subset of the eligible attackers that
+ * includes every creature CR 508.1d requires — a goaded one (CR 701.38a), marked here so the human
+ * can see the rule their answer is held to rather than discovering it as a rejected line.
+ */
 private fun attackersMenu(
     view: MatchView,
     request: DecisionRequest.DeclareAttackers,
-): List<String> =
-    listOf("Declare attackers (CR 508.1):") +
+): List<String> {
+    val required = request.requiredIndices.toSet()
+    return listOf("Declare attackers (CR 508.1):") +
         numbered(
-            request.options.map {
-                "${combatantLabel(view, it.attacker, it.card)} -> attacks ${view.nameOf(it.defendingPlayer)}"
+            request.options.mapIndexed { index, option ->
+                val goaded = if (index in required) " [goaded - must attack]" else ""
+                "${combatantLabel(view, option.attacker, option.card)} -> attacks " +
+                    view.nameOf(option.defendingPlayer) + goaded
             },
         ) + SUBSET_HINT
+}
 
 /** The declare-blockers turn-based action (CR 509.1): each option pairs a blocker with an attacker. */
 private fun blockersMenu(

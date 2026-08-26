@@ -13,7 +13,8 @@ import dev.mtgplay.rules.decision.PriorityOption
  * Defaults, by kind:
  *  - priority window (CR 117): pass;
  *  - target / payment / colour / replacement / trample: the first option;
- *  - attackers / blockers (CR 508/509): declare none;
+ *  - attackers (CR 508): declare only what CR 508.1d requires - nothing, unless something is goaded;
+ *  - blockers (CR 509): declare none;
  *  - fixed-size selection: the first N options (the lowest-index cards, as the pass-everything policy);
  *  - ranged (multi-target) selection: the fewest allowed — none for an "up to N" line, which is the
  *    passive answer, and the first N for a line that demands them;
@@ -29,7 +30,11 @@ fun defaultDecision(request: DecisionRequest): Decision =
         // legal (CR 601.2c/601.2g/702.19e/614.12/616.1/701.17a).
         is DecisionRequest.SingleOptionSelection -> Decision.SingleSelect(request.id, 0)
         is DecisionRequest.ChooseYesNo -> Decision.SingleSelect(request.id, DecisionRequest.ChooseYesNo.DECLINE)
-        is DecisionRequest.DeclareAttackers -> Decision.MultiSelect(request.id, emptyList())
+        // CR 508.1: attacking with nothing is the passive choice — except that CR 508.1d's requirements
+        // are not optional, so the default declaration is the goaded creatures and nothing else. A blank
+        // line must still produce a *legal* answer (ADR-005), and the empty subset stops being one the
+        // moment anything is goaded.
+        is DecisionRequest.DeclareAttackers -> Decision.MultiSelect(request.id, request.requiredIndices)
         is DecisionRequest.DeclareBlockers -> Decision.MultiSelect(request.id, emptyList())
         is DecisionRequest.SizedSelection -> Decision.MultiSelect(request.id, (0 until request.requiredCount).toList())
         // CR 601.2c: the minimum is always legal and is the passive choice — an "up to N" target line

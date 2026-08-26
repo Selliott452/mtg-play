@@ -83,6 +83,18 @@ import kotlinx.serialization.Serializable
  *   seat needs to know that a 6/3 flier is waiting to be played out of it. A boolean rather than a turn
  *   number because CR 715.3d's grant lasts *"for as long as that card remains exiled"* and so has no
  *   expiry to record. Added by `W10-B`.
+ * @property goadedBy the seat that goaded this creature (CR 701.38a), or `null` when it is not goaded —
+ *   the Undercity's Arena. Added by `W11`.
+ *
+ *   **Public, and the one marker whose whole visible consequence is on a *future* decision** (ADR-007).
+ *   Goad changes no characteristic, so a peer that dropped it would render an identical creature and
+ *   then be unable to explain why its own declare-attackers request refuses a declaration that leaves
+ *   the creature at home. Both halves of CR 701.38a are public information — goad is announced on
+ *   resolution and every seat watched it.
+ * @property goadedOnTurn the turn [goadedBy] goaded it on (CR 701.38a), or `null` when it is not
+ *   goaded. The *beginning* of the "until your next turn" window rather than its end, for the reason
+ *   [playGrantedTurn] records a grant turn: the end cannot be named without predicting the turn order.
+ *   Added by `W11`.
  */
 @Serializable
 data class GameObjectDto(
@@ -110,6 +122,8 @@ data class GameObjectDto(
     val enteredTurn: Int? = null,
     val prototyped: Boolean = false,
     val onAnAdventure: Boolean = false,
+    val goadedBy: Int? = null,
+    val goadedOnTurn: Int? = null,
 )
 
 /** [GameObject] to its wire form. */
@@ -150,6 +164,10 @@ fun GameObject.toDto(): GameObjectDto =
         // CR 715.3d / CR 406.3: an exiled card on an adventure sits face up and may be played from
         // there, so the marker that says so is public exactly as `playGrantedTurn` is.
         onAnAdventure = onAnAdventure,
+        // CR 701.38a: goad resolves on the public stack and constrains a public declaration, so both
+        // halves of the marker ride unredacted.
+        goadedBy = goadedBy?.seat,
+        goadedOnTurn = goadedOnTurn,
     )
 
 /** [GameObjectDto] back to the engine value. */
@@ -179,4 +197,6 @@ fun GameObjectDto.toDomain(): GameObject =
         enteredTurn = enteredTurn,
         prototyped = prototyped,
         onAnAdventure = onAnAdventure,
+        goadedBy = goadedBy?.let(::PlayerId),
+        goadedOnTurn = goadedOnTurn,
     )

@@ -28,6 +28,7 @@ import dev.mtgplay.core.state.Counter
 import dev.mtgplay.core.state.Target
 import dev.mtgplay.rules.effect.createToken
 import dev.mtgplay.rules.effect.drawCards
+import dev.mtgplay.rules.effect.goad
 import dev.mtgplay.rules.effect.loseLife
 import dev.mtgplay.rules.effect.putCounters
 import kotlinx.collections.immutable.persistentListOf
@@ -291,19 +292,36 @@ private val trap: DungeonRoom =
         successors = persistentListOf(ROOM_ARCHIVES),
     )
 
-/** *Arena* — "Goad target creature." (CR 701.38a) Unimplemented; the file header gives the diagnosis. */
+/**
+ * *Arena* — "Goad target creature." (CR 701.38a, CR 115.1b)
+ *
+ * The pool's only **attack requirement** and the reason `mtg-rules` grew one (`W11`): goad says the
+ * creature *"attacks each combat if able"* until the goading player's next turn, which is a constraint
+ * on the CR 508.1 declaration rather than anything about the creature. Composed from the published
+ * [goad] verb, which records the requirement on the permanent; the engine publishes it on the
+ * declare-attackers request and refuses a declaration that leaves the creature at home.
+ *
+ * **"Target creature", not "target creature an opponent controls"** — the venturing player may goad
+ * their own, which is a legal line (it does nothing useful in a two-player game, since a creature that
+ * must attack each combat is a creature you were probably attacking with, but it is a line the card
+ * offers and [TargetSpec.TargetPermanent] enumerates). Goad's second half — *"attacks a player other
+ * than you if able"* — is satisfied trivially at two seats whichever way the target points: there is
+ * one defending player and it is either not the goader, or is, and "if able" then waives it.
+ */
 private val arena: DungeonRoom =
     DungeonRoom(
         name = "Arena",
         ability =
-            DungeonRoomAbility.Unimplemented(
-                printed = "Goad target creature.",
-                diagnosis =
-                    "CR 701.38a: goad is an attack *requirement* (CR 508.1d) lasting until the goading " +
-                        "player's next turn. The engine has no attack-requirement framework — " +
-                        "eligibleAttackers publishes a free subset and DecisionValidation accepts any " +
-                        "distinct subset of it — and no 'until your next turn' EffectDuration, which the " +
-                        "CR 514.2 cleanup could not end anyway since it outlives the turn it began in",
+            DungeonRoomAbility.Runs(
+                TriggeredAbility(
+                    condition = TriggerCondition.EnteredDungeonRoom,
+                    targetSpec = TargetSpec.TargetPermanent(PermanentRestriction.CREATURE),
+                    effect =
+                        ResolutionEffect { state, context ->
+                            goad(state, onlyTargetPermanent(context.targets, "Arena"), context.controller)
+                        },
+                    zoneScope = TriggerZoneScope.Command,
+                ),
             ),
         successors = persistentListOf(ROOM_ARCHIVES, ROOM_CATACOMBS),
     )

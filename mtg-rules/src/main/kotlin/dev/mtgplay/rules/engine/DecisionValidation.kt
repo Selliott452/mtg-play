@@ -53,11 +53,7 @@ internal fun validateDecision(
                 "CR 701.60a: the chosen options total $total, but at least ${request.requiredTotal} is required"
             }
         }
-        is DecisionRequest.DeclareAttackers -> {
-            // CR 508.1: any subset of the eligible attackers is a legal declaration (the empty
-            // subset included); the only cross-option rule is distinctness.
-            validateDistinctSubset(request, decision, request.options.size, "attacker")
-        }
+        is DecisionRequest.DeclareAttackers -> validateAttackerDeclaration(request, decision)
         is DecisionRequest.DeclareBlockers -> validateBlockerDeclaration(request, decision)
         // CR 509.2 / 603.3b: an ordering answer permutes all of its options (blocker order, trigger order).
         is DecisionRequest.PermutationSelection ->
@@ -70,6 +66,30 @@ internal fun validateDecision(
         is DecisionRequest.ChoiceCountSelection -> validateSingleSelect(request, decision, request.choiceCount)
         // CR 103.4/103.5: the pre-game mulligan decisions share a validator (Mulligans.kt).
         is DecisionRequest.MulliganRequest -> validateMulliganDecision(request, decision)
+    }
+}
+
+/**
+ * Validates a declare-attackers answer (CR 508.1): a distinct subset of the eligible attackers — the
+ * empty one included — that includes every published attack requirement (CR 508.1d).
+ *
+ * The requirement is checked **here** rather than in the option list because it is not a property of
+ * any one option: a goaded creature's option is as legal as any other (CR 701.38a changes nothing
+ * about whether it *may* attack), and what goad makes illegal is a declaration that leaves it out.
+ * That is a property of the set, exactly as Troll of Khazad-dûm's blocker floor is, and it is checked
+ * against the floors the request published so the seat was shown the rule it is being held to.
+ */
+private fun validateAttackerDeclaration(
+    request: DecisionRequest.DeclareAttackers,
+    decision: Decision,
+) {
+    validateDistinctSubset(request, decision, request.options.size, "attacker")
+    val declared = decision.asMultiSelect(request).indices.map { request.options[it].attacker }.toSet()
+    request.required.forEach { requirement ->
+        require(requirement.attacker in declared) {
+            "CR 508.1d/701.38a: ${requirement.card.name} was goaded by ${requirement.goadedBy} and " +
+                "attacks each combat if able, so this declaration must include it"
+        }
     }
 }
 
