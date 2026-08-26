@@ -30,8 +30,6 @@ internal fun applySingleOptionSelection(
 ): AdvanceResult {
     check(decision is Decision.SingleSelect) { "unreachable: decision shape was validated against the request" }
     return when (request) {
-        // CR 601.2b: the option index names an *offered* mode; the mode's own printed index is recorded.
-        is DecisionRequest.ChooseModes -> applyChosenModes(state, request.options[decision.index].modeIndex)
         is DecisionRequest.ChooseTargets -> applyChosenTargets(state, request, decision)
         is DecisionRequest.ChoosePaymentPlan -> applyChosenPaymentPlan(state, request, decision)
         // CR 601.2b: the option index names an *offered* value of X; the value itself is recorded.

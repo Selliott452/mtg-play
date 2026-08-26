@@ -69,15 +69,7 @@ internal fun pendingCastRequest(
         // card's modes may target different *kinds* of object (Blue Elemental Blast counters a spell or
         // destroys a permanent), so the targets branch below has no enumeration to run until the mode is
         // settled. Only choosable modes are offered (ADR-005).
-        cast.chosenModes == null ->
-            DecisionRequest.ChooseModes(
-                id = id,
-                cardObjectId = cast.cardObjectId,
-                card = card.card,
-                options =
-                    castableModes(state, definition, cast.caster, Chooser.Spell(cast.cardObjectId))
-                        .map { DecisionRequest.ChooseModes.Option(it, definition.modes[it].text) },
-            )
+        cast.chosenModes == null -> modesRequestFor(state, cast, definition, card.card, id)
         // CR 601.2c: then targets, enumerated against the spec the settled mode put in force. The modes
         // are non-null in this branch, but they are a cross-module property so the compiler will not
         // smart-cast them; `orEmpty()` is the same value, and a non-modal card's is empty anyway.
@@ -154,7 +146,9 @@ private fun targetsRequestFor(
     card: CardRef,
     id: DecisionRequestId,
 ): DecisionRequest {
-    val spec = effectiveTargetSpec(definition, cast.chosenModes.orEmpty())
+    // CR 115.3: each chosen mode is its own instance of the word "target", so the cast asks one question
+    // per chosen mode and `modeTargets.size` is the cursor saying which one is due now.
+    val spec = effectiveTargetSpecs(definition, cast.chosenModes.orEmpty())[cast.modeTargets.size]
     // Two independent narrowings, and neither subsumes the other: `announceableTargets`
     // applies board-derived targeting *requirements* (CR 601.2c — a Flagbearer must be chosen
     // if able), and `affordableTargetOptions` drops choices the caster could not then pay for
@@ -166,6 +160,35 @@ private fun targetsRequestFor(
         card = card,
         spec = spec,
         options = affordableTargetOptions(state, cast.caster, cast.subject(definition), spec, legal),
+    )
+}
+
+/**
+ * The CR 601.2b mode request for the open [cast]: the modes this seat could legally choose right now,
+ * with the card's printed [dev.mtgplay.core.definition.ModeChoice] as the answer's bounds, clamped to
+ * what is actually on offer.
+ *
+ * The clamp is the same one a target choice gets: "choose up to two" with one choosable mode is a real
+ * choice between none and that mode, never a demand for a second that does not exist. It cannot clamp
+ * the *minimum* below what the card demands — a card that must choose two and cannot is refused at
+ * enumeration by [someModeIsCastable], so this request is never built for one.
+ */
+private fun modesRequestFor(
+    state: GameState,
+    cast: PendingCast,
+    definition: SpellDefinition,
+    card: CardRef,
+    id: DecisionRequestId,
+): DecisionRequest.ChooseModes {
+    val choosable = castableModes(state, definition, cast.caster, Chooser.Spell(cast.cardObjectId))
+    val choice = definition.modeChoice
+    return DecisionRequest.ChooseModes(
+        id = id,
+        cardObjectId = cast.cardObjectId,
+        card = card,
+        options = choosable.map { DecisionRequest.ChooseModes.Option(it, definition.modes[it].text) },
+        minimumCount = choice.minimum,
+        maximumCount = minOf(choice.maximum, choosable.size),
     )
 }
 

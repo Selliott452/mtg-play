@@ -430,6 +430,7 @@ object MvpCards {
             breathWeapon,
             brinebarrowIntruder,
             cartoucheOfSolidarity,
+            callDamageControl,
             castIntoTheFire,
             bendersWaterskin,
             castDown,

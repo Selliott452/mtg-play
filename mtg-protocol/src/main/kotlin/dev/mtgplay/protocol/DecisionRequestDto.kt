@@ -66,10 +66,15 @@ sealed interface DecisionRequestDto {
     /**
      * Wire form of [DecisionRequest.ChooseModes] — a modal cast's mode choice (CR 601.2b, CR 700.2).
      *
-     * Sent server→client as an offered decision and answered client→server by index, like every other
-     * [SingleOptionSelectionDto]. It arrives **before** that cast's [ChooseTargets], which is the
-     * CR 601.2b-before-CR 601.2c ordering a client can observe directly: the target options it receives
-     * next depend on the mode index it just sent back.
+     * Sent server→client as an offered decision and answered client→server with a distinct index
+     * subset whose size lies in [minimumCount]..[maximumCount] — a [RangedSelectionDto], since `W9-B`,
+     * for "Choose one —" too, where the range is `1..1`. It arrives **before** that cast's target
+     * requests, which is the CR 601.2b-before-CR 601.2c ordering a client can observe directly: the
+     * target options it receives next depend on the modes it just sent back, and it receives **one
+     * target request per chosen mode** (CR 115.3).
+     *
+     * [minimumCount] is the card's printed minimum, zero for "choose up to N" — and a client may
+     * legitimately answer with no indices at all, casting the spell to resolve doing nothing.
      */
     @Serializable
     @SerialName("choose_modes")
@@ -78,7 +83,9 @@ sealed interface DecisionRequestDto {
         val cardObjectId: Long,
         val card: String,
         val options: List<ModeOptionDto>,
-    ) : SingleOptionSelectionDto
+        val minimumCount: Int,
+        val maximumCount: Int,
+    ) : RangedSelectionDto
 
     /** Wire form of [DecisionRequest.ChooseTargets] — a cast's target choice (CR 601.2c). */
     @Serializable

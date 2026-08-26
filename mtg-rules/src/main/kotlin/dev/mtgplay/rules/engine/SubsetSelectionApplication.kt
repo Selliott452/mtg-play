@@ -18,8 +18,8 @@ import dev.mtgplay.rules.decision.DecisionRequest
  */
 
 /**
- * Applies one ranged subset selection — a multi-target choice (CR 601.2c) or an untargeted
- * mid-resolution permanent selection (CR 609.4) — dispatching by kind. The indices are already
+ * Applies one ranged subset selection — a mode choice (CR 601.2b), a multi-target choice (CR 601.2c),
+ * or an untargeted mid-resolution permanent selection (CR 609.4) — dispatching by kind. The indices are already
  * validated as distinct, in range, and of a size within the request's bounds (ADR-004), so mapping them
  * straight onto options is safe.
  *
@@ -34,6 +34,10 @@ internal fun applyRangedSelection(
 ): AdvanceResult {
     check(decision is Decision.MultiSelect) { "unreachable: decision shape was validated against the request" }
     return when (request) {
+        // CR 601.2b: the option indices name *offered* modes; the modes' own printed indices are what
+        // goes onto the cast record, in the order the caster chose them.
+        is DecisionRequest.ChooseModes ->
+            applyChosenModes(state, decision.indices.map { request.options[it].modeIndex })
         is DecisionRequest.ChooseMultipleTargets ->
             applyChosenTargetList(state, decision.indices.map { request.options[it] }, request)
         // CR 609.4: an untargeted mid-resolution selection of battlefield permanents — the same ranged

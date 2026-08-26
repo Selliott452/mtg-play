@@ -5,6 +5,7 @@ import dev.mtgplay.core.definition.CastingPermission
 import dev.mtgplay.core.identity.ObjectId
 import dev.mtgplay.core.identity.PlayerId
 import kotlinx.collections.immutable.PersistentList
+import kotlinx.collections.immutable.persistentListOf
 
 /**
  * A cast the engine is gathering decisions for: the caster has chosen to cast a card (CR 601.2), and
@@ -38,8 +39,21 @@ import kotlinx.collections.immutable.PersistentList
  *   ones, not indices into whatever subset of modes happened to be legal on this board, so a replay log
  *   names the same mode whatever the board looked like.
  * @property chosenTargets the targets chosen so far: `null` before the targets decision (CR 601.2c) is
- *   answered, the chosen list after — empty exactly when the spell (or, for a modal spell, the chosen
- *   mode) targets nothing.
+ *   answered, the chosen list after — empty exactly when the spell (or, for a modal spell, every chosen
+ *   mode) targets nothing. For a modal spell this is the **flattened** concatenation of [modeTargets],
+ *   in chosen-mode order, and it is set only once *every* chosen mode's line is settled.
+ * @property modeTargets the targets chosen for each chosen mode so far, one list per mode, in
+ *   chosen-mode order (CR 601.2b then CR 601.2c). Empty for a non-modal card and before a modal card's
+ *   first targeting line is answered. Additive, flagged core (`W9-B`).
+ *
+ *   **The split cannot be re-derived from [chosenTargets], which is why it is stored.** Each bullet of a
+ *   modal card is its own instance of the word "target" (CR 115.3) with its own [TargetCount], so a
+ *   "choose up to two" card whose modes print "up to two target creatures" would produce a flat list of
+ *   three targets that could have come from any of several splits. Carrying the split is what lets the
+ *   CR 608.2b re-check and the resolution hand each mode exactly the targets it chose.
+ *
+ *   It doubles as the gathering cursor: `modeTargets.size` is how many of the chosen modes have had
+ *   their targeting line settled, so the next request is for `chosenModes[modeTargets.size]`.
  * @property source the zone the card is being cast from (CR 601.2a).
  * @property castingPermission the alternative permission this cast uses (CR 601.2f), or `null` for a
  *   normal cast at the printed cost from the hand.
@@ -96,6 +110,7 @@ data class PendingCast(
     val cardObjectId: ObjectId,
     val chosenModes: PersistentList<Int>?,
     val chosenTargets: PersistentList<Target>?,
+    val modeTargets: PersistentList<PersistentList<Target>> = persistentListOf(),
     val source: CastSource,
     val castingPermission: CastingPermission?,
     val additionalExileCost: PersistentList<ObjectId>?,

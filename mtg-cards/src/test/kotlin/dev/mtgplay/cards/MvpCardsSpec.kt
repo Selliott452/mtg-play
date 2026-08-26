@@ -258,6 +258,7 @@ class MvpCardsSpec :
                     CardRef("Breath Weapon"),
                     CardRef("Brinebarrow Intruder"),
                     CardRef("Cartouche of Solidarity"),
+                    CardRef("Call Damage Control"),
                     CardRef("Cast into the Fire"),
                     CardRef("Cast Down"),
                     CardRef("Contaminated Landscape"),

@@ -160,6 +160,9 @@ private fun proposeSpell(
             // change; the target stage below and every later CR 608.2b re-check read the spell's
             // targeting line through them.
             chosenModes = modes,
+            // CR 115.3: and with them the per-mode split of the targets, because each bullet is its own
+            // instance of the word "target" and the flat [targets] list cannot say which came from where.
+            modeTargets = cast.modeTargets,
             // CR 702.33f: the linked information "this spell was kicked", fixed here for the same reason
             // the modes are — it is settled while casting and everything downstream depends on it.
             kicked = cast.kicked ?: false,
@@ -229,10 +232,11 @@ private fun chooseModes(
         }
         return state
     }
-    // Fails loudly on a wrong arity or an out-of-range printed index (ADR-005: the mode was enumerated).
-    val mode = chosenMode(entry.definition, entry.chosenModes)
+    // Fails loudly on a wrong arity, a repeat, or an out-of-range printed index (ADR-005: the modes
+    // were enumerated).
+    val modes = chosenSpellModes(entry.definition, entry.chosenModes)
     return state.emit(
-        GameEvent.ModesChosen(entry.controller, entry.obj.id, entry.chosenModes, listOf(mode.text)),
+        GameEvent.ModesChosen(entry.controller, entry.obj.id, entry.chosenModes, modes.map { it.text }),
     )
 }
 
@@ -254,19 +258,28 @@ private fun establishTargets(
     state: GameState,
     entry: StackEntry.Spell,
 ): GameState {
-    // For a modal spell this is the *chosen mode's* spec: the CR 601.2b answer settled one stage above
-    // determines the CR 601.2c question asked here (`FW-MODAL`).
-    val spec = effectiveTargetSpec(entry.definition, entry.chosenModes)
-    // CR 601.2a ran before this stage, so the spell is already on the stack under `entry.obj.id`;
-    // naming it here keeps this re-validation's enumeration equal to the gathering-time one, in which
-    // the card was still in its source zone.
-    // CR 601.2c: announceable, not merely legal — a targeting requirement standing against the caster
-    // narrowed what could be offered, so it must narrow what is re-validated (`W8-G`).
-    val options = announceableTargets(state, spec, entry.controller, Chooser.Spell(entry.obj.id))
-    requireWellFormedTargetChoice(spec, entry.targets, options.size, entry.obj.card.name)
-    entry.targets.forEach { target ->
-        require(target in options) {
-            "CR 601.2c: $target is not a legal target for ${entry.obj.card.name}"
+    // For a modal spell these are the *chosen modes'* specs, one per mode: the CR 601.2b answer settled
+    // one stage above determines the CR 601.2c questions asked here (`FW-MODAL`, `W9-B`).
+    val specs = effectiveTargetSpecs(entry.definition, entry.chosenModes)
+    val lines = targetLinesOf(entry)
+    require(lines.size == specs.size) {
+        "CR 601.2c: ${entry.obj.card.name} has ${specs.size} targeting line(s) but recorded ${lines.size}"
+    }
+    // Each line is re-validated against **its own** spec and its own enumeration. Validating the
+    // flattened list against one spec would be a different, weaker check: it would accept a creature
+    // card answered to the artifact bullet as long as some bullet admitted it (CR 115.3).
+    specs.forEachIndexed { index, spec ->
+        // CR 601.2a ran before this stage, so the spell is already on the stack under `entry.obj.id`;
+        // naming it here keeps this re-validation's enumeration equal to the gathering-time one, in
+        // which the card was still in its source zone.
+        // CR 601.2c: announceable, not merely legal — a targeting requirement standing against the
+        // caster narrowed what could be offered, so it must narrow what is re-validated (`W8-G`).
+        val options = announceableTargets(state, spec, entry.controller, Chooser.Spell(entry.obj.id))
+        requireWellFormedTargetChoice(spec, lines[index], options.size, entry.obj.card.name)
+        lines[index].forEach { target ->
+            require(target in options) {
+                "CR 601.2c: $target is not a legal target for ${entry.obj.card.name}"
+            }
         }
     }
     // A spell that announced no targets — one that targets nothing, or an "up to N" whose controller
@@ -277,6 +290,17 @@ private fun establishTargets(
         state.emit(GameEvent.TargetsChosen(entry.controller, entry.obj.id, entry.targets))
     }
 }
+
+/**
+ * The targets [entry] chose, split into one list per targeting line (CR 115.3) — the recorded per-mode
+ * split for a modal spell, and the whole flat list as a single line for an ordinary one.
+ *
+ * The one place the two shapes are reconciled, so every per-line reader (the CR 601.2c re-validation,
+ * the CR 608.2b fizzle, the resolution fold) asks the same question and cannot disagree about what a
+ * non-modal spell's "lines" are.
+ */
+internal fun targetLinesOf(entry: StackEntry.Spell): List<List<Target>> =
+    if (entry.definition.modes.isEmpty()) listOf(entry.targets) else entry.modeTargets
 
 /**
  * Stage CR 601.2f — cost determination: the mana cost the payment plan pays, after cost modification

@@ -218,6 +218,16 @@ internal inline fun <T> List<CardObjectOptionDto>.mapOptions(factory: (ObjectId,
  */
 private fun rangedSelectionToDomain(dto: DecisionRequestDto.RangedSelectionDto): DecisionRequest =
     when (dto) {
+        // CR 601.2b: the printed mode indices travel as-is; they are not the option indices (`FW-MODAL`).
+        is DecisionRequestDto.ChooseModes ->
+            DecisionRequest.ChooseModes(
+                dto.id.toDomain(),
+                ObjectId(dto.cardObjectId),
+                CardRef(dto.card),
+                dto.options.map { DecisionRequest.ChooseModes.Option(it.modeIndex, it.text) },
+                dto.minimumCount,
+                dto.maximumCount,
+            )
         is DecisionRequestDto.ChooseMultipleTargets ->
             DecisionRequest.ChooseMultipleTargets(
                 dto.id.toDomain(),

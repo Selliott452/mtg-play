@@ -103,7 +103,6 @@ class RandomRemoteAgent(
     // The number of options a "pick exactly one of these" request offers (no opt-out index).
     private fun singleOptionCount(request: DecisionRequestDto.SingleOptionSelectionDto): Int =
         when (request) {
-            is DecisionRequestDto.ChooseModes -> request.options.size
             is DecisionRequestDto.ChooseTargets -> request.options.size
             is DecisionRequestDto.ChoosePaymentPlan -> request.options.size
             // CR 601.2b: one index per announceable value of X, not per unit of X.
@@ -212,6 +211,9 @@ private fun choiceCount(request: DecisionRequestDto.ChoiceCountSelectionDto): In
 /** The option count and inclusive answer-size bounds of a ranged selection (CR 601.2c, CR 609.4). */
 private fun rangedBounds(request: DecisionRequestDto.RangedSelectionDto): Triple<Int, Int, Int> =
     when (request) {
+        // CR 601.2b: a mode choice is ranged too — "choose one" is the `1..1` case (`W9-B`).
+        is DecisionRequestDto.ChooseModes ->
+            Triple(request.options.size, request.minimumCount, request.maximumCount)
         is DecisionRequestDto.ChooseMultipleTargets ->
             Triple(request.options.size, request.minimumCount, request.maximumCount)
         is DecisionRequestDto.ChoosePermanentsToAffect ->

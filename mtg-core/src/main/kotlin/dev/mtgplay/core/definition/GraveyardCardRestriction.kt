@@ -62,4 +62,28 @@ enum class GraveyardCardRestriction {
      * would silently widen a printed line.
      */
     CREATURE,
+
+    /**
+     * "Target artifact card" (CR 301, CR 205.2): a card whose printed types include artifact. Call
+     * Damage Control's first bullet. Additive, flagged core (`W9-B`).
+     */
+    ARTIFACT,
+
+    /**
+     * "Target enchantment card" (CR 303, CR 205.2): a card whose printed types include enchantment.
+     * Call Damage Control's third bullet. Additive, flagged core (`W9-B`).
+     */
+    ENCHANTMENT,
+
+    /**
+     * "Target land card" (CR 305, CR 205.2): a card whose printed types include land. Call Damage
+     * Control's fourth bullet. Additive, flagged core (`W9-B`).
+     *
+     * Narrower than [CREATURE_OR_LAND] for [CREATURE]'s reason in the other direction, and worth
+     * stating because the three members added here are exactly the ones that make a card's types a
+     * *set* rather than a label: an artifact creature card in the graveyard satisfies [ARTIFACT] and
+     * [CREATURE] both, and Call Damage Control may name it for either bullet — or, since each bullet
+     * is its own instance of the word "target" (CR 115.3), for both.
+     */
+    LAND,
 }

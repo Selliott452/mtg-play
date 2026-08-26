@@ -18,7 +18,6 @@ internal fun singleOptionMenu(
     request: DecisionRequest.SingleOptionSelection,
 ): List<String> =
     when (request) {
-        is DecisionRequest.ChooseModes -> modeMenu(request)
         is DecisionRequest.ChooseTargets -> targetMenu(view, request)
         is DecisionRequest.ChoosePaymentPlan -> paymentMenu(request)
         is DecisionRequest.ChooseXValue -> xValueMenu(request)
@@ -58,19 +57,6 @@ private fun counterPaymentMenu(request: DecisionRequest.ChooseCounterPayment): L
                 }
             },
         ) + SINGLE_HINT
-
-/**
- * A modal cast's mode choice (CR 601.2b, CR 700.2). Each line is the mode's printed bullet, so the menu
- * reads as the card does; a mode the board makes unavailable is simply absent (ADR-005), which is why
- * Blue Elemental Blast can show one line where the card prints two.
- *
- * This menu always precedes the same cast's target menu — the CR 601.2b-before-CR 601.2c order — and the
- * targets offered next depend on which line is picked here.
- */
-private fun modeMenu(request: DecisionRequest.ChooseModes): List<String> =
-    listOf("Choose a mode for ${request.card.name} (CR 601.2b):") +
-        numbered(request.options.map { it.text }) +
-        SINGLE_HINT
 
 /** A cast's target choice (CR 601.2c). */
 private fun targetMenu(

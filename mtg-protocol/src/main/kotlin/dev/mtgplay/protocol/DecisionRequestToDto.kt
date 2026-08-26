@@ -45,6 +45,15 @@ fun DecisionRequest.toDto(): DecisionRequestDto =
  */
 private fun rangedSelectionToDto(request: DecisionRequest.RangedSelection): DecisionRequestDto =
     when (request) {
+        is DecisionRequest.ChooseModes ->
+            DecisionRequestDto.ChooseModes(
+                request.id.toDto(),
+                request.cardObjectId.value,
+                request.card.name,
+                request.options.map { ModeOptionDto(it.modeIndex, it.text) },
+                request.minimumCount,
+                request.maximumCount,
+            )
         is DecisionRequest.ChooseMultipleTargets ->
             DecisionRequestDto.ChooseMultipleTargets(
                 request.id.toDto(),
@@ -68,13 +77,6 @@ private fun rangedSelectionToDto(request: DecisionRequest.RangedSelection): Deci
 /** The "pick exactly one of these options" family (CR 601.2c/601.2g/702.19e/614.12/616.1/701.17a). */
 private fun singleOptionSelectionToDto(request: DecisionRequest.SingleOptionSelection): DecisionRequestDto =
     when (request) {
-        is DecisionRequest.ChooseModes ->
-            DecisionRequestDto.ChooseModes(
-                request.id.toDto(),
-                request.cardObjectId.value,
-                request.card.name,
-                request.options.map { ModeOptionDto(it.modeIndex, it.text) },
-            )
         is DecisionRequest.ChooseTargets ->
             DecisionRequestDto.ChooseTargets(
                 request.id.toDto(),

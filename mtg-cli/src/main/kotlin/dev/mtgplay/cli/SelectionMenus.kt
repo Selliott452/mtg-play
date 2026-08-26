@@ -95,6 +95,8 @@ internal fun rangedSelectionMenu(
     request: DecisionRequest.RangedSelection,
 ): List<String> =
     when (request) {
+        // CR 601.2b: a mode choice is ranged too — "choose one" is the `1..1` case (`W9-B`).
+        is DecisionRequest.ChooseModes -> modeMenu(request)
         is DecisionRequest.ChooseMultipleTargets ->
             listOf("Choose ${targetCountPhrase(request)} for ${request.card.name} (CR 601.2c):") +
                 numbered(request.options.map { targetLabel(view, it) }) +

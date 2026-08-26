@@ -12,6 +12,7 @@ import dev.mtgplay.core.state.PendingColorChoice
 import dev.mtgplay.core.state.StackEntry
 import dev.mtgplay.core.state.Target
 import dev.mtgplay.rules.AdvanceResult
+import kotlinx.collections.immutable.toPersistentList
 
 /**
  * Resolves the topmost object of the stack (CR 608.1) — reached when all players pass in
@@ -68,27 +69,33 @@ private fun resolveSpell(
             enterResolvedPermanent(state, entry, chosenColor = null)
         }
     } else {
+        // CR 700.2: a modal spell runs the *chosen modes'* instructions in the order chosen, never the
+        // card's — which for a modal card do not exist (`FW-MODAL`, SpellModes.kt). Each one is handed
+        // its own targeting line (CR 115.3), so a two-mode spell's second bullet cannot see the first
+        // bullet's target. An "up to N" spell that chose no modes runs nothing and simply resolves.
+        val lines = targetLinesOf(entry)
+        val resolutions = effectiveResolutions(entry.definition, entry.chosenModes)
         val resolved =
-            // CR 700.2: a modal spell runs the *chosen mode's* instructions, never the card's — which for
-            // a modal card do not exist (`FW-MODAL`, SpellModes.kt).
-            effectiveResolution(entry.definition, entry.chosenModes).resolve(
-                state,
-                ResolutionContext(
-                    controller = entry.controller,
-                    targets = entry.targets,
-                    discardedForCost = entry.discardedForCost,
-                    source = entry.obj.id,
-                    sacrificedForCost = entry.sacrificedForCost,
-                    // CR 120.1: a resolving spell that deals damage is that damage's source.
-                    sourceCard = entry.obj.card,
-                    // CR 702.33f: the linked "was it kicked", which Prohibit's resolution reads.
-                    kicked = entry.kicked,
-                    // CR 702.166b: the linked "was it bargained", read by Troublemaker Ouphe's trigger.
-                    optionalCostPaid = entry.optionalCostPaid,
-                    // CR 202.3b: the announced value, which is what an "X damage" resolution deals.
-                    chosenX = entry.chosenX,
-                ),
-            )
+            resolutions.foldIndexed(state) { index, current, resolution ->
+                resolution.resolve(
+                    current,
+                    ResolutionContext(
+                        controller = entry.controller,
+                        targets = lines[index].toPersistentList(),
+                        discardedForCost = entry.discardedForCost,
+                        source = entry.obj.id,
+                        sacrificedForCost = entry.sacrificedForCost,
+                        // CR 120.1: a resolving spell that deals damage is that damage's source.
+                        sourceCard = entry.obj.card,
+                        // CR 702.33f: the linked "was it kicked", which Prohibit's resolution reads.
+                        kicked = entry.kicked,
+                        // CR 702.166b: the linked "was it bargained", read by a bargain trigger.
+                        optionalCostPaid = entry.optionalCostPaid,
+                        // CR 202.3b: the announced value, which is what an "X damage" resolution deals.
+                        chosenX = entry.chosenX,
+                    ),
+                )
+            }
         // Relaxed by `FW-COUNTER` from "the stack is unchanged" to what that assertion actually meant.
         // A counter's whole job is to modify the stack (CR 701.5a), so the old form was false for every
         // counter; what must still hold is that the effect did not move the **resolving** spell, whose
@@ -115,11 +122,22 @@ private fun fizzleSpell(
     state: GameState,
     entry: StackEntry.Spell,
 ): AdvanceResult? {
-    // CR 608.2b re-checks against the spec the spell was *cast* under, which for a modal spell is the
-    // chosen mode's — Blue Elemental Blast's counter mode fizzles when its target stops being a red
+    // CR 608.2b re-checks against the specs the spell was *cast* under, which for a modal spell are the
+    // chosen modes' — Blue Elemental Blast's counter mode fizzles when its target stops being a red
     // spell, its destroy mode when its target stops being a red permanent (`FW-MODAL`).
-    val spec = effectiveTargetSpec(entry.definition, entry.chosenModes)
-    if (!allTargetsIllegal(state, spec, entry.targets, entry.controller, Chooser.Spell(entry.obj.id))) return null
+    //
+    // **A multi-mode spell fizzles only when *every* line is dead**, which is CR 608.2b read literally:
+    // "if all its targets ... are now illegal, the spell doesn't resolve". One dead bullet out of two
+    // leaves a spell that resolves and does as much as it can, so `all` here rather than `any` is the
+    // difference between a Call Damage Control that returns one card and one that returns none (`W9-B`).
+    val specs = effectiveTargetSpecs(entry.definition, entry.chosenModes)
+    val lines = targetLinesOf(entry)
+    val everyLineDead =
+        specs.isNotEmpty() &&
+            specs.withIndex().all { (index, spec) ->
+                allTargetsIllegal(state, spec, lines[index], entry.controller, Chooser.Spell(entry.obj.id))
+            }
+    if (!everyLineDead) return null
     val left = putResolvedSpellOffStack(state, entry)
     val fizzled =
         left.state.emit(

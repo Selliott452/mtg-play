@@ -17,6 +17,11 @@ import kotlinx.serialization.Serializable
 /**
  * Wire form of [PendingCast] (CR 601.2): a cast gathering its choices.
  *
+ * [modeTargets] is the per-chosen-mode split of [chosenTargets] (CR 115.3, `W9-B`): each bullet of a
+ * modal card is its own instance of the word "target", so a "choose up to two" cast asks one target
+ * question per chosen mode and the flat [chosenTargets] cannot say which answer came from where. Empty
+ * for a non-modal cast; while gathering, its size is the cursor saying which line is due next.
+ *
  * [chosenModes] carries the modal half (CR 601.2b, `FW-MODAL`) and is listed **before** [chosenTargets]
  * because that is the order the engine settles them in: a modal spell's targeting line is not determined
  * until its mode is, so a view showing a non-null [chosenModes] and a null [chosenTargets] is a cast
@@ -34,6 +39,7 @@ data class PendingCastDto(
     val cardObjectId: Long,
     val chosenModes: List<Int>?,
     val chosenTargets: List<TargetDto>?,
+    val modeTargets: List<List<TargetDto>> = emptyList(),
     val source: CastSourceDto,
     val castingPermission: CastingPermissionDto?,
     val additionalExileCost: List<Long>?,
@@ -54,6 +60,7 @@ fun PendingCast.toDto(): PendingCastDto =
         cardObjectId = cardObjectId.value,
         chosenModes = chosenModes,
         chosenTargets = chosenTargets?.map { it.toDto() },
+        modeTargets = modeTargets.map { line -> line.map { it.toDto() } },
         source = source.toDto(),
         castingPermission = castingPermission?.toDto(),
         additionalExileCost = additionalExileCost?.map(ObjectId::value),
@@ -74,6 +81,10 @@ fun PendingCastDto.toDomain(): PendingCast =
         cardObjectId = ObjectId(cardObjectId),
         chosenModes = chosenModes?.toPersistentList(),
         chosenTargets = chosenTargets?.map { it.toDomain() }?.toPersistentList(),
+        modeTargets =
+            modeTargets
+                .map { line -> line.map { it.toDomain() }.toPersistentList() }
+                .toPersistentList(),
         source = source.toDomain(),
         castingPermission = castingPermission?.toDomain(),
         additionalExileCost = additionalExileCost?.map(::ObjectId)?.toPersistentList(),

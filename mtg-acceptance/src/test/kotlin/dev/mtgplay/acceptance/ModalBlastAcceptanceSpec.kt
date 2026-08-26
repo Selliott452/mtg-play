@@ -58,9 +58,12 @@ class ModalBlastAcceptanceSpec :
             modes.options.map { it.modeIndex } shouldContainExactly listOf(0, 1)
             modes.options.map { it.text } shouldContainExactly
                 listOf("Counter target blue spell.", "Destroy target blue permanent.")
+            // CR 700.2a: "Choose one —", so the answer is a one-element subset and nothing else (`W9-B`).
+            modes.minimumCount shouldBe 1
+            modes.maximumCount shouldBe 1
 
             // Only after it is answered does a target request appear — and which targets depend on it.
-            game = game.apply(Decision.SingleSelect(modes.id, 0))
+            game = game.apply(Decision.MultiSelect(modes.id, listOf(0)))
             val targets =
                 game.pendingRequest as? DecisionRequest.ChooseTargets
                     ?: error("CR 601.2c: expected targets after the mode, was ${game.pendingRequest}")
@@ -224,7 +227,8 @@ private fun chooseMode(
             ?: error("CR 601.2b: expected the mode request, was ${game.pendingRequest}")
     val index = modes.options.indexOfFirst { it.modeIndex == printedMode }
     check(index >= 0) { "mode $printedMode is not offered; options were ${modes.options}" }
-    return game.apply(Decision.SingleSelect(modes.id, index))
+    // CR 601.2b: a mode choice is a subset since `W9-B`; "choose one" answers with a one-element one.
+    return game.apply(Decision.MultiSelect(modes.id, listOf(index)))
 }
 
 /**

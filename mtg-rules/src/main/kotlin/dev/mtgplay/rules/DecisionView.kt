@@ -241,7 +241,6 @@ fun kindOf(request: DecisionRequest): DecisionRequestKind =
 /** The kind of one "pick exactly one option" request (CR 601.2c / 601.2g / 702.19e / 614.12 / 616.1 / 701.17a). */
 private fun singleOptionSelectionKind(request: DecisionRequest.SingleOptionSelection): DecisionRequestKind =
     when (request) {
-        is DecisionRequest.ChooseModes -> DecisionRequestKind.CHOOSE_MODES
         is DecisionRequest.ChooseTargets -> DecisionRequestKind.CHOOSE_TARGETS
         is DecisionRequest.ChoosePaymentPlan -> DecisionRequestKind.CHOOSE_PAYMENT_PLAN
         is DecisionRequest.ChooseXValue -> DecisionRequestKind.CHOOSE_X_VALUE
@@ -313,6 +312,7 @@ private fun abilityOrResolutionSelectionKind(request: DecisionRequest.SizedSelec
  */
 private fun rangedSelectionKind(request: DecisionRequest.RangedSelection): DecisionRequestKind =
     when (request) {
+        is DecisionRequest.ChooseModes -> DecisionRequestKind.CHOOSE_MODES
         is DecisionRequest.ChooseMultipleTargets -> DecisionRequestKind.CHOOSE_MULTIPLE_TARGETS
         is DecisionRequest.ChoosePermanentsToAffect -> DecisionRequestKind.CHOOSE_PERMANENTS_TO_AFFECT
     }

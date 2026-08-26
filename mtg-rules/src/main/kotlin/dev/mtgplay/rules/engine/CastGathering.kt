@@ -47,12 +47,13 @@ internal fun beginCastGathering(
     // The `when` this replaced asked seven members the same question; `targetChoiceIsVacuous` asks it
     // once, in the file that owns target legality, so the cast, activation, and trigger paths cannot
     // disagree about when a target choice exists (`FW-MULTITGT`).
-    // CR 601.2b: a modal card needs its mode before anything else; every other card settles empty.
-    val chosenModes: PersistentList<Int>? = if (definition.modes.isEmpty()) persistentListOf() else null
-    // CR 601.2c: a modal card's targeting line is unknown until its mode is chosen, so the targets stay
-    // unsettled here and are settled by [applyChosenModes] once the spec is known.
-    val chosenTargets: PersistentList<Target>? =
-        if (chosenModes == null) null else initialTargetsFor(state, definition.targetSpec, caster, cardObjectId)
+    // CR 601.2b: a modal card needs its modes before anything else; every other card settles empty.
+    // A modal card with *no* choosable mode settles empty too, and only an "up to N" card can reach
+    // that (`someModeIsCastable` refuses the cast otherwise): choosing none is its legal answer, and a
+    // request over an empty option list is not a decision.
+    val chosenModes: PersistentList<Int>? = initialChosenModes(state, definition, caster, cardObjectId)
+    // CR 601.2c: a modal card's targeting lines are unknown until its modes are chosen, so the targets
+    // stay unsettled here and are settled by [applyChosenModes] once the specs are known.
     // An additional "exile N others" cost (escape) needs a selection; every other cast settles it empty.
     val additionalExileCost: PersistentList<ObjectId>? =
         if ((permission?.additionalExileCount ?: 0) > 0) null else persistentListOf()
@@ -91,62 +92,108 @@ internal fun beginCastGathering(
     // variable; every other cast settles zero. The option set is derived when the request is surfaced,
     // by which point the sibling cost selections that reserve mana sources are settled (`FW-X`).
     val chosenX: Int? = if (announcesX(subject)) null else 0
-    val gathering =
-        state.copy(
-            pendingCast =
-                PendingCast(
-                    caster = caster,
-                    cardObjectId = cardObjectId,
-                    chosenModes = chosenModes,
-                    chosenTargets = chosenTargets,
-                    source = source,
-                    castingPermission = permission,
-                    additionalExileCost = additionalExileCost,
-                    sacrificeCost = sacrificeCost,
-                    tapCost = tapCost,
-                    additionalDiscard = additionalDiscard,
-                    additionalSacrifice = additionalSacrifice,
-                    kicked = kicked,
-                    optionalCostTaken = optionalCostTaken,
-                    optionalCostObjects = optionalCostObjects,
-                    chosenX = chosenX,
-                ),
+    val opened =
+        PendingCast(
+            caster = caster,
+            cardObjectId = cardObjectId,
+            chosenModes = chosenModes,
+            chosenTargets = null,
+            source = source,
+            castingPermission = permission,
+            additionalExileCost = additionalExileCost,
+            sacrificeCost = sacrificeCost,
+            tapCost = tapCost,
+            additionalDiscard = additionalDiscard,
+            additionalSacrifice = additionalSacrifice,
+            kicked = kicked,
+            optionalCostTaken = optionalCostTaken,
+            optionalCostObjects = optionalCostObjects,
+            chosenX = chosenX,
         )
-    return pauseForNextCastDecision(gathering)
+    // CR 601.2c: settle every targeting line that has nothing to choose from, which for a non-modal
+    // card is the one question it has. A card whose modes are still unchosen has no lines yet.
+    return pauseForNextCastDecision(
+        state.copy(pendingCast = advanceTargetingLines(state, opened, definition)),
+    )
 }
 
 /**
- * The settled-targets value a cast starts with for [spec] (CR 601.2c): the empty list for a spell that
- * targets nothing — there is no choice to surface — and `null`, meaning "still to be chosen", for every
- * spec that demands a target.
+ * The settled modes a cast starts with (CR 601.2b): the empty list for a card with no modes, the empty
+ * list again for a modal card with no choosable mode at all, and `null` \u2014 "still to be chosen" \u2014
+ * otherwise.
  *
- * Shared by [beginCastGathering] and [applyChosenModes] because a modal cast reaches the same question
- * twice: once for the card (whose answer is always "unknown", since a modal card has no spec of its
- * own), and again for the mode it settled on.
+ * The middle case is only reachable for an "up to N" card, because [someModeIsCastable] refuses to
+ * enumerate the cast of a card that must choose a mode and cannot. For that card choosing **no** modes
+ * is the legal answer and the only one, so surfacing a request over an empty option list would be a
+ * decision with nothing in it \u2014 the same rule that settles a vacuous target choice silently.
  */
-private fun initialTargetsFor(
+private fun initialChosenModes(
     state: GameState,
-    spec: TargetSpec,
+    definition: SpellDefinition,
     caster: PlayerId,
-    self: ObjectId,
-): PersistentList<Target>? =
-    if (targetChoiceIsVacuous(state, spec, caster, Chooser.Spell(self))) persistentListOf() else null
+    cardObjectId: ObjectId,
+): PersistentList<Int>? =
+    when {
+        definition.modes.isEmpty() -> persistentListOf()
+        castableModes(state, definition, caster, Chooser.Spell(cardObjectId)).isEmpty() -> persistentListOf()
+        else -> null
+    }
 
 /**
- * Records the chosen mode on the open [PendingCast] (CR 601.2b, CR 700.2) and suspends for whatever the
- * cast needs next — which for every modal card in the pool is that mode's target choice (CR 601.2c).
+ * Settles every targeting line of [cast] that has nothing to choose from, and settles
+ * [PendingCast.chosenTargets] once every line is answered (CR 601.2c).
  *
- * [modeIndex] is the mode's **printed** index, translated from the option index by the caller, because
- * the printed index is what the cast record and the replay log carry.
+ * **The one place the CR 601.2c cursor moves**, shared by the cast's opening, the mode answer, and every
+ * target answer \u2014 so "which line is asked next" is written once and the three paths cannot disagree.
+ * A modal card has one line per chosen mode (CR 115.3: each bullet is its own instance of the word
+ * "target"); an ordinary card has exactly one, which is why the two travel the same code.
  *
- * The targets are settled here too, and only here: a mode that targets nothing settles them empty so no
- * empty `ChooseTargets` is ever surfaced, and a mode that targets leaves them `null` so the next request
- * enumerates against *that mode's* spec. This is the single point at which the CR 601.2b answer
- * determines the CR 601.2c question.
+ * `modeTargets.size` is the cursor: a vacuous line is recorded as an empty selection and the cursor
+ * moves on, so a "choose up to two" card whose first mode has no legal target still asks about its
+ * second. When the cursor reaches the end, the flattened concatenation becomes [PendingCast.chosenTargets]
+ * and the CR 601.2c stage is done.
+ */
+internal fun advanceTargetingLines(
+    state: GameState,
+    cast: PendingCast,
+    definition: SpellDefinition,
+): PendingCast {
+    val modes = cast.chosenModes ?: return cast
+    val specs = effectiveTargetSpecs(definition, modes)
+    var settled = cast
+    while (settled.modeTargets.size < specs.size &&
+        targetChoiceIsVacuous(
+            state,
+            specs[settled.modeTargets.size],
+            cast.caster,
+            Chooser.Spell(cast.cardObjectId),
+        )
+    ) {
+        settled = settled.copy(modeTargets = settled.modeTargets.adding(persistentListOf()))
+    }
+    return if (settled.modeTargets.size < specs.size) {
+        settled
+    } else {
+        settled.copy(chosenTargets = settled.modeTargets.flatten().toPersistentList())
+    }
+}
+
+/**
+ * Records the chosen modes on the open [PendingCast] (CR 601.2b, CR 700.2) and suspends for whatever the
+ * cast needs next \u2014 which for every modal card in the pool is the first chosen mode's target choice
+ * (CR 601.2c).
+ *
+ * [modeIndices] are the modes' **printed** indices, in chosen order, translated from the option indices
+ * by the caller, because the printed indices are what the cast record and the replay log carry.
+ *
+ * The targeting cursor starts here and only here: [advanceTargetingLines] settles any leading line with
+ * nothing to choose from, so no empty target request is ever surfaced, and leaves the cursor on the first
+ * line that is a real choice. This is the single point at which the CR 601.2b answer determines the
+ * CR 601.2c questions \u2014 questions plural, since each chosen mode brings its own (CR 115.3).
  */
 internal fun applyChosenModes(
     state: GameState,
-    modeIndex: Int,
+    modeIndices: List<Int>,
 ): AdvanceResult {
     val cast = state.pendingCast ?: error("no cast is gathering decisions")
     require(cast.chosenModes == null) { "CR 601.2b: this cast's modes are already chosen" }
@@ -154,22 +201,8 @@ internal fun applyChosenModes(
         objectInZone(state, cast.caster, cast.source, cast.cardObjectId)
             ?: error("CR 601.2b: pending cast's card ${cast.cardObjectId} is not in ${cast.caster}'s ${cast.source}")
     val definition = spellDefinitionOf(state, card.card)
-    val modes = persistentListOf(modeIndex)
-    return pauseForNextCastDecision(
-        state.copy(
-            pendingCast =
-                cast.copy(
-                    chosenModes = modes,
-                    chosenTargets =
-                        initialTargetsFor(
-                            state,
-                            effectiveTargetSpec(definition, modes),
-                            cast.caster,
-                            cast.cardObjectId,
-                        ),
-                ),
-        ),
-    )
+    val moded = cast.copy(chosenModes = modeIndices.toPersistentList())
+    return pauseForNextCastDecision(state.copy(pendingCast = advanceTargetingLines(state, moded, definition)))
 }
 
 /** Suspends for whatever the open [PendingCast] still needs (ADR-004). */
@@ -190,9 +223,14 @@ internal fun applyChosenTarget(
 ): AdvanceResult {
     val cast = state.pendingCast ?: error("no cast is gathering decisions")
     require(cast.chosenTargets == null) { "CR 601.2c: this cast's targets are already chosen" }
-    return pauseForNextCastDecision(
-        state.copy(pendingCast = cast.copy(chosenTargets = targets.toPersistentList())),
-    )
+    val card =
+        objectInZone(state, cast.caster, cast.source, cast.cardObjectId)
+            ?: error("CR 601.2c: pending cast's card ${cast.cardObjectId} is not in ${cast.caster}'s ${cast.source}")
+    val definition = spellDefinitionOf(state, card.card)
+    // The answer belongs to the line the cursor is on, so it is *appended* rather than assigned: a
+    // "choose up to two" card asks once per chosen mode, and each answer is that mode's alone.
+    val answered = cast.copy(modeTargets = cast.modeTargets.adding(targets.toPersistentList()))
+    return pauseForNextCastDecision(state.copy(pendingCast = advanceTargetingLines(state, answered, definition)))
 }
 
 /**
