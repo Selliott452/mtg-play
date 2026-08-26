@@ -60,6 +60,20 @@ import kotlinx.collections.immutable.persistentListOf
  *   Stamped for **every** trigger, at the one enqueue funnel, rather than only for the abilities that
  *   read it: a capture that each detector had to remember would be forgotten by the next detector added,
  *   and the failure would be a silently wrong answer rather than a missing one.
+ * @property targetedBy the stack object that made this trigger's source a target ([StackEntry.stackObjectId]
+ *   — a spell's card-object id or an ability's entry id), or `null` for every trigger that is not a
+ *   becomes-the-target one. Additive, flagged core (`FW-WARD`).
+ *
+ *   Ward's *"counter **it**"* (CR 702.21a) names the object that did the targeting, and ward's own trigger
+ *   does not target, so the reference cannot be a [Target] on the ability — it is linked information
+ *   captured as the trigger fires, in the shape [linkedExiled] already set. It is captured because
+ *   CR 601.2c fires ward *while the targeting object is being put on the stack*, and by the time the ward
+ *   trigger resolves there is no way left to work out which object it was.
+ *
+ *   **Naming an object that has since left the stack is a legal, reachable outcome, not a defect**: the
+ *   targeting spell may have been countered by something else, or have resolved, before ward's trigger
+ *   did. Ward then counters nothing — unlike an ordinary counter, whose target is re-checked under
+ *   CR 608.2b before it resolves, this reference is not a target and gets no such re-check.
  */
 data class PendingTrigger(
     val sourceId: ObjectId,
@@ -70,4 +84,5 @@ data class PendingTrigger(
     val subject: ObjectId? = null,
     val linkedExiled: PersistentList<ObjectId> = persistentListOf(),
     val sourceEnteredTurn: Int? = null,
+    val targetedBy: ObjectId? = null,
 )

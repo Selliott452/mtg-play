@@ -64,7 +64,10 @@ class W9AEntryTurnAndDrawDiscardSpec :
         }
 
         "CR 302.6 is not CR 603.6a: the entry stamp is a separate fact from summoning sickness" {
-            val entered = resolveTopOfStack(creatureSpellOnStack()).pausedState.sharedZones.battlefield.single()
+            val entered =
+                resolveTopOfStack(creatureSpellOnStack())
+                    .pausedState.sharedZones.battlefield
+                    .single()
             // They agree here, and the point is that they are recorded separately so they may disagree:
             // a hasty creature is not summoning sick and still entered this turn.
             entered.enteredTurn shouldBe THIS_TURN
@@ -91,20 +94,29 @@ class W9AEntryTurnAndDrawDiscardSpec :
         }
 
         "CR 601.3b: declining the optional draw discards nothing — 'if you do' is a real conditional" {
-            val paused = resolveTopOfStack(lootTrigger(enteredTurn = THIS_TURN - 1))
-                .shouldBeInstanceOf<AdvanceResult.NeedsDecision>()
+            val paused =
+                resolveTopOfStack(lootTrigger(enteredTurn = THIS_TURN - 1))
+                    .shouldBeInstanceOf<AdvanceResult.NeedsDecision>()
             val request = paused.request.shouldBeInstanceOf<DecisionRequest.ChooseYesNo>()
 
-            val done = engine.advance(paused.state, Decision.SingleSelect(request.id, DecisionRequest.ChooseYesNo.DECLINE)).pausedState
+            val decline = Decision.SingleSelect(request.id, DecisionRequest.ChooseYesNo.DECLINE)
+            val done = engine.advance(paused.state, decline).pausedState
 
-            done.players.getValue(alice).hand.shouldBeEmpty()
-            done.players.getValue(alice).graveyard.shouldBeEmpty()
+            done.players
+                .getValue(alice)
+                .hand
+                .shouldBeEmpty()
+            done.players
+                .getValue(alice)
+                .graveyard
+                .shouldBeEmpty()
             done.sharedZones.stack.shouldBeEmpty()
         }
 
         "CR 701.8: accepting the draw on an older source loots — one drawn, one discarded" {
-            val paused = resolveTopOfStack(lootTrigger(enteredTurn = THIS_TURN - 1))
-                .shouldBeInstanceOf<AdvanceResult.NeedsDecision>()
+            val paused =
+                resolveTopOfStack(lootTrigger(enteredTurn = THIS_TURN - 1))
+                    .shouldBeInstanceOf<AdvanceResult.NeedsDecision>()
             val yesNo = paused.request.shouldBeInstanceOf<DecisionRequest.ChooseYesNo>()
 
             val afterDraw = engine.advance(paused.state, Decision.SingleSelect(yesNo.id, ACCEPT))
@@ -117,7 +129,10 @@ class W9AEntryTurnAndDrawDiscardSpec :
 
             val done =
                 engine.advance(afterDraw.pausedState, Decision.MultiSelect(discard.id, listOf(0))).pausedState
-            done.players.getValue(alice).hand.shouldBeEmpty()
+            done.players
+                .getValue(alice)
+                .hand
+                .shouldBeEmpty()
             done.players
                 .getValue(alice)
                 .graveyard
@@ -126,8 +141,9 @@ class W9AEntryTurnAndDrawDiscardSpec :
         }
 
         "CR 603.6a: a source that entered this turn draws and is asked for no discard at all" {
-            val paused = resolveTopOfStack(lootTrigger(enteredTurn = THIS_TURN))
-                .shouldBeInstanceOf<AdvanceResult.NeedsDecision>()
+            val paused =
+                resolveTopOfStack(lootTrigger(enteredTurn = THIS_TURN))
+                    .shouldBeInstanceOf<AdvanceResult.NeedsDecision>()
             val yesNo = paused.request.shouldBeInstanceOf<DecisionRequest.ChooseYesNo>()
 
             val done = engine.advance(paused.state, Decision.SingleSelect(yesNo.id, ACCEPT)).pausedState
@@ -136,7 +152,10 @@ class W9AEntryTurnAndDrawDiscardSpec :
                 .getValue(alice)
                 .hand
                 .map { it.card.name } shouldContainExactly listOf(TOP)
-            done.players.getValue(alice).graveyard.shouldBeEmpty()
+            done.players
+                .getValue(alice)
+                .graveyard
+                .shouldBeEmpty()
             done.pendingResolutionDiscard shouldBe null
             done.sharedZones.stack.shouldBeEmpty()
         }
@@ -144,19 +163,26 @@ class W9AEntryTurnAndDrawDiscardSpec :
         "CR 603.10: the exemption survives its source leaving the battlefield before the trigger resolves" {
             // The whole reason the entry turn is captured on the trigger rather than read live: the
             // source can be killed in response to the very trigger that asks about it.
-            val paused = resolveTopOfStack(lootTrigger(enteredTurn = THIS_TURN, sourceOnBattlefield = false))
-                .shouldBeInstanceOf<AdvanceResult.NeedsDecision>()
+            val paused =
+                resolveTopOfStack(lootTrigger(enteredTurn = THIS_TURN, sourceOnBattlefield = false))
+                    .shouldBeInstanceOf<AdvanceResult.NeedsDecision>()
             val yesNo = paused.request.shouldBeInstanceOf<DecisionRequest.ChooseYesNo>()
 
             val done = engine.advance(paused.state, Decision.SingleSelect(yesNo.id, ACCEPT)).pausedState
 
-            done.players.getValue(alice).graveyard.shouldBeEmpty()
-            done.players.getValue(alice).hand.size shouldBe 1
+            done.players
+                .getValue(alice)
+                .graveyard
+                .shouldBeEmpty()
+            done.players
+                .getValue(alice)
+                .hand.size shouldBe 1
         }
 
         "ADR-004: each pause of the chained clause re-derives its own request from the state alone" {
-            val paused = resolveTopOfStack(lootTrigger(enteredTurn = THIS_TURN - 1))
-                .shouldBeInstanceOf<AdvanceResult.NeedsDecision>()
+            val paused =
+                resolveTopOfStack(lootTrigger(enteredTurn = THIS_TURN - 1))
+                    .shouldBeInstanceOf<AdvanceResult.NeedsDecision>()
             pendingDecisionRequest(paused.state) shouldBe paused.request
 
             val yesNo = paused.request.shouldBeInstanceOf<DecisionRequest.ChooseYesNo>()

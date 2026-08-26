@@ -182,4 +182,20 @@ interface CardDefinition {
      * enters after targets were chosen fizzles nothing).
      */
     val targetingRequirements: PersistentList<TargetingRequirement> get() = persistentListOf()
+
+    /**
+     * This card's **ward** cost (CR 702.21a), or `null` for a card without the keyword. Additive, flagged
+     * core (`FW-WARD`). Tolarian Terror's `Ward {2}`.
+     *
+     * A declaration and not a [triggeredAbilities] entry, because ward is a *static* ability that grants
+     * a triggered one whose text is fixed by the rules (CR 702.21a): the engine synthesizes the trigger
+     * from this cost, the way it synthesizes ninjutsu's activated ability from [SpellDefinition.ninjutsu]
+     * and madness's reflexive trigger from a casting permission. A card that restated the trigger would
+     * be free to restate it wrongly.
+     *
+     * On [CardDefinition] rather than [SpellDefinition] because ward is an ability of the **permanent**,
+     * functioning on the battlefield — a ward creature *spell* on the stack has no ward, and a
+     * ward-carrying land or artifact never was a creature spell at all.
+     */
+    val ward: Ward? get() = null
 }

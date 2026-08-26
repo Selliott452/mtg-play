@@ -250,6 +250,28 @@ sealed interface GameEvent {
     ) : GameEvent
 
     /**
+     * An **ability** on the stack was countered (CR 701.5a) — a ward trigger (CR 702.21a) whose payment
+     * was declined. Additive (`FW-WARD`).
+     *
+     * **Its own event and not [SpellCountered], because countering an ability is a different action with
+     * a different outcome.** An ability on the stack is not a card (CR 113.7a): countering it removes it
+     * from the stack and it simply ceases to exist. No card moves anywhere, so there is no graveyard
+     * object to name — which is precisely the field [SpellCountered] carries and this one cannot.
+     *
+     * @property controller the countered ability's controller (CR 108.4), not the countering player.
+     * @property entryId the countered ability's stack-residence identity
+     *   ([dev.mtgplay.core.state.stackObjectId]).
+     * @property sourceCard the printed identity of the permanent whose ability it was (CR 113.7c).
+     * @property counteredBy the object id of the ability or spell whose resolution countered it.
+     */
+    data class AbilityCountered(
+        val controller: PlayerId,
+        val entryId: ObjectId,
+        val sourceCard: CardRef,
+        val counteredBy: ObjectId,
+    ) : GameEvent
+
+    /**
      * The permanent spell [objectId], controlled by [controller], resolved and entered the
      * battlefield (CR 608.3, CR 400.7): the resolving spell becomes a permanent under its
      * controller's control as the new battlefield object [battlefieldObjectId], summoning sick

@@ -51,7 +51,9 @@ internal fun enqueuePendingTrigger(
         state
     } else {
         val enteredTurn =
-            state.sharedZones.battlefield.firstOrNull { it.id == trigger.sourceId }?.enteredTurn
+            state.sharedZones.battlefield
+                .firstOrNull { it.id == trigger.sourceId }
+                ?.enteredTurn
         state.copy(
             pendingTriggers = state.pendingTriggers.adding(trigger.copy(sourceEnteredTurn = enteredTurn)),
         )

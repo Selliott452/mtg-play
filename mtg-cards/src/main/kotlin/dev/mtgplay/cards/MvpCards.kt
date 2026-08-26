@@ -331,16 +331,14 @@ import dev.mtgplay.core.identity.CardRef
  * payment-equivalence key so two sources charging different life never collapse (ADR-005), and widens
  * the acceptance module's floating-mana invariant with its second declared exception.
  *
- * Three of its cards stay absent, each on a framework it does not own and each with its cost or mana
- * half already expressible. **Tinder Wall**'s ritual is `ManaAbility(cost = [SacrificeSelf], amount =
+ * Two of its cards stay absent, each on a framework it does not own and each with its cost or mana
+ * half already expressible — a third, **Tolarian Terror**, was freed by `W9-A`'s `FW-WARD` and now lives
+ * in `Ward.kt`. **Tinder Wall**'s ritual is `ManaAbility(cost = [SacrificeSelf], amount =
  * Fixed(2))` today; its "{R}, Sacrifice this creature: It deals 2 damage to target creature **it's
  * blocking**" needs a targeting restriction stated relative to the ability's *source object*, captured
  * as last-known information at activation because the sacrifice cost has already made that source a new
  * object in a graveyard (CR 400.7, CR 113.7c) — the engine's `Chooser.Ability` carries a
- * [dev.mtgplay.core.identity.CardRef] and deliberately no id. **Tolarian Terror** prints
- * [crypticSerpent]'s graveyard clause exactly and adds **ward {2}** (CR 702.21a), a triggered
- * pay-or-be-countered ability needing a becomes-the-target trigger condition, a parameterised keyword,
- * and the ability to counter an *ability* on the stack (`FW-WARD`). **Deem Inferior**'s "{1} less for
+ * [dev.mtgplay.core.identity.CardRef] and deliberately no id. **Deem Inferior**'s "{1} less for
  * each card you've drawn this turn" is expressible — [dev.mtgplay.core.state.PlayerState.drawsThisTurn]
  * has existed since Sneaky Snacker — but its effect puts a permanent "into their library second from the
  * top or on the bottom" **at its owner's choice**, which is a library-position insertion nothing
@@ -585,6 +583,7 @@ object MvpCards {
             thoughtScour,
             thrabenCharm,
             timberwatchElf,
+            tolarianTerror,
             toxinAnalysis,
             trollOfKhazadDum,
             troublemakerOuphe,

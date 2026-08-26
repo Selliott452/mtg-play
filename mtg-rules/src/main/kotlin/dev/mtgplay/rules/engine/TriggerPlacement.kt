@@ -1,6 +1,5 @@
 package dev.mtgplay.rules.engine
 
-import dev.mtgplay.core.definition.TriggerCondition
 import dev.mtgplay.core.identity.PlayerId
 import dev.mtgplay.core.state.GameState
 import dev.mtgplay.core.state.PendingTrigger
@@ -117,13 +116,22 @@ internal fun putTriggerOnStack(
 ): GameState {
     val index = state.pendingTriggers.indexOf(trigger)
     require(index >= 0) { "trigger $trigger is not pending; only a pending trigger may be put on the stack" }
-    return state
-        .copy(pendingTriggers = state.pendingTriggers.removingAt(index))
-        .updateStack { it.adding(StackEntry.Ability(trigger, targets)) }
-        .emit(
-            dev.mtgplay.core.event.GameEvent
-                .TriggeredAbilityPutOnStack(trigger.controller, trigger.sourceCard),
-        )
+    // CR 111.1: an ability put on the stack is an object, and gets an identity for that residence
+    // (CR 400.7) so that "counter it" can name it (`FW-WARD`).
+    val (entryId, allocated) = state.allocateObjectId()
+    val placed =
+        allocated
+            .copy(pendingTriggers = allocated.pendingTriggers.removingAt(index))
+            .updateStack { it.adding(StackEntry.Ability(trigger, targets, entryId)) }
+            .emit(
+                dev.mtgplay.core.event.GameEvent
+                    .TriggeredAbilityPutOnStack(trigger.controller, trigger.sourceCard),
+            )
+    // CR 702.21a: the targets were chosen as this ability was put on the stack (CR 603.3d), so a warded
+    // permanent among them has *become* a target now. The ward trigger it fires is its own controller's,
+    // so it is never part of the group this placement pass is draining and waits for the next CR 603.3b
+    // checkpoint, exactly as the rules say.
+    return detectWardTriggers(placed, targets, trigger.controller, entryId)
 }
 
 /**
@@ -206,32 +214,3 @@ private fun reorderPendingTriggers(
             .toPersistentList()
     return state.copy(pendingTriggers = rewritten)
 }
-
-/**
- * A short human description of one trigger condition, for the ordering decision's display (ADR-005).
- *
- * Takes the bare condition rather than the whole [PendingTrigger] since `W8-C`, so
- * [TriggerCondition.AnyOf] can describe each pattern it names by recursing into itself. The recursion is
- * one level deep by construction — a disjunction is never nested ([TriggerCondition.AnyOf]'s `init`
- * refuses it).
- */
-private fun describeCondition(condition: TriggerCondition): String =
-    when (condition) {
-        TriggerCondition.EnteredBattlefieldSelf -> "enters-the-battlefield"
-        TriggerCondition.EnteredBattlefieldUntappedSelf -> "enters-the-battlefield-untapped"
-        TriggerCondition.PutIntoGraveyardFromBattlefieldSelf -> "put-into-graveyard-from-the-battlefield"
-        TriggerCondition.LeftBattlefieldSelf -> "leaves-the-battlefield"
-        TriggerCondition.ReboundCast -> "rebound-may-cast"
-        TriggerCondition.EnchantedCreatureDealsDamage -> "enchanted-creature-deals-damage"
-        is TriggerCondition.SpellCast -> "spell-cast"
-        TriggerCondition.MadnessCast -> "madness-may-cast"
-        is TriggerCondition.DrewNthCardThisTurn -> "drew-card-number-${condition.n}"
-        TriggerCondition.DealtCombatDamageToPlayerSelf -> "deals-combat-damage-to-a-player"
-        TriggerCondition.EnchantedPermanentBecomesTapped -> "enchanted-permanent-becomes-tapped"
-        TriggerCondition.EnchantedPermanentIsDealtDamage -> "enchanted-permanent-is-dealt-damage"
-        // CR 603.2: a disjunctive condition is one ability, so it gets one description — the patterns it
-        // watches, joined. Which of them actually fired is not recorded on the trigger and is not the
-        // ordering decision's business; the description exists to tell two *abilities* apart (ADR-005).
-        is TriggerCondition.AnyOf ->
-            condition.conditions.joinToString(separator = "-or-", transform = ::describeCondition)
-    }

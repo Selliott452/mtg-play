@@ -6,6 +6,7 @@ import dev.mtgplay.core.mana.Color
 import dev.mtgplay.core.state.GameState
 import dev.mtgplay.core.state.StackEntry
 import dev.mtgplay.core.state.Target
+import dev.mtgplay.core.state.stackObjectId
 
 /*
  * The characteristics of a spell **while it is on the stack** (CR 111, CR 613) — the single seam every
@@ -92,6 +93,24 @@ internal fun spellOnStack(
     state.sharedZones.stack
         .filterIsInstance<StackEntry.Spell>()
         .firstOrNull { it.obj.id == id }
+
+/**
+ * The stack object — spell **or** ability — whose stack-residence identity is [id]
+ * ([dev.mtgplay.core.state.stackObjectId]), or `null` when none has it because it has already left the
+ * stack. Additive (`FW-WARD`).
+ *
+ * The widening of [spellOnStack] that ward (CR 702.21a) needs, since *"counter that spell or ability"*
+ * may name either. By id and never by position, for [spellOnStack]'s reason and one more: a ward trigger
+ * sits above the object it counters only until somebody responds.
+ *
+ * An entry with no identity at all — a fixture-built ability — matches nothing here, so "counter the
+ * object with no identity" removes nothing rather than removing whichever unidentified ability happens
+ * to be on the stack.
+ */
+internal fun stackObjectOnStack(
+    state: GameState,
+    id: ObjectId,
+): StackEntry? = state.sharedZones.stack.firstOrNull { it.stackObjectId == id }
 
 /**
  * The colours of the object [target] names (CR 105, CR 202.2), or the empty set when it names nothing any

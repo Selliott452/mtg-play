@@ -86,10 +86,12 @@ internal fun afterOptionalDraw(
     accepted: Boolean,
 ): AdvanceResult {
     val clause = entry.resolutionClauses.optionalDrawThenDiscard
-    if (clause == null || !accepted || discardIsExempt(state, entry, clause)) {
-        return completeClauseResolution(state, entry)
-    }
-    val count = minOf(clause.discardCount, state.player(decider).hand.size)
+    val count =
+        if (clause == null || !accepted || discardIsExempt(state, entry, clause)) {
+            0
+        } else {
+            minOf(clause.discardCount, state.player(decider).hand.size)
+        }
     if (count == 0) return completeClauseResolution(state, entry)
     val paused = state.copy(pendingResolutionDiscard = PendingResolutionDiscard(decider, count))
     return AdvanceResult.NeedsDecision(paused, pendingResolutionDiscardRequest(paused))
