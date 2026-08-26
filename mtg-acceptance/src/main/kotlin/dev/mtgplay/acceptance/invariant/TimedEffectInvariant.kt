@@ -50,7 +50,37 @@ internal fun checkTimedEffectSanity(state: GameState): List<Violation> =
         addAll(checkTimestampSequence(state))
         addAll(checkEveryEffectActs(state.timedEffects))
         addAll(checkPreventionDurationsHonoured(state))
+        addAll(checkDeathReplacementDurationsHonoured(state))
     }
+
+/**
+ * Property 1 a third time, for the **delayed death-replacement store** (`W9-D`, CR 614.1a, CR 514.2):
+ * a "this turn" death replacement exists only during the turn it was created on.
+ *
+ * Checked here rather than in an invariant of its own for [checkPreventionDurationsHonoured]'s reason —
+ * one cleanup turn-based action ends all three stores, so a survivor in any of them means that one
+ * action failed. The consequence of missing it is the loudest of the three: a Torch the Tower rider that
+ * outlived its turn would go on exiling every creature it once damaged for the rest of the game, denying
+ * graveyard value nothing in the state would explain.
+ *
+ * Properties 2 and 3 have no counterpart here either. No timestamp is stored (nothing orders these —
+ * see `TimedDeathReplacement`), and "acts on nothing" is impossible by construction: the type's own
+ * `init` refuses an empty affected set.
+ */
+private fun checkDeathReplacementDurationsHonoured(state: GameState): List<Violation> =
+    state.deathReplacements
+        .filter { replacement ->
+            when (replacement.duration) {
+                EffectDuration.UntilEndOfTurn -> replacement.createdOnTurn != state.turn.number
+            }
+        }.map { replacement ->
+            Violation(
+                Invariant.TIMED_EFFECT_SANITY,
+                "CR 514.2: the until-end-of-turn death replacement from ${replacement.sourceCard.name} " +
+                    "was created on turn ${replacement.createdOnTurn} but survives into turn " +
+                    "${state.turn.number}; the cleanup step's end-of-effects turn-based action failed to fire",
+            )
+        }
 
 /**
  * Property 1 again, for the **global prevention store** (`FW-PREVENT2`, CR 615, CR 514.2): a

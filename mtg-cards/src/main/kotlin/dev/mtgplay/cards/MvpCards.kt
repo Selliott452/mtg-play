@@ -270,16 +270,24 @@ import dev.mtgplay.core.identity.CardRef
  * ability one declared ability, and a single announcement site reached by all four ways a permanent becomes
  * tapped. [ridesEnd] closes the `FW-TGTCOND` gap `FW-COST` recorded: a spell that prices itself off its own
  * chosen target, which needs the castability gate to price the *cheapest* target choice and the target
- * request to be narrowed to what the seat can pay for. Four of the packet's seven cards stay absent, each
+ * request to be narrowed to what the seat can pay for. Three of the packet's seven cards stay absent, each
  * on a framework it does not own, and BurnAndRemoval.kt's header carries the full diagnoses: **Searing
- * Blaze** prints two separate — and *dependent* — instances of the word "target"; **Torch the Tower** needs
- * an optional additional *sacrifice* cost, a token-aware sacrifice filter, and above all a **delayed**
- * CR 614 replacement keyed on the permanents it damaged; **Gorilla Shaman** needs `{X}` on an *activated*
- * ability plus the CR 601.2b announcement moved back above the target stage, which
+ * Blaze** prints two separate — and *dependent* — instances of the word "target"; **Gorilla Shaman**
+ * needs `{X}` on an *activated* ability plus the CR 601.2b announcement moved back above the target stage, which
  * `PendingCastRequest.kt`'s header already names it as the card that would force; and **Cleansing
  * Wildfire** needs a library search whose decider is not the resolving spell's controller, whose shuffle is
  * conditional on choosing to search, and which is followed by a further instruction — a *mid*-resolution
  * clause where `FW-CLAUSEHOOK` shipped a post-resolution one.
+ *
+ * The `W9-D` packet takes **[torchTheTower]** off that list, and its own header records that three of the
+ * four gaps had already closed: bargain and its token-aware filter shipped with `FW-BARGAIN` in wave 8, and
+ * the conditional scry is [dev.mtgplay.core.definition.ClauseCondition], a three-line gate beside the
+ * clause. What remained was the one `W8-C` called the real gap — a **delayed** CR 614.1a replacement,
+ * created by a resolution, scoped to a duration, and keyed on *other* objects — and it lands as a third
+ * turn-scoped store beside `timedEffects` and `preventionEffects`
+ * ([dev.mtgplay.core.state.TimedDeathReplacement]) plus one interception in each of the engine's four
+ * battlefield-to-graveyard moves, because CR 700.4's "dies" is every one of them and catching three would
+ * be the silent kind of wrong.
  *
  * The `FW-TAPUNTAP` packet adds the pool's first cards that **tap, untap, or choose a permanent of
  * their own** (TapEffects.kt): [sleepOfTheDead] (tap target creature, and it does not untap next untap
@@ -384,11 +392,12 @@ import dev.mtgplay.core.identity.CardRef
  * that requirement onto the [dev.mtgplay.core.definition.SacrificeFilter] the cast-side and
  * activation-side sacrifice costs already used, so all three now share one answer.
  *
- * Two of the packet's cards stay absent, diagnosed in full in CardAdvantage.kt: **Fanatical Offering**
- * needs **explore** (CR 701.40) for its Map token, a conditional mid-resolution clause no existing one
- * has; **Monstrous Emergence** needs an additional cost that is a *choice between two shapes*, neither of
- * which consumes what it names, whose two branches read power from the battlefield and from a hand
- * respectively (CR 613 versus CR 109.3).
+ * One of the packet's cards stays absent, diagnosed in full in CardAdvantage.kt: **Fanatical Offering**
+ * needs **explore** (CR 701.40) for its Map token. `W9-D` scoped it and sharpened the reading — the
+ * conditional mid-resolution clause is the *smaller* half, and the blocker is that CR 701.40a's reveal
+ * makes a **library** card public, which is an ADR-007 disclosure landing in five places across three
+ * modules including `mtg-acceptance`'s two independent leak oracles. **Monstrous Emergence** is encoded
+ * by `W9-D` (see below).
  *
  * The `FW-PREVENT2` packet adds the gauntlet's **prevention pair** (Flashback.kt): [flaringPain], whose
  * CR 615.9 "damage can't be prevented" is the off-switch for the whole CR 615 framework, and
@@ -630,6 +639,8 @@ object MvpCards {
             thrabenCharm,
             timberwatchElf,
             tolarianTerror,
+            monstrousEmergence,
+            torchTheTower,
             toxinAnalysis,
             trollOfKhazadDum,
             troublemakerOuphe,

@@ -249,6 +249,27 @@ sealed interface DecisionRequestDto {
         val count: Int,
     ) : SizedSelectionDto
 
+    /**
+     * Wire form of [DecisionRequest.ChooseCostPowerSource] (CR 601.2b) — `W9-D`, Monstrous Emergence.
+     *
+     * The **first cast-cost selection whose options are not all object ids**, and the reason it does not
+     * reuse [CardObjectOptionDto]: half the pool is a battlefield object and half is a card in hand that
+     * is not moving, so each option carries a `kind` word plus whichever half applies. A `kind` this
+     * schema's engine version does not know fails loudly on decode, the discipline every flattened
+     * sealed payload on this wire uses.
+     *
+     * No `count` field: exactly one thing is named, always, so a count would be a constant the two sides
+     * could disagree about.
+     */
+    @Serializable
+    @SerialName("choose_cost_power_source")
+    data class ChooseCostPowerSource(
+        override val id: DecisionRequestIdDto,
+        val cardObjectId: Long,
+        val card: String,
+        val options: List<PowerSourceOptionDto>,
+    ) : SizedSelectionDto
+
     /** Wire form of [DecisionRequest.ChooseTapsForCost] (CR 601.2h, CR 702.34c) — `FW-PREVENT2`. */
     @Serializable
     @SerialName("choose_taps_for_cost")

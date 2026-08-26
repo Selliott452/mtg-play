@@ -1,7 +1,9 @@
 package dev.mtgplay.protocol
 
+import dev.mtgplay.core.identity.CardRef
 import dev.mtgplay.core.identity.ObjectId
 import dev.mtgplay.core.identity.PlayerId
+import dev.mtgplay.core.state.ChosenPowerSource
 import dev.mtgplay.core.state.PendingActivation
 import dev.mtgplay.core.state.PendingCast
 import dev.mtgplay.core.state.PendingColorChoice
@@ -43,6 +45,7 @@ data class PendingCastDto(
     val optionalCostObjects: List<Long>? = null,
     val additionalDiscard: List<Long>?,
     val additionalSacrifice: List<Long>?,
+    val costPowerSource: List<PowerSourceOptionDto>? = null,
     val kicked: Boolean?,
     val chosenX: Int?,
 )
@@ -63,6 +66,12 @@ fun PendingCast.toDto(): PendingCastDto =
         optionalCostObjects = optionalCostObjects?.map(ObjectId::value),
         additionalDiscard = additionalDiscard?.map(ObjectId::value),
         additionalSacrifice = additionalSacrifice?.map(ObjectId::value),
+        // CR 601.2b (`W9-D`): what a non-consuming additional cost named. Null means "not yet answered"
+        // and an empty list "settled, no such cost" — the same three-valued shape the sibling selections
+        // use, so it must ride the wire or a paused cast would decode to a *different* gathering stage.
+        // The [PowerSourceOptionDto.power] field is not read back: it is the request's display value, and
+        // a cast record carries the *identity* it named, not the number it had at the time.
+        costPowerSource = costPowerSource?.map { it.toOptionDto() },
         kicked = kicked,
         chosenX = chosenX,
     )
@@ -83,9 +92,39 @@ fun PendingCastDto.toDomain(): PendingCast =
         optionalCostObjects = optionalCostObjects?.map(::ObjectId)?.toPersistentList(),
         additionalDiscard = additionalDiscard?.map(::ObjectId)?.toPersistentList(),
         additionalSacrifice = additionalSacrifice?.map(::ObjectId)?.toPersistentList(),
+        costPowerSource = costPowerSource?.map { it.toChosenPowerSource() }?.toPersistentList(),
         kicked = kicked,
         chosenX = chosenX,
     )
+
+/**
+ * One [ChosenPowerSource] on the wire, reusing [PowerSourceOptionDto] because the payload is the same
+ * value — a `kind` word plus whichever half applies (`W9-D`). The `power` field is written as `0` here
+ * and ignored on the way back: it is display data belonging to the *request*, not to the cast record.
+ */
+private fun ChosenPowerSource.toOptionDto(): PowerSourceOptionDto =
+    when (this) {
+        is ChosenPowerSource.ChosenCreature -> PowerSourceOptionDto(CHOSEN_CREATURE, objectId.value, "", 0)
+        is ChosenPowerSource.RevealedCard -> PowerSourceOptionDto(REVEALED_CARD, null, card.name, 0)
+    }
+
+/** The decode mirror of [toOptionDto]; version skew and a missing id both fail loudly. */
+private fun PowerSourceOptionDto.toChosenPowerSource(): ChosenPowerSource =
+    when (kind) {
+        CHOSEN_CREATURE ->
+            ChosenPowerSource.ChosenCreature(
+                ObjectId(requireNotNull(objectId) { "CR 601.2b: a chosen creature on the wire must name its object" }),
+            )
+        REVEALED_CARD -> ChosenPowerSource.RevealedCard(CardRef(card))
+        else ->
+            error(
+                "unknown power source \"$kind\" on the wire; this engine knows $CHOSEN_CREATURE and $REVEALED_CARD",
+            )
+    }
+
+private const val CHOSEN_CREATURE: String = "CHOSEN_CREATURE"
+
+private const val REVEALED_CARD: String = "REVEALED_CARD"
 
 /** Wire form of [PendingActivation] (CR 602.2). */
 @Serializable

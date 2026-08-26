@@ -23,6 +23,32 @@ data class CardObjectOptionDto(
 )
 
 /**
+ * One thing that may be named to pay a **non-consuming** additional cost (CR 601.2b), for
+ * [DecisionRequestDto.ChooseCostPowerSource] — `W9-D`, Monstrous Emergence.
+ *
+ * Not a [CardObjectOptionDto], because the two halves of the pool are not the same kind of thing: a
+ * battlefield creature is named by object id and read back through the CR 613 layer system, while a card
+ * in hand is named by its printed identity and read back through CR 109.3. The [kind] word is what tells
+ * a client which, and an unknown one fails loudly on decode rather than being read as the other.
+ *
+ * @property kind `CHOSEN_CREATURE` for a creature on the battlefield, `REVEALED_CARD` for a creature card
+ *   in hand.
+ * @property objectId the battlefield object id for `CHOSEN_CREATURE`, and `null` for `REVEALED_CARD`,
+ *   which names no object — the card stays in hand and is identified by name alone.
+ * @property card the printed card name, for display and, for `REVEALED_CARD`, as the identity itself.
+ * @property power what this option would supply **right now** (CR 613 layered for a creature, CR 109.3
+ *   printed for a card). Display only: the value that matters is recalculated when the spell resolves
+ *   (CR 608.2h), so a creature pumped after this answer deals more damage than the number shown here.
+ */
+@Serializable
+data class PowerSourceOptionDto(
+    val kind: String,
+    val objectId: Long?,
+    val card: String,
+    val power: Int,
+)
+
+/**
  * One choosable mode of a modal spell (CR 700.2), for [DecisionRequestDto.ChooseModes].
  *
  * [modeIndex] is the mode's **printed** index on the card, which is not in general its index in the

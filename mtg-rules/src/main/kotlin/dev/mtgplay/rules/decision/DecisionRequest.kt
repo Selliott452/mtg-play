@@ -8,6 +8,7 @@ import dev.mtgplay.core.identity.ObjectId
 import dev.mtgplay.core.identity.PlayerId
 import dev.mtgplay.core.mana.Color
 import dev.mtgplay.core.mana.ManaCost
+import dev.mtgplay.core.state.ChosenPowerSource
 import dev.mtgplay.core.state.Target
 
 /**
@@ -971,6 +972,74 @@ sealed interface DecisionRequest {
         data class Option(
             val objectId: ObjectId,
             val card: CardRef,
+        )
+    }
+
+    /**
+     * The **non-consuming** additional cost of a spell being cast (CR 601.2b, CR 701.15a): [seat] names
+     * exactly one of [options] — a creature they control, or a creature card in their hand — by index (a
+     * [Decision.MultiSelect] of size one). Additive, flagged (`W9-D`). Monstrous Emergence's *"choose a
+     * creature you control or reveal a creature card from your hand"*.
+     *
+     * **Its own request rather than a reuse of [ChooseSacrificesForCost] or
+     * [ChooseCardsToDiscardForCost]**, and the reason is the one that makes the cost new: those two name
+     * something to *spend*, so their options are all in one zone and an answer means "this leaves". Here
+     * the pool spans **two zones** and the answer means "this is what the spell will read the power of" —
+     * nothing moves. An option therefore cannot be an [ObjectId] alone: a battlefield answer and a hand
+     * answer are read back through different rules (CR 613 layers versus CR 109.3 printed
+     * characteristics), so the request hands back a
+     * [ChosenPowerSource], which says which.
+     *
+     * **One request rather than a mode choice plus a selection**, because the card prints one "or" and
+     * the caster picks from one pool. A mode stage would add a pause the card does not print and would
+     * let a seat pick the branch whose half of the pool is empty (ADR-005).
+     *
+     * Surfaced only when the pool is non-empty — the cast is otherwise not enumerated at all — so a legal
+     * answer always exists.
+     *
+     * **It is a cost.** The naming happens inside the transition that completes the cast (CR 601.2h),
+     * cannot be responded to, and reserves nothing: a chosen mana creature may still be tapped for mana
+     * by the payment plan that follows, because naming it never spent it.
+     *
+     * @property cardObjectId the object being cast (still in its source zone — see
+     *   [dev.mtgplay.core.state.PendingCast]).
+     * @property card the printed identity, for display.
+     * @property options the creatures on the battlefield first, in battlefield order, then the creature
+     *   cards in hand, in hand order; indices stable within this request (ADR-005).
+     */
+    data class ChooseCostPowerSource(
+        override val id: DecisionRequestId,
+        val cardObjectId: ObjectId,
+        val card: CardRef,
+        val options: List<Option>,
+    ) : SizedSelection {
+        override val optionCount: Int get() = options.size
+        override val requiredCount: Int get() = 1
+
+        init {
+            require(options.isNotEmpty()) {
+                "CR 601.2b: a non-consuming additional cost is surfaced only when something can be named"
+            }
+        }
+
+        /**
+         * One thing that may be named to pay the cost.
+         *
+         * @property source what naming it produces — a battlefield creature to read live, or a hand
+         *   card's printed identity (see [ChosenPowerSource]).
+         * @property card its printed identity, for display. Present for both members, including the
+         *   revealed-card one whose [source] already carries it, so a driver renders every option the
+         *   same way.
+         * @property power the power this option would supply **right now** — the live layered value for a
+         *   battlefield creature (CR 613), the printed value for a hand card (CR 109.3). Display only, and
+         *   the request says so: the value that matters is recalculated when the spell resolves
+         *   (CR 608.2h), so a creature pumped after this answer really does deal more damage than the
+         *   number shown here.
+         */
+        data class Option(
+            val source: ChosenPowerSource,
+            val card: CardRef,
+            val power: Int,
         )
     }
 

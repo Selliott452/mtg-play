@@ -3,9 +3,13 @@ package dev.mtgplay.cards
 import dev.mtgplay.core.card.CardType
 import dev.mtgplay.core.card.PrintedCharacteristics
 import dev.mtgplay.core.card.Subtype
+import dev.mtgplay.core.definition.ClauseCondition
 import dev.mtgplay.core.definition.CostReduction
 import dev.mtgplay.core.definition.EnchantRestriction
+import dev.mtgplay.core.definition.LibraryLook
+import dev.mtgplay.core.definition.LibraryLookMode
 import dev.mtgplay.core.definition.Magnitude
+import dev.mtgplay.core.definition.OptionalAdditionalCost
 import dev.mtgplay.core.definition.PermanentRestriction
 import dev.mtgplay.core.definition.ResolutionEffect
 import dev.mtgplay.core.definition.SpellDefinition
@@ -21,6 +25,7 @@ import dev.mtgplay.core.mana.ManaCost
 import dev.mtgplay.core.state.GameState
 import dev.mtgplay.core.state.Target
 import dev.mtgplay.rules.effect.dealDamage
+import dev.mtgplay.rules.effect.dealDamageThenExileIfItWouldDie
 import dev.mtgplay.rules.effect.destroy
 import dev.mtgplay.rules.effect.exilePermanent
 import dev.mtgplay.rules.effect.hadLandEnterThisTurn
@@ -70,6 +75,25 @@ import kotlinx.collections.immutable.persistentSetOf
  * **[kaerveksTorch]** is *not* encoded, and its diagnosis has changed rather than merely persisted — see
  * the drop note below, which supersedes `FW-X`'s.
  *
+ * ## Torch the Tower, and the four gaps that are now three fewer
+ *
+ * `W8-C` recorded four gaps against [torchTheTower] and named the third as the real one. Three of the
+ * four closed without this packet writing a line:
+ *
+ * 1. **Bargain** is [dev.mtgplay.core.definition.OptionalAdditionalCost.Bargain], shipped by `FW-BARGAIN`
+ *    in wave 8 for Troublemaker Ouphe. The recorded gap — "kicker is the optional-additional shape and is
+ *    a bare [ManaCost]; [dev.mtgplay.core.definition.AdditionalCost.Sacrifice] is the sacrifice shape and
+ *    is mandatory; neither is the other" — is the exact argument that type's KDoc now makes for existing.
+ * 2. **"Or token"** is closed with it: the keyword's union is the engine's, tested as
+ *    `definitions[card] is TokenDefinition` rather than by widening a card-type filter.
+ * 4. **The scry being conditional** is [dev.mtgplay.core.definition.ClauseCondition], added here — a gate
+ *    beside the clause rather than a clause of its own, three lines of engine.
+ *
+ * 3. **The delayed replacement was the real one**, and it is the whole framework this packet adds. See
+ *    [dev.mtgplay.core.state.TimedDeathReplacement] for the store,
+ *    `dev.mtgplay.rules.engine.replaceBattlefieldDeath` for the four interception points, and
+ *    [dev.mtgplay.rules.effect.exileInsteadOfDyingThisTurn] for the primitive a card composes.
+ *
  * ## Dropped, with what each needs
  *
  * - **Kaervek's Torch** `{X}{R}` — "As long as Kaervek's Torch is on the stack, spells that target it
@@ -112,6 +136,18 @@ import kotlinx.collections.immutable.persistentSetOf
  *   Encoding the card without (3) would delete the reason it is played, which is what the drop rule
  *   forbids.
  *
+ * - **Gorilla Shaman** `{R}` — "`{X}{X}{1}`: Destroy target noncreature artifact with mana value X."
+ *   `FW-X` landed for **spells** only: [dev.mtgplay.core.state.PendingActivation] has no `chosenX`, no
+ *   activation surfaces a `ChooseXValue`, and `announcesX`/`xValueOptions` are reachable only from the
+ *   cast pipeline. Adding that is mechanical. What is not is the ordering: the target restriction is a
+ *   function of the announced X, so X must be announced **before** targets (CR 601.2b before CR 601.2c) —
+ *   and `PendingCastRequest.kt`'s header records that this engine deliberately settles both cost
+ *   announcements *after* the target stage, so their affordability bound can use the exact reservation.
+ *   That header names the card that would force the order back ("a card printing 'X target creatures'");
+ *   Gorilla Shaman is that card, and it must take the weaker reservation with it. A third piece: a
+ *   restriction that reads a *number chosen this activation* is a shape
+ *   [PermanentRestriction] cannot express at all, since it is a closed enum of board questions.
+ *
  * - **Cleansing Wildfire** `{1}{R}` — "Destroy target land. Its controller **may** search their library
  *   for a basic land card, put it onto the battlefield tapped, then shuffle. Draw a card." Three gaps in
  *   the CR 701.18 search clause. (1) **The decider is not the resolving spell's controller** — it is the
@@ -139,6 +175,15 @@ private const val DUST_TO_DUST_TARGETS: Int = 2
 
 /** Cryoshatter's layer-7c power modifier (CR 613.3, sublayer 7c). */
 private const val CRYOSHATTER_POWER_MOD: Int = -5
+
+/** The damage Torch the Tower deals when it was not bargained (CR 120). */
+private const val TORCH_DAMAGE: Int = 2
+
+/** The damage a **bargained** Torch the Tower deals instead (CR 702.166b). */
+private const val TORCH_BARGAINED_DAMAGE: Int = 3
+
+/** Torch the Tower's scry, on the bargained branch only (CR 701.17a). */
+private const val TORCH_SCRY: Int = 1
 
 /** The generic mana Ride's End sheds when it targets a tapped permanent (CR 601.2f). */
 private const val RIDES_END_REDUCTION: Int = 3
@@ -315,6 +360,92 @@ val ridesEnd: SpellDefinition =
             ResolutionEffect { state, context ->
                 exilePermanent(state, targetedPermanent(context.targets, "Ride's End"))
             }
+    }
+
+/**
+ * Torch the Tower — `{R}` Instant. "Bargain. Torch the Tower deals 2 damage to target creature or
+ * planeswalker. If this spell was bargained, instead it deals 3 damage to that permanent and you scry 1.
+ * If a permanent dealt damage by Torch the Tower would die this turn, exile it instead."
+ *
+ * A one-mana burn spell whose *third line* is why it is played. Two damage for `{R}` is a commodity; two
+ * damage that **exiles** is the gauntlet's cheapest answer to a graveyard deck's recursion, to a Bogles
+ * threat that would come back, and to anything worth reanimating. The card is Mono-Red's and Burn's
+ * sideboard slot against exactly those decks, and the second line is the upside when a spent artifact,
+ * enchantment, or token is lying around anyway.
+ *
+ * **Bargain is [OptionalAdditionalCost.Bargain]** (CR 702.166a) and needed nothing from this packet — the
+ * `FW-BARGAIN` cell shipped with Troublemaker Ouphe. The two cards use it from opposite sides: the Ouphe
+ * reads it back as a CR 603.4 [dev.mtgplay.core.definition.InterveningIf] on a trigger, this reads it back
+ * *during its own resolution*, off the cast record ([ResolutionContext.optionalCostPaid]), which is where
+ * CR 702.166b puts the linked information for a spell that never becomes a permanent.
+ *
+ * **"Instead it deals 3 damage" is one replacement of the printed effect, not two damage plus one**, and
+ * writing it as a branch on the amount is what makes that true. A shield that prevents "the next 2 damage"
+ * must see a single 3-damage event from a bargained Torch, and a creature with 2 toughness and a
+ * `+0/+1` pump must die to it — both of which come out right only because exactly one [dealDamage] call
+ * happens with one amount.
+ *
+ * **The scry is [ClauseCondition.SpellPaidOptionalAdditionalCost]**, the gate this packet adds. An
+ * unbargained Torch the Tower opens **no** library-look pause at all — not a pause with a forced answer —
+ * so the enumerated action space is smaller by exactly the arrangements the card does not offer (ADR-005).
+ * That is the whole reason the condition is declared rather than folded: a clause is a *pause*, and a
+ * pause that should not exist cannot be undone from inside the clause.
+ *
+ * **The third line is a delayed replacement effect** (CR 614.1a, CR 603.7a), created by this resolution
+ * and living in [dev.mtgplay.core.state.GameState.deathReplacements] until the cleanup step. Four things
+ * about it are the card rather than the framework:
+ *
+ * - **It watches the permanent for the whole turn, not just for this damage.** A creature Torched for 2
+ *   that survives, blocks later, and takes lethal combat damage is exiled — the rider does not care what
+ *   kills it (CR 700.4 "dies" is any battlefield-to-graveyard move), only that it was dealt damage by
+ *   this spell. Chump-blocking it away, sacrificing it to Fanatical Offering, or Terminating it in
+ *   response all end in exile.
+ * - **It ends at CR 514.2 and not before.** A creature that survives the turn goes to the graveyard
+ *   normally from the next turn on, which is the line an opponent plays for.
+ * - **Prevented damage is not dealt damage** (CR 615.6), so a creature behind Prismatic Strands' red
+ *   shield is dealt nothing, is no part of the rider's set, and dies normally later.
+ *   [dealDamageThenExileIfItWouldDie] is the primitive that asks, because a card definition cannot.
+ * - **A dead target is not damaged either.** The CR 608.2b re-check runs first, so a Torch whose only
+ *   target is gone never resolves and creates nothing.
+ *
+ * **"Target creature or planeswalker" is target creature here**, and it is the same narrowing `W8-C`
+ * recorded for Searing Blaze: Pauper is a commons format and CR 306 planeswalkers are not printed at
+ * common, so no gauntlet board can hold one. The rider still says *permanent* rather than *creature*,
+ * which is not pedantry — the exile catches a creature that stops being one, and the framework is keyed on
+ * object ids rather than on a card type for exactly that reason.
+ */
+val torchTheTower: SpellDefinition =
+    object : SpellDefinition {
+        override val characteristics =
+            PrintedCharacteristics(
+                name = "Torch the Tower",
+                manaCost = ManaCost.parse("{R}"),
+                supertypes = persistentSetOf(),
+                cardTypes = persistentSetOf(CardType.INSTANT),
+                subtypes = persistentSetOf(),
+                powerToughness = null,
+            )
+        override val timing = TimingClass.INSTANT_SPEED
+        override val targetSpec = TargetSpec.TargetPermanent(PermanentRestriction.CREATURE)
+
+        // CR 702.166a: "You may sacrifice an artifact, enchantment, or token as you cast this spell."
+        override val optionalAdditionalCost = OptionalAdditionalCost.Bargain
+        override val resolution =
+            ResolutionEffect { state, context ->
+                // CR 702.166b: the bargained branch *replaces* the printed damage, so there is exactly one
+                // damage event whatever the amount.
+                val amount = if (context.optionalCostPaid) TORCH_BARGAINED_DAMAGE else TORCH_DAMAGE
+                dealDamageThenExileIfItWouldDie(
+                    state = state,
+                    source = context.damageSource(),
+                    recipient = targetedPermanent(context.targets, "Torch the Tower"),
+                    amount = amount,
+                )
+            }
+
+        // CR 701.17a: "you scry 1" — but only on the bargained branch (CR 702.166b).
+        override val libraryLook = LibraryLook(LibraryLookMode.Scry(TORCH_SCRY))
+        override val clauseCondition = ClauseCondition.SpellPaidOptionalAdditionalCost
     }
 
 /**

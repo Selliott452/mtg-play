@@ -40,6 +40,11 @@ private fun sizedHeaderAndNames(request: DecisionRequest.SizedSelection): Pair<S
         is DecisionRequest.ChooseSacrificesForCost ->
             "Sacrifice exactly ${request.count} permanent(s) as a cost of ${request.card.name} (CR 601.2b):" to
                 request.options.map { it.card.name }
+        // CR 601.2b: nothing is spent, so the line says "name" rather than "pay", and each option shows
+        // the power it would supply — the number the whole card is about.
+        is DecisionRequest.ChooseCostPowerSource ->
+            "Name a creature you control or a creature card in hand as a cost of ${request.card.name} " +
+                "(CR 601.2b):" to request.options.map { "${it.card.name} (power ${it.power})" }
         else -> abilityAndResolutionHeaderAndNames(request)
     }
 

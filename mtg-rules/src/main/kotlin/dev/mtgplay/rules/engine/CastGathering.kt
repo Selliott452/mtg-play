@@ -75,6 +75,10 @@ internal fun beginCastGathering(
     // costs"), so it is read off the definition rather than off the permission.
     val additionalSacrifice: PersistentList<ObjectId>? =
         if (definition.additionalCost is AdditionalCost.Sacrifice) null else persistentListOf()
+    // A non-consuming additional cost (Monstrous Emergence) needs something named; every other cast
+    // settles empty. Like the sacrifice above it is read off the definition rather than the permission,
+    // because CR 702.34a's "and any additional costs" applies to a permission cast too.
+    val costPowerSource = initialPowerSourceSettlement(definition)
     // CR 601.2b/702.33a: a kicker announcement is due only for a card printing the keyword *and* only
     // when the kicked cost is affordable — a seat that cannot pay it has nothing to announce, and
     // offering a yes/no whose "yes" dead-ends is the ADR-005 defect. Every other cast settles `false`.
@@ -109,6 +113,7 @@ internal fun beginCastGathering(
                     tapCost = tapCost,
                     additionalDiscard = additionalDiscard,
                     additionalSacrifice = additionalSacrifice,
+                    costPowerSource = costPowerSource,
                     kicked = kicked,
                     optionalCostTaken = optionalCostTaken,
                     optionalCostObjects = optionalCostObjects,

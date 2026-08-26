@@ -66,4 +66,34 @@ sealed interface AdditionalCost {
             }
         }
     }
+
+    /**
+     * "As an additional cost to cast this spell, **choose a creature you control or reveal a creature card
+     * from your hand**" (CR 601.2b, CR 701.15a) — Monstrous Emergence's. Additive, flagged core (`W9-D`).
+     *
+     * **The first additional cost that consumes nothing**, and that is the whole reason it is its own
+     * member. [DiscardCards] and [Sacrifice] both *spend* what they name: the card leaves the hand, the
+     * permanent leaves the battlefield, and the payability question is "does the caster have one to give
+     * up". This one asks the caster to *point at* something — the chosen creature stays on the
+     * battlefield untouched, the revealed card stays in hand — so the only thing the payment produces is
+     * a **[dev.mtgplay.core.state.ChosenPowerSource]** for the resolution to read. Modelling it as a
+     * sacrifice with the sacrifice omitted would make every payability check, every mana-reservation
+     * exclusion, and every "what did this cost eat" reader wrong at once.
+     *
+     * **The two branches are one cost, not two modes.** CR 601.2b announces additional costs as a unit,
+     * and the caster picks from a single pool — every creature they control plus every creature card in
+     * their hand — in one decision. Splitting it into a mode choice followed by an object choice would
+     * add a pause the card does not print and would let a seat pick a branch with no legal member.
+     *
+     * **A `data object` because there is nothing to vary.** The two nouns are the card's, and a second
+     * card printing a differently-filtered version of this shape becomes its own member rather than
+     * growing this one with filters — which is the discipline [OptionalAdditionalCost.Bargain] applies to
+     * its own fixed union.
+     *
+     * **Payability** (CR 601.2b, ADR-005): the spell is castable only when the pool is non-empty — at
+     * least one creature on the battlefield under the caster's control, or at least one creature card in
+     * hand other than this spell. With neither, the cost cannot be paid and the cast is not enumerated at
+     * all rather than offered and then dead-ending.
+     */
+    data object ChooseCreatureOrRevealCreatureCard : AdditionalCost
 }

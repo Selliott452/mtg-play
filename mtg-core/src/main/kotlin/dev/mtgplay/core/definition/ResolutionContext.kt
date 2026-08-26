@@ -3,6 +3,7 @@ package dev.mtgplay.core.definition
 import dev.mtgplay.core.identity.CardRef
 import dev.mtgplay.core.identity.ObjectId
 import dev.mtgplay.core.identity.PlayerId
+import dev.mtgplay.core.state.ChosenPowerSource
 import dev.mtgplay.core.state.DamageSource
 import dev.mtgplay.core.state.Target
 import kotlinx.collections.immutable.PersistentList
@@ -66,6 +67,15 @@ import kotlinx.collections.immutable.persistentListOf
  *   carries none and for every ability. Additive, flagged core (`FW-X`). This is the number an "X damage"
  *   or "X counters" resolution deals or places, and it is read from the cast record rather than
  *   recomputed from the cost, because the printed cost's X is zero everywhere but the stack (CR 202.3b).
+ * @property costPowerSource what was named to pay a **non-consuming** additional cost (CR 601.2b), or
+ *   `null` for every spell without one and for every ability. Additive, flagged core (`W9-D`). The linked
+ *   information Monstrous Emergence's resolution reads — "the power of the creature you chose or the card
+ *   you revealed" — supplied from [dev.mtgplay.core.state.StackEntry.Spell.costPowerSource].
+ *
+ *   Unlike [sacrificedForCost] this is **not** last-known information at all for one of its two members:
+ *   a chosen creature is still on the battlefield, so what the record carries is a *handle* the resolution
+ *   re-reads live (CR 608.2h), not a captured value. See [dev.mtgplay.core.state.ChosenPowerSource] for
+ *   why the other member is a printed [CardRef] instead.
  * @property linkedExiled the exile objects a **linked** ability (CR 607.2) of this ability's source put
  *   into exile, in the order exiled; empty for every spell and for an ability with no linked partner.
  *   Additive, flagged core (`FW-LINKEDEXILE`, docs/design/exile-and-return.md §4). The linked
@@ -92,6 +102,7 @@ data class ResolutionContext(
     val kicked: Boolean = false,
     val chosenX: Int = 0,
     val optionalCostPaid: Boolean = false,
+    val costPowerSource: ChosenPowerSource? = null,
 ) {
     /**
      * The [dev.mtgplay.core.state.DamageSource] this resolving object is, for the damage primitives

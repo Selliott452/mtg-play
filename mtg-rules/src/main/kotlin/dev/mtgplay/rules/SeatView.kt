@@ -26,6 +26,7 @@ import dev.mtgplay.core.state.PendingTapOrUntap
 import dev.mtgplay.core.state.PendingTriggerTargets
 import dev.mtgplay.core.state.PriorityStatus
 import dev.mtgplay.core.state.TimedContinuousEffect
+import dev.mtgplay.core.state.TimedDeathReplacement
 import dev.mtgplay.core.state.TimedPreventionEffect
 import dev.mtgplay.core.state.Turn
 
@@ -230,6 +231,14 @@ import dev.mtgplay.core.state.Turn
  *   agent that cannot see which colour is shielded cannot evaluate a single attack or burn spell for
  *   the rest of the turn, and both cards resolved face-up on the public stack (CR 405). Empty outside
  *   the turn an effect was created on (CR 514.2).
+ * @property deathReplacements the **delayed** death replacements still in force (CR 614.1a), in creation
+ *   order; **fully public and carried unfiltered** (`W9-D`) — Torch the Tower's "if a permanent dealt
+ *   damage by this would die this turn, exile it instead". Public for [preventionEffects]' reason and at
+ *   least as sharply: which of a board's creatures will be exiled rather than die is what decides whether
+ *   a chump block, a sacrifice outlet, or a graveyard recursion line is worth anything for the rest of
+ *   the turn, and the spell that created it resolved face-up on the public stack (CR 405). The affected
+ *   object ids name battlefield permanents both seats already see (CR 400.2), so there is nothing in the
+ *   record to redact. Empty outside the turn a replacement was created on (CR 514.2).
  */
 data class SeatView(
     val viewer: PlayerId,
@@ -267,6 +276,7 @@ data class SeatView(
     val pendingTapOrUntap: PendingTapOrUntap? = null,
     val timedEffects: List<TimedContinuousEffect> = emptyList(),
     val preventionEffects: List<TimedPreventionEffect> = emptyList(),
+    val deathReplacements: List<TimedDeathReplacement> = emptyList(),
 )
 
 /**

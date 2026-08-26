@@ -17,6 +17,7 @@ import dev.mtgplay.core.identity.PlayerId
 import dev.mtgplay.core.mana.Color
 import dev.mtgplay.core.mana.ManaCost
 import dev.mtgplay.core.mana.ManaType
+import dev.mtgplay.core.state.ChosenPowerSource
 import dev.mtgplay.core.state.Target
 import dev.mtgplay.rules.DecisionRequestKind
 import dev.mtgplay.rules.decision.Decision
@@ -330,6 +331,26 @@ private val allRequests: List<DecisionRequest> =
                 DecisionRequest.ChooseOptionalCostSacrifice.Option(ObjectId(18), CardRef("Rancor")),
             ),
             count = 1,
+        ),
+        DecisionRequest.ChooseCostPowerSource(
+            ID,
+            ObjectId(6),
+            CardRef("Monstrous Emergence"),
+            listOf(
+                // CR 601.2b (`W9-D`): the two halves of one pool, and the reason the option is a
+                // ChosenPowerSource rather than an object id — one is read through CR 613, one through
+                // CR 109.3, and the wire has to say which.
+                DecisionRequest.ChooseCostPowerSource.Option(
+                    ChosenPowerSource.ChosenCreature(ObjectId(21)),
+                    CardRef("Grizzly Bears"),
+                    power = 2,
+                ),
+                DecisionRequest.ChooseCostPowerSource.Option(
+                    ChosenPowerSource.RevealedCard(CardRef("Bramble Wurm")),
+                    CardRef("Bramble Wurm"),
+                    power = 6,
+                ),
+            ),
         ),
         DecisionRequest.ChooseTapsForCost(
             ID,

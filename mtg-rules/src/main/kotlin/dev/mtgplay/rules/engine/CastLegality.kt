@@ -80,6 +80,8 @@ internal fun permissionCastIsLegal(
         sacrificeSatisfiable(state, seat, permission.sacrifice) &&
         tapSatisfiable(state, seat, permission.tap) &&
         additionalDiscardSatisfiable(state, seat, definition, sourceObject.id, permission.source) &&
+        // CR 702.34a's "and any additional costs" applies to a permission cast too (`W9-D`).
+        powerSourceCostSatisfiable(state, seat, definition, sourceObject.id, permission.source) &&
         plotMarkerAllows(state, permission, sourceObject) &&
         targetsAndCostAvailable(state, seat, definition, permission, self = sourceObject.id)
 

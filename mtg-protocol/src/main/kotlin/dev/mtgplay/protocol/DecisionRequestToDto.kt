@@ -227,6 +227,7 @@ private fun sizedSelectionToDto(request: DecisionRequest.SizedSelection): Decisi
         is DecisionRequest.ChooseSacrifices,
         is DecisionRequest.ChooseTapsForCost,
         is DecisionRequest.ChooseOptionalCostSacrifice,
+        is DecisionRequest.ChooseCostPowerSource,
         is DecisionRequest.ChooseCardsToDiscardForCost,
         is DecisionRequest.ChooseSacrificesForCost,
         is DecisionRequest.ChooseAbilitySacrifice,
@@ -266,6 +267,7 @@ private fun costSizedSelectionToDto(request: DecisionRequest.SizedSelection): De
             )
         is DecisionRequest.ChooseOptionalCostSacrifice,
         is DecisionRequest.ChooseTapsForCost,
+        is DecisionRequest.ChooseCostPowerSource,
         -> nonManaCostSelectionToDto(request)
         is DecisionRequest.ChooseCardsToDiscardForCost ->
             DecisionRequestDto.ChooseCardsToDiscardForCost(

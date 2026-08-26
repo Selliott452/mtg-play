@@ -4,21 +4,39 @@ import dev.mtgplay.core.card.CardType
 import dev.mtgplay.core.card.Keyword
 import dev.mtgplay.core.card.PrintedPowerToughness
 import dev.mtgplay.core.card.Subtype
+import dev.mtgplay.core.definition.AdditionalCost
 import dev.mtgplay.core.definition.CastSource
 import dev.mtgplay.core.definition.CastingPermission
 import dev.mtgplay.core.definition.ChosenTypeReveal
 import dev.mtgplay.core.definition.InterveningIf
+import dev.mtgplay.core.definition.PermanentRestriction
+import dev.mtgplay.core.definition.ResolutionContext
 import dev.mtgplay.core.definition.RevealedCardFilter
 import dev.mtgplay.core.definition.TargetSpec
 import dev.mtgplay.core.definition.TimingClass
 import dev.mtgplay.core.definition.TriggerCondition
+import dev.mtgplay.core.definition.declaredClauses
+import dev.mtgplay.core.identity.CardRef
+import dev.mtgplay.core.identity.ObjectId
+import dev.mtgplay.core.identity.PlayerId
 import dev.mtgplay.core.mana.ManaCost
+import dev.mtgplay.core.random.Rng
+import dev.mtgplay.core.state.ChosenPowerSource
+import dev.mtgplay.core.state.GameObject
+import dev.mtgplay.core.state.GameState
+import dev.mtgplay.core.state.PlayerState
+import dev.mtgplay.core.state.SharedZones
+import dev.mtgplay.core.state.Target
+import dev.mtgplay.core.state.Turn
+import dev.mtgplay.core.state.TurnPhase
 import io.kotest.core.spec.style.StringSpec
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
 import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.persistentMapOf
 import kotlinx.collections.immutable.persistentSetOf
+import kotlinx.collections.immutable.toPersistentMap
 
 /**
  * The printed half of the card-advantage cards, read line by line off the Scryfall oracle text
@@ -124,4 +142,101 @@ class CardAdvantageSpec :
             recklessImpulse.libraryReveal.shouldBeNull()
             recklessImpulse.triggeredAbilities.shouldBeEmpty()
         }
+
+        // ---- Monstrous Emergence (`W9-D`) ------------------------------------------------------------
+
+        "CR 202: Monstrous Emergence is a {1}{G} sorcery targeting a creature" {
+            with(monstrousEmergence.characteristics) {
+                name shouldBe "Monstrous Emergence"
+                manaCost shouldBe ManaCost.parse("{1}{G}")
+                cardTypes shouldBe persistentSetOf(CardType.SORCERY)
+                subtypes shouldBe persistentSetOf<Subtype>()
+                powerToughness.shouldBeNull()
+            }
+            monstrousEmergence.timing shouldBe TimingClass.SORCERY_SPEED
+            monstrousEmergence.targetSpec shouldBe TargetSpec.TargetPermanent(PermanentRestriction.CREATURE)
+        }
+
+        "CR 601.2b: the additional cost is the non-consuming choose-or-reveal, not a sacrifice" {
+            monstrousEmergence.additionalCost shouldBe AdditionalCost.ChooseCreatureOrRevealCreatureCard
+            // Nothing else on the card is a cost: no kicker, no bargain, no casting permission.
+            monstrousEmergence.kicker.shouldBeNull()
+            monstrousEmergence.optionalAdditionalCost.shouldBeNull()
+            monstrousEmergence.castingPermissions.shouldBeEmpty()
+            monstrousEmergence.declaredClauses.shouldBeEmpty()
+        }
+
+        "CR 613: a chosen creature's damage is its layered power, read as the spell resolves" {
+            val state = emergenceState()
+            val ogre = state.sharedZones.battlefield.single { it.card == CardRef("Grizzly Bears") }
+            val target = state.sharedZones.battlefield.single { it.card == CardRef("Sea Gate Oracle") }
+            val resolved = resolveEmergence(state, target.id, ChosenPowerSource.ChosenCreature(ogre.id))
+
+            resolved.sharedZones.battlefield
+                .single { it.id == target.id }
+                .damageMarked shouldBe GRIZZLY_POWER
+        }
+
+        "CR 109.3: a revealed card's damage is its printed power — the layer system does not reach a hand" {
+            val state = emergenceState()
+            val target = state.sharedZones.battlefield.single { it.card == CardRef("Sea Gate Oracle") }
+            val resolved =
+                resolveEmergence(state, target.id, ChosenPowerSource.RevealedCard(CardRef("Grizzly Bears")))
+
+            resolved.sharedZones.battlefield
+                .single { it.id == target.id }
+                .damageMarked shouldBe GRIZZLY_POWER
+        }
     })
+
+private val emergenceAlice = PlayerId(0)
+private val emergenceBob = PlayerId(1)
+private const val EMERGENCE_LIFE: Int = 20
+
+/** Grizzly Bears is the pool's plain 2/2 — its printed power, and its layered one on an empty board. */
+private const val GRIZZLY_POWER: Int = 2
+
+/** Monstrous Emergence's resolution against [target], with [named] as the cost's linked information. */
+private fun resolveEmergence(
+    state: GameState,
+    target: ObjectId,
+    named: ChosenPowerSource,
+): GameState =
+    monstrousEmergence.resolution.resolve(
+        state,
+        ResolutionContext(
+            controller = emergenceAlice,
+            targets = persistentListOf(Target.Permanent(target)),
+            sourceCard = CardRef("Monstrous Emergence"),
+            costPowerSource = named,
+        ),
+    )
+
+/** A two-player board with alice's Grizzly Bears and bob's Sea Gate Oracle, over the real registry. */
+private fun emergenceState(): GameState {
+    fun seat() =
+        PlayerState(
+            life = EMERGENCE_LIFE,
+            library = persistentListOf(),
+            hand = persistentListOf(),
+            graveyard = persistentListOf(),
+        )
+    return GameState(
+        players = persistentMapOf(emergenceAlice to seat(), emergenceBob to seat()),
+        turn = Turn(emergenceAlice, 5, TurnPhase.PRECOMBAT_MAIN, null),
+        sharedZones =
+            SharedZones(
+                battlefield =
+                    persistentListOf(
+                        GameObject(ObjectId(0), CardRef("Grizzly Bears"), emergenceAlice),
+                        GameObject(ObjectId(1), CardRef("Sea Gate Oracle"), emergenceBob),
+                    ),
+                stack = persistentListOf(),
+                exile = persistentListOf(),
+            ),
+        nextObjectId = 100,
+        rng = Rng(0),
+        events = persistentListOf(),
+        definitions = MvpCards.definitions.toPersistentMap(),
+    )
+}

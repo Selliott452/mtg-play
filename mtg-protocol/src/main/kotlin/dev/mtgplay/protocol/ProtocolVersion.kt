@@ -803,5 +803,49 @@ package dev.mtgplay.protocol
  * (CR 707.10a) renders as the spell it is a copy of, which is what it *is* — a copy has the original's
  * copiable values — and the one thing that distinguishes it, that it ceases to exist instead of reaching a
  * graveyard, is not a choice any agent makes.
+ * ### Held at `9.0.0` — `W9-D`: the delayed death replacement
+ *
+ * **Call: no bump**, on this file's repeatedly-applied standard — `9.0.0` is **unreleased**. The only tag
+ * is `v0.1.0`, which shipped protocol `1.0.0`, so `1.0.0` remains the last version any consumer can have
+ * seen and an unshipped major absorbs a further break from the same wave. Naming the break is still owed:
+ *
+ * 1. **A new required field on [SeatViewDto]**: `deathReplacements`, a list of
+ *    [TimedDeathReplacementDto] (CR 614.1a). The identical break shape to `preventionEffects` under
+ *    `FW-PREVENT2` and `timedEffects` under `6.0.0` — a strict codec (`ignoreUnknownKeys = false`)
+ *    rejects every seat view carrying it — and required for the identical reason: a defaulted empty list
+ *    would let an old client watch a creature it Torched get exiled instead of dying with nothing in the
+ *    message explaining why, which is the one fact an agent must have to value a block, a sacrifice
+ *    outlet, or a recursion line for the rest of the turn.
+ *
+ * 2. **A new `DecisionRequest` kind**, and this one is the harsher mode. [DecisionRequestDto] gains
+ *    [DecisionRequestDto.ChooseCostPowerSource] and [DecisionRequestKindDto] gains
+ *    `CHOOSE_COST_POWER_SOURCE` (CR 601.2b, Monstrous Emergence's non-consuming additional cost), whose
+ *    `valueOf` mapping fails at **runtime** mid-match rather than at decode. It is answerable
+ *    client→server, since naming a power source is a decision an agent sends an index for.
+ *
+ *    Its options are the **first cast-cost options that are not all object ids** and therefore the first
+ *    that do not reuse [CardObjectOptionDto]: [PowerSourceOptionDto] carries a `kind` word, a nullable
+ *    object id, the card name, and the power the option would supply. The pool spans the battlefield and
+ *    a hand, and the two halves are read back through different rules, so a bare id could not say which.
+ *
+ * The rest of the client→server direction is **unchanged**, and not by accident of scope. The *delayed
+ * replacement* adds no request at all: it makes **no decision**. CR 616.1
+ * would hand the affected object's controller a choice among two or more applicable replacements, but every
+ * member of [dev.mtgplay.core.state.DeathReplacement] the engine implements is the same exile, so any order
+ * produces the same game and there is nothing to enumerate. The first member whose result differs is what
+ * must add the request — and the `when` in `DeathReplacements.kt` breaks at compile time when it arrives.
+ *
+ * **The rest of the option set is unchanged**, for the reason `FW-PREVENT2` gives about prevention: a
+ * death replacement changes an *outcome* — which zone a permanent ends in — never a legal play. Torch the
+ * Tower's own bargain announcement and its conditional scry both reuse requests that already exist
+ * (`ChooseYesNo`, `ChooseOptionalCostSacrifice`, `ChooseLibraryArrangement`); the
+ * [dev.mtgplay.core.definition.ClauseCondition] gate is visible on the wire only as the *absence* of a
+ * library-look pause on an unbargained cast, which is precisely what an agent should see.
+ *
+ * **No [GameObjectDto] or [PendingCastDto] field is added**, which is worth saying because every previous
+ * cost framework added one. A non-consuming cost writes nothing onto the permanent it names and nothing
+ * survives onto an entering object (CR 400.7 has nothing to bridge — Monstrous Emergence never becomes a
+ * permanent), so the answer lives on the stack entry and reaches an agent through the stack view it
+ * already receives.
  */
 const val PROTOCOL_VERSION: String = "10.0.0"

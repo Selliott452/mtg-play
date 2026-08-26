@@ -80,6 +80,9 @@ fun viewFor(
             // CR 615: a prevention effect governs damage to every permanent and both players, so there
             // is no seat it could sensibly be hidden from; no filtering applies.
             preventionEffects = state.preventionEffects,
+            // CR 614.1a: which permanents will be exiled rather than die is public — the spell that said
+            // so resolved on the public stack and the permanents are on the public battlefield.
+            deathReplacements = state.deathReplacements,
         )
     return projected.copy(cards = cardsOf(state.definitions, visibleCardRefs(projected)))
 }

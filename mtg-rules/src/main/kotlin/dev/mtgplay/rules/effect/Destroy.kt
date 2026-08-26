@@ -8,6 +8,8 @@ import dev.mtgplay.rules.engine.announceBattlefieldDeparture
 import dev.mtgplay.rules.engine.clearCombatReferences
 import dev.mtgplay.rules.engine.emit
 import dev.mtgplay.rules.engine.isIndestructible
+import dev.mtgplay.rules.engine.rememberLastKnownPower
+import dev.mtgplay.rules.engine.replaceBattlefieldDeath
 import dev.mtgplay.rules.engine.updateBattlefield
 import dev.mtgplay.rules.engine.updatePlayer
 
@@ -54,10 +56,18 @@ fun destroy(
     val battlefield = state.sharedZones.battlefield
     val index = battlefield.indexOfFirst { it.id == objectId }
     require(index >= 0) { "CR 701.7a: a destroyed permanent must be on the battlefield, but $objectId is not" }
-    // CR 702.12b: an indestructible permanent is not destroyed; the effect simply does nothing to it.
-    if (isIndestructible(state, objectId)) return state
+    // Two ways this destruction does not reach the graveyard below, in the order the rules ask them.
+    // CR 702.12b: an indestructible permanent is not destroyed at all; the effect does nothing to it, so
+    // it never dies and must **not** be caught by a rider that watches deaths. CR 614.1a: only once the
+    // permanent is genuinely going to be put into a graveyard from the battlefield (CR 700.4) may a
+    // delayed death replacement redirect it somewhere else entirely.
+    val notDestroyed =
+        if (isIndestructible(state, objectId)) state else replaceBattlefieldDeath(state, objectId)
+    if (notDestroyed != null) return notDestroyed
     val permanent = battlefield[index]
-    val (graveyardId, allocated) = state.allocateObjectId()
+    // CR 608.2h: the layered power this permanent leaves with, for a reader that resolves after it
+    // is gone (Monstrous Emergence). Captured before the removal — it cannot be computed after.
+    val (graveyardId, allocated) = rememberLastKnownPower(state, objectId).allocateObjectId()
     val reborn = GameObject(id = graveyardId, card = permanent.card, owner = permanent.owner)
     val moved =
         allocated

@@ -44,8 +44,13 @@ private fun moveDeadCreatureToGraveyard(
     val battlefield = state.sharedZones.battlefield
     val index = battlefield.indexOfFirst { it.id == objectId }
     require(index >= 0) { "CR 704.5: a dying creature must be on the battlefield, but $objectId is not" }
+    // CR 614.1a: a delayed replacement may replace this death with a move to another zone entirely
+    // (Torch the Tower's exile). The replaced event never happens (CR 614.6), so nothing below runs.
+    replaceBattlefieldDeath(state, objectId)?.let { return it }
     val dead = battlefield[index]
-    val (graveyardId, allocated) = state.allocateObjectId()
+    // CR 608.2h: the layered power this permanent leaves with, for a reader that resolves after it
+    // is gone (Monstrous Emergence). Captured before the removal — it cannot be computed after.
+    val (graveyardId, allocated) = rememberLastKnownPower(state, objectId).allocateObjectId()
     val reborn = GameObject(id = graveyardId, card = dead.card, owner = dead.owner)
     val moved =
         allocated

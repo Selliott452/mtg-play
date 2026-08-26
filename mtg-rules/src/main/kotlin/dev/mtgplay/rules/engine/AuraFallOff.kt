@@ -32,8 +32,13 @@ private fun moveAuraToGraveyard(
     val battlefield = state.sharedZones.battlefield
     val index = battlefield.indexOfFirst { it.id == objectId }
     require(index >= 0) { "CR 704.5m: a falling-off Aura must be on the battlefield, but $objectId is not" }
+    // CR 614.1a, CR 700.4: an Aura put into a graveyard from the battlefield dies like anything else, so
+    // a delayed death replacement catches a Torched Aura that then falls off its dead creature.
+    replaceBattlefieldDeath(state, objectId)?.let { return it }
     val aura = battlefield[index]
-    val (graveyardId, allocated) = state.allocateObjectId()
+    // CR 608.2h: the layered power this permanent leaves with, for a reader that resolves after it
+    // is gone (Monstrous Emergence). Captured before the removal — it cannot be computed after.
+    val (graveyardId, allocated) = rememberLastKnownPower(state, objectId).allocateObjectId()
     val reborn = GameObject(id = graveyardId, card = aura.card, owner = aura.owner)
     val moved =
         allocated
