@@ -105,7 +105,17 @@ class CounterDtoSpec :
             // adding a capability, since ContinuousModification has carried granted evasions since the
             // keyword-tail packet and this mirror silently dropped them. The `duration` word gains
             // INDEFINITE (CR 611.2b), which an older peer already fails loudly on by design.
+            // `W10-B` takes it to 11.0.0 — two faces on one card (CR 715, CR 720). Two new
+            // CastingPermissionDto discriminators, `adventure` and `omen`, and they are the first whose
+            // payload carries a **name**: a face changes the spell's name, card type and rules text, and
+            // a CardRef stays the *card's* name in every zone (CR 715.2c), so without `faceName` a peer
+            // offered both halves of Fang Dragon sees "Cast Fang Dragon" twice. Plus a defaulted
+            // `castAsFace` on StackEntryViewDto.SpellOnStack (the stack is public, CR 405, so which half
+            // is on it is not information the view may withhold) and a defaulted `onAnAdventure` on
+            // GameObjectDto (CR 715.3d's exile marker, public for CR 406.3's reason). No DecisionRequest
+            // kind is added: a face cast is an ordinary ChooseAction option, and so is the later cast of
+            // the normal half out of exile.
             // Pinned here so no bump in the chain can be quietly reverted.
-            PROTOCOL_VERSION shouldBe "10.0.0"
+            PROTOCOL_VERSION shouldBe "11.0.0"
         }
     })

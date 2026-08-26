@@ -197,6 +197,43 @@ sealed interface CastingPermissionDto {
     @Serializable
     @SerialName("cascade")
     data object Cascade : CastingPermissionDto
+
+    /**
+     * Adventure (CR 715.3): cast from the hand as the card's inset-frame face — an instant or sorcery
+     * named [faceName], for [cost] instead of the card's printed one. Added by `W10-B`.
+     *
+     * **[faceName] is what makes the option legible, and the card ref cannot supply it.** A
+     * [dev.mtgplay.core.identity.CardRef] is the *card's* name in every zone (CR 715.2c — an adventurer
+     * card is one card), so a peer offered two options for the same ref would otherwise see "Cast Fang
+     * Dragon" twice and have no way to tell the `{5}{R}{R}` 6/3 creature from the `{1}{R}` sweeper.
+     *
+     * **The face's rules text is deliberately absent.** A face is a whole second definition —
+     * resolution effects and targeting specs, which are function values — and the wire carries static
+     * card data by name throughout (`PrintedCardView`, `StackEntryView`). Sending the name is what lets
+     * a peer round-trip the permission unchanged; sending the definition would be a payload nothing
+     * could reconstruct.
+     */
+    @Serializable
+    @SerialName("adventure")
+    data class Adventure(
+        val cost: String,
+        val faceName: String,
+    ) : CastingPermissionDto
+
+    /**
+     * Omen (CR 720.3): cast from the hand as the card's inset-frame face — an instant or sorcery named
+     * [faceName], for [cost] instead of the card's printed one. Added by `W10-B`.
+     *
+     * [Adventure]'s twin on the wire and its opposite in play: an Omen spell that resolves is shuffled
+     * into its owner's library (CR 720.3d) rather than exiled for a later cast, so the discriminator is
+     * the one thing telling a peer whether choosing this option banks the card or spends it.
+     */
+    @Serializable
+    @SerialName("omen")
+    data class Omen(
+        val cost: String,
+        val faceName: String,
+    ) : CastingPermissionDto
 }
 
 /** [CastingPermission] to its wire form. */
@@ -218,6 +255,8 @@ fun CastingPermission.toDto(): CastingPermissionDto =
         is CastingPermission.Rebound -> CastingPermissionDto.Rebound
         is CastingPermission.Prototype -> CastingPermissionDto.Prototype(cost.render(), power, toughness)
         is CastingPermission.Cascade -> CastingPermissionDto.Cascade
+        is CastingPermission.Adventure -> CastingPermissionDto.Adventure(cost.render(), faceName)
+        is CastingPermission.Omen -> CastingPermissionDto.Omen(cost.render(), faceName)
     }
 
 /** [CastingPermissionDto] back to the engine value. */
@@ -239,6 +278,8 @@ fun CastingPermissionDto.toDomain(): CastingPermission =
         is CastingPermissionDto.Rebound -> CastingPermission.Rebound
         is CastingPermissionDto.Prototype -> CastingPermission.Prototype(ManaCost.parse(cost), power, toughness)
         is CastingPermissionDto.Cascade -> CastingPermission.Cascade
+        is CastingPermissionDto.Adventure -> CastingPermission.Adventure(ManaCost.parse(cost), faceName)
+        is CastingPermissionDto.Omen -> CastingPermission.Omen(ManaCost.parse(cost), faceName)
     }
 
 /**

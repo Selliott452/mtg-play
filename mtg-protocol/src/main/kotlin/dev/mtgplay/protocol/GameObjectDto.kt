@@ -76,6 +76,13 @@ import kotlinx.serialization.Serializable
  *   paid in front of everyone, and unlike the other two markers this one decides what the permanent's
  *   power, toughness and colours *are*, so a peer that dropped it would render the wrong creature.
  *   Added by `W9-G`.
+ * @property onAnAdventure whether this **exile** card was put there by an Adventure spell of its own
+ *   resolving (CR 715.3d) — Fang Dragon exiled by *Forktail Sweep*; `false` for every other object.
+ *   The fifth exile marker, beside [awaitingMadness], [plottedTurn], [reboundTurn] and
+ *   [playGrantedTurn], and public for the same CR 406.3 reason: the card is exiled face up, and every
+ *   seat needs to know that a 6/3 flier is waiting to be played out of it. A boolean rather than a turn
+ *   number because CR 715.3d's grant lasts *"for as long as that card remains exiled"* and so has no
+ *   expiry to record. Added by `W10-B`.
  */
 @Serializable
 data class GameObjectDto(
@@ -102,6 +109,7 @@ data class GameObjectDto(
     val optionalCostPaidWhenCast: Boolean = false,
     val enteredTurn: Int? = null,
     val prototyped: Boolean = false,
+    val onAnAdventure: Boolean = false,
 )
 
 /** [GameObject] to its wire form. */
@@ -139,6 +147,9 @@ fun GameObject.toDto(): GameObjectDto =
         // CR 718.3b: public, and load-bearing rather than decorative — the permanent's size and colours
         // are read off this flag, so a seat view that omitted it would describe a different creature.
         prototyped = prototyped,
+        // CR 715.3d / CR 406.3: an exiled card on an adventure sits face up and may be played from
+        // there, so the marker that says so is public exactly as `playGrantedTurn` is.
+        onAnAdventure = onAnAdventure,
     )
 
 /** [GameObjectDto] back to the engine value. */
@@ -167,4 +178,5 @@ fun GameObjectDto.toDomain(): GameObject =
         optionalCostPaidWhenCast = optionalCostPaidWhenCast,
         enteredTurn = enteredTurn,
         prototyped = prototyped,
+        onAnAdventure = onAnAdventure,
     )

@@ -428,10 +428,22 @@ import dev.mtgplay.core.identity.CardRef
  *   whole rules change is one base-characteristics seam (`Prototype.kt`), and it depends on the layer
  *   packet running beside it for nothing at all.
  *
- * The packet's other two cards stay absent, diagnosed in full in AlternateCastings.kt: **Fang Dragon**
- * (adventure) and **Sagu Wildling** (omen) are one card with two castable halves, and
- * [dev.mtgplay.core.card.PrintedCharacteristics] carries one face. That is the blocker the deferred-ten
- * note identified correctly, and it is unchanged.
+ * The `W10-B` packet finishes that list by taking the **two-faced cards** off it (TwoFacedCards.kt):
+ * [fangDragon], the pool's first adventurer card (CR 715), and [saguWildling], its first omen card
+ * (CR 720). `W9-G` diagnosed the blocker correctly — one card with two castable halves, and
+ * [dev.mtgplay.core.card.PrintedCharacteristics] carries one face — and both of the shapes it named as
+ * the way out turned out to be avoidable. There is **no second registry key** (a
+ * [dev.mtgplay.core.identity.CardRef] stays the card's name in every zone, CR 715.2c) and **no second
+ * slot on `PrintedCharacteristics`**: a face is a whole second
+ * [dev.mtgplay.core.definition.SpellDefinition] hanging off the card's own
+ * ([dev.mtgplay.core.definition.SpellDefinition.alternativeFace]), and casting as a face substitutes it
+ * for the card's for the whole of the CR 601 pipeline. Every downstream read — the CR 111/613 stack
+ * seam, the permanent-spell test, the targeting lines, the CR 608.2b fizzle, the resolution fold —
+ * already went through the cast record's definition and became face-aware with no edit of its own.
+ * What the two mechanics needed beyond that is one clause each: CR 715.3d's exile-and-play-later (a
+ * fifth exile marker, [dev.mtgplay.core.state.GameObject.onAnAdventure]) and CR 720.3d's
+ * shuffle-into-your-library (a third leave-stack destination, seeded through the match PRNG per
+ * ADR-006).
  *
  * The `W9-C` packet adds three cards that share one property — a targeting line whose legal set is **not a
  * function of the board alone** (docs/design/dependent-targets.md). [searingBlaze] (BurnAndRemoval.kt) is
@@ -527,6 +539,7 @@ object MvpCards {
             prohibit,
             faerieMacabre,
             faerieMiscreant,
+            fangDragon,
             faerieSeer,
             faithlessLooting,
             fieryTemper,
@@ -623,6 +636,7 @@ object MvpCards {
             removeSoul,
             ridesEnd,
             sacredCat,
+            saguWildling,
             saruliCaretaker,
             scourFromExistence,
             seaGateOracle,

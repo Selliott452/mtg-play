@@ -29,12 +29,26 @@ sealed interface StackEntryView {
      * @property controller the player who cast and controls the spell (CR 601.2, CR 108.4).
      * @property targets the chosen targets in the order chosen (CR 601.2c); empty for an untargeted
      *   spell. Every target is a public object or player (CR 115.1).
+     * @property castAsFace the printed name of the **alternative face** this spell was cast as
+     *   (CR 715.3b, CR 720.3b) — *Forktail Sweep* for a Fang Dragon cast as its Adventure — or `null`
+     *   for every spell cast normally, which is every spell of every single-faced card. Additive
+     *   (`W10-B`).
+     *
+     *   **The one place [card] stops being enough to say what is on the stack.** A [CardRef] is the
+     *   card's identity in every zone (CR 715.2c — an adventurer card is one card), so the ref on the
+     *   stack reads "Fang Dragon" whichever half was cast; but CR 715.3b says the *spell* has only its
+     *   alternative characteristics, and the stack is public (CR 405). Without this an opponent holding
+     *   priority could not tell a `{5}{R}{R}` 6/3 creature spell from a `{1}{R}` sweeper, which is not a
+     *   cosmetic difference — it is the whole of whether responding is worth it. It carries the face's
+     *   *name* rather than its characteristics because the characteristics are static card data an agent
+     *   already holds, which is this view's standing reason for dropping the definition.
      */
     data class SpellOnStack(
         val objectId: ObjectId,
         val card: CardRef,
         override val controller: PlayerId,
         val targets: List<Target>,
+        val castAsFace: String? = null,
     ) : StackEntryView
 
     /**

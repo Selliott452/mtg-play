@@ -131,7 +131,11 @@ private fun proposeSpell(
     val zoneObject =
         objectInZone(state, cast.caster, cast.source, cast.cardObjectId)
             ?: error("CR 601.2a: object ${cast.cardObjectId} is not in ${cast.caster}'s ${cast.source} zone")
-    val definition = spellDefinitionOf(state, zoneObject.card)
+    // CR 715.3b / CR 720.3b: "while on the stack the spell has **only** its alternative
+    // characteristics" — so a face cast fixes the *face's* definition onto the cast record, and every
+    // downstream read of `entry.definition` (the CR 111/613 stack seam, the permanent-spell test, the
+    // targeting lines, the resolution fold) is face-aware with no edit of its own (`W10-B`).
+    val definition = castDefinitionOf(state, zoneObject.card, cast.castingPermission)
     val (id, allocated) = state.allocateObjectId()
     // CR 601.2b: the printed identities of the additional-discard cards, captured now (still in hand,
     // discarded at payment) as the resolution's linked information (Grab the Prize).

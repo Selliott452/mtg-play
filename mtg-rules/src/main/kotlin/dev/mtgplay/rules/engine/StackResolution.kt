@@ -2,6 +2,7 @@ package dev.mtgplay.rules.engine
 
 import dev.mtgplay.core.card.CardType
 import dev.mtgplay.core.definition.CastingPermission
+import dev.mtgplay.core.definition.FaceKind
 import dev.mtgplay.core.definition.ResolutionContext
 import dev.mtgplay.core.definition.TargetContext
 import dev.mtgplay.core.definition.TargetSpec
@@ -167,16 +168,50 @@ internal fun completeInstantSorceryResolution(
     // from a hand. Decided here rather than on the permission, so the counter and fizzle paths — which
     // share putSpellOffStack — are untouched.
     val rebounds = reboundReplacesGraveyardMove(entry)
-    val left = putResolvedSpellOffStack(state, entry, exileInstead = rebounds)
+    val left = putResolvedSpellOffStack(state, entry, resolutionDestination(entry, rebounds))
     val narrated =
         left.state.emit(
             GameEvent.SpellResolved(entry.controller, entry.obj.id, entry.obj.card, left.newObjectId),
         )
     val exileNarrated = narrateLeaveStackExile(narrated, entry, left)
     val marked =
-        if (rebounds) markReboundExile(exileNarrated, left.newObjectId, state.turn.number) else exileNarrated
+        when {
+            rebounds -> markReboundExile(exileNarrated, left.newObjectId, state.turn.number)
+            // CR 715.3d: the exiled card is the one its controller may play from exile afterwards, and
+            // the marker is what says so. It is set here, on the *new* exile object (CR 400.7), for
+            // exactly rebound's reason: only a resolution puts a card on an adventure.
+            faceKindOf(entry.castVia) == FaceKind.ADVENTURE ->
+                markAdventureExile(exileNarrated, left.newObjectId)
+            else -> exileNarrated
+        }
     return grantPriorityRound(marked)
 }
+
+/**
+ * Where the resolving instant or sorcery [entry] puts its card (CR 608.2m) — the three "instead of your
+ * graveyard" clauses that fire **only on resolution**, in the one place that can honestly tell a
+ * resolution from a counter or a fizzle.
+ *
+ * - **Rebound** (CR 702.88a) exiles it, and only when the spell was cast from a hand ([rebounds], which
+ *   its caller has already decided);
+ * - an **Adventure** (CR 715.3d) exiles it, where its controller may play the card's normal half from;
+ * - an **Omen** (CR 720.3d) shuffles it into its owner's library, where nobody may do anything with it
+ *   until it is drawn again.
+ *
+ * `null` for every other spell, which takes its destination from the cast record — a flashback spell's
+ * exile (CR 702.34e) is a property of *how it was cast* and applies however it leaves the stack, so it
+ * is deliberately not decided here.
+ */
+private fun resolutionDestination(
+    entry: StackEntry.Spell,
+    rebounds: Boolean,
+): LeaveStackDestination? =
+    when {
+        rebounds -> LeaveStackDestination.EXILE
+        faceKindOf(entry.castVia) == FaceKind.ADVENTURE -> LeaveStackDestination.EXILE
+        faceKindOf(entry.castVia) == FaceKind.OMEN -> LeaveStackDestination.OWNERS_LIBRARY
+        else -> null
+    }
 
 /**
  * Whether [entry] is a permanent spell (CR 608.3): every card type in the MVP pool is either an
@@ -284,8 +319,8 @@ private fun auraAttachmentTargetOf(entry: StackEntry.Spell): ObjectId? =
 private fun putResolvedSpellOffStack(
     state: GameState,
     entry: StackEntry.Spell,
-    exileInstead: Boolean = false,
+    instead: LeaveStackDestination? = null,
 ): SpellLeftStack {
     check(state.sharedZones.stack.lastOrNull() == entry) { "CR 608.1: only the topmost stack object may resolve" }
-    return putSpellOffStack(state, entry, exileInstead)
+    return putSpellOffStack(state, entry, instead)
 }

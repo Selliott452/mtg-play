@@ -49,6 +49,11 @@ private fun permissionName(permission: CastingPermission): String =
         is CastingPermission.Prototype ->
             "prototype ${permission.cost.render()} — ${permission.power}/${permission.toughness}"
         CastingPermission.Cascade -> "cascade (no mana cost)"
+        // CR 715.3b / CR 720.3b: the spell has *only* the face's characteristics, so the face's name is
+        // what is going on the stack — the label names it, because "Cast Fang Dragon" would otherwise
+        // read identically for the 6/3 creature and for the {1}{R} sweeper.
+        is CastingPermission.Adventure -> "adventure ${permission.faceName} ${permission.cost.render()}"
+        is CastingPermission.Omen -> "omen ${permission.faceName} ${permission.cost.render()}"
     }
 
 /** The zone a cast draws from (CR 601.2a). */

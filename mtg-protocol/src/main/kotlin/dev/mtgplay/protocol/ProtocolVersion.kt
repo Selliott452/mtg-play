@@ -980,5 +980,45 @@ package dev.mtgplay.protocol
  *    it. It is required for a token whose colours the creating effect defined rather than derived —
  *    Sacred Cat's embalm token is white with **no mana cost**, and a peer that derived its colours would
  *    call it colourless and then disagree with the engine about whether protection from white stops it.
+ *
+ * ### `11.0.0` — `W10-B`: two faces on one card
+ *
+ * Adventurer cards (CR 715) and omen cards (CR 720). One card, two castable halves — and the wire
+ * breaks in three places, each of which exists because a [dev.mtgplay.core.identity.CardRef] can no
+ * longer say by itself what a peer is looking at.
+ *
+ * 1. **Two new [CastingPermissionDto] members**, [CastingPermissionDto.Adventure] and
+ *    [CastingPermissionDto.Omen], each carrying `cost` **and** `faceName`. Casting permissions travel
+ *    server→client inside [PriorityOptionDto] and [PendingCastDto], so a `10.0.0` peer meets the new
+ *    discriminators as a **runtime** decode failure — the sharper break mode `4.0.0` first recorded and
+ *    `10.0.0` recorded for `prototype`.
+ *
+ *    `faceName` is the field worth arguing about, and it is required. Every other permission is fully
+ *    described by a cost, because every other permission changes only what a card costs; a face changes
+ *    the spell's **name, card type and rules text** (CR 715.3b: the spell has *only* its alternative
+ *    characteristics). CR 715.2c keeps the card ref the card's own name in every zone, so without the
+ *    face name a peer offered both halves of Fang Dragon would see "Cast Fang Dragon" twice and could
+ *    not tell the `{5}{R}{R}` 6/3 creature from the `{1}{R}` sweeper. The face's *rules text* is
+ *    deliberately absent for the reason [StackEntryViewDto] drops a definition: it is static card data
+ *    an agent holds by name, and it contains function values nothing on the far side could reconstruct.
+ * 2. **[StackEntryViewDto.SpellOnStack] gains `castAsFace`.** The stack is public (CR 405) and CR 715.3b
+ *    makes which half is on it a fact about the spell rather than about the caster's hand, so an
+ *    opponent deciding whether to respond must be able to see it. Defaulted to `null`, so a strict codec
+ *    still decodes an old payload and every single-faced spell keeps the shape it had.
+ * 3. **[GameObjectDto] gains `onAnAdventure`** (CR 715.3d) — the fifth exile marker, public for the
+ *    CR 406.3 reason `playGrantedTurn` is: the card sits in exile face up and may be played from there.
+ *    Every game object on the wire is a [GameObjectDto], so this is the same break shape `10.0.0`
+ *    recorded for `prototyped`, and defaulted for the same reason.
+ *
+ * **No `DecisionRequest` kind is added.** A face cast is an ordinary `ChooseAction` option, and so is
+ * the later cast of an adventurer card's normal half out of exile — the permission there is CR 715.3d's
+ * rather than a [CastingPermissionDto] at all, so it rides as a plain `CastSpell` from `EXILE` exactly
+ * as Reckless Impulse's play grant does. Nothing fails at `valueOf` mid-match in the client→server
+ * direction.
+ *
+ * **The Omen's shuffle appears on no wire.** CR 720.3d shuffles the resolved card into its owner's
+ * library through the match PRNG (ADR-006); the resulting order is in no seat view and in no event —
+ * [dev.mtgplay.core.event.GameEvent.CardShuffledIntoLibrary] names the card and its owner, which is
+ * public, and never where it landed, which is not.
  */
-const val PROTOCOL_VERSION: String = "10.0.0"
+const val PROTOCOL_VERSION: String = "11.0.0"

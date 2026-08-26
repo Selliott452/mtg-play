@@ -99,9 +99,14 @@ object CreatureType {
 
     /**
      * The subtype words the pool knows that are **not** creature types: land types (CR 205.3i),
-     * artifact types (CR 205.3g) and enchantment types (CR 205.3h). Listed rather than inferred so
-     * that "not a creature type" is an assertion the pool makes out loud, and an unlisted word is an
-     * unclassified word rather than a silent non-creature.
+     * artifact types (CR 205.3g), enchantment types (CR 205.3h) and spell types (CR 205.3k). Listed
+     * rather than inferred so that "not a creature type" is an assertion the pool makes out loud, and
+     * an unlisted word is an unclassified word rather than a silent non-creature.
+     *
+     * **Adventure** and **Omen** are the spell types (CR 205.3k): the subtype an adventurer or omen
+     * card's inset frame prints on its `Sorcery — Adventure` / `Sorcery — Omen` line (`W10-B`). They
+     * are listed here rather than left out because a changeling adventurer would otherwise be asked
+     * whether it is an Adventure and the engine would have to guess.
      *
      * Note the ones that read like creature types and are not: **Food**, **Blood** and **Clue** are
      * artifact types (Gingerbrute is an `Artifact Creature — Food Golem`, where `Food` is the artifact
@@ -110,6 +115,7 @@ object CreatureType {
     val NON_CREATURE_TYPES: Set<Subtype> =
         subtypesOf(
             """
+            Adventure
             Aura
             Blood
             Clue
@@ -120,6 +126,7 @@ object CreatureType {
             Gate
             Island
             Mountain
+            Omen
             Plains
             Swamp
             Urza's Mine

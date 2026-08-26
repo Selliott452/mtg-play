@@ -9,7 +9,6 @@ import dev.mtgplay.core.definition.TargetSpec
 import dev.mtgplay.core.definition.TimingClass
 import dev.mtgplay.core.identity.ObjectId
 import dev.mtgplay.core.identity.PlayerId
-import dev.mtgplay.core.state.GameObject
 import dev.mtgplay.core.state.GameState
 import dev.mtgplay.core.state.TurnPhase
 import dev.mtgplay.rules.decision.PriorityOption
@@ -45,14 +44,21 @@ internal const val LAND_PLAYS_PER_TURN: Int = 1
  * exists; no MVP mainboard card plots, so the exile scan currently yields nothing.
  *
  * A **granted play permission** (CR 118.5) — Reckless Impulse's "until the end of your next turn, you
- * may play those cards" — is enumerated from exile per marked object ([grantedExilePlayOptions]). It is
- * not a [dev.mtgplay.core.definition.CastingPermission]: the permission is granted by another object's
- * resolution rather than declared by the card being played, it costs the printed cost, and — because it
- * says *play* rather than *cast* — it reaches a land as well as a spell.
+ * may play those cards" — is enumerated from exile per marked object ([grantedExilePlayOptions]), and so
+ * is an **adventurer card waiting in exile** (CR 715.3d, [adventureExilePlayOptions]). Neither is a
+ * [dev.mtgplay.core.definition.CastingPermission]: both are granted by a rule or another object's
+ * resolution rather than declared by the card being played, both cost the printed cost, and — because
+ * both say *play* rather than *cast* — both reach a land as well as a spell. See
+ * `ExilePlayPermissions.kt`.
+ *
+ * A **face cast** (CR 715.3, CR 720.3) *is* a permission, and a synthesized one: a card declaring an
+ * alternative face has an [dev.mtgplay.core.definition.CastingPermission.Adventure] or
+ * [dev.mtgplay.core.definition.CastingPermission.Omen] offered beside its normal hand cast, gated
+ * against the **face's** definition (CR 715.3a). See `CardFaces.kt`.
  *
  * Option order is fixed for deterministic indices (ADR-006): the pass, then hand normal casts and land
  * plays in hand order, then graveyard, exile, and hand permission casts in that order, then the granted
- * exile plays.
+ * exile plays, then the adventure exile plays.
  */
 internal fun legalPriorityOptions(
     state: GameState,
@@ -76,6 +82,9 @@ internal fun legalPriorityOptions(
         // CR 118.5: cards an effect granted permission to *play* from exile (Reckless Impulse) — a
         // normal-cost cast or, for a land, the play-land special action.
         addAll(grantedExilePlayOptions(state, seat))
+        // CR 715.3d: a card exiled by its own Adventure resolving, which its controller may play from
+        // exile for as long as it stays there — the card's **normal** half, never the Adventure again.
+        addAll(adventureExilePlayOptions(state, seat))
         // CR 702.140: the plot special action, offered like a land play (sorcery timing).
         addAll(plotOptions(state, seat))
         // CR 602.1: activated abilities of the seat's permanents and (landcycling) hand cards.
@@ -98,78 +107,23 @@ private fun permissionCastOptions(
 ): List<PriorityOption.CastSpell> =
     objectsInZone(state, seat, source).flatMap { obj ->
         val definition = state.definitions[obj.card] as? SpellDefinition ?: return@flatMap emptyList()
-        definition.castingPermissions
+        // CR 715.3 / CR 720.3: the list includes the permission the engine synthesizes from a declared
+        // alternative face, so an Adventure or an Omen is offered by exactly the machinery flashback and
+        // escape go through — and gated against the **face's** definition, which is what CR 715.3a's
+        // "only the alternative characteristics are evaluated to see if it can be cast" means (`W10-B`).
+        castingPermissionsOf(definition)
             .filter { permission ->
                 permission.source == source &&
                     permission.offeredAtPriority &&
-                    permissionCastIsLegal(state, seat, definition, permission, obj)
+                    permissionCastIsLegal(
+                        state,
+                        seat,
+                        castDefinitionOf(state, obj.card, permission),
+                        permission,
+                        obj,
+                    )
             }.map { PriorityOption.CastSpell(obj.id, obj.card, source, it) }
     }
-
-/**
- * The priority-window options for the exile cards [seat] has been *granted permission to play*
- * (CR 118.5, CR 601.2a) — Reckless Impulse's two. One option per playable card: a normal-cost
- * [PriorityOption.CastSpell] from [CastSource.EXILE] for a spell, or a [PriorityOption.PlayLand] from
- * exile for a land. Additive (`W8-D`).
- *
- * **Not [permissionCastOptions] with another zone.** That function reads permissions the *card declares
- * about itself*; this permission was granted by a different object's resolution to whatever happened to
- * be on top of a library, so it is read off the exiled object's
- * [dev.mtgplay.core.state.GameObject.playGrantedTurn] marker instead — and it grants no alternative
- * cost, so the cast is priced at the printed cost exactly as a cast from hand is.
- *
- * The marker is checked live against the turn ([playGrantMarkerAllows]) as well as being cleared at
- * cleanup, so an expired permission can never be enumerated even for one window.
- */
-private fun grantedExilePlayOptions(
-    state: GameState,
-    seat: PlayerId,
-): List<PriorityOption> =
-    objectsInZone(state, seat, CastSource.EXILE)
-        .filter { playGrantMarkerAllows(state, it) }
-        .mapNotNull { obj ->
-            val definition = state.definitions[obj.card]
-            when {
-                definition is SpellDefinition && castIsLegal(state, seat, definition, obj.id, CastSource.EXILE) ->
-                    PriorityOption.CastSpell(obj.id, obj.card, CastSource.EXILE)
-                definition.isLand() && playLandIsLegal(state, seat) ->
-                    PriorityOption.PlayLand(obj.id, obj.card, CastSource.EXILE)
-                else -> null
-            }
-        }
-
-/**
- * Whether the exile object [obj] still carries a live "you may play this" permission (CR 118.5) — it has
- * a [dev.mtgplay.core.state.GameObject.playGrantedTurn] marker at all, and the turn it was granted on
- * has not yet been followed by a completed turn of its owner's.
- *
- * The second half is belt-and-braces against the CR 514.2 cleanup that clears the marker: they agree by
- * construction, and stating the condition here as well means an expired permission is never enumerated
- * even in a state a test constructed by hand.
- */
-internal fun playGrantMarkerAllows(
-    state: GameState,
-    obj: GameObject,
-): Boolean {
-    val granted = obj.playGrantedTurn ?: return false
-    return !playGrantHasExpired(state, obj.owner, granted)
-}
-
-/**
- * Whether a play permission granted on turn [grantedTurn] to [owner] has run out by the *end* of the
- * turn now in progress (CR 118.5) — "until the end of your next turn": true exactly when the current
- * turn is [owner]'s and is strictly later than [grantedTurn].
- *
- * The one derivation of the duration, shared by enumeration and by the CR 514.2 cleanup that clears the
- * marker, so the two cannot disagree about when the permission ends — the discipline `FW-OPTCOST` used
- * for the intervening-if's two checks, and load-bearing for the same reason: a permission enumerated
- * after it expired is an illegal action the engine offered (ADR-005).
- */
-internal fun playGrantHasExpired(
-    state: GameState,
-    owner: PlayerId,
-    grantedTurn: Int,
-): Boolean = state.turn.activePlayer == owner && state.turn.number > grantedTurn
 
 /**
  * Whether this definition describes a land **card** (CR 305.1); `false` for an undefined card.
@@ -221,7 +175,7 @@ internal fun playLandIsLegal(
  * plan spending it is not offered. Nothing else is reserved — tapping a land for mana and then
  * sacrificing it is legal (docs/design/mana-payment.md §2.2).
  */
-private fun castIsLegal(
+internal fun castIsLegal(
     state: GameState,
     seat: PlayerId,
     definition: SpellDefinition,

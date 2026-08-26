@@ -112,7 +112,7 @@ internal fun applyChosenModes(
     val card =
         objectInZone(state, cast.caster, cast.source, cast.cardObjectId)
             ?: error("CR 601.2b: pending cast's card ${cast.cardObjectId} is not in ${cast.caster}'s ${cast.source}")
-    val definition = spellDefinitionOf(state, card.card)
+    val definition = castDefinitionOf(state, card.card, cast.castingPermission)
     val moded = cast.copy(chosenModes = modeIndices.toPersistentList())
     return pauseForNextCastDecision(state.copy(pendingCast = advanceTargetingLines(state, moded, definition)))
 }

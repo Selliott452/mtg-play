@@ -40,7 +40,9 @@ internal fun beginCastGathering(
     val card =
         objectInZone(state, caster, source, cardObjectId)
             ?: error("CR 601.2: object $cardObjectId is not in $caster's $source zone")
-    val definition = spellDefinitionOf(state, card.card)
+    // CR 715.3a / CR 720.3a: a cast as a face gathers against the *face's* characteristics — its
+    // targeting line, its modes, its additional costs — and not the card's (`W10-B`, CardFaces.kt).
+    val definition = castDefinitionOf(state, card.card, permission)
     // A spell that targets nothing, and an "up to N" spell with nothing legal to point at, settle
     // straight to an empty list; every other spec needs a target choice before payment (CR 601.2c).
     // The `when` this replaced asked seven members the same question; `targetChoiceIsVacuous` asks it
@@ -141,7 +143,7 @@ internal fun applyChosenTarget(
     val card =
         objectInZone(state, cast.caster, cast.source, cast.cardObjectId)
             ?: error("CR 601.2c: pending cast's card ${cast.cardObjectId} is not in ${cast.caster}'s ${cast.source}")
-    val definition = spellDefinitionOf(state, card.card)
+    val definition = castDefinitionOf(state, card.card, cast.castingPermission)
     // The answer belongs to the line the cursor is on, so it is *appended* rather than assigned. The two
     // shapes append to different places, which is the only way they differ: a modal card keeps one list
     // per chosen mode (`W9-B`, "choose up to two"), while an ordinary card printing the word "target"
