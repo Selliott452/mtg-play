@@ -81,6 +81,7 @@ object CreatureType {
             Serpent
             Shaman
             Shapeshifter
+            Skeleton
             Soldier
             Spawn
             Spirit
@@ -122,6 +123,7 @@ object CreatureType {
             Mountain
             Plains
             Swamp
+            Treasure
             Urza's Mine
             Urza's Power-Plant
             Urza's Tower

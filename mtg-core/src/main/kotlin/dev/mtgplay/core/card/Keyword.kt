@@ -181,4 +181,27 @@ enum class Keyword {
      * Rooftop Percher is the pool's only changeling.
      */
     CHANGELING,
+
+    /**
+     * Menace (CR 702.110): "this creature can't be blocked except by two or more creatures"
+     * (CR 702.110a). Added by `W10-A` for the Undercity's Catacombs Skeleton.
+     *
+     * **A blocker-*count* restriction, and the engine already had the machinery** — Troll of Khazad-dûm's
+     * [Evasion.BLOCKABLE_ONLY_BY_THREE_OR_MORE] is literally the same sentence with "three", and
+     * `BlockerMinimums.kt` publishes a per-attacker floor on the declare-blockers request and enforces it
+     * across the chosen set (CR 509.1b). Menace joins that seam rather than opening a second one, so a
+     * creature with both takes the larger floor, which is what CR 509.1b's cumulative restrictions mean.
+     *
+     * **It is a [Keyword] and not an [Evasion] even though its neighbour is an evasion**, and the split is
+     * the CR's rather than the engine's: CR 702.110 makes menace a *keyword* ability, so it is printed as
+     * one word, can be granted as one word, and would be counted by anything that counts keywords. The
+     * Troll's line is ability text with no keyword name (the [Evasion] KDoc's whole subject). The one
+     * function that cares — `minimumBlockersFor` — reads both, through the effective-keyword and
+     * effective-evasion seams, so where the declaration lives changes nothing about how it plays.
+     *
+     * **Zero blockers stays legal** (CR 509.1b restricts *how*, never *whether*), and a declared block
+     * survives its partners leaving combat (CR 509.1h) — both inherited from the shared floor, and both
+     * the reason a menace creature is not "unblockable unless you have two spare bodies".
+     */
+    MENACE,
 }
