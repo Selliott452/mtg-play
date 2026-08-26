@@ -41,21 +41,23 @@ sealed interface TriggerZoneScope {
     data object Graveyard : TriggerZoneScope
 
     /**
-     * The ability functions from the **stack** (CR 113.6c, CR 405) — the scope cascade needs, added by
-     * `W9-G`. CR 702.85a is explicit: *"Cascade is a triggered ability that functions only while the
-     * spell with cascade is on the stack."*
+     * The ability functions from the **stack** (CR 113.6c, CR 405) — added independently by `W9-G` for
+     * cascade and `W9-C` for storm, which arrived in the same wave and needed the same scope. CR 702.85a
+     * is explicit for the first: *"Cascade is a triggered ability that functions only while the spell
+     * with cascade is on the stack."* CR 702.40a says the same of storm.
      *
      * **The first scope whose source is a spell rather than a card in a zone**, and that is the whole
      * reason it is a member rather than a reuse of [Exile] or [Battlefield]. The other three name places
      * a *card* sits; this one names the one place an object is a **spell** (CR 111.1), which is what a
-     * cast trigger printed on the cast card itself watches. Filing cascade under any of the others would
-     * have made [TriggerZoneScope] say something false about where the ability lives, and would have put
-     * a stack-functioning ability in the path of a detector that scans a zone of cards.
+     * cast trigger printed on the cast card itself watches. It is also what makes these abilities
+     * findable at all: the trigger fires at CR 601.2i, when the card is in neither a hand nor a zone any
+     * scope above could have named.
      *
      * Like [Exile]'s madness and rebound abilities, nothing here is *detected* by a zone scan: the
      * casting pipeline synthesizes the fired trigger at CR 601.2i, where the spell it belongs to is
-     * exactly the object in hand. The scope is declared so the ability is honestly described and so a
-     * future zone-scoped detector cannot mistake it for a battlefield ability.
+     * exactly the object in hand — the same way the discard replacement synthesizes madness's. The scope
+     * is declared so the ability is honestly described and so a future zone-scoped detector cannot
+     * mistake it for a battlefield ability, not because anything scans the stack.
      */
     data object Stack : TriggerZoneScope
 }

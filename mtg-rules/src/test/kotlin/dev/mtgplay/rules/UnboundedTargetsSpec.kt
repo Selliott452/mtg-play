@@ -26,6 +26,7 @@ import dev.mtgplay.core.state.Turn
 import dev.mtgplay.core.state.TurnPhase
 import dev.mtgplay.rules.effect.exileGraveyard
 import dev.mtgplay.rules.engine.Chooser
+import dev.mtgplay.rules.engine.TargetCheck
 import dev.mtgplay.rules.engine.allTargetsIllegal
 import dev.mtgplay.rules.engine.legalTargets
 import dev.mtgplay.rules.engine.targetChoiceBounds
@@ -104,7 +105,7 @@ class UnboundedTargetsSpec :
         }
 
         "CR 608.2b: an unbounded line that named no target resolves; it has no illegal target" {
-            allTargetsIllegal(wideBoard(), anyPlayers, emptyList(), alice, Chooser.Nobody) shouldBe false
+            allTargetsIllegal(wideBoard(), anyPlayers, emptyList(), TargetCheck(alice, Chooser.Nobody)) shouldBe false
         }
 
         "CR 601.2c: a choice with options is never vacuous, however unbounded its count" {
@@ -173,13 +174,12 @@ class UnboundedTargetsSpec :
         "CR 608.2b: a two-target line whose targets are *both* gone fizzles; one survivor resolves it" {
             val state = wideBoard()
             val gone = Target.Permanent(ObjectId(999))
-            allTargetsIllegal(state, twoBlinkable, listOf(gone, gone), alice, Chooser.Nobody) shouldBe true
+            allTargetsIllegal(state, twoBlinkable, listOf(gone, gone), TargetCheck(alice, Chooser.Nobody)) shouldBe true
             allTargetsIllegal(
                 state,
                 twoBlinkable,
                 listOf(gone, Target.Permanent(ALICE_BEAR)),
-                alice,
-                Chooser.Nobody,
+                TargetCheck(alice, Chooser.Nobody),
             ) shouldBe false
         }
 

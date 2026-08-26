@@ -12,6 +12,7 @@ import dev.mtgplay.rules.engine.Layer
 import dev.mtgplay.rules.engine.LayeredCharacteristics
 import dev.mtgplay.rules.engine.SbaOutcome
 import dev.mtgplay.rules.engine.StateBasedAction
+import dev.mtgplay.rules.engine.TargetCheck
 import dev.mtgplay.rules.engine.applicableStateBasedActions
 import dev.mtgplay.rules.engine.applyLayer
 import dev.mtgplay.rules.engine.effectiveKeywords
@@ -171,21 +172,21 @@ class LayerSystemSpec :
             val state = auraState(listOf(bfObject(0, "Ent"), bfObject(1, "Meadow")))
             val spec = TargetSpec.Enchantable(EnchantRestriction.CREATURE)
             legalTargets(state, spec, alice, Chooser.Nobody) shouldContainExactly listOf(Target.Permanent(ObjectId(0)))
-            isTargetLegal(state, spec, Target.Permanent(ObjectId(1)), alice, Chooser.Nobody) shouldBe false
+            isTargetLegal(state, spec, Target.Permanent(ObjectId(1)), TargetCheck(alice, Chooser.Nobody)) shouldBe false
         }
 
         "CR 303.4a: enchant land — only lands are legal targets, both directions" {
             val state = auraState(listOf(bfObject(0, "Ent"), bfObject(1, "Meadow")))
             val spec = TargetSpec.Enchantable(EnchantRestriction.LAND)
             legalTargets(state, spec, alice, Chooser.Nobody) shouldContainExactly listOf(Target.Permanent(ObjectId(1)))
-            isTargetLegal(state, spec, Target.Permanent(ObjectId(0)), alice, Chooser.Nobody) shouldBe false
+            isTargetLegal(state, spec, Target.Permanent(ObjectId(0)), TargetCheck(alice, Chooser.Nobody)) shouldBe false
         }
 
         "CR 303.4a and CR 205.3: enchant Forest — only a Forest-subtype land is legal" {
             val state = auraState(listOf(bfObject(0, "Meadow"), bfObject(1, "Thicket")))
             val spec = TargetSpec.Enchantable(EnchantRestriction.FOREST)
             legalTargets(state, spec, alice, Chooser.Nobody) shouldContainExactly listOf(Target.Permanent(ObjectId(1)))
-            isTargetLegal(state, spec, Target.Permanent(ObjectId(0)), alice, Chooser.Nobody) shouldBe false
+            isTargetLegal(state, spec, Target.Permanent(ObjectId(0)), TargetCheck(alice, Chooser.Nobody)) shouldBe false
         }
 
         "CR 303.4a: enchant creature you control — control is ownership (§4), both directions" {

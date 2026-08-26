@@ -4,6 +4,7 @@ import dev.mtgplay.core.definition.AbilityCost
 import dev.mtgplay.core.definition.AbilityZoneScope
 import dev.mtgplay.core.definition.ActivatedAbility
 import dev.mtgplay.core.definition.ResolutionContext
+import dev.mtgplay.core.definition.TargetContext
 import dev.mtgplay.core.event.GameEvent
 import dev.mtgplay.core.identity.ObjectId
 import dev.mtgplay.core.identity.PlayerId
@@ -75,6 +76,11 @@ internal fun executeActivation(
     // CR 111.1 / CR 400.7: the ability is an object on the stack and gets an identity for that
     // residence, so a ward trigger can name it as the object to counter (`FW-WARD`).
     val (entryId, allocated) = state.allocateObjectId()
+    // CR 601.2b: settled before the targets on this path (`W9-C`), so it is always known by now; zero
+    // for the many abilities whose cost carries no {X}.
+    val chosenX =
+        pending.chosenX
+            ?: error("CR 601.2b: an activation's value of X must be announced before its cost is paid")
     // Capture the source's last-known information before any cost removes it (self-sacrifice, discard-self).
     val entry =
         StackEntry.ActivatedAbilityOnStack(
@@ -84,6 +90,7 @@ internal fun executeActivation(
             ability = ability,
             targets = targets,
             entryId = entryId,
+            chosenX = chosenX,
         )
     val cleared = allocated.copy(pendingActivation = null)
     establishActivationTargets(cleared, entry)
@@ -121,7 +128,16 @@ private fun establishActivationTargets(
     // is what makes this re-validation ask the identical question.
     // CR 601.2c: announceable, not merely legal — the same set the gathering offered, requirements and
     // all (`W8-G`). The CR 608.2b re-check below stays on `legalTargets`, where legality is the question.
-    val options = announceableTargets(state, spec, entry.controller, Chooser.Ability(entry.sourceCard))
+    // CR 601.2b: against the announced value of X the entry carries, which is what makes this the
+    // *identical* enumeration the choice was made from for a spec that reads it (`W9-C`).
+    val options =
+        announceableTargets(
+            state,
+            spec,
+            entry.controller,
+            Chooser.Ability(entry.sourceCard),
+            TargetContext(chosenX = entry.chosenX),
+        )
     requireWellFormedTargetChoice(spec, entry.targets, options.size, "${entry.sourceCard.name}'s ability")
     entry.targets.forEach { target ->
         require(target in options) {
@@ -143,10 +159,15 @@ private fun fizzleActivatedAbility(
     // CR 113.7a: an ability on the stack is not a card and has no residence id, so it excludes nothing.
     // CR 113.7c: its source's characteristics are last known information — which is exactly the case
     // here, since an ability whose cost sacrificed its own source is still on the stack.
-    val chooser = Chooser.Ability(entry.sourceCard)
-    if (!allTargetsIllegal(state, entry.ability.targetSpec, entry.targets, entry.controller, chooser)) {
-        return null
-    }
+    // CR 601.2b/608.2b: re-checked against the announced X the entry recorded, not against zero — an
+    // ability activated for X = 2 asks whether its target is *still* a mana-value-2 artifact.
+    val check =
+        TargetCheck(
+            entry.controller,
+            Chooser.Ability(entry.sourceCard),
+            TargetContext(chosenX = entry.chosenX),
+        )
+    if (!allTargetsIllegal(state, entry.ability.targetSpec, entry.targets, check)) return null
     val removed = state.updateStack { it.removingAt(it.lastIndex) }
     return grantPriorityRound(
         removed.emit(GameEvent.AbilityFizzled(entry.controller, entry.sourceCard, triggered = false)),
@@ -179,7 +200,10 @@ private fun payAbilityCost(
     val chosenReturn = pending.chosenReturn.orEmpty()
     return ability.cost.fold(state) { current, component ->
         when (component) {
-            is AbilityCost.Mana -> payManaPlan(current, payer, component.cost, plan)
+            // CR 601.2b/107.3: the announced value substituted in, which is the cost the plan was
+            // enumerated against; the identity for a component carrying no {X}.
+            is AbilityCost.Mana ->
+                payManaPlan(current, payer, component.cost.substitutingX(pending.chosenX ?: 0), plan)
             AbilityCost.TapSelf -> tapObjectForCost(current, source.id)
             AbilityCost.SacrificeSelf -> sacrificePermanents(current, payer, listOf(source.id))
             // CR 701.3a: the source leaves the battlefield for exile, not for a graveyard — so no dies
@@ -289,6 +313,9 @@ internal fun resolveActivatedAbility(
             source = entry.sourceId,
             // CR 120.1 + CR 113.7c: the ability's source object as of activation.
             sourceCard = entry.sourceCard,
+            // CR 107.3: the value announced when the ability was activated (`W9-C`), so an effect
+            // measured in X reads the same number the cost was paid at.
+            chosenX = entry.chosenX,
         )
     val resolved = entry.ability.effect.resolve(state, context)
     require(resolved.sharedZones.stack == state.sharedZones.stack) {

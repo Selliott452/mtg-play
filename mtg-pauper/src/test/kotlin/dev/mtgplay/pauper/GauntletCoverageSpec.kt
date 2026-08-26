@@ -53,17 +53,17 @@ class GauntletCoverageSpec :
                 listOf(
                     Pinned("Elves", 12, 16, 3, 5),
                     Pinned("Gates", 15, 17, 5, 5),
-                    Pinned("Grixis Affinity", 20, 22, 5, 7),
+                    Pinned("Grixis Affinity", 20, 22, 6, 7),
                     Pinned("GW Bogles", 18, 18, 8, 8),
                     Pinned("Jeskai Ephemerate", 21, 22, 6, 7),
-                    Pinned("Jund Wildfire", 18, 22, 6, 7),
+                    Pinned("Jund Wildfire", 18, 22, 7, 7),
                     // `FW-NINJUTSU` added Ninja of the Deep Hours and Harrier Strix: 6 -> 8.
                     // `W8-E` added Faerie Miscreant: 10 -> 11.
                     // `W9-A` added Moon-Circuit Hacker: 13 -> 14, and the mainboard is now whole.
                     Pinned("Mono Blue Faeries", 14, 14, 6, 6),
                     // `W9-A` added Tolarian Terror on `FW-WARD`: 12 -> 13.
                     Pinned("Mono-Blue Terror", 13, 14, 6, 6),
-                    Pinned("Mono-Red Madness", 12, 12, 4, 5),
+                    Pinned("Mono-Red Madness", 12, 12, 5, 5),
                     // `W8-E` added Rally at the Hornburg: 8 -> 9.
                     // `W9-A` added Clockwork Percussionist: 11 -> 12.
                     Pinned("Mono Red Rally", 12, 13, 5, 5),
@@ -120,11 +120,11 @@ private const val TOTAL_MISSING_MAIN = 15
 
 /** Distinct cards named by at least one gauntlet sideboard. */
 private const val TOTAL_DISTINCT_SIDEBOARD = 48
-private const val TOTAL_ENCODED_SIDEBOARD = 37
-private const val TOTAL_MISSING_SIDEBOARD = 11
+private const val TOTAL_ENCODED_SIDEBOARD = 40
+private const val TOTAL_MISSING_SIDEBOARD = 8
 
 /** The whole backlog: distinct undefined cards across both boards of all thirteen decks. */
-private const val TOTAL_MISSING_BOTH_BOARDS = 24
+private const val TOTAL_MISSING_BOTH_BOARDS = 21
 
 /** Of the backlog, the cards that appear only in sideboards. */
-private const val TOTAL_MISSING_SIDEBOARD_ONLY = 9
+private const val TOTAL_MISSING_SIDEBOARD_ONLY = 6

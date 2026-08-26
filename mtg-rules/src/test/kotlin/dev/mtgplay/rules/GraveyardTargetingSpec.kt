@@ -25,6 +25,7 @@ import dev.mtgplay.core.state.Target
 import dev.mtgplay.core.state.Turn
 import dev.mtgplay.core.state.TurnPhase
 import dev.mtgplay.rules.engine.Chooser
+import dev.mtgplay.rules.engine.TargetCheck
 import dev.mtgplay.rules.engine.isTargetLegal
 import dev.mtgplay.rules.engine.legalTargets
 import io.kotest.core.spec.style.StringSpec
@@ -119,7 +120,7 @@ class GraveyardTargetingSpec :
         "CR 400.7/608.2b: a card that has left the graveyard is no longer a legal target" {
             val state = graveyardState()
             val chosen = Target.CardInGraveyard(state.graveyardCard("Bolt Fixture", alice).id)
-            isTargetLegal(state, yourInstantOrSorcery, chosen, alice, Chooser.Nobody) shouldBe true
+            isTargetLegal(state, yourInstantOrSorcery, chosen, TargetCheck(alice, Chooser.Nobody)) shouldBe true
 
             // Remove it from the graveyard, as any return-to-hand or exile effect would (CR 400.7 mints a
             // fresh id in the new zone), and the stale target names nothing anywhere.
@@ -133,7 +134,7 @@ class GraveyardTargetingSpec :
                             },
                         ),
                 )
-            isTargetLegal(moved, yourInstantOrSorcery, chosen, alice, Chooser.Nobody) shouldBe false
+            isTargetLegal(moved, yourInstantOrSorcery, chosen, TargetCheck(alice, Chooser.Nobody)) shouldBe false
         }
 
         "CR 109.3: an undefined card ref in a graveyard is inert and is never offered" {

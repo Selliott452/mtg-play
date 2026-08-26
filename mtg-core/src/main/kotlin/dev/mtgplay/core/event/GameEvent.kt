@@ -197,9 +197,32 @@ sealed interface GameEvent {
     ) : GameEvent
 
     /**
+     * A copy of a spell was put onto the stack (CR 707.10a) — storm's copies (CR 702.40a). Additive,
+     * flagged core (`W9-C`).
+     *
+     * Distinct from [SpellCast] on purpose and the distinction is a rule, not bookkeeping: a copy **is
+     * not cast** (CR 707.10a), so it fires no cast trigger, feeds no storm count, and is never announced
+     * as a cast. Emitting [SpellCast] for it would be the single most expensive one-line lie available
+     * here — a storm spell would grow its own count.
+     *
+     * @property controller the player who controls the copy (CR 707.10a — the copy's controller is the
+     *   player who put it on the stack, which for storm is the original's controller).
+     * @property originalObjectId the stack id of the spell that was copied.
+     * @property card the printed identity both objects share (CR 707.2).
+     * @property copyObjectId the fresh id the copy carries on the stack (CR 400.7).
+     */
+    data class SpellCopied(
+        val controller: PlayerId,
+        val originalObjectId: ObjectId,
+        val card: CardRef,
+        val copyObjectId: ObjectId,
+    ) : GameEvent
+
+    /**
      * The spell [objectId], controlled by [controller], resolved (CR 608.2): its instructions
      * were performed, and the card was put into its owner's graveyard as the new object
-     * [graveyardObjectId] (CR 608.2m, CR 400.7).
+     * [graveyardObjectId] (CR 608.2m, CR 400.7) — or, for a **copy** (CR 707.10a), ceased to exist, in
+     * which case [graveyardObjectId] repeats [objectId] because nothing was reborn.
      */
     data class SpellResolved(
         val controller: PlayerId,

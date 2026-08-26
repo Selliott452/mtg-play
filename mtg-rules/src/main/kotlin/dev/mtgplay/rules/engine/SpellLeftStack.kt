@@ -27,13 +27,16 @@ import dev.mtgplay.core.state.StackEntry
  * The outcome of a spell's card leaving the stack.
  *
  * @property state the successor state, with the entry gone from the stack and its card in its new zone.
- * @property newObjectId the id the card was reborn under in that zone (CR 400.7).
+ * @property newObjectId the id the card was reborn under in that zone (CR 400.7) — or, for a **copy**
+ *   that ceased to exist (CR 707.10a), the id it had on the stack, since nothing was reborn.
  * @property exiled whether it went to exile rather than a graveyard (CR 702.34e); the caller narrates.
+ * @property ceased whether the departing spell was a copy and so simply stopped existing (`W9-C`).
  */
 internal data class SpellLeftStack(
     val state: GameState,
     val newObjectId: ObjectId,
     val exiled: Boolean,
+    val ceased: Boolean = false,
 )
 
 /**
@@ -61,6 +64,15 @@ internal fun putSpellOffStack(
     val index = state.sharedZones.stack.indexOfFirst { (it as? StackEntry.Spell)?.obj?.id == entry.obj.id }
     check(index >= 0) {
         "CR 400.7: ${entry.obj.card.name} (${entry.obj.id}) is not on the stack, so it cannot leave it"
+    }
+    // CR 707.10a / CR 704.5e: a copy of a spell is not a card, so there is nothing to put anywhere — it
+    // leaves the stack and ceases to exist. The CR reaches the same place by moving it to a graveyard and
+    // then having a state-based action delete it, which is unobservable here: state-based actions run
+    // before any player receives priority, so no card in the pool can see a copy sitting in a graveyard.
+    // Doing it in one step also keeps the card census exact, since a copy is not a conserved card at all.
+    if (entry.isCopy) {
+        val ceased = state.updateStack { it.removingAt(index) }
+        return SpellLeftStack(ceased, entry.obj.id, exiled = false, ceased = true)
     }
     val exilesInstead = entry.castVia?.exilesOnLeaveStack == true || exileInstead
     val (id, allocated) = state.allocateObjectId()

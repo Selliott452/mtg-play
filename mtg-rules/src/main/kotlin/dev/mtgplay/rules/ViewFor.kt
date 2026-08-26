@@ -106,6 +106,7 @@ private fun playerViewOf(
         attemptedDrawFromEmptyLibrary = player.attemptedDrawFromEmptyLibrary,
         decisionsAnswered = player.decisionsAnswered,
         drawsThisTurn = player.drawsThisTurn,
+        landsEnteredThisTurn = player.landsEnteredThisTurn,
         combatPhasesToSkip = player.combatPhasesToSkip,
     )
 

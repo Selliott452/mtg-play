@@ -423,6 +423,25 @@ import dev.mtgplay.core.identity.CardRef
  * (adventure) and **Sagu Wildling** (omen) are one card with two castable halves, and
  * [dev.mtgplay.core.card.PrintedCharacteristics] carries one face. That is the blocker the deferred-ten
  * note identified correctly, and it is unchanged.
+ *
+ * The `W9-C` packet adds three cards that share one property — a targeting line whose legal set is **not a
+ * function of the board alone** (docs/design/dependent-targets.md). [searingBlaze] (BurnAndRemoval.kt) is
+ * the first card in the pool to print the word "target" **twice**, and its second instance depends on the
+ * first ("target creature *that player* controls"), so the lines are gathered in printed order with each
+ * one's option set a function of the answers already given — the *list* of targeting lines
+ * `TargetCount`'s KDoc and docs/design/multi-target.md §8 both named and declined. [gorillaShaman]
+ * (AbilityX.kt) is the first **activated ability with a variable cost**, and the first object anywhere
+ * whose targets depend on a *cost announcement*, which is why the activation path now announces X at
+ * CR 601.2b's printed position while the cast path keeps its deviation. [weatherTheStorm] (Storm.kt) is
+ * the pool's only **storm** card and the first client of a spell-copying primitive (CR 707.10a); it is the
+ * gentlest possible one, because it targets nothing, so CR 702.40a's "you may choose new targets for any
+ * of the copies" is vacuous on it rather than approximated.
+ *
+ * That packet's fourth card, **Kaervek's Torch**, is absent, and its standing diagnosis turned out to be
+ * stale in an instructive direction: `FW-TGTCOND` had since made target enumeration consult affordability,
+ * which is exactly what its tax needs — but only the *filter* half runs that way. The castability *gate*
+ * prices at "no targets", which is the safe direction for a cost reduction and the unsafe one for a cost
+ * increase. BurnAndRemoval.kt carries the full re-examination.
  */
 object MvpCards {
     /** Every defined card, keyed by its printed-name [CardRef] (CR 201). */
@@ -502,6 +521,7 @@ object MvpCards {
             gnawToTheBone,
             godPharaohsFaithful,
             goblinTombRaider,
+            gorillaShaman,
             grabThePrize,
             greatFurnace,
             grizzlyBears,
@@ -576,6 +596,7 @@ object MvpCards {
             saruliCaretaker,
             scourFromExistence,
             seaGateOracle,
+            searingBlaze,
             seatOfTheSynod,
             sentinelsEyes,
             sewerVeillanceCam,
@@ -625,6 +646,7 @@ object MvpCards {
             volatileFjord,
             voldarenEpicure,
             wallOfRoots,
+            weatherTheStorm,
             wellwisher,
             wildGrowth,
             windDrake,

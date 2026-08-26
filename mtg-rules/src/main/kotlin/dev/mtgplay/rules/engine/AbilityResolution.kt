@@ -147,7 +147,13 @@ private fun fizzleTrigger(
     // against — the same [Chooser.Ability] `TriggerTargeting.kt` enumerated the CR 603.3d choice with,
     // which is what keeps this re-check from drifting from that choice (ADR-005).
     val chooser = Chooser.Ability(trigger.sourceCard)
-    if (!allTargetsIllegal(state, trigger.ability.targetSpec, entry.targets, trigger.controller, chooser)) {
+    if (!allTargetsIllegal(
+            state,
+            trigger.ability.targetSpec,
+            entry.targets,
+            TargetCheck(trigger.controller, chooser),
+        )
+    ) {
         return null
     }
     return abilityLeftStackDoingNothing(
@@ -202,6 +208,9 @@ private fun resolveOrchestratedTrigger(
 ): AdvanceResult? =
     when {
         entry.trigger.ability.condition == TriggerCondition.MadnessCast -> resolveMadnessTrigger(state, entry)
+        // CR 702.40a: storm copies the spell it fired from — an engine move (CR 707.10), like the two
+        // reflexive casts beside it, and not something a [ResolutionEffect] could perform.
+        entry.trigger.ability.condition == TriggerCondition.StormCast -> resolveStormTrigger(state, entry)
         entry.trigger.ability.condition == TriggerCondition.ReboundCast -> resolveReboundTrigger(state, entry)
         entry.trigger.ability.condition == TriggerCondition.CascadeCast -> resolveCascadeTrigger(state, entry)
         entry.trigger.ability.optionalDiscardDraw != null -> resolveOptionalDiscardDrawTrigger(state, entry)

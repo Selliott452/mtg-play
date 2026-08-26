@@ -20,8 +20,10 @@ import dev.mtgplay.core.identity.ObjectId
 import dev.mtgplay.core.mana.ManaCost
 import dev.mtgplay.core.state.GameState
 import dev.mtgplay.core.state.Target
+import dev.mtgplay.rules.effect.dealDamage
 import dev.mtgplay.rules.effect.destroy
 import dev.mtgplay.rules.effect.exilePermanent
+import dev.mtgplay.rules.effect.hadLandEnterThisTurn
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.persistentSetOf
 
@@ -50,23 +52,49 @@ import kotlinx.collections.immutable.persistentSetOf
  * then narrowed to the choices the seat can actually pay for — so a two-mana Ride's End is offered
  * exactly when a tapped permanent is on the board and never offered as a line that dead-ends mid-cast.
  *
+ * ## `W9-C` reopened two of the drops, and added a third
+ *
+ * **[searingBlaze]** was the packet's twice-blocked card and is now encoded. Both blockers were real and
+ * both are closed by one framework: [dev.mtgplay.core.definition.SpellDefinition.additionalTargetSpecs]
+ * gives a spell a *list* of targeting lines (the shape `TargetCount`'s KDoc and
+ * docs/design/multi-target.md §8 both named), and [dev.mtgplay.core.definition.TargetContext] lets a
+ * later line read the answers already given, which is what "that player" needs. Landfall — the third,
+ * smaller gap — is [dev.mtgplay.core.state.PlayerState.landsEnteredThisTurn], counted at the single
+ * battlefield-entry site and read on **resolution** (CR 608.2), not at cast.
+ *
+ * **Gorilla Shaman** is encoded in `AbilityX.kt`, not here: its blocker was the activation path's missing
+ * CR 601.2b announcement of X and the ordering that announcement forces, which is a framework rather than
+ * a burn card. The note this file carried was accurate except for the cost, which the oracle text gives as
+ * `{X}{X}{1}` rather than `{X}{X}`.
+ *
+ * **[kaerveksTorch]** is *not* encoded, and its diagnosis has changed rather than merely persisted — see
+ * the drop note below, which supersedes `FW-X`'s.
+ *
  * ## Dropped, with what each needs
  *
- * - **Searing Blaze** `{R}{R}` — "deals 1 damage to target player or planeswalker **and** 1 damage to
- *   target creature that player or that planeswalker's controller controls." Two things, either alone
- *   sufficient to keep it out. (1) It prints **two separate instances of the word "target"**, and
- *   [TargetCount]'s own KDoc records that as deliberately unmodelled: a spec is one noun with one
- *   cardinality, and a card with two targeting lines needs a *list* of them
- *   (docs/design/multi-target.md §7). (2) The second instance is **dependent** on the first — its legal
- *   set is "creatures that specific player controls" — so even a list of lines would not do: enumerating
- *   line two requires line one's answer, which is a CR 601.2c ordering the gathering does not have. Its
- *   landfall clause is a third, smaller gap ("a land entered the battlefield under your control this
- *   turn" is a per-turn fact [dev.mtgplay.core.state.Turn] does not keep, checked on *resolution* per
- *   CR 608.2), and it is not worth adding for a card blocked twice over.
+ * - **Kaervek's Torch** `{X}{R}` — "As long as Kaervek's Torch is on the stack, spells that target it
+ *   cost {2} more to cast. Kaervek's Torch deals X damage to any target." Its damage line is trivial now
+ *   that `FW-X` has landed; the tax is what keeps it out, and the reason is **not** the one `FW-COST` and
+ *   `W8-C` recorded. That diagnosis said target enumeration would have to consult affordability, and
+ *   `FW-TGTCOND` has since made it do exactly that — [affordableTargetOptions] already drops a target
+ *   whose resulting total cost the caster cannot pay, which is precisely the shape a counterspell facing
+ *   the Torch needs. The **filter** half therefore runs the right way.
  *
- *   One correction to the packet brief: **"target player or planeswalker" is target player here**, since
- *   Pauper prints no planeswalker (CR 306) and none is in the gauntlet — but that narrowing is not what
- *   keeps the card out and does not shrink the gap.
+ *   The **gate** half runs the wrong way, and it is the half that matters. `cheapestTargetsFor` prices a
+ *   cast's legality at *no targets at all* for every card without a target-conditional reduction, which is
+ *   the safe direction for a reduction — pricing without the discount can only over-charge — and the
+ *   unsafe one for an increase: with Kaervek's Torch the only spell on the stack, `castIsLegal` would
+ *   admit a Counterspell at `{U}{U}`, the filter would then remove its only option, and `targetRequest`
+ *   refuses an empty option list in its `init`. That is a crash rather than a missing line. Making it
+ *   correct means pricing the gate at the *minimum over legal target choices* — a payment enumeration per
+ *   candidate target on every cast in the priority window — which is a change to the legality path of
+ *   every card in the pool for one card, the same trade `W9-C` refused for Gorilla Shaman's option (a).
+ *
+ *   Two smaller gaps remain either way. There is **no declaration for a cost increase** at all
+ *   (docs/design/cost-modification.md §3 populates the slot with nothing on purpose), and the one needed
+ *   here is a shape no existing modifier has: a static ability of an object **on the stack**, taxing
+ *   *another* player's spell, keyed on that spell's chosen targets. Encoding the Torch without the tax
+ *   would delete the reason the card is played.
  *
  * - **Torch the Tower** `{R}` — four gaps, and the third is the real one. (1) **Bargain** (CR 701.53) is
  *   an *optional additional* cost that sacrifices a permanent;
@@ -84,18 +112,6 @@ import kotlinx.collections.immutable.persistentSetOf
  *   Encoding the card without (3) would delete the reason it is played, which is what the drop rule
  *   forbids.
  *
- * - **Gorilla Shaman** `{R}` — "`{X}{X}{1}`: Destroy target noncreature artifact with mana value X."
- *   `FW-X` landed for **spells** only: [dev.mtgplay.core.state.PendingActivation] has no `chosenX`, no
- *   activation surfaces a `ChooseXValue`, and `announcesX`/`xValueOptions` are reachable only from the
- *   cast pipeline. Adding that is mechanical. What is not is the ordering: the target restriction is a
- *   function of the announced X, so X must be announced **before** targets (CR 601.2b before CR 601.2c) —
- *   and `PendingCastRequest.kt`'s header records that this engine deliberately settles both cost
- *   announcements *after* the target stage, so their affordability bound can use the exact reservation.
- *   That header names the card that would force the order back ("a card printing 'X target creatures'");
- *   Gorilla Shaman is that card, and it must take the weaker reservation with it. A third piece: a
- *   restriction that reads a *number chosen this activation* is a shape
- *   [PermanentRestriction] cannot express at all, since it is a closed enum of board questions.
- *
  * - **Cleansing Wildfire** `{1}{R}` — "Destroy target land. Its controller **may** search their library
  *   for a basic land card, put it onto the battlefield tapped, then shuffle. Draw a card." Three gaps in
  *   the CR 701.18 search clause. (1) **The decider is not the resolving spell's controller** — it is the
@@ -111,6 +127,12 @@ import kotlinx.collections.immutable.persistentSetOf
  *   different card off a different library. `FW-CLAUSEHOOK` shipped a *post*-resolution hook; this needs
  *   a mid-resolution one.
  */
+
+/** Searing Blaze's damage to each of its two targets without landfall (CR 119.3). */
+const val SEARING_BLAZE_DAMAGE: Int = 1
+
+/** Searing Blaze's damage to each of its two targets with landfall (CR 702.135a). */
+const val SEARING_BLAZE_LANDFALL_DAMAGE: Int = 3
 
 /** The artifacts Dust to Dust exiles (CR 115.1). */
 private const val DUST_TO_DUST_TARGETS: Int = 2
@@ -336,3 +358,86 @@ private fun destroyTriggerSubject(
     val target = subject ?: error("CR 603.10: a 'destroy it' trigger fires with the permanent it acts on")
     return if (state.sharedZones.battlefield.any { it.id == target }) destroy(state, target) else state
 }
+
+/**
+ * Searing Blaze — `{R}{R}` Instant.
+ * "Searing Blaze deals 1 damage to target player or planeswalker and 1 damage to target creature that
+ * player or that planeswalker's controller controls.
+ * Landfall — If you had a land enter the battlefield under your control this turn, Searing Blaze deals 3
+ * damage to that player or planeswalker and 3 damage to that creature instead."
+ *
+ * **Two instances of the word "target", and the second depends on the first.** That is the whole reason
+ * the card was blocked twice over, and both halves are now framework rather than card:
+ * [additionalTargetSpecs] gives the spell a second targeting line, and
+ * [PermanentRestriction.CREATURE_CONTROLLED_BY_TARGETED_PLAYER] reads the first line's answer out of the
+ * [dev.mtgplay.core.definition.TargetContext] the engine threads into the enumeration. The engine asks for
+ * the player first and then offers only that player's creatures — which is CR 601.2c's printed order and
+ * is not a choice this definition makes.
+ *
+ * **"Target player or planeswalker" is encoded as target player, and that is exact rather than a
+ * narrowing.** Pauper's card pool contains no planeswalker (CR 306 — planeswalkers are rare or mythic and
+ * never common), and none is in the gauntlet, so the disjunction has exactly one live arm. Saying so here
+ * rather than silently dropping the word is the point: if a planeswalker ever entered the pool this line
+ * would need a [TargetSpec] admitting both, and the second line's "that player **or that planeswalker's
+ * controller**" would need to resolve a controller rather than read a player id.
+ *
+ * **It cannot be cast without a creature to point at.** CR 601.2c requires every instance of the word
+ * "target" to have a legal choice, so a Searing Blaze with an empty battlefield is simply not an option in
+ * the priority window — and the gate is a *search*, not two independent tests: the card is castable
+ * exactly when some player has a creature its caster may target, which is why a hexproof-only board makes
+ * it uncastable even though both a player and a creature exist.
+ *
+ * **Landfall is checked on resolution, not on cast** (CR 608.2). Playing a land after casting Searing
+ * Blaze but before it resolves is not possible in a priority window, but *another* land entering — a
+ * search, a return — during the response is, so the read has to be live. It reads
+ * [dev.mtgplay.core.state.PlayerState.landsEnteredThisTurn], which counts **entries** rather than land
+ * drops: a land put onto the battlefield without being played still turns landfall on, and encoding it
+ * against the land-drop counter would be a wrong card in a gauntlet holding fetch effects.
+ *
+ * **The damage is one amount applied twice, not two decisions.** Both halves scale together — 1 and 1, or
+ * 3 and 3 — so landfall is read once and the same number is dealt to each target, in printed order
+ * (player first). Dealing them in that order matters: damage to a player can end the game, and the CR's
+ * own order is the printed one.
+ *
+ * **A partly-illegal Searing Blaze still resolves** (CR 608.2b): if the creature has died in response but
+ * the player is still there, the spell resolves and deals its damage to the player alone. Only when
+ * *every* target is illegal does it fail to resolve — which for this card means the creature is gone and
+ * the player has left the game, i.e. the game is over (CR 104.2a). The effect therefore looks each target
+ * up rather than assuming both are present.
+ */
+val searingBlaze: SpellDefinition =
+    object : SpellDefinition {
+        override val characteristics =
+            PrintedCharacteristics(
+                name = "Searing Blaze",
+                manaCost = ManaCost.parse("{R}{R}"),
+                supertypes = persistentSetOf(),
+                cardTypes = persistentSetOf(CardType.INSTANT),
+                subtypes = persistentSetOf(),
+                powerToughness = null,
+            )
+
+        override val timing = TimingClass.INSTANT_SPEED
+
+        // CR 115.1a: the first printed instance of the word "target". "Or planeswalker" has no live arm
+        // in Pauper (CR 306) — see the KDoc, which says so rather than letting the omission pass silently.
+        override val targetSpec = TargetSpec.TargetPlayer(TargetCount.ONE)
+
+        // CR 115.1b: the second instance, dependent on the first (`W9-C`).
+        override val additionalTargetSpecs =
+            persistentListOf<TargetSpec>(
+                TargetSpec.TargetPermanent(PermanentRestriction.CREATURE_CONTROLLED_BY_TARGETED_PLAYER),
+            )
+        override val resolution =
+            ResolutionEffect { state, context ->
+                // CR 702.135a / CR 608.2: landfall is a fact about *this turn*, read as the spell
+                // resolves rather than as it was cast.
+                val landfall = hadLandEnterThisTurn(state, context.controller)
+                val damage = if (landfall) SEARING_BLAZE_LANDFALL_DAMAGE else SEARING_BLAZE_DAMAGE
+                // CR 608.2b: a target that has become illegal is skipped and the rest of the spell still
+                // happens, so each is dealt with independently and in printed order.
+                context.targets.fold(state) { current, target ->
+                    dealDamage(current, context.damageSource(), target, damage)
+                }
+            }
+    }

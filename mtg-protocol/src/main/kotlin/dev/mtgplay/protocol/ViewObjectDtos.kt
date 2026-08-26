@@ -143,6 +143,7 @@ data class PlayerViewDto(
     val attemptedDrawFromEmptyLibrary: Boolean,
     val decisionsAnswered: Int,
     val drawsThisTurn: Int,
+    val landsEnteredThisTurn: Int,
     val combatPhasesToSkip: Int = 0,
 )
 
@@ -159,6 +160,7 @@ fun PlayerView.toDto(): PlayerViewDto =
         attemptedDrawFromEmptyLibrary = attemptedDrawFromEmptyLibrary,
         decisionsAnswered = decisionsAnswered,
         drawsThisTurn = drawsThisTurn,
+        landsEnteredThisTurn = landsEnteredThisTurn,
         combatPhasesToSkip = combatPhasesToSkip,
     )
 
@@ -175,5 +177,6 @@ fun PlayerViewDto.toDomain(): PlayerView =
         attemptedDrawFromEmptyLibrary = attemptedDrawFromEmptyLibrary,
         decisionsAnswered = decisionsAnswered,
         drawsThisTurn = drawsThisTurn,
+        landsEnteredThisTurn = landsEnteredThisTurn,
         combatPhasesToSkip = combatPhasesToSkip,
     )

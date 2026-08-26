@@ -2,6 +2,7 @@ package dev.mtgplay.rules.engine
 
 import dev.mtgplay.core.card.Keyword
 import dev.mtgplay.core.definition.GraveyardScope
+import dev.mtgplay.core.definition.TargetContext
 import dev.mtgplay.core.definition.TargetCount
 import dev.mtgplay.core.definition.TargetSpec
 import dev.mtgplay.core.identity.PlayerId
@@ -106,12 +107,22 @@ import dev.mtgplay.core.state.Target
  * (CR 601.2c) be enforced as *distinct indices* on the answer: distinct indices into a duplicate-free
  * list are distinct objects. `MultiTargetSpec` pins the invariant directly rather than leaving it here
  * as a comment.
+ *
+ * **[context] is what the choosing object has already settled** (`W9-C`,
+ * docs/design/dependent-targets.md §1): the value announced for its variable cost (CR 601.2b) and the
+ * targets chosen for its *earlier* targeting lines (CR 601.2c). It reaches only
+ * [satisfiesPermanentRestriction], whose two dependent members are the whole reason it exists; every other
+ * branch below is a function of the board, the deciding player, and the chooser exactly as it was. The
+ * default is [TargetContext.NONE], which fails closed — a forgotten context under-offers rather than
+ * offering an illegal option — and every site that has something to say passes it, the CR 608.2b re-check
+ * included, so choice-time and resolution-time enumerations still cannot drift (ADR-005).
  */
 internal fun legalTargets(
     state: GameState,
     spec: TargetSpec,
     you: PlayerId,
     chooser: Chooser,
+    context: TargetContext = TargetContext.NONE,
 ): List<Target> =
     when (spec) {
         TargetSpec.None -> emptyList()
@@ -134,7 +145,7 @@ internal fun legalTargets(
         is TargetSpec.TargetPermanent ->
             state.sharedZones.battlefield
                 .filter {
-                    satisfiesPermanentRestriction(state, spec.restriction, it, you) &&
+                    satisfiesPermanentRestriction(state, spec.restriction, it, you, context) &&
                         targetableBy(state, it, you, chooser)
                 }.map { Target.Permanent(it.id) }
         is TargetSpec.Enchantable ->
@@ -301,9 +312,30 @@ internal fun isTargetLegal(
     state: GameState,
     spec: TargetSpec,
     target: Target,
-    you: PlayerId,
-    chooser: Chooser,
-): Boolean = target in legalTargets(state, spec, you, chooser)
+    check: TargetCheck,
+): Boolean = target in legalTargets(state, spec, check.controller, check.chooser, check.context)
+
+/**
+ * Everything a CR 608.2b re-check needs about *who* is re-checking and *what they had already settled*,
+ * bundled so the verdict functions stay readable (`W9-C`).
+ *
+ * The three travel together at every call site and always have: [controller] is the resolving object's
+ * controller (CR 608.2b re-checks for the same player who chose), [chooser] is the resolving object
+ * itself — a spell by its id, an ability by its source's printed identity (CR 113.7b/c) — and [context]
+ * is what that object announced or chose earlier, which two restrictions read. Keeping them as one value
+ * is also a correctness aid rather than only a tidiness one: a call site cannot supply the controller
+ * from one object and the chooser from another.
+ *
+ * @property controller the resolving object's controller (CR 608.2b).
+ * @property chooser the resolving object, for CR 702.16b's source test.
+ * @property context the announcements and earlier target choices the object had settled (`W9-C`);
+ *   [TargetContext.NONE] for the many objects with nothing settled.
+ */
+internal data class TargetCheck(
+    val controller: PlayerId,
+    val chooser: Chooser,
+    val context: TargetContext = TargetContext.NONE,
+)
 
 /**
  * The CR 608.2b verdict, shared by every resolution: whether a resolving object that targets has **all**
@@ -330,16 +362,16 @@ internal fun isTargetLegal(
  * that could not be filled. Without the count these two are indistinguishable, and reading them the
  * same way silently deletes the non-targeting half of every "up to" card in the pool.
  *
- * [chooser] is the resolving object itself — [Chooser.Spell] by its own id, or [Chooser.Ability] by its
- * source's identity, an ability having no id of its own (CR 113.7a). It keeps the re-check's enumeration
- * identical to the one the choice was made from, protection (CR 702.16b) included.
+ * [check] carries the resolving object itself — [Chooser.Spell] by its own id, or [Chooser.Ability] by
+ * its source's identity, an ability having no id of its own (CR 113.7a) — its controller, and whatever it
+ * had announced or already chosen. It keeps the re-check's enumeration identical to the one the choice was
+ * made from, protection (CR 702.16b) and a dependent restriction (`W9-C`) included.
  */
 internal fun allTargetsIllegal(
     state: GameState,
     spec: TargetSpec,
     targets: List<Target>,
-    controller: PlayerId,
-    chooser: Chooser,
+    check: TargetCheck,
 ): Boolean =
     when {
         // An object that targets nothing has nothing to re-check (this also covers TargetSpec.None,
@@ -348,7 +380,7 @@ internal fun allTargetsIllegal(
         // CR 601.2c/603.3d: a required instance of the word "target" that was never filled. The
         // "up to N" case reaches here with minimum 0 and resolves, doing what it can.
         targets.isEmpty() -> spec.count.minimum > 0
-        else -> targets.none { isTargetLegal(state, spec, it, controller, chooser) }
+        else -> targets.none { isTargetLegal(state, spec, it, check) }
     }
 
 /**
@@ -392,7 +424,8 @@ internal fun targetChoiceIsVacuous(
     spec: TargetSpec,
     you: PlayerId,
     chooser: Chooser,
-): Boolean = spec.count.maximum == 0 || legalTargets(state, spec, you, chooser).isEmpty()
+    context: TargetContext = TargetContext.NONE,
+): Boolean = spec.count.maximum == 0 || legalTargets(state, spec, you, chooser, context).isEmpty()
 
 /**
  * Fails loudly unless [targets] is a well-formed choice for [spec] (CR 601.2c) — the arity and

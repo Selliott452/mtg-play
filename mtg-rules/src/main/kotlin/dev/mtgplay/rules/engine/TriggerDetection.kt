@@ -9,6 +9,7 @@ import dev.mtgplay.core.identity.PlayerId
 import dev.mtgplay.core.state.GameObject
 import dev.mtgplay.core.state.GameState
 import dev.mtgplay.core.state.PendingTrigger
+import dev.mtgplay.rules.effect.countLandfall
 
 /*
  * Trigger detection (CR 603.3): the honest watch mechanism for the immutable-transition engine.
@@ -207,13 +208,21 @@ internal fun detectEnterBattlefieldTriggers(
  * remember separately, and one that forgot would be silently wrong rather than broken. Recording it here
  * makes the fact and the announcement the same indivisible step. The stamp precedes detection so a
  * CR 603.6a trigger that reads it (an intervening-if, a clause) sees the entry it fired for.
+ *
+ * **And it counts landfall** (`W9-C`, CR 702.157a) — a third fact hung on this one home, for the third
+ * time and for the same reason. Two packets in the same wave independently chose this site, which is
+ * the strongest evidence yet that consolidating the entry paths was the right call.
  */
 internal fun announceBattlefieldEntry(
     state: GameState,
     battlefieldId: ObjectId,
     announcement: GameEvent,
 ): GameState {
-    val announced = state.emit(announcement)
+    // CR 702.157a: the landfall tally is counted here for the same reason the stamp below is written
+    // here — a second entry path that forgot it would be silently wrong, and this is the one home
+    // every entry path shares (`W9-C`). Counted before the announcement so a trigger that reads it
+    // sees the land that fired it.
+    val announced = countLandfall(state, battlefieldId).emit(announcement)
     val index = announced.sharedZones.battlefield.indexOfFirst { it.id == battlefieldId }
     val stamped =
         if (index < 0) {

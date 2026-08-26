@@ -36,6 +36,7 @@ object CreatureType {
     val CREATURE_TYPES: Set<Subtype> =
         subtypesOf(
             """
+            Ape
             Bear
             Beast
             Bird

@@ -1,6 +1,7 @@
 package dev.mtgplay.rules.engine
 
 import dev.mtgplay.core.card.Subtype
+import dev.mtgplay.core.definition.TargetContext
 import dev.mtgplay.core.definition.TargetSpec
 import dev.mtgplay.core.definition.TargetingRequirement
 import dev.mtgplay.core.identity.PlayerId
@@ -56,7 +57,8 @@ internal fun announceableTargets(
     spec: TargetSpec,
     you: PlayerId,
     chooser: Chooser,
-): List<Target> = obeyingTargetingRequirements(state, spec, you, legalTargets(state, spec, you, chooser))
+    context: TargetContext = TargetContext.NONE,
+): List<Target> = obeyingTargetingRequirements(state, spec, you, legalTargets(state, spec, you, chooser, context))
 
 /**
  * [pool], narrowed to the choices that obey the targeting requirements standing against [you]

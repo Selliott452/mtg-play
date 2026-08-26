@@ -76,7 +76,10 @@ internal fun someModeIsCastable(
     chooser: Chooser,
 ): Boolean =
     if (definition.modes.isEmpty()) {
-        targetsAvailable(state, definition.targetSpec, seat, chooser)
+        // CR 601.2c (`W9-C`): every printed instance of the word "target" must have a legal choice, and
+        // for a card whose later line depends on an earlier one that is a search rather than a
+        // conjunction — see `TargetLines.kt`. A one-line card takes the same single test it always did.
+        targetLinesSatisfiable(state, targetLinesOf(definition, emptyList()), seat, chooser)
     } else {
         castableModes(state, definition, seat, chooser).isNotEmpty()
     }

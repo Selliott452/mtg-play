@@ -80,7 +80,10 @@ internal fun pendingCastRequest(
         // CR 601.2c: then targets, enumerated against the spec the settled mode put in force. The modes
         // are non-null in this branch, but they are a cross-module property so the compiler will not
         // smart-cast them; `orEmpty()` is the same value, and a non-modal card's is empty anyway.
-        cast.chosenTargets == null -> targetsRequestFor(state, cast, definition, card.card, id)
+        // CR 601.2c: then targets — one request per printed instance of the word "target", in printed
+        // order, because a later line may read the answer to an earlier one (`W9-C`, Searing Blaze).
+        !targetLinesSettled(targetLinesOf(definition, cast.chosenModes.orEmpty()), cast.chosenTargets) ->
+            targetsRequestFor(state, cast, definition, card.card, id)
         // CR 601.2b: then any additional "exile N other cards" cost selection (escape).
         cast.additionalExileCost == null -> chooseCardsToExileRequest(state, cast, card.card, id)
         // CR 601.2h: then any non-mana sacrifice cost selection (Fireblast, Lava Dart).
@@ -153,12 +156,21 @@ private fun targetsRequestFor(
     card: CardRef,
     id: DecisionRequestId,
 ): DecisionRequest {
-    val spec = effectiveTargetSpec(definition, cast.chosenModes.orEmpty())
+    val lines = targetLinesOf(definition, cast.chosenModes.orEmpty())
+    val chosen = cast.chosenTargets.orEmpty()
+    // CR 601.2c (`W9-C`): the first instance of the word "target" still owed a choice. For a one-line
+    // card that is always line zero and the record is always empty here, so this is the same request the
+    // framework built before.
+    val lineIndex = firstUnsettledLine(lines, chosen) ?: 0
+    val spec = lines[lineIndex]
+    // The earlier lines' answers travel to the enumerator as a [TargetContext], which is what lets
+    // Searing Blaze's second line say "that player" (`W9-C`).
+    val context = contextForLine(lines, chosen, lineIndex)
     // Two independent narrowings, and neither subsumes the other: `announceableTargets`
     // applies board-derived targeting *requirements* (CR 601.2c — a Flagbearer must be chosen
     // if able), and `affordableTargetOptions` drops choices the caster could not then pay for
     // (`FW-TGTCOND`). Offering a target that fails either is an enumerated-but-illegal action.
-    val legal = announceableTargets(state, spec, cast.caster, Chooser.Spell(cast.cardObjectId))
+    val legal = announceableTargets(state, spec, cast.caster, Chooser.Spell(cast.cardObjectId), context)
     return targetRequest(
         id = id,
         cardObjectId = cast.cardObjectId,

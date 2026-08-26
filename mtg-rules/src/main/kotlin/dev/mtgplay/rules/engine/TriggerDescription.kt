@@ -41,6 +41,7 @@ internal fun describeCondition(condition: TriggerCondition): String =
         TriggerCondition.MadnessCast,
         TriggerCondition.ReboundCast,
         TriggerCondition.CascadeCast,
+        TriggerCondition.StormCast,
         -> describeCastCondition(condition)
     }
 
@@ -61,6 +62,7 @@ private fun describeCastCondition(condition: TriggerCondition): String =
         TriggerCondition.MadnessCast -> "madness-may-cast"
         TriggerCondition.ReboundCast -> "rebound-may-cast"
         TriggerCondition.CascadeCast -> "cascade"
+        TriggerCondition.StormCast -> "storm"
         // Reachable only by calling this directly with a zone-shaped condition, which the one caller
         // above never does; listed rather than `else`d so the exhaustiveness check still bites.
         TriggerCondition.EnteredBattlefieldSelf,

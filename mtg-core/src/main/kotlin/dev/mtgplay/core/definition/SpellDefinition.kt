@@ -219,4 +219,56 @@ interface SpellDefinition :
      * [CastingPermission.Cascade], then bottom the rest through the match PRNG (ADR-006).
      */
     val cascade: Boolean get() = false
+
+    /**
+     * Whether this spell has **storm** (CR 702.40a), the keyword Weather the Storm prints. Additive,
+     * flagged core (`W9-C`, docs/design/dependent-targets.md §4).
+     *
+     * A `Boolean` for [rebound]'s reason: CR 702.40a spells the keyword out in full — *"When you cast this
+     * spell, copy it for each spell cast before it this turn. If the spell has any targets, you may choose
+     * new targets for any of the copies"* — and there is nothing for a card to vary.
+     *
+     * Both halves are owned by `mtg-rules` (`Storm.kt`). The **trigger** is synthesized at CR 601.2i with
+     * the count fixed as linked information, and it is a *cast* trigger — it goes on the stack **above**
+     * the spell that made it and therefore resolves **first**, so the copies resolve before the original.
+     * The **copies** are put onto the stack by that resolution (CR 707.10a) and are marked
+     * [dev.mtgplay.core.state.StackEntry.Spell.isCopy], which is what makes them cease to exist rather
+     * than reaching a graveyard, and what keeps them out of the turn's cast tally.
+     *
+     * **"You may choose new targets for any of the copies" is not modelled, and Weather the Storm is
+     * exactly the card for which that is not an approximation**: its whole effect is "You gain 3 life",
+     * which targets nothing, so there are no targets to re-choose and the sentence is vacuous. A storm
+     * spell that *did* target would need a per-copy target decision, and `Storm.kt` refuses one loudly
+     * rather than silently copying the original's targets.
+     */
+    val storm: Boolean get() = false
+
+    /**
+     * The targeting lines this spell prints **after** its first (CR 601.2c), in printed order; empty for
+     * the ordinary card that prints the word "target" once. Additive, flagged core (`W9-C`,
+     * docs/design/dependent-targets.md §2) — Searing Blaze's "1 damage to target player … and 1 damage to
+     * target creature that player … controls".
+     *
+     * **One instance of the word "target" is one line, and a card may print several.** [TargetSpec] is a
+     * noun with a cardinality (`FW-MULTITGT`); what it deliberately could not say is that a card demands
+     * *two separate* choices, each with its own noun, its own count, and its own CR 601.2c same-object
+     * scope. `TargetCount`'s own KDoc and docs/design/multi-target.md §8 both recorded that gap and named
+     * the shape that would close it — a list of lines — which is this.
+     *
+     * **Additional lines rather than a replacement list**, and the asymmetry is the point: a one-line card
+     * declares nothing here, so every existing definition, every existing request, and every existing
+     * replay log is untouched, and "does this card print more than one targeting line?" is
+     * `additionalTargetSpecs.isNotEmpty()` — one test, no second nullable flag that could disagree with
+     * it. `mtg-rules` reads the whole list through `targetLinesOf`, never this field directly.
+     *
+     * **Every line of a multi-line card must demand a fixed number of targets**, which `mtg-rules` checks
+     * loudly: the chosen targets are recorded in one flat list, so an "up to N" line would leave both the
+     * line boundaries and the "is the choice finished?" question ambiguous. No printing in the gauntlet
+     * comes near the limit.
+     *
+     * **Meaningless for a modal card** for [targetSpec]'s reason, and refused loudly rather than ignored:
+     * a mode carries its own targeting line (CR 601.2b), so a modal card printing extra lines would need a
+     * list *per mode*.
+     */
+    val additionalTargetSpecs: PersistentList<TargetSpec> get() = persistentListOf()
 }
