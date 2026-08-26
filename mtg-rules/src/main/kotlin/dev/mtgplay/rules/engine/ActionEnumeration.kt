@@ -251,23 +251,7 @@ private fun castIsLegal(
         // CR 601.2b (`W9-D`): a non-consuming additional cost needs something to name; with an empty
         // board and an empty hand Monstrous Emergence is not castable at all.
         powerSourceCostSatisfiable(state, seat, definition, castObjectId, source) &&
-        enumeratePaymentPlans(
-            state,
-            seat,
-            // CR 601.2b/c: priced at the cheapest announcement *and* the cheapest target choice (see
-            // [targetsAndCostAvailable] and [cheapestTargetsFor]).
-            totalCost(
-                state,
-                seat,
-                CastSubject(
-                    definition,
-                    permission = null,
-                    castObjectId = castObjectId,
-                    targets = cheapestTargetsFor(state, seat, definition, castObjectId),
-                ),
-            ),
-            minimalSacrificeReservation(state, seat, definition),
-        ).isNotEmpty()
+        castCostIsPayable(state, seat, CastSubject(definition, permission = null, castObjectId = castObjectId))
 
 /**
  * Whether [timing] permits [seat] to act from the current window (CR 117.1a): instant speed

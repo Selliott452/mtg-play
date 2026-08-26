@@ -239,6 +239,7 @@ class MvpCardsSpec :
                     CardRef("Rally at the Hornburg"),
                     CardRef("Troll of Khazad-dûm"),
                     CardRef("Goblin Bushwhacker"),
+                    CardRef("Kaervek's Torch"),
                     CardRef("Land Grant"),
                     CardRef("Prohibit"),
                     CardRef("Ancestral Mask"),

@@ -523,6 +523,7 @@ object MvpCards {
             expeditionMap,
             extractAConfession,
             goblinBushwhacker,
+            kaerveksTorch,
             landGrant,
             prohibit,
             faerieMacabre,

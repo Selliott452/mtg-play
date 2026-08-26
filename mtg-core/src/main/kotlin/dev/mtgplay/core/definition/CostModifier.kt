@@ -198,3 +198,36 @@ data class SpellCostReduction(
         }
     }
 }
+
+/**
+ * A cost **increase** a spell on the stack levies on spells that target it (CR 601.2f step 4, CR 613.11) —
+ * *"As long as Kaervek's Torch is on the stack, spells that target it cost `{2}` more to cast."* Additive,
+ * flagged core (`W10-D`), and the first thing ever to occupy the increase slot in CR 601.2f's formula,
+ * which `FW-COST` declared and deliberately left empty.
+ *
+ * **Three things at once, and no existing modifier is any of them.** [CostReduction] is a spell's static
+ * ability pricing *itself*; [SpellCostReduction] is a **battlefield permanent** pricing somebody's spells
+ * by colour. This one is a static ability of an object **on the stack**, applied to *another player's*
+ * spell, and keyed on that spell's **chosen targets** — so it is read at CR 601.2f, after CR 601.2c has
+ * settled who the caster is pointing at, and it is gone the instant the taxing spell leaves the stack.
+ *
+ * **It is not ward.** Ward (CR 702.21a) is a triggered pay-or-be-countered ability that fires *after* the
+ * spell is already cast and paid for; this changes what the spell costs to cast at all, so a player who
+ * cannot afford the extra never gets to make the play. That difference is the reason a tax has to reach
+ * the *enumeration* — see `StackTargetTax.kt` for the gate it forces, which is the expensive half.
+ *
+ * **Generic mana only** (CR 118.5 has no confinement rule for increases, but every printed tax in this
+ * pool is generic and the arithmetic below assumes it). The increase is applied **before** reductions, in
+ * CR 601.2f's printed order, and that order is load-bearing rather than conventional: `{1}` taxed by two
+ * and then reduced by three is `{0}`, while reducing first clamps at `{0}` and then taxes back up to
+ * `{2}`. Two different costs, and only the first is the rule.
+ *
+ * @property amount the generic mana a targeting spell pays extra; at least 1.
+ */
+data class StackTargetTax(
+    val amount: Int,
+) {
+    init {
+        require(amount > 0) { "CR 601.2f: a cost increase adds at least 1 generic mana, was $amount" }
+    }
+}

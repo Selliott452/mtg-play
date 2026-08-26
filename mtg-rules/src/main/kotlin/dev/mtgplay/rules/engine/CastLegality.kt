@@ -42,7 +42,7 @@ internal fun targetsAndCostAvailable(
     // CR 601.2b–c: "its targets are available" means *some mode's* targets for a modal card (`FW-MODAL`).
     // The card is always a real object here — every caller names one — so it is a [Chooser.Spell] and
     // CR 702.16b has a source to test (CR 113.7c: a spell is its own source).
-    someModeIsCastable(state, definition, seat, Chooser.Spell(self)) &&
+    someModeIsCastable(state, definition, seat, Chooser.Spell(self), permission) &&
         // CR 601.2c for a card printing the word "target" more than once (`W9-C`, Searing Blaze): a
         // **search for a satisfying assignment**, not a per-line conjunction. Asking each line
         // independently says yes on a board whose only creature belongs to a seat the first line could
@@ -57,22 +57,7 @@ internal fun targetsAndCostAvailable(
         ) &&
 
         additionalSacrificeSatisfiable(state, seat, definition) &&
-        enumeratePaymentPlans(
-            state,
-            seat,
-            // CR 601.2b: priced at the cheapest announcement — no kicker, X = 0 — because that is what
-            // "is this castable at all?" means: declining a kicker is always legal and a larger X only
-            // ever costs more, so a cast payable at any announcement is payable at this one.
-            // CR 601.2c/f: and at the cheapest *target choice*, for the same reason in the same direction
-            // — a target-conditional reduction (Ride's End) applies as soon as some legal choice would
-            // make it apply, so pricing the printed cost here would hide a payable cast (`FW-TGTCOND`).
-            totalCost(
-                state,
-                seat,
-                CastSubject(definition, permission, self, cheapestTargetsFor(state, seat, definition, self)),
-            ),
-            minimalSacrificeReservation(state, seat, definition),
-        ).isNotEmpty()
+        castCostIsPayable(state, seat, CastSubject(definition, permission, self))
 
 /**
  * Whether [seat] may cast the card [sourceObject] via [permission] from a priority window (CR 117.1a):

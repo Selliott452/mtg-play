@@ -157,7 +157,8 @@ private fun modesRequestFor(
     card: CardRef,
     id: DecisionRequestId,
 ): DecisionRequest.ChooseModes {
-    val choosable = castableModes(state, definition, cast.caster, Chooser.Spell(cast.cardObjectId))
+    val choosable =
+        castableModes(state, definition, cast.caster, Chooser.Spell(cast.cardObjectId), cast.castingPermission)
     val choice = definition.modeChoice
     return DecisionRequest.ChooseModes(
         id = id,

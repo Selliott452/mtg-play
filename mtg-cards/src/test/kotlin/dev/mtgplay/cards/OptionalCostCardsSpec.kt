@@ -112,11 +112,12 @@ class OptionalCostCardsSpec :
             }
         }
 
-        "the two cards this packet was offered and could not encode stay absent" {
-            // Kaervek's Torch needs a **cost increase** applied to another spell and keyed on that
-            // spell's chosen targets; Nyxborn Hydra needs bestow. Shipping either without its missing
-            // half would be a plausible-looking wrong card (PLAN.md §7) — see the packet report.
-            MvpCards.definitions[CardRef("Kaervek's Torch")].shouldBeNull()
+        "one of the two cards this packet could not encode stays absent" {
+            // Kaervek's Torch was the other, and `W10-D` shipped it: the cost increase this packet named
+            // is [dev.mtgplay.core.definition.StackTargetTax], and the enumeration gate it forces is
+            // `StackTargetTax.kt`. Nyxborn Hydra still needs bestow, and shipping it without that half
+            // would be a plausible-looking wrong card (PLAN.md §7).
+            MvpCards.definitions[CardRef("Kaervek's Torch")].shouldNotBeNull()
             MvpCards.definitions[CardRef("Nyxborn Hydra")].shouldBeNull()
         }
     })

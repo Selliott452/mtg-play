@@ -13,6 +13,7 @@ import dev.mtgplay.core.definition.OptionalAdditionalCost
 import dev.mtgplay.core.definition.PermanentRestriction
 import dev.mtgplay.core.definition.ResolutionEffect
 import dev.mtgplay.core.definition.SpellDefinition
+import dev.mtgplay.core.definition.StackTargetTax
 import dev.mtgplay.core.definition.StaticContinuousEffect
 import dev.mtgplay.core.definition.TargetCondition
 import dev.mtgplay.core.definition.TargetCount
@@ -72,8 +73,8 @@ import kotlinx.collections.immutable.persistentSetOf
  * a burn card. The note this file carried was accurate except for the cost, which the oracle text gives as
  * `{X}{X}{1}` rather than `{X}{X}`.
  *
- * **[kaerveksTorch]** is *not* encoded, and its diagnosis has changed rather than merely persisted — see
- * the drop note below, which supersedes `FW-X`'s.
+ * **[kaerveksTorch]** is encoded, by `W10-D`, and the last recorded diagnosis was right about where the
+ * problem was and pessimistic about what fixing it cost — see the note below, which supersedes both.
  *
  * ## Torch the Tower, and the four gaps that are now three fewer
  *
@@ -96,29 +97,36 @@ import kotlinx.collections.immutable.persistentSetOf
  *
  * ## Dropped, with what each needs
  *
- * - **Kaervek's Torch** `{X}{R}` — "As long as Kaervek's Torch is on the stack, spells that target it
- *   cost {2} more to cast. Kaervek's Torch deals X damage to any target." Its damage line is trivial now
- *   that `FW-X` has landed; the tax is what keeps it out, and the reason is **not** the one `FW-COST` and
- *   `W8-C` recorded. That diagnosis said target enumeration would have to consult affordability, and
- *   `FW-TGTCOND` has since made it do exactly that — [affordableTargetOptions] already drops a target
- *   whose resulting total cost the caster cannot pay, which is precisely the shape a counterspell facing
- *   the Torch needs. The **filter** half therefore runs the right way.
+ * `W10-D` **built Kaervek's Torch**, and the honest version of that story is that `W9-C`'s diagnosis was
+ * right about *where* the problem was and wrong about what it cost to fix.
  *
- *   The **gate** half runs the wrong way, and it is the half that matters. `cheapestTargetsFor` prices a
- *   cast's legality at *no targets at all* for every card without a target-conditional reduction, which is
- *   the safe direction for a reduction — pricing without the discount can only over-charge — and the
- *   unsafe one for an increase: with Kaervek's Torch the only spell on the stack, `castIsLegal` would
- *   admit a Counterspell at `{U}{U}`, the filter would then remove its only option, and `targetRequest`
- *   refuses an empty option list in its `init`. That is a crash rather than a missing line. Making it
- *   correct means pricing the gate at the *minimum over legal target choices* — a payment enumeration per
- *   candidate target on every cast in the priority window — which is a change to the legality path of
- *   every card in the pool for one card, the same trade `W9-C` refused for Gorilla Shaman's option (a).
+ * The **filter** half really did already run the right way: [affordableTargetOptions] drops a target whose
+ * resulting total cost the caster cannot pay, which is precisely the shape a counterspell facing the Torch
+ * needs, and `FW-TGTCOND` built it for a *reduction* without knowing it.
  *
- *   Two smaller gaps remain either way. There is **no declaration for a cost increase** at all
- *   (docs/design/cost-modification.md §3 populates the slot with nothing on purpose), and the one needed
- *   here is a shape no existing modifier has: a static ability of an object **on the stack**, taxing
- *   *another* player's spell, keyed on that spell's chosen targets. Encoding the Torch without the tax
- *   would delete the reason the card is played.
+ * The **gate** half really did run the wrong way, and the crash it predicted was real: `cheapestTargetsFor`
+ * prices legality at *no targets at all*, which for an increase under-charges — so `castIsLegal` would
+ * admit a Counterspell at `{U}{U}`, the filter would remove its only option, and `ChooseTargets.init`
+ * would refuse the empty list.
+ *
+ * What was wrong was the price of the correction. The recorded trade was "a payment enumeration per
+ * candidate target on every cast in every priority window — a change to the legality path of every card in
+ * the pool for one card". **The expensive gate does not have to run unconditionally.** A cast can only be
+ * taxed when a taxing spell is on the stack *and* the card being cast can name a spell at all — one list
+ * scan and one static read of the definition. When either is false no target choice can change the cost,
+ * so pricing at no targets is *exact* rather than merely cheap, and the old path is kept because it is
+ * right. The minimum-over-choices gate is reachable only in a position that contains a Torch, and it is
+ * literally `affordableTargetOptions(...).isNotEmpty()` — the same call the target request makes, which
+ * makes gate and filter consistent by construction rather than by argument. `StackTargetTax.kt` carries
+ * that argument in full.
+ *
+ * Two smaller things came with it. [dev.mtgplay.core.definition.StackTargetTax] is the **first declaration
+ * of a cost increase** in the engine, filling the slot `FW-COST` left deliberately empty, and it is a shape
+ * no existing modifier had: a static ability of an object **on the stack**, taxing *another* player's
+ * spell, keyed on that spell's chosen targets. And CR 601.2f's printed order — increases, then reductions —
+ * turned out to be load-bearing rather than conventional, because the `{0}` clamp makes the two
+ * non-commutative; `CostModification.kt`'s order-independence comment was amended to say so, exactly as it
+ * asked to be.
  *
  * - **Torch the Tower** `{R}` — four gaps, and the third is the real one. (1) **Bargain** (CR 701.53) is
  *   an *optional additional* cost that sacrifices a permanent;
@@ -565,3 +573,58 @@ val searingBlaze: SpellDefinition =
                 }
             }
     }
+
+/**
+ * Kaervek's Torch — `{X}{R}` Sorcery. "As long as Kaervek's Torch is on the stack, spells that target it
+ * cost `{2}` more to cast. Kaervek's Torch deals X damage to any target."
+ *
+ * **Monster Tron's finisher, and the pool's first card with `{X}` in its printed cost.** `FW-X` shipped
+ * the variable in wave 8 with synthetic fixtures alone, because neither gauntlet card that prints one
+ * could be encoded; this is the first real one, so the announcement, the CR 202.3b mana value on the
+ * stack, and the "X damage" read of [dev.mtgplay.core.definition.ResolutionContext.chosenX] are now
+ * exercised by a card somebody plays.
+ *
+ * **The tax is the reason the card is played, and it is a cost increase rather than a counter-tax.** A
+ * Torch for X = 8 into an untapped opponent is a different card depending on whether the `{2}` is honoured:
+ * with it, a Counterspell costs `{2}{U}{U}` and a tapped-low control deck simply cannot answer; without it,
+ * the Torch is a bad Fireball. Encoding the damage line and dropping the tax would have made the burn-down
+ * claim a card the engine could not really play, which is what the drop rule forbids — so the tax landed
+ * first and the damage line second.
+ *
+ * **It reaches the *enumeration*, not just the payment**, and that is what made it a framework rather than
+ * a line. An opponent who cannot pay `{2}` more is never offered the Torch as a target at all (CR 601.2c,
+ * ADR-005), and the legality gate that admits their Counterspell has to agree with that filter or the
+ * engine offers a cast with nowhere to go. See [dev.mtgplay.core.definition.StackTargetTax] for the
+ * declaration and `StackTargetTax.kt` for the gate.
+ *
+ * **"Any target"** (CR 115.4) is the ordinary [TargetSpec.AnyTarget]; the Torch is a sorcery, so it is only
+ * ever taxing a spell cast in response to it during its own controller's main phase — which is exactly the
+ * window a counterspell would use.
+ */
+val kaerveksTorch: SpellDefinition =
+    object : SpellDefinition {
+        override val characteristics =
+            PrintedCharacteristics(
+                name = "Kaervek's Torch",
+                manaCost = ManaCost.parse("{X}{R}"),
+                supertypes = persistentSetOf(),
+                cardTypes = persistentSetOf(CardType.SORCERY),
+                subtypes = persistentSetOf(),
+                powerToughness = null,
+            )
+        override val timing = TimingClass.SORCERY_SPEED
+        override val targetSpec = TargetSpec.AnyTarget
+
+        // CR 601.2f, CR 613.11: read while this spell is on the stack, against the *caster's* chosen
+        // targets, and gone the moment it resolves or is countered.
+        override val stackTargetTax = StackTargetTax(KAERVEKS_TORCH_TAX)
+
+        override val resolution =
+            ResolutionEffect { state, context ->
+                // CR 202.3b: the announced value, read off the cast record rather than the printed cost.
+                dealDamage(state, context.damageSource(), context.targets.single(), context.chosenX)
+            }
+    }
+
+/** The generic mana Kaervek's Torch adds to a spell that targets it (CR 601.2f). */
+const val KAERVEKS_TORCH_TAX: Int = 2

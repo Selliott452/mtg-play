@@ -143,6 +143,17 @@ interface SpellDefinition :
     val costReduction: CostReduction? get() = null
 
     /**
+     * The cost **increase** this spell levies on spells that target it while it is on the stack
+     * (CR 601.2f, CR 613.11), or `null` for the ordinary spell that levies none. Kaervek's Torch's
+     * *"spells that target it cost `{2}` more to cast"*. Additive, flagged core (`W10-D`).
+     *
+     * Declared on the castable refinement rather than on [CardDefinition] for [costReduction]'s reason
+     * turned inside out: the ability functions while the object is a **spell**, so it is a property of the
+     * spell and not of the card in any other zone. See [StackTargetTax] for what it is and is not.
+     */
+    val stackTargetTax: StackTargetTax? get() = null
+
+    /**
      * This spell's **kicker** cost (CR 702.33), or `null` for a card without the keyword. Additive,
      * flagged core (`FW-OPTCOST`). Goblin Bushwhacker's `Kicker {R}`, Prohibit's `Kicker {2}`.
      *

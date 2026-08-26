@@ -11,6 +11,7 @@ import dev.mtgplay.core.mana.Color
 import dev.mtgplay.core.mana.ManaCost
 import dev.mtgplay.core.mana.ManaSymbol
 import dev.mtgplay.core.state.GameState
+import dev.mtgplay.core.state.StackEntry
 import dev.mtgplay.core.state.Target
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toPersistentList
@@ -57,12 +58,12 @@ import kotlinx.collections.immutable.toPersistentList
  * 3. **plus additional costs** — the **kicker** cost when the caster announced they are paying it
  *    (CR 702.33a, [kicked]). CR 601.2f puts additional costs in the formula ahead of reductions, and
  *    kicker is one: "You may pay an additional [cost] as you cast this spell";
- * 4. **plus cost increases** — the slot exists in the formula and is deliberately still empty: no
- *    declaration type can express one, so an increase is unrepresentable rather than approximated. Ward
- *    (CR 702.21a) is *not* an increase — it is a triggered pay-or-be-countered ability, which is why
- *    Tolarian Terror is not encodable here. Nor is Kaervek's Torch, whose "spells that target it cost
- *    {2} more to cast" is an increase applied to *somebody else's* spell and conditioned on that
- *    spell's chosen targets; see the `FW-X` packet report for what it needs;
+ * 4. **plus cost increases** — populated by `W10-D` with exactly one shape,
+ *    [dev.mtgplay.core.definition.StackTargetTax]: a spell on the stack taxing spells that target *it*
+ *    (Kaervek's Torch). Read from [CastSubject.targets], so it is well-defined here for the same reason
+ *    a target-conditional reduction is — CR 601.2c has already run. Ward (CR 702.21a) is still *not* an
+ *    increase and Tolarian Terror is still not encodable here: ward is a triggered pay-or-be-countered
+ *    ability that fires after the spell is cast, not a change to what casting it costs;
  * 5. **minus cost reductions** — the spell's own static ability ([SpellDefinition.costReduction]) plus
  *    every battlefield reducer [seat] controls ([spellCostReductions]), summed. Since `FW-TGTCOND` the
  *    spell's own reduction may read [CastSubject.targets] rather than a zone — Ride's End's "{3} less if
@@ -75,12 +76,19 @@ import kotlinx.collections.immutable.toPersistentList
  * nothing in CR 601.2f suggests it should be.
  *
  * **Every reduction is an amount of generic mana**, so CR 118.7a confines all of them to the generic
- * component and the sum is order-independent: `max(0, generic − Σ reductions)` is integer subtraction
- * with one clamp at the end, which commutes. That is what makes CR 601.2f's "the player may apply them
- * in any order" surface **no decision** — the freedom is real but unobservable, so ADR-005 loses no
- * legal outcome by not enumerating it. It stops being true the moment a coloured (CR 118.7b–d) or
- * hybrid (CR 118.7e, which would introduce a genuine new decision) reduction enters the pool; those
- * shapes are unrepresentable in [CostReduction] on purpose, and adding one must revisit this comment.
+ * component and the sum is order-independent: `max(0, generic + Σ increases − Σ reductions)` is integer
+ * arithmetic with one clamp at the end, which commutes *among the reductions*. That is what makes
+ * CR 601.2f's "the player may apply them in any order" surface **no decision** — the freedom is real but
+ * unobservable, so ADR-005 loses no legal outcome by not enumerating it. It stops being true the moment a
+ * coloured (CR 118.7b–d) or hybrid (CR 118.7e, which would introduce a genuine new decision) reduction
+ * enters the pool; those shapes are unrepresentable in [CostReduction] on purpose, and adding one must
+ * revisit this comment.
+ *
+ * **The increase, though, does not commute with the reductions, and `W10-D` revisited this comment to say
+ * so.** The clamp is what breaks it: `{1}` taxed by two and then reduced by three is `{0}`, while reducing
+ * first clamps at `{0}` and then taxes back up to `{2}`. CR 601.2f's printed order — increases, *then*
+ * reductions — is therefore a rule this function implements rather than a convention it happens to follow,
+ * and [increaseGeneric] is applied before [reduceGeneric] below for that reason and no other.
  *
  * [CastSubject.castObjectId] is excluded from every zone count (CR 601.2a): the card has left its source zone by
  * the time the cost is determined, so it never counts itself. For a hand cast this is invisible — a
@@ -99,10 +107,12 @@ internal fun totalCost(
     val base = baseCost(definition, subject.permission).substitutingX(announcements.chosenX)
     // CR 601.2f: additional costs are added before reductions are subtracted (CR 702.33a for kicker).
     val withAdditional = if (announcements.kicked) plusKicker(definition, base) else base
+    // CR 601.2f: increases before reductions, and the order is load-bearing (see the header).
+    val withIncrease = increaseGeneric(withAdditional, stackTargetIncrease(state, subject))
     val reduction =
         selfReduction(state, seat, definition, subject.castObjectId, subject.targets) +
             otherObjectReduction(state, seat, definition)
-    return reduceGeneric(withAdditional, reduction)
+    return reduceGeneric(withIncrease, reduction)
 }
 
 /**
@@ -274,4 +284,69 @@ internal fun reduceGeneric(
     } else {
         ManaCost(reduced.toPersistentList())
     }
+}
+
+/**
+ * The generic mana this cast pays **extra** because its chosen targets name a taxing spell on the stack
+ * (CR 601.2f, CR 613.11) — Kaervek's Torch's `{2}`. Zero for every cast that names none, which is every
+ * cast in every game with no such spell on the stack.
+ *
+ * **Summed per targeted taxing spell**, not per tax: two Torches on the stack tax a spell that targets
+ * both by `{4}`, and a spell that targets one of them by `{2}`. No card in the pool targets two spells,
+ * so the sum is the honest general answer rather than an exercised one.
+ *
+ * The targets are read off [CastSubject.targets], which CR 601.2c settled before this runs — the same
+ * seam a target-conditional *reduction* uses, pointed the other way.
+ */
+private fun stackTargetIncrease(
+    state: GameState,
+    subject: CastSubject,
+): Int {
+    val targeted = subject.targets.filterIsInstance<Target.SpellOnStack>().mapTo(mutableSetOf()) { it.id }
+    if (targeted.isEmpty()) return 0
+    return state.sharedZones.stack
+        .filterIsInstance<StackEntry.Spell>()
+        .filter { it.obj.id in targeted }
+        .sumOf { it.definition.stackTargetTax?.amount ?: 0 }
+}
+
+/**
+ * Increases [cost] by [amount] generic mana (CR 601.2f) — the counterpart of [reduceGeneric], and much
+ * the simpler of the two: there is no CR 118.7a confinement to argue about and no floor to clamp,
+ * because adding generic mana can only make a cost larger.
+ *
+ * The amount is folded into the **first** generic symbol when the cost has one and prepended as a new
+ * symbol when it does not, so `{U}{U}` taxed by two renders as `{2}{U}{U}` — the way the card is printed
+ * and the way a CLI menu must show it. The `{0}` a reduction can produce is a single `Generic(0)` symbol
+ * (see [reduceGeneric]), so taxing it folds into that symbol and yields `{2}` rather than `{0}{2}`.
+ *
+ * Refuses an unsubstituted `{X}` for [reduceGeneric]'s reason: a cost priced before CR 601.2b's
+ * announcement is the wrong cost, and folding a tax into `{X}` would hide that rather than say it.
+ */
+internal fun increaseGeneric(
+    cost: ManaCost,
+    amount: Int,
+): ManaCost {
+    require(amount >= 0) { "CR 601.2f: a cost increase is non-negative, was $amount" }
+    if (amount == 0) return cost
+    require(cost.symbols.none { it == ManaSymbol.X }) {
+        "CR 601.2b: the value of X must be announced and substituted before a cost is increased, but " +
+            "${cost.render()} still carries {X}"
+    }
+    val firstGeneric = cost.symbols.indexOfFirst { it is ManaSymbol.Generic }
+    val symbols =
+        if (firstGeneric < 0) {
+            listOf(ManaSymbol.Generic(amount)) + cost.symbols
+        } else {
+            cost.symbols.mapIndexed { index, symbol ->
+                if (index ==
+                    firstGeneric
+                ) {
+                    ManaSymbol.Generic((symbol as ManaSymbol.Generic).amount + amount)
+                } else {
+                    symbol
+                }
+            }
+        }
+    return ManaCost(symbols.toPersistentList())
 }
