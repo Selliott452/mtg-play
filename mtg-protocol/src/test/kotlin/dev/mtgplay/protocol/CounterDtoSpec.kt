@@ -115,6 +115,10 @@ class CounterDtoSpec :
             // GameObjectDto (CR 715.3d's exile marker, public for CR 406.3's reason). No DecisionRequest
             // kind is added: a face cast is an ordinary ChooseAction option, and so is the later cast of
             // the normal half out of exile.
+            // `W10-A` takes it to 11.0.0: a new `choose_dungeon_room` request kind (CR 309.4, the
+            // Undercity's branches), whose DecisionRequestKindDto value fails `valueOf` mid-match on a
+            // 10.0.0 peer, plus an optional `initiative` on SeatViewDto (CR 701.51a) that a strict
+            // 10.0.0 codec still rejects the moment a game actually has one.
             // Pinned here so no bump in the chain can be quietly reverted.
             PROTOCOL_VERSION shouldBe "11.0.0"
         }

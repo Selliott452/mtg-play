@@ -111,5 +111,15 @@ internal fun resolutionClauseMenu(
         is DecisionRequest.ChooseGraveyardCardToExile -> graveyardExileMenu(request)
         is DecisionRequest.ChooseLibraryPosition -> libraryPositionMenu(request)
         is DecisionRequest.ChooseRevealedCardType -> revealedCardTypeMenu(request)
+        is DecisionRequest.ChooseDungeonRoom -> dungeonRoomMenu(request)
         else -> error("no menu for ${request::class.simpleName}; every request must render one")
     }
+
+/**
+ * A venturing player's branch choice in a dungeon (CR 309.4). The header names the room the marker is
+ * still on, because that is what identifies which fork this is — the destinations alone would be
+ * ambiguous on a dungeon whose rooms lead to a shared successor, as the Undercity's do twice.
+ */
+internal fun dungeonRoomMenu(request: DecisionRequest.ChooseDungeonRoom): List<String> =
+    listOf("Venture from ${request.fromRoom} in ${request.dungeon} (CR 309.4):") +
+        numbered(request.options.map { it.name }) + SINGLE_HINT

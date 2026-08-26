@@ -2,6 +2,7 @@ package dev.mtgplay.protocol
 
 import dev.mtgplay.core.identity.CardRef
 import dev.mtgplay.core.identity.PlayerId
+import dev.mtgplay.rules.InitiativeView
 import dev.mtgplay.rules.SeatView
 import kotlinx.serialization.Serializable
 
@@ -51,7 +52,39 @@ data class SeatViewDto(
     val timedEffects: List<TimedContinuousEffectDto>,
     val preventionEffects: List<TimedPreventionEffectDto>,
     val deathReplacements: List<TimedDeathReplacementDto>,
+    val initiative: InitiativeViewDto? = null,
 )
+
+/**
+ * Wire form of [dev.mtgplay.rules.InitiativeView] (CR 701.51a, CR 309.4): who holds the initiative and
+ * which room of the dungeon each player's venture marker sits on. Added by `W10-A`.
+ *
+ * Rooms travel as **names** rather than indices, unlike the branch request's options: a seat view is a
+ * picture of the table, and the index is meaningful only against a room list no view carries. [rooms] is
+ * keyed by seat number, and a seat absent from it is in no dungeon (CR 309.6).
+ */
+@Serializable
+data class InitiativeViewDto(
+    val holder: Int,
+    val dungeon: String,
+    val rooms: Map<Int, String>,
+)
+
+/** [InitiativeView] to its wire form. */
+fun InitiativeView.toDto(): InitiativeViewDto =
+    InitiativeViewDto(
+        holder = holder.seat,
+        dungeon = dungeon,
+        rooms = rooms.entries.associate { (seat, room) -> seat.seat to room },
+    )
+
+/** [InitiativeViewDto] back to the engine value. */
+fun InitiativeViewDto.toDomain(): InitiativeView =
+    InitiativeView(
+        holder = PlayerId(holder),
+        dungeon = dungeon,
+        rooms = rooms.entries.associate { (seat, room) -> PlayerId(seat) to room },
+    )
 
 /** [SeatView] to its wire form. */
 fun SeatView.toDto(): SeatViewDto =
@@ -92,6 +125,7 @@ fun SeatView.toDto(): SeatViewDto =
         timedEffects = timedEffects.map { it.toDto() },
         preventionEffects = preventionEffects.map { it.toDto() },
         deathReplacements = deathReplacements.map { it.toDto() },
+        initiative = initiative?.toDto(),
     )
 
 /** [SeatViewDto] back to the engine value. */
@@ -133,4 +167,5 @@ fun SeatViewDto.toDomain(): SeatView =
         timedEffects = timedEffects.map { it.toDomain() },
         preventionEffects = preventionEffects.map { it.toDomain() },
         deathReplacements = deathReplacements.map { it.toDomain() },
+        initiative = initiative?.toDomain(),
     )

@@ -123,6 +123,7 @@ private fun singleOptionSelectionToDto(request: DecisionRequest.SingleOptionSele
         is DecisionRequest.ChooseGraveyardCardToExile,
         is DecisionRequest.ChooseLibraryPosition,
         is DecisionRequest.ChooseRevealedCardType,
+        is DecisionRequest.ChooseDungeonRoom,
         -> laterSingleOptionSelectionToDto(request)
     }
 

@@ -109,6 +109,8 @@ internal val BURN_OPPONENT: Responder =
                 error("the burn policy casts no library-placement spells, but one surfaced: $request")
             is DecisionRequest.ChooseRevealedCardType ->
                 error("the burn policy casts no type-choosing reveal spells, but one surfaced: $request")
+            is DecisionRequest.ChooseDungeonRoom ->
+                error("the burn policy takes no initiative, but a dungeon branch surfaced: $request")
             is DecisionRequest.MulliganRequest ->
                 error("the burn policy runs mulligan-free games, but a mulligan request surfaced: $request")
         }
@@ -295,6 +297,8 @@ internal val GRIND_TO_BOLT_RANGE: Responder =
                 error("the grind policy casts no library-placement spells, but one surfaced: $request")
             is DecisionRequest.ChooseRevealedCardType ->
                 error("the grind policy casts no type-choosing reveal spells, but one surfaced: $request")
+            is DecisionRequest.ChooseDungeonRoom ->
+                error("the grind policy takes no initiative, but a dungeon branch surfaced: $request")
             is DecisionRequest.MulliganRequest ->
                 error("the grind policy runs mulligan-free games, but a mulligan request surfaced: $request")
         }

@@ -127,6 +127,10 @@ object Responders {
                 // policy never cast is resolving.
                 is DecisionRequest.ChooseRevealedCardType ->
                     error("the pass-everything responder never casts a type-choosing reveal spell: $request")
+                // CR 309.4: a dungeon branch only exists while a venture this policy never started is
+                // resolving — nothing takes the initiative without a card being cast.
+                is DecisionRequest.ChooseDungeonRoom ->
+                    error("the pass-everything responder never takes the initiative: $request")
                 // CR 103.4/103.5: the passive policy keeps every hand at seven — so no bottoming ever
                 // follows — but bottoms the lowest indices if a mulligan game is ever driven this way.
                 is DecisionRequest.MulliganRequest -> keepAtSeven(request)

@@ -60,4 +60,23 @@ sealed interface TriggerZoneScope {
      * mistake it for a battlefield ability, not because anything scans the stack.
      */
     data object Stack : TriggerZoneScope
+
+    /**
+     * The ability functions from the **command zone** (CR 113.6, CR 408) — added by `W10-A` for the
+     * Undercity. A dungeon card is put into the command zone when its owner ventures into it and stays
+     * there until the dungeon is completed (CR 309.2), so both of the mechanic's abilities function from
+     * here: the Initiative's venture trigger ([TriggerCondition.VentureIntoDungeon]) and each room's
+     * CR 309.5 room trigger ([TriggerCondition.EnteredDungeonRoom]).
+     *
+     * **The first scope whose source is not a card in any zone the engine models as a list.** The other
+     * four name a place a [dev.mtgplay.core.state.GameObject] sits — a battlefield, a graveyard, an exile,
+     * a stack — and every one of them is a collection a detector could scan. The command zone holds a
+     * dungeon card that has no [dev.mtgplay.core.state.GameObject] at all: its whole state is one player's
+     * venture marker ([dev.mtgplay.core.state.VentureMarker]), which is why nothing here is detected and
+     * both abilities are synthesized where the mechanic's own rules say they fire.
+     *
+     * Declared, like [Stack]'s, so the abilities are honestly described and so a future zone-scoped
+     * detector cannot mistake one for a battlefield ability — not because anything scans a command zone.
+     */
+    data object Command : TriggerZoneScope
 }

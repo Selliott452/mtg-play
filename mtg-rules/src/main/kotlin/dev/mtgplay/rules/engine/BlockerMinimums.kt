@@ -1,6 +1,7 @@
 package dev.mtgplay.rules.engine
 
 import dev.mtgplay.core.card.Evasion
+import dev.mtgplay.core.card.Keyword
 import dev.mtgplay.core.identity.ObjectId
 import dev.mtgplay.core.state.CombatState
 import dev.mtgplay.core.state.GameState
@@ -50,22 +51,33 @@ internal fun publishedBlockerMinimums(
  * The smallest **non-zero** number of creatures that may legally block [attacker] (CR 509.1b) — `1` for
  * a creature with no count restriction, which is every creature in the pool but Troll of Khazad-dûm.
  *
- * Read through [effectiveEvasions] like every other evasion (the keyword-tail packet's seam), so a
- * granted count restriction would restrict exactly as a printed one does. Two such evasions on one
- * attacker would take the **larger** floor, which is what CR 509.1b's cumulative restrictions mean; the
- * `maxOf` fold says so even though the pool prints one.
+ * Read through [effectiveEvasions] and [effectiveKeywords] — the keyword-tail packet's two seams — so a
+ * *granted* count restriction restricts exactly as a printed one does. Two such restrictions on one
+ * attacker take the **larger** floor, which is what CR 509.1b's cumulative restrictions mean; the
+ * `maxOf` fold says so, and since `W10-A` the pool prints two of them rather than one.
+ *
+ * **Menace (CR 702.110a) starts the fold rather than joining it**, because it is a
+ * [dev.mtgplay.core.card.Keyword] and the Troll's line is an [Evasion] — a split CR 702.110 draws and
+ * this function is the only place it has to be reconciled. The two are otherwise the same rule with a
+ * different number.
  */
 internal fun minimumBlockersFor(
     state: GameState,
     attacker: ObjectId,
-): Int =
-    effectiveEvasions(state, attacker).fold(1) { floor, evasion ->
+): Int {
+    // CR 702.110a: "can't be blocked except by two or more creatures".
+    val menaceFloor = if (Keyword.MENACE in effectiveKeywords(state, attacker)) BLOCKERS_REQUIRED_BY_MENACE else 1
+    return effectiveEvasions(state, attacker).fold(menaceFloor) { floor, evasion ->
         when (evasion) {
             Evasion.BLOCKABLE_ONLY_BY_FLYING, Evasion.BLOCKABLE_ONLY_BY_HASTE -> floor
             // Troll of Khazad-dûm: "can't be blocked except by three or more creatures".
             Evasion.BLOCKABLE_ONLY_BY_THREE_OR_MORE -> maxOf(floor, BLOCKERS_REQUIRED_BY_TROLL_EVASION)
         }
     }
+}
 
 // CR 509.1b: "except by three or more creatures" — the printed count of the pool's one such evasion.
 private const val BLOCKERS_REQUIRED_BY_TROLL_EVASION: Int = 3
+
+// CR 702.110a: "except by two or more creatures" — menace's printed count.
+private const val BLOCKERS_REQUIRED_BY_MENACE: Int = 2

@@ -2,6 +2,7 @@ package dev.mtgplay.rules
 
 import dev.mtgplay.core.identity.PlayerId
 import dev.mtgplay.core.state.GameState
+import dev.mtgplay.core.state.InitiativeState
 import dev.mtgplay.core.state.PendingRevealSelection
 import dev.mtgplay.core.state.PendingTrigger
 import dev.mtgplay.core.state.PlayerState
@@ -84,9 +85,24 @@ fun viewFor(
             // CR 614.1a: which permanents will be exiled rather than die is public — the spell that said
             // so resolved on the public stack and the permanents are on the public battlefield.
             deathReplacements = state.deathReplacements,
+            // CR 309.2/701.51a: a dungeon card is face up in a command zone and the initiative is an
+            // announced designation, so both seats see the whole of it and nothing is filtered.
+            initiative = state.initiative?.let(::initiativeViewOf),
         )
     return projected.copy(cards = cardsOf(state.definitions, visibleCardRefs(projected)))
 }
+
+/**
+ * The public view of the initiative and every venture marker (CR 701.51a, CR 309.4), with each marker's
+ * room resolved to its printed name — the [dev.mtgplay.core.definition.Dungeon] itself never crosses the
+ * view boundary, because its rooms carry resolution lambdas.
+ */
+private fun initiativeViewOf(initiative: InitiativeState): InitiativeView =
+    InitiativeView(
+        holder = initiative.holder,
+        dungeon = initiative.dungeon.name,
+        rooms = initiative.markers.mapValues { (_, marker) -> initiative.dungeon.rooms[marker.room].name },
+    )
 
 /** One seat's [PlayerView]: the own hand in full (CR 402), an opponent's as a count only (ADR-007). */
 private fun playerViewOf(

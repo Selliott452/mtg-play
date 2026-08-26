@@ -247,6 +247,9 @@ private fun namedDeciderPauseRequest(state: GameState): DecisionRequest? =
         state.pendingLibraryPlacement != null -> pendingLibraryPlacementRequest(state)
         // CR 609.4: the resolution-time card-type choice, answered before anything is revealed.
         state.pendingTypeChoice != null -> pendingTypeChoiceRequest(state)
+        // CR 309.4: the venturing player names which room a branch leads them to. The decider is named
+        // by the venture rather than by priority, exactly like the four above it.
+        state.pendingVenture != null -> pendingVentureRequest(state)
         else -> null
     }
 

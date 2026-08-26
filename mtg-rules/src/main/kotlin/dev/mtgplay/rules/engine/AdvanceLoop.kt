@@ -164,8 +164,15 @@ internal fun beginPosition(state: GameState): AdvanceResult {
         TurnStep.UNTAP -> advancePastCurrentPosition(untapStepTurnBasedActions(current))
         // CR 503.1: the upkeep has no turn-based action of its own, but "at the beginning of your
         // upkeep" abilities trigger as it begins (CR 603.2) — rebound's delayed cast is the first
-        // (CR 702.88a). The triggers are enqueued here and placed on the stack by grantPriorityRound.
-        TurnStep.UPKEEP -> grantPriorityRound(fireReboundTriggers(current, current.turn.activePlayer))
+        // (CR 702.88a) and the initiative holder's venture the second (CR 701.51b). The triggers are
+        // enqueued here and placed on the stack by grantPriorityRound, in APNAP order (CR 603.3b).
+        TurnStep.UPKEEP ->
+            grantPriorityRound(
+                enqueueUpkeepVenture(
+                    fireReboundTriggers(current, current.turn.activePlayer),
+                    current.turn.activePlayer,
+                ),
+            )
         // CR 504.1: the active player draws, then priority is granted (CR 504.2).
         TurnStep.DRAW -> grantPriorityRound(drawStepTurnBasedAction(current))
         // CR 507: the beginning-of-combat step has no turn-based action in the MVP scope.

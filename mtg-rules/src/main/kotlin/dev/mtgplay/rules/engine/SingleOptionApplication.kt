@@ -100,6 +100,9 @@ private fun applyResolutionClauseSelection(
         // CR 609.4: the named card type, which then drives the reveal and its partition.
         is DecisionRequest.ChooseRevealedCardType ->
             applyChosenRevealType(state, request.options[decision.index])
+        // CR 309.4: the room a venturing player's marker moves to at a fork.
+        is DecisionRequest.ChooseDungeonRoom ->
+            applyVentureRoomChoice(state, request.options[decision.index].room)
         else -> error("no application for ${request::class.simpleName}; every answered request must have one")
     }
 

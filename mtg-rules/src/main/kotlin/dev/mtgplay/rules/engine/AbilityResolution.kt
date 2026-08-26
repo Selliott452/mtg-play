@@ -213,6 +213,9 @@ private fun resolveOrchestratedTrigger(
         entry.trigger.ability.condition == TriggerCondition.StormCast -> resolveStormTrigger(state, entry)
         entry.trigger.ability.condition == TriggerCondition.ReboundCast -> resolveReboundTrigger(state, entry)
         entry.trigger.ability.condition == TriggerCondition.CascadeCast -> resolveCascadeTrigger(state, entry)
+        // CR 701.49/CR 309.4: the venture keyword action moves a marker along a room graph and may have
+        // to ask which way at a fork — a decision, so the engine performs it (ADR-004), not the effect.
+        entry.trigger.ability.condition == TriggerCondition.VentureIntoDungeon -> resolveVentureTrigger(state, entry)
         entry.trigger.ability.optionalDiscardDraw != null -> resolveOptionalDiscardDrawTrigger(state, entry)
         else -> null
     }

@@ -200,6 +200,19 @@ import kotlinx.collections.immutable.persistentMapOf
  *
  *   Not carried on any [dev.mtgplay.core.definition.CardDefinition]-visible view (ADR-007): it is derived
  *   from public history every seat already watched, it changes no option list, and no decision reads it.
+ * @property initiative **the initiative** and every player's dungeon position (CR 701.51, CR 309), or `null`
+ *   until some card first says the words. Additive, flagged core (`W10-A`) — Avenging Hunter's and Goliath
+ *   Paladin's "you take the initiative".
+ *
+ *   The **fourth** piece of rules-relevant content that hangs off no object, after [timedEffects],
+ *   [preventionEffects] and [deathReplacements], and the first that is not turn-scoped: the CR 514.2
+ *   cleanup turn-based action ends all three of those and touches none of this. The initiative is a
+ *   *designation* (CR 701.51a), which nothing in the rules removes — it only changes hands — and a venture
+ *   marker is a position on a dungeon card in the command zone (CR 309.2), which is the one zone this
+ *   engine models nowhere else. See [InitiativeState].
+ * @property pendingVenture a venture paused for its CR 309.4 branch choice, or `null`. Additive, flagged
+ *   core (`W10-A`). Non-null only at that mid-resolution pause, where the venture ability is still on the
+ *   stack and the venturing player's marker has not moved — see [PendingVenture].
  */
 data class GameState(
     val players: PersistentMap<PlayerId, PlayerState>,
@@ -244,6 +257,8 @@ data class GameState(
     val pendingChosenColor: PendingChosenColor? = null,
     val deathReplacements: PersistentList<TimedDeathReplacement> = persistentListOf(),
     val lastKnownPower: PersistentMap<ObjectId, Int> = persistentMapOf(),
+    val initiative: InitiativeState? = null,
+    val pendingVenture: PendingVenture? = null,
 ) {
     init {
         require(players.isNotEmpty()) { "a game has at least one seated player" }
@@ -415,6 +430,33 @@ data class GameState(
             require(sharedZones.stack.isNotEmpty()) {
                 "CR 609.4: a mid-resolution colour choice pauses inside a resolution, so the " +
                     "resolving object must still be on the stack"
+            }
+        }
+        val initiativeState = initiative
+        if (initiativeState != null) {
+            require(initiativeState.holder in players) {
+                "CR 701.51a: the initiative holder ${initiativeState.holder} is not seated"
+            }
+            require(initiativeState.markers.keys.all { it in players }) {
+                "CR 309.4: every venture marker belongs to a seated player, got ${initiativeState.markers.keys}"
+            }
+        }
+        val venture = pendingVenture
+        if (venture != null) {
+            val standing =
+                requireNotNull(initiativeState) {
+                    "CR 309.4: a venture is a step through a dungeon, so the initiative must exist while one pends"
+                }
+            require(venture.player in players) { "CR 309.4: the venturing player ${venture.player} is not seated" }
+            // CR 309.4: the branch is chosen *from* the room the marker is still on, so that marker must
+            // be exactly where the pending record says it is — the move is one transition, not two.
+            require(standing.roomOf(venture.player) == venture.fromRoom) {
+                "CR 309.4: ${venture.player}'s marker must still be on room ${venture.fromRoom} while the " +
+                    "branch is pending, but it is on ${standing.roomOf(venture.player)}"
+            }
+            val branching = standing.dungeon.rooms[venture.fromRoom]
+            require(branching.successors.size >= 2) {
+                "CR 309.4: a venture only pauses where the room branches, but ${branching.name} does not"
             }
         }
         val permanentSelection = pendingPermanentSelection

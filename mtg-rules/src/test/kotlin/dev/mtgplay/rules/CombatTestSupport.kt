@@ -190,6 +190,9 @@ internal val combatDefinitions: Map<CardRef, CardDefinition> =
         // (CR 509.1b) — the first restriction on the blocker *count* rather than on a blocker's
         // characteristics, so it is legality of the whole declaration and not of any pairing.
         creature("Troll", 6, 5, evasions = setOf(Evasion.BLOCKABLE_ONLY_BY_THREE_OR_MORE)),
+        // `W10-A`: menace (CR 702.110a) — the same CR 509.1b blocker-count restriction with "two",
+        // declared as a *keyword* rather than an evasion because CR 702.110 makes it one.
+        creature("Menacer", 4, 1, setOf(Keyword.MENACE)),
         // `FW-COUNTERS` keyword bodies. Hasty attacks the turn it arrives (CR 702.10b); Bulwark is a
         // plain defender Wall (CR 702.3b); Sentry has defender *and* haste, the pair that proves the
         // two clauses are independent — haste lifts summoning sickness and defender still bars the
