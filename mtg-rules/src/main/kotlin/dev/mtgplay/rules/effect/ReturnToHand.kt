@@ -8,8 +8,8 @@ import dev.mtgplay.core.state.GameObject
 import dev.mtgplay.core.state.GameState
 import dev.mtgplay.rules.engine.announceBattlefieldDeparture
 import dev.mtgplay.rules.engine.clearCombatReferences
-import dev.mtgplay.rules.engine.rememberLastKnownPower
 import dev.mtgplay.rules.engine.emit
+import dev.mtgplay.rules.engine.rememberLastKnownPower
 import dev.mtgplay.rules.engine.satisfiesGraveyardCardRestriction
 import dev.mtgplay.rules.engine.updateBattlefield
 import dev.mtgplay.rules.engine.updatePlayer

@@ -172,7 +172,9 @@ class CardAdvantageSpec :
             val target = state.sharedZones.battlefield.single { it.card == CardRef("Sea Gate Oracle") }
             val resolved = resolveEmergence(state, target.id, ChosenPowerSource.ChosenCreature(ogre.id))
 
-            resolved.sharedZones.battlefield.single { it.id == target.id }.damageMarked shouldBe GRIZZLY_POWER
+            resolved.sharedZones.battlefield
+                .single { it.id == target.id }
+                .damageMarked shouldBe GRIZZLY_POWER
         }
 
         "CR 109.3: a revealed card's damage is its printed power — the layer system does not reach a hand" {
@@ -181,7 +183,9 @@ class CardAdvantageSpec :
             val resolved =
                 resolveEmergence(state, target.id, ChosenPowerSource.RevealedCard(CardRef("Grizzly Bears")))
 
-            resolved.sharedZones.battlefield.single { it.id == target.id }.damageMarked shouldBe GRIZZLY_POWER
+            resolved.sharedZones.battlefield
+                .single { it.id == target.id }
+                .damageMarked shouldBe GRIZZLY_POWER
         }
     })
 

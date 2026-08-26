@@ -67,7 +67,8 @@ class NonConsumingCostSpec :
             val window = pausedRequestOf<DecisionRequest.ChooseAction>(state)
             var current = engine.advance(state, castDecision(window, NAMER)).pausedState
             val targets = pausedRequestOf<DecisionRequest.ChooseTargets>(current)
-            current = engine.advance(current, Decision.SingleSelect(targets.id, wallOption(current, targets))).pausedState
+            current =
+                engine.advance(current, Decision.SingleSelect(targets.id, wallOption(current, targets))).pausedState
             val naming = pausedRequestOf<DecisionRequest.ChooseCostPowerSource>(current)
             current = engine.advance(current, Decision.MultiSelect(naming.id, listOf(optionIndex))).pausedState
             val plan = pausedRequestOf<DecisionRequest.ChoosePaymentPlan>(current)
@@ -98,13 +99,19 @@ class NonConsumingCostSpec :
             val cast = castNaming(board(), optionIndex = 0)
 
             cast.sharedZones.battlefield.count { it.card == CardRef("Fixture Bruiser") } shouldBe 1
-            cast.players.getValue(alice).graveyard.map { it.card } shouldNotContain CardRef("Fixture Bruiser")
+            cast.players
+                .getValue(alice)
+                .graveyard
+                .map { it.card } shouldNotContain CardRef("Fixture Bruiser")
         }
 
         "CR 601.2b: revealing a card does not consume it — it is still in hand afterwards" {
             val cast = castNaming(board(), optionIndex = 1)
 
-            cast.players.getValue(alice).hand.map { it.card } shouldContainExactly
+            cast.players
+                .getValue(alice)
+                .hand
+                .map { it.card } shouldContainExactly
                 listOf(CardRef("Fixture Colossus"))
         }
 
@@ -123,7 +130,10 @@ class NonConsumingCostSpec :
 
         "CR 608.2h: a pump after the cast changes the damage, because the value is read at resolution" {
             val cast = castNaming(board(), 0)
-            val bruiser = cast.sharedZones.battlefield.single { it.card == CardRef("Fixture Bruiser") }.id
+            val bruiser =
+                cast.sharedZones.battlefield
+                    .single { it.card == CardRef("Fixture Bruiser") }
+                    .id
             val pumped =
                 applyUntilEndOfTurn(
                     cast,
@@ -142,7 +152,10 @@ class NonConsumingCostSpec :
 
         "CR 113.7a: killing the named creature in response still deals its last known power" {
             val cast = castNaming(board(), 0)
-            val bruiser = cast.sharedZones.battlefield.single { it.card == CardRef("Fixture Bruiser") }.id
+            val bruiser =
+                cast.sharedZones.battlefield
+                    .single { it.card == CardRef("Fixture Bruiser") }
+                    .id
             val killed = destroy(cast, bruiser)
 
             damageOnWall(resolveTopOfStack(killed).pausedState) shouldBe BRUISER_POWER
@@ -150,7 +163,10 @@ class NonConsumingCostSpec :
 
         "CR 113.7a: shrinking the named creature *before* killing it is what actually blanks the spell" {
             val cast = castNaming(board(), 0)
-            val bruiser = cast.sharedZones.battlefield.single { it.card == CardRef("Fixture Bruiser") }.id
+            val bruiser =
+                cast.sharedZones.battlefield
+                    .single { it.card == CardRef("Fixture Bruiser") }
+                    .id
             val shrunk =
                 applyUntilEndOfTurn(
                     cast,
@@ -186,7 +202,9 @@ class NonConsumingCostSpec :
                 )
             val cast = castNaming(board, optionIndex = 0)
 
-            cast.sharedZones.battlefield.single { it.card == CardRef("Fixture Hasty Elf") }.tapped shouldBe true
+            cast.sharedZones.battlefield
+                .single { it.card == CardRef("Fixture Hasty Elf") }
+                .tapped shouldBe true
             damageOnWall(resolveTopOfStack(cast).pausedState) shouldBe ELF_POWER
         }
     })
@@ -200,7 +218,10 @@ private fun wallOption(
     state: GameState,
     request: DecisionRequest.ChooseTargets,
 ): Int {
-    val wall = state.sharedZones.battlefield.single { it.card == CardRef("Fixture Bulwark") }.id
+    val wall =
+        state.sharedZones.battlefield
+            .single { it.card == CardRef("Fixture Bulwark") }
+            .id
     val index = request.options.indexOfFirst { it == Target.Permanent(wall) }
     check(index >= 0) { "no Fixture Wall target in ${request.options}" }
     return index
@@ -208,7 +229,9 @@ private fun wallOption(
 
 /** The damage marked on bob's Bulwark, which every scenario points the fixture at. */
 private fun damageOnWall(state: GameState): Int =
-    state.sharedZones.battlefield.single { it.card == CardRef("Fixture Bulwark") }.damageMarked
+    state.sharedZones.battlefield
+        .single { it.card == CardRef("Fixture Bulwark") }
+        .damageMarked
 
 private const val NAMER: String = "Fixture Namer"
 

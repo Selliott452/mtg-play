@@ -3,6 +3,7 @@ package dev.mtgplay.rules.engine
 import dev.mtgplay.core.definition.AdditionalCost
 import dev.mtgplay.core.definition.SpellDefinition
 import dev.mtgplay.core.identity.CardRef
+import dev.mtgplay.core.state.GameObject
 import dev.mtgplay.core.state.GameState
 import dev.mtgplay.core.state.PendingCast
 import dev.mtgplay.rules.decision.DecisionRequest
@@ -95,9 +96,30 @@ internal fun pendingCastRequest(
         // beside the mandatory costs above because it is one, and after them because it reserves nothing
         // and so constrains nothing that follows.
         cast.costPowerSource == null -> choosePowerSourceRequest(state, cast, definition, card.card, id)
-        // CR 601.2b/702.166a: then the optional additional cost's announcement and, if taken, its
-        // object selection. Both sit here rather than beside the mandatory costs above because a
-        // declined announcement must settle the selection too, and the pair reads as a pair.
+        else -> announcementsOrPaymentRequest(state, cast, definition, card, id)
+    }
+}
+
+/**
+ * The tail of [pendingCastRequest]: the two CR 601.2b announcements that sit *after* every selection, and
+ * the CR 601.2g payment plan when both are settled.
+ *
+ * Split out only so the chain above stays inside detekt's complexity budget — the shape the splits in
+ * `ResolutionClauseHook.kt`, `DecisionView.kt` and the protocol codec already use. The order here is a
+ * **continuation** of the chain and must not be reasoned about separately; the header comment on this
+ * file owns the whole ordering argument, including why these two sit last.
+ */
+private fun announcementsOrPaymentRequest(
+    state: GameState,
+    cast: PendingCast,
+    definition: SpellDefinition,
+    card: GameObject,
+    id: DecisionRequestId,
+): DecisionRequest =
+    when {
+        // CR 601.2b/702.166a: the optional additional cost's announcement and, if taken, its object
+        // selection. Both sit here rather than beside the mandatory costs above because a declined
+        // announcement must settle the selection too, and the pair reads as a pair.
         cast.optionalCostTaken == null -> optionalCostAnnouncementRequest(state, cast, definition, card.card, id)
         cast.optionalCostObjects == null -> chooseOptionalCostObjectsRequest(state, cast, definition, card.card, id)
         // CR 601.2b/702.33a: then the optional kicker announcement, surfaced only when the kicked cost
@@ -134,7 +156,6 @@ internal fun pendingCastRequest(
             )
         }
     }
-}
 
 /**
  * The CR 601.2c target request for the open [cast], enumerated against the spec the settled mode put in
@@ -310,25 +331,6 @@ private fun chooseSacrificeForCostRequest(
         count = additional.count,
     )
 }
-
-// CR 601.2b: everything the caster may name to pay a non-consuming additional cost (Monstrous Emergence) —
-// their battlefield creatures, then the creature cards in their hand. The pool is derived by the same
-// function cast legality used, so a cast that was enumerated always has at least one option here.
-private fun choosePowerSourceRequest(
-    state: GameState,
-    cast: PendingCast,
-    definition: SpellDefinition,
-    card: CardRef,
-    id: DecisionRequestId,
-): DecisionRequest.ChooseCostPowerSource =
-    DecisionRequest.ChooseCostPowerSource(
-        id = id,
-        cardObjectId = cast.cardObjectId,
-        card = card,
-        options =
-            powerSourceOptions(state, cast.caster, definition, cast.cardObjectId, cast.source)
-                .map { DecisionRequest.ChooseCostPowerSource.Option(it.source, it.card, it.power) },
-    )
 
 // CR 601.2b: every card in the caster's hand except the one being cast is a discard-cost option (Grab the Prize).
 private fun chooseDiscardForCostRequest(

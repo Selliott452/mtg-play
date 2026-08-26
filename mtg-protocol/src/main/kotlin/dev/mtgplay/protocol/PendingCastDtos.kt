@@ -116,7 +116,10 @@ private fun PowerSourceOptionDto.toChosenPowerSource(): ChosenPowerSource =
                 ObjectId(requireNotNull(objectId) { "CR 601.2b: a chosen creature on the wire must name its object" }),
             )
         REVEALED_CARD -> ChosenPowerSource.RevealedCard(CardRef(card))
-        else -> error("unknown power source \"$kind\" on the wire; this engine knows $CHOSEN_CREATURE and $REVEALED_CARD")
+        else ->
+            error(
+                "unknown power source \"$kind\" on the wire; this engine knows $CHOSEN_CREATURE and $REVEALED_CARD",
+            )
     }
 
 private const val CHOSEN_CREATURE: String = "CHOSEN_CREATURE"

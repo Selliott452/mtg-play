@@ -1,5 +1,6 @@
 package dev.mtgplay.rules.engine
 
+import dev.mtgplay.core.identity.CardRef
 import dev.mtgplay.core.identity.ObjectId
 import dev.mtgplay.core.state.GameState
 
@@ -44,9 +45,12 @@ internal fun rememberLastKnownPower(
     state: GameState,
     objectId: ObjectId,
 ): GameState {
-    val permanent = state.sharedZones.battlefield.firstOrNull { it.id == objectId } ?: return state
-    if (!isCreature(state, permanent)) return state
-    return state.copy(lastKnownPower = state.lastKnownPower.putting(objectId, effectivePower(state, objectId)))
+    val permanent = state.sharedZones.battlefield.firstOrNull { it.id == objectId }
+    return if (permanent != null && isCreature(state, permanent)) {
+        state.copy(lastKnownPower = state.lastKnownPower.putting(objectId, effectivePower(state, objectId)))
+    } else {
+        state
+    }
 }
 
 /**
@@ -87,7 +91,7 @@ internal fun powerOnBattlefieldOrLastKnown(
  */
 internal fun printedPowerOf(
     state: GameState,
-    card: dev.mtgplay.core.identity.CardRef,
+    card: CardRef,
 ): Int =
     state.definitions[card]
         ?.characteristics
