@@ -435,6 +435,7 @@ class MvpCardsSpec :
                     // W8-D: card advantage and graveyard artifacts.
                     CardRef("Mulldrifter"),
                     CardRef("Winding Way"),
+                    CardRef("Writhing Chrysalis"),
                     CardRef("Dread Return"),
                     CardRef("Nihil Spellbomb"),
                     CardRef("Relic of Progenitus"),

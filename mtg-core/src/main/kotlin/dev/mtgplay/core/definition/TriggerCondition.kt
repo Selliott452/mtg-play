@@ -1,6 +1,7 @@
 package dev.mtgplay.core.definition
 
 import dev.mtgplay.core.card.CardType
+import dev.mtgplay.core.card.Subtype
 import dev.mtgplay.core.mana.Color
 import kotlinx.collections.immutable.PersistentList
 import kotlinx.collections.immutable.PersistentSet
@@ -375,4 +376,60 @@ sealed interface TriggerCondition {
      * built for it; nothing in the pool does.
      */
     data object BecameTargetOfOpponentsSpellOrAbility : TriggerCondition
+
+    /**
+     * "When you cast this spell" (CR 603.2) — a **self-referential** cast trigger, the ability of a spell
+     * watching itself be cast. Writhing Chrysalis's "create two Eldrazi Spawn tokens" is this. Additive,
+     * flagged core (`W10-D`).
+     *
+     * **Not [SpellCast], and the difference is the whole reason it exists.** [SpellCast] is the
+     * *other-object* watcher a battlefield permanent has (Guttersnipe's "whenever you cast an instant or
+     * sorcery"); its detector scans the battlefield, so it can never see an ability printed on the card
+     * being cast. This condition functions from [TriggerZoneScope.Stack] instead, alongside [CascadeCast]
+     * and [StormCast] — and like both of those it is *synthesized* by the casting pipeline at CR 601.2i
+     * rather than detected, because nothing scans the stack.
+     *
+     * **Not [EnteredBattlefieldSelf] either, and that substitution is the trap.** The ability is on the
+     * stack, so it fires and resolves whether or not the spell does: a countered Writhing Chrysalis still
+     * makes its two Spawn, which is exactly why a sacrifice deck plays it. Encoding it as an entry trigger
+     * produces the same board on an uncontested cast and a different one on every cast that matters
+     * (PLAN.md §7).
+     *
+     * Unlike the three synthesized may-cast abilities, this one is an ordinary trigger once fired: its
+     * [TriggeredAbility.effect] is the card's and runs on resolution through the usual path.
+     */
+    data object CastSelf : TriggerCondition
+
+    /**
+     * "Whenever you sacrifice another [subtype]" (CR 603.2, CR 701.17a) — Writhing Chrysalis's
+     * "whenever you sacrifice another Eldrazi, put a +1/+1 counter on this creature". Additive, flagged
+     * core (`W10-D`). The pool's first trigger condition that watches a **sacrifice**, and its first with
+     * a **subtype** axis.
+     *
+     * **A subtype rather than a card type, and a [Subtype] rather than a [PermanentFilter].** "Eldrazi" is
+     * a creature type (CR 205.3), so the question is a CR 613 layer-4 one and `mtg-rules` answers it
+     * through the changeling-aware seam rather than by reading the printed set — a permanent granted the
+     * type qualifies and a permanent that lost it does not. [PermanentFilter] would carry four more axes
+     * that no printed sacrifice trigger in the pool uses, and each unexercised axis is a branch the
+     * detector must answer without a card to check it against.
+     *
+     * **"You" and "another" are baked in rather than parameterised**, because the only printed line is
+     * "whenever **you** sacrifice **another** Eldrazi" and the name says so. "You" is the ability's
+     * controller (control is ownership in the MVP pool), so a permanent an opponent sacrifices fires
+     * nothing; "another" excludes the ability's own source, so a Writhing Chrysalis sacrificed to its own
+     * Spawn-fuelled engine does not put a counter on itself. A card printing "whenever a player
+     * sacrifices" or "whenever you sacrifice an Eldrazi" (no exclusion) needs those axes added with its
+     * own test, not a widened match here.
+     *
+     * **It looks back in time** (CR 603.6c, CR 603.10a): the sacrifice is detected against the state as it
+     * was *before* the permanent left the battlefield, which is the only state in which its subtypes can
+     * still be read. It fires for a sacrifice whose CR 614 death replacement sends the permanent somewhere
+     * other than a graveyard as well — CR 701.17a's event is the sacrifice, not the arrival.
+     *
+     * @property subtype the creature type the sacrificed permanent must have (CR 205.3), answered through
+     *   layer 4 and changeling rather than off the printed line.
+     */
+    data class YouSacrificedAnother(
+        val subtype: Subtype,
+    ) : TriggerCondition
 }

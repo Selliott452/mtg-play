@@ -48,6 +48,7 @@ object CreatureType {
             Cat
             Dragon
             Drake
+            Drone
             Druid
             Dryad
             Eldrazi

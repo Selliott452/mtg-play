@@ -56,28 +56,14 @@ import kotlinx.collections.immutable.persistentSetOf
  * approximation. Every oracle text here was checked against the repo's own Scryfall snapshot
  * (`mtg-pauper/src/main/resources/scryfall-mvp.json`), which is the authority.
  *
- * ## Absent — Writhing Chrysalis `{2}{R}{G}`
+ * ## Writhing Chrysalis `{2}{R}{G}` — was absent here, shipped in `W10-D`
  *
- * Two independent blockers, and **devoid is not one of them** — the packet brief predicted devoid would
- * need a CR 613 layer-5 colour-setting effect, and it does not: [dev.mtgplay.core.card.Keyword.DEVOID]
- * exists and [dev.mtgplay.core.card.PrintedCharacteristics.colors] already reads it. That is the
- * CR-correct treatment as well as the cheap one, because CR 702.114a makes devoid a
- * *characteristic-defining* ability functioning everywhere, including in zones the layer system does
- * not reach.
- *
- * 1. **"When you cast this spell, create two 0/1 Eldrazi Spawn tokens."** This is an ability of the
- *    *spell*, functioning from the stack (CR 603.2), and it resolves **before** the creature does — so
- *    the tokens arrive even if the Chrysalis is countered, which is the whole reason a sacrifice deck
- *    plays it. [dev.mtgplay.core.definition.TriggerZoneScope] has Battlefield, Graveyard and Exile and
- *    no Stack, and [TriggerCondition.SpellCast] is the *other-object* watcher a permanent has
- *    (Guttersnipe's "whenever you cast an instant or sorcery"). Encoding it as
- *    [TriggerCondition.EnteredBattlefieldSelf] would produce the same board on an uncontested cast and
- *    a different one whenever it matters — the plausible-looking wrong card PLAN.md §7 warns about.
- * 2. **"Whenever you sacrifice another Eldrazi, put a +1/+1 counter on this creature."** There is no
- *    sacrifice trigger condition at all: no [TriggerCondition] member watches CR 701.17, and none of
- *    the eleven members carries a **subtype** axis, which "another Eldrazi" needs (CR 205.3). Both are
- *    real framework additions — an event trigger plus a filtered subject — and neither is this
- *    packet's.
+ * This packet's diagnosis of it stands as written and is worth keeping: **devoid was never a blocker**
+ * ([dev.mtgplay.core.card.Keyword.DEVOID] is a CR 702.114a characteristic-defining ability that the
+ * printed characteristics already read, not a layer-5 effect), and the two real gaps were the two
+ * trigger conditions. Both were built by `W10-D` in the shape named here — a stack-scoped
+ * [TriggerCondition.CastSelf] and a CR 701.17 watcher carrying a CR 205.3 subtype axis and an "another"
+ * exclusion — and the card lives in `CastTriggers.kt`.
  *
  * ## Elsewhere — Call Damage Control `{1}{G}`
  *

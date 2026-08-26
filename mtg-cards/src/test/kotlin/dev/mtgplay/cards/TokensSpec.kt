@@ -98,17 +98,13 @@ class TokensSpec :
             resolved.timedEffects.any { it.affected == yourHuman.id } shouldBe true
         }
 
-        "W9-F: Writhing Chrysalis stays unencoded, on two trigger conditions this packet does not own" {
-            // CR 603.2/113.6a: "When you cast this spell" is an ability of the spell *on the stack*.
-            //   TriggerCondition.SpellCast is the other-object watcher a battlefield permanent has,
-            //   which is a different ability of a different object. The Stack zone scope it needs has
-            //   since landed on main (W9-C's storm, W9-G's cascade); a `CastSelf` condition has not.
-            // CR 701.17: "Whenever you sacrifice another Eldrazi" has no watcher at all, and no
-            //   TriggerCondition member carries a creature-subtype axis. One detection site, not a
-            //   fan-out — every sacrifice funnels through `sacrificeOnePermanent`.
-            // Devoid, reach, and the Spawn token's mana ability are **not** blockers and were re-checked
-            // against the code rather than inherited from the triage — see Tokens.kt's header.
-            MvpCards.definitions[CardRef("Writhing Chrysalis")].shouldBeNull()
+        "W10-D: Writhing Chrysalis is encoded — both trigger conditions landed" {
+            // The assertion this replaces pinned the card's *absence* on two missing frameworks, so that
+            // a later packet shipping it would delete a line rather than quietly add half a card.
+            // `TriggerCondition.CastSelf` (CR 603.2, stack-scoped) and
+            // `TriggerCondition.YouSacrificedAnother` (CR 701.17a, one detection site as W9-F predicted)
+            // are both in the engine now; CastTriggers.kt holds the card and CastTriggersSpec its lines.
+            MvpCards.definitions[CardRef("Writhing Chrysalis")] shouldBe writhingChrysalis
         }
     })
 

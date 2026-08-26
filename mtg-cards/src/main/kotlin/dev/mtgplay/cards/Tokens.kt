@@ -32,60 +32,16 @@ import kotlinx.collections.immutable.persistentSetOf
  *
  * ---
  *
- * **Writhing Chrysalis stays out (`W9-F`), and needs two frameworks rather than one.** Its oracle text
- * is *"Devoid. / When you cast this spell, create two 0/1 colorless Eldrazi Spawn creature tokens with
- * 'Sacrifice this token: Add {C}.' / Reach / Whenever you sacrifice another Eldrazi, put a +1/+1 counter
- * on this creature."* Three of its four lines are expressible **today** and are not the blocker, which
- * is worth recording because the wave-8 triage filed the card under devoid:
- *
- * - **Devoid is not a blocker.** [dev.mtgplay.core.card.Keyword.DEVOID] exists and
- *   [dev.mtgplay.core.card.PrintedCharacteristics] reads it, which is more CR-correct than a layer-5
- *   effect would be: CR 702.114a makes devoid a characteristic-defining ability, so it functions in
- *   every zone rather than only on the battlefield.
- * - **Reach is not a blocker** ([dev.mtgplay.core.card.Keyword.REACH]).
- * - **The Eldrazi Spawn token is not a blocker.** [TokenDefinition] carries `manaAbilities`, so
- *   "Sacrifice this token: Add `{C}`" is `ManaAbility(options = [COLORLESS], cost = [SacrificeSelf])` —
- *   the same shape [tinderWall]'s ritual takes, verified rather than assumed.
- *
- * What is missing is two *trigger* conditions, and one of them arrived from a sibling packet while
- * `W9-F` was in flight:
- *
- * 1. **"When you cast this spell" is an ability of the spell *on the stack*** (CR 603.2, CR 113.6a).
- *    [dev.mtgplay.core.definition.TriggerCondition.SpellCast] is the wrong shape entirely: it is the
- *    *other-object* watcher a permanent on the battlefield has (Guttersnipe, God-Pharaoh's Faithful),
- *    detected at `completeCast` against permanents already in play. This one's source is the spell
- *    itself, on the stack and not yet resolved, so it needs a **Stack** zone scope.
- *
- *    When this packet branched, [dev.mtgplay.core.definition.TriggerZoneScope] had `Battlefield`,
- *    `Exile` and `Graveyard` and no more. **`TriggerZoneScope.Stack` has since landed on `main`** —
- *    `W9-C` added it for storm and `W9-G` for cascade — so what a later packet needs here is only a
- *    plain `CastSelf` condition on top of the scope those two already built, plus its detection inside
- *    the cast pipeline. Do not build a third zone scope.
- *
- *    **Encoding it as an enters-the-battlefield trigger is the trap**, and it is invisible on an
- *    uncontested cast: the same two tokens arrive, one priority round later. It gives the *wrong* board
- *    in exactly the case the card is played for — a countered Writhing Chrysalis still makes its Spawn,
- *    because the trigger is an independent object (CR 113.7a) that has already resolved. That is the
- *    whole reason the line is printed as a cast trigger, so approximating it deletes a real line of play
- *    (PLAN.md §7).
- * 2. **"Whenever you sacrifice another Eldrazi" has no watcher and no subtype axis**, and this is the
- *    one that is genuinely absent. No [dev.mtgplay.core.definition.TriggerCondition] member observes a
- *    CR 701.17 sacrifice at all — the nearest, `PutIntoGraveyardFromBattlefieldSelf`, is a *dies*
- *    trigger about the source itself, and sacrifice is a narrower event than dying (a sacrificed
- *    permanent is never destroyed, and a creature that dies to lethal damage was not sacrificed).
- *
- *    It is **smaller than a fan-out**, and saying so is the honest half of the diagnosis: every
- *    sacrifice in the engine — the CR 601.2h cast costs, the CR 602.1 ability costs, a mana ability's
- *    own cost, and the effect-side `sacrificePermanent` — funnels through a single
- *    `sacrificeOnePermanent`, exactly as every battlefield entry funnels through
- *    `announceBattlefieldEntry`. So this is one detection site, plus a condition member carrying a
- *    **creature-subtype** filter and an "another" exclusion of the source. A packet that owns the
- *    trigger vocabulary should take it; this one does not.
- *
- * Shipping the 2/3 reach body without either trigger would be a colourless bear wearing the card's
- * name: the Spawn are the card's mana and the counters are what the Spawn are spent on. Its absence is
- * pinned in `TokensSpec`, so a later packet that ships it deletes an assertion rather than quietly
- * adding a half-card.
+ * **Writhing Chrysalis is no longer out** — `W10-D` shipped it, and this header's `W9-F` diagnosis was
+ * right on every count, which is why it is worth recording that it was replaced rather than corrected.
+ * Devoid, reach and the Eldrazi Spawn token were re-checked and were never blockers; the two missing
+ * pieces were exactly the two trigger conditions it named. "When you cast this spell" became
+ * [dev.mtgplay.core.definition.TriggerCondition.CastSelf] on the [TriggerZoneScope.Stack] that `W9-C`
+ * and `W9-G` had already built — no third zone scope — and "whenever you sacrifice another Eldrazi"
+ * became [dev.mtgplay.core.definition.TriggerCondition.YouSacrificedAnother], **one** detection site
+ * rather than a fan-out, for the reason `W9-F` gave: every sacrifice in the engine funnels through one
+ * private function. The card and both arguments live in `CastTriggers.kt`; `TokensSpec`'s absence pin
+ * became a presence pin in the same commit.
  */
 
 /** The Human creature type (CR 205.3m) Rally at the Hornburg prints on its tokens and pumps. */

@@ -30,6 +30,7 @@ internal fun describeCondition(condition: TriggerCondition): String =
         TriggerCondition.DealtCombatDamageToPlayerSelf -> "deals-combat-damage-to-a-player"
         TriggerCondition.BecameTargetOfOpponentsSpellOrAbility -> "ward"
         is TriggerCondition.DrewNthCardThisTurn -> "drew-card-number-${condition.n}"
+        is TriggerCondition.YouSacrificedAnother -> "you-sacrifice-another-${condition.subtype.value}"
         // CR 603.2: a disjunctive condition is one ability, so it gets one description â€” the patterns it
         // watches, joined. Which of them actually fired is not recorded on the trigger and is not the
         // ordering decision's business; the description exists to tell two *abilities* apart (ADR-005).
@@ -42,6 +43,7 @@ internal fun describeCondition(condition: TriggerCondition): String =
         TriggerCondition.ReboundCast,
         TriggerCondition.CascadeCast,
         TriggerCondition.StormCast,
+        TriggerCondition.CastSelf,
         -> describeCastCondition(condition)
     }
 
@@ -63,6 +65,7 @@ private fun describeCastCondition(condition: TriggerCondition): String =
         TriggerCondition.ReboundCast -> "rebound-may-cast"
         TriggerCondition.CascadeCast -> "cascade"
         TriggerCondition.StormCast -> "storm"
+        TriggerCondition.CastSelf -> "cast-this-spell"
         // Reachable only by calling this directly with a zone-shaped condition, which the one caller
         // above never does; listed rather than `else`d so the exhaustiveness check still bites.
         TriggerCondition.EnteredBattlefieldSelf,
@@ -75,6 +78,7 @@ private fun describeCastCondition(condition: TriggerCondition): String =
         TriggerCondition.DealtCombatDamageToPlayerSelf,
         TriggerCondition.BecameTargetOfOpponentsSpellOrAbility,
         is TriggerCondition.DrewNthCardThisTurn,
+        is TriggerCondition.YouSacrificedAnother,
         is TriggerCondition.AnyOf,
         -> error("CR 603.2: $condition is not a cast-shaped condition; describeCondition names it")
     }

@@ -685,6 +685,7 @@ object MvpCards {
             wildGrowth,
             windDrake,
             windingWay,
+            writhingChrysalis,
             youthfulKnight,
         ).associateBy { CardRef(it.characteristics.name) }
 }
