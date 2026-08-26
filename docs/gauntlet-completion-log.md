@@ -334,3 +334,70 @@ costs five dispatch sites, and that price should stay visible.
 framework: ward, explore, collect evidence's summed-weight selection, modal arity above one, a
 delayed CR 614 replacement scoped to a duration, equipment and energy, layer-4 type changes,
 name-keyed token identity, and the play-from-exile permission for a card that lost the race.
+
+## Wave 9 — the last twenty-nine
+
+Seven packets against the 29 cards wave 8 left, all merged. **Backlog 29 → 9; mainboard 158 → 171 of
+178; sideboard 37 → 45 of 48.** Five decks are now complete on both boards (GW Bogles, Mono-Red
+Madness, Mono Red Rally, plus Mono-Blue Terror and Mono Blue Faeries on mainboard) and eight
+mainboards are whole.
+
+| Packet | Encoded | Dropped |
+|---|---|---|
+| W9-A ward and the ninja tail | 3 | 0 |
+| W9-B collect evidence and modal arity | 3 | 0 |
+| W9-C dependent targets, storm, ability X | 3 | 1 |
+| W9-D bargain, delayed replacements, explore | 2 | 1 |
+| W9-E layer 4, token identity, equipment | 3 | 0 |
+| W9-F search deciders, ability LKI, gated clauses | 4 | 1 |
+| W9-G alternate castings | 2 | 2 |
+
+### The corrections that mattered
+
+Wave 8's lesson was that a recorded diagnosis goes stale. Wave 9 proved it three more times, and two
+of the corrections were mine:
+
+- **"The engine has no cast-without-paying path"** was false when written. `CastingPermission.Plot`
+  and `.Rebound` both fix cost at `{0}` and say so in their own KDoc, and Ephemerate had driven that
+  path for two waves. Cascade added zero lines to the cost pipeline.
+- **"Prototype's characteristic half is a CR 613 layer effect"** was also wrong. CR 718.2a makes the
+  alternative characteristics *copiable values*, so a prototyped object starts from a different base
+  and no layer is involved. Both Monster Tron finishers landed as a result — the deck the deferred-ten
+  triage said these drops hurt most.
+- **My cross-mode targeting rule was backwards.** I told W9-B that CR 601.2c forbids choosing the same
+  object for two modes. CR 115.3 says the opposite: each printed instance of "target" is its own
+  instance and may name the same object. Had I been right, a legal mode *set* would have required a
+  system of distinct representatives across the modes' option lists — a bipartite matching at
+  CR 601.2b. As the rule reads, the mode decision stays a plain subset.
+
+### What the wave cost
+
+A new decision family cost **17 dispatch sites**, not the "roughly five" I estimated, and tripped six
+detekt budgets — all split, zero suppressions. `announceBattlefieldEntry` was hooked independently by
+two packets in the same wave (entry-turn stamp, landfall tally), which is the strongest evidence yet
+that consolidating the entry paths after T18 was right. `TriggerZoneScope.Stack` was invented twice,
+for cascade and for storm.
+
+### Defects found, including my own
+
+The engine caught three defects I introduced while merging: a dangling zone-unguarded payability probe
+(24 acceptance failures), a lost multi-line castability gate, and a stage-rebuild that silently dropped
+the CR 400.7 prototype bridge. Every one was caught by a test rather than by review, which is the
+argument for the guards being loud.
+
+Packets found two live defects of their own: CR 704.5d token cessation failed loudly for a token in
+exile (already reachable), and `grantedEvasions` had never been mirrored onto the wire — so a
+Gingerbrute that made itself unblockable crossed as an ordinary creature, a remote seat disagreeing
+with the engine about a *combat legality*.
+
+### The nine that remain
+
+`Avenging Hunter` and `Goliath Paladin` (the initiative — a dungeon subsystem for two cards),
+`Nyxborn Hydra` (bestow), `Pinnacle Kill-Ship` (station), `Fang Dragon` and `Sagu Wildling` (two faces
+on one card), `Kaervek's Torch` (a cost *increase* keyed on another spell's targets — and W9-C found
+the affordability coupling runs the right way in the filter but the wrong way in the gate),
+`Fanatical Offering` (explore's reveal is public *while in a library*, the one zone the seat view never
+discloses — a disclosure job, not a clause), and `Writhing Chrysalis` (a `CastSelf` on the stack scope
+plus a sacrifice watcher with a subtype axis).
+
+Every one has a named framework. Nothing is blocked on "we do not know why".
