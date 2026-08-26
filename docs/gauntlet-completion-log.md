@@ -468,3 +468,93 @@ discovering the hole in a game.
 
 **That is the whole remaining backlog: one mainboard card and one sideboard card, blocked on one
 framework (attack requirements) plus a reveal destination.**
+
+## Wave 11 — the last two rooms
+
+One packet, `W11`. **Backlog 2 → 0; mainboard 177 → 178 of 178; sideboard 47 → 48 of 48.** All
+thirteen decks are complete on both boards.
+
+| Packet | Encoded | Dropped |
+|---|---|---|
+| W11 the last two rooms | 2 | 0 |
+
+### The engine's first attack requirement
+
+Goad (CR 701.38a) is the packet's real content, and wave 10's diagnosis of it was exactly right: it is
+a **requirement** on the CR 508.1 declaration, not an effect. Until now `eligibleAttackers` published
+a free subset and `DecisionValidation` accepted any distinct subset back — every rule about attacking
+in the pool (defender, tapped, summoning sickness) removes a creature from the option list, so no rule
+had ever said that a *listed* option must be taken.
+
+It is published on the request as `required` and enforced across the chosen set, which is exactly what
+`minimumBlockers` does one decision later for Troll of Khazad-dûm: the legality is a property of the
+whole declaration, no option list can express it, and a seat that cannot see it picks an illegal line.
+Three CLI answer paths had to learn it too — the blank-input default, the fuzz harness's random
+chooser, and typed input — because a chooser that can produce an illegal answer is worse than useless.
+
+**CR 508.1d's maximisation is not implemented, deliberately.** The rule says the declaration must obey
+as many requirements as possible *without violating any restriction*, and this engine has no attack
+restrictions at all. With none in play the maximisation collapses to "satisfy every requirement",
+which is what the validator enforces; a real search would be untested machinery around a constant
+answer. `AttackRequirements.kt` records this, and the first printed restriction is where it grows one.
+
+**Goad's second half is recorded, not dropped.** "Attacks a player other than you if able" constrains
+nothing at two seats whichever way the target points — the sole defending player either is not the
+goader, or is, and "if able" then waives it. The goading player is stored on the permanent anyway, so
+the fact is present when a third seat exists.
+
+### Where goad lives, and why not in a continuous-effect store
+
+On the `GameObject`, beside `playGrantedTurn`. Goad changes no characteristic and classifies into no
+CR 613 layer, so `ContinuousModification` has nowhere to put it; and it must end when the object stops
+being that object (CR 400.7 — a goaded creature that dies and returns comes back ungoaded), which a
+field gets for free and a store keyed on an object id would have had to be told.
+
+### "Until your next turn", the piece both rooms needed
+
+`EffectDuration` had `UntilEndOfTurn` and `Indefinite`, and this is neither: it outlives the turn it
+began in, so CR 514.2 cannot end it, and something does end it. The new member follows
+`playGrantedTurn`'s shape — it records **who**, the effect's existing `createdOnTurn` records **when**,
+and one `hasEnded` combines them — because "your next turn" cannot be written as a turn number without
+predicting the turn order two turns out.
+
+The exit is a new turn-based action at the **start** of the named player's turn, not that turn's
+cleanup. Goad does not notice the difference in a two-player game (no combat of the goaded creature's
+falls between the two candidate moments), but Throne's hexproof very much does: sweeping at cleanup
+would grant a full extra turn of removal immunity. That near-miss is why the choice is written down in
+`UntilYourNextTurn.kt` rather than left to whichever card was encoded first.
+
+It had to be answered in four exhaustive `when`s — the three timed stores plus the acceptance
+invariant — and in both directions of the wire. The prevention and death-replacement mirrors **refuse**
+it rather than naming it, following `TimedPreventionEffectDto`'s existing precedent for `Indefinite`:
+no card in the pool puts it there, and an empty branch of a schema is a branch nothing tests.
+
+### Three of Throne's four recorded blockers had already landed
+
+The pattern of waves 8–10 held for the last card in the gauntlet. Wave 10 recorded four absent
+frameworks for Throne of the Dead Three; re-checked against the code as it now is, three were present:
+`EntersWithCounters` arrived with `W10-C`, the layer-6 `grantedKeywords` seam with `W9-E`, and
+`RevealedCardFilter.CREATURE_CARD` earlier still. Genuinely new were a reveal that ends on the
+**battlefield**, a "then shuffle" over the cards a reveal did *not* take, and the shared duration.
+
+All four printed clauses became axes of the existing `LibraryReveal` rather than an eighteenth
+`ResolutionClauses` member — which reuses the pending record, the decision kind, the validator and the
+application path, and was worth doing precisely because the wave-10 brief warned that a new clause
+costs a dozen dispatch sites. A **mandatory** keep is one of those axes and is not cosmetic: "Put a
+creature card…" has no legal decline, so the engine stops enumerating one (ADR-005).
+
+`CounterAmount.Fixed` — added by `W10-C` as the *ordinary* shape of CR 614.1c and unused, because
+every self-replacement in the gauntlet announces X — got its first client here, from the opposite
+direction: the counters are named by the **effect** doing the putting, not by the card being put.
+
+### One oracle correction, and it was load-bearing
+
+**Avenging Hunter is an Elf Ranger.** The repo's own Scryfall snapshot typed it *Dragon* Ranger. This
+is not cosmetic: Elves plays four copies alongside Priest of Titania, Timberwatch Elf and Wellwisher,
+each of which counts Elves on the battlefield (CR 205.3m), so a Dragon here would have silently
+produced less mana, a smaller pump and less life — a plausible-looking wrong card in the one deck that
+would notice. The definition and the snapshot's `type_line` are both corrected. Goliath Paladin's
+snapshot entry (Giant Knight, 3/6, vigilance) is right in every detail, which is what made the anomaly
+worth trusting the packet brief over the file.
+
+**The gauntlet is complete: 178/178 mainboard, 48/48 sideboard, backlog 0.**
