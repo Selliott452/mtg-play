@@ -50,9 +50,9 @@ class GauntletCoverageSpec :
                 // `W8-C` added Cryoshatter, Dust to Dust, and Ride's End: three cards across seven rows,
                 // all three of them sideboard staples, which is why the sideboard columns move most.
                 listOf(
-                    Pinned("Elves", 12, 16, 3, 5),
+                    Pinned("Elves", 12, 16, 4, 5),
                     Pinned("Gates", 15, 17, 5, 5),
-                    Pinned("Grixis Affinity", 20, 22, 5, 7),
+                    Pinned("Grixis Affinity", 20, 22, 6, 7),
                     Pinned("GW Bogles", 18, 18, 8, 8),
                     Pinned("Jeskai Ephemerate", 21, 22, 6, 7),
                     Pinned("Jund Wildfire", 18, 22, 6, 7),
@@ -116,11 +116,11 @@ private const val TOTAL_MISSING_MAIN = 20
 
 /** Distinct cards named by at least one gauntlet sideboard. */
 private const val TOTAL_DISTINCT_SIDEBOARD = 48
-private const val TOTAL_ENCODED_SIDEBOARD = 37
-private const val TOTAL_MISSING_SIDEBOARD = 11
+private const val TOTAL_ENCODED_SIDEBOARD = 39
+private const val TOTAL_MISSING_SIDEBOARD = 9
 
 /** The whole backlog: distinct undefined cards across both boards of all thirteen decks. */
-private const val TOTAL_MISSING_BOTH_BOARDS = 29
+private const val TOTAL_MISSING_BOTH_BOARDS = 27
 
 /** Of the backlog, the cards that appear only in sideboards. */
-private const val TOTAL_MISSING_SIDEBOARD_ONLY = 9
+private const val TOTAL_MISSING_SIDEBOARD_ONLY = 7

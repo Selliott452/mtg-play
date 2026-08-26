@@ -1,6 +1,7 @@
 package dev.mtgplay.rules.engine
 
 import dev.mtgplay.core.definition.AdditionalCost
+import dev.mtgplay.core.definition.OptionalAdditionalCost
 import dev.mtgplay.core.definition.SpellDefinition
 import dev.mtgplay.core.identity.CardRef
 import dev.mtgplay.core.state.GameState
@@ -228,37 +229,66 @@ private fun optionalCostAnnouncementRequest(
             ?: error("CR 601.2b: an optional-cost announcement requires a card printing one")
     // Named so the prompt is readable without the seat holding the card; the option set is the same
     // two indices every yes/no has.
-    val payable = optionalCostPayableWith(state, cast.caster, cost).size
+    val payable = optionalCostPayableWith(state, cast.caster, cost)
+    val price =
+        when (cost) {
+            OptionalAdditionalCost.Bargain -> "bargain, sacrificing 1 of ${payable.size} permanent(s)"
+            is OptionalAdditionalCost.CollectEvidence ->
+                "collect evidence ${cost.amount}, exiling from ${payable.size} graveyard card(s) " +
+                    "totalling ${payable.sumOf { evidenceManaValue(state, it) }} mana value"
+        }
     return DecisionRequest.ChooseYesNo(
         id = id,
-        prompt = "Pay ${card.name}'s optional additional cost (bargain) by sacrificing 1 of $payable permanent(s)?",
+        prompt = "Pay ${card.name}'s optional additional cost ($price)?",
         cardObjectId = cast.cardObjectId,
         card = card,
     )
 }
 
-// CR 601.2b/702.166a: every artifact, enchantment, or token the caster controls pays an announced
-// bargain. Reached only after a "yes", so the option list is never empty.
+/**
+ * The CR 601.2b selection stage of an *announced* optional additional cost — reached only after a "yes",
+ * so its option list is never empty and always holds a legal answer.
+ *
+ * The two members produce **different request shapes**, which is the whole reason this is a `when` and
+ * not one constructor: bargain's answer is bounded by a count (a `SizedSelection`), collect evidence's by
+ * a summed mana value (the `SummedSelection` this packet added). See
+ * [DecisionRequest.SummedSelection] for why the graveyard is offered flat rather than as paying subsets.
+ */
 private fun chooseOptionalCostObjectsRequest(
     state: GameState,
     cast: PendingCast,
     definition: SpellDefinition,
     card: CardRef,
     id: DecisionRequestId,
-): DecisionRequest.ChooseOptionalCostSacrifice {
+): DecisionRequest {
     val cost =
         definition.optionalAdditionalCost
             ?: error("CR 601.2b: an optional-cost selection requires a card printing one")
-    return DecisionRequest.ChooseOptionalCostSacrifice(
-        id = id,
-        cardObjectId = cast.cardObjectId,
-        card = card,
-        options =
-            optionalCostPayableWith(state, cast.caster, cost)
-                .map { DecisionRequest.ChooseOptionalCostSacrifice.Option(it.id, it.card) },
-        // CR 702.166a: bargain sacrifices exactly one permanent.
-        count = 1,
-    )
+    val payable = optionalCostPayableWith(state, cast.caster, cost)
+    return when (cost) {
+        // CR 601.2b/702.166a: every artifact, enchantment, or token the caster controls pays a bargain.
+        OptionalAdditionalCost.Bargain ->
+            DecisionRequest.ChooseOptionalCostSacrifice(
+                id = id,
+                cardObjectId = cast.cardObjectId,
+                card = card,
+                options = payable.map { DecisionRequest.ChooseOptionalCostSacrifice.Option(it.id, it.card) },
+                // CR 702.166a: bargain sacrifices exactly one permanent.
+                count = 1,
+            )
+        // CR 601.2b/701.60a: every card in the caster's graveyard may go toward the evidence total.
+        is OptionalAdditionalCost.CollectEvidence ->
+            DecisionRequest.ChooseEvidence(
+                id = id,
+                cardObjectId = cast.cardObjectId,
+                card = card,
+                options =
+                    payable.map {
+                        DecisionRequest.ChooseEvidence.Option(it.id, it.card, evidenceManaValue(state, it))
+                    },
+                requiredTotal = cost.amount,
+            )
+    }
 }
 
 // CR 601.2h: every untapped matching permanent the caster controls is a tap-cost option (Prismatic

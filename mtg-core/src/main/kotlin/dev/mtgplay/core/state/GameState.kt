@@ -121,6 +121,11 @@ import kotlinx.collections.immutable.persistentMapOf
  *   docs/design/exile-and-return.md §6). Non-null only at that mid-resolution pause. The one pending
  *   record whose decider is not the resolving object's controller **and** whose options are hidden from
  *   that controller — see [PendingOpponentDiscard].
+ * @property pendingOpponentSacrifice an "each opponent sacrifices a permanent of their choice" clause
+ *   awaiting one opponent's choice from their own battlefield (CR 701.17a), or `null`. Additive, flagged
+ *   core (`FW-NONCTRLDEC`, `W9-B`). Non-null only at that mid-resolution pause. The sibling of
+ *   [pendingOpponentDiscard] whose options are entirely **public**, and so the one non-controller pause
+ *   that needs no seat-view projection at all — see [PendingOpponentSacrifice].
  * @property pendingRebound a resolved rebound delayed ability awaiting its controller's yes/no free cast
  *   (CR 702.88b), or `null`. Additive, flagged core (`FW-BLINK`, docs/design/exile-and-return.md §5).
  *   Non-null only at that pause, where the delayed ability has already left the stack — see
@@ -190,6 +195,7 @@ data class GameState(
     val pendingCounterPayment: PendingCounterPayment? = null,
     val pendingHandReveal: PendingHandReveal? = null,
     val pendingOpponentDiscard: PendingOpponentDiscard? = null,
+    val pendingOpponentSacrifice: PendingOpponentSacrifice? = null,
     val pendingRebound: PendingRebound? = null,
     val pendingNinjutsu: PendingNinjutsu? = null,
     val pendingOptionalDraw: PendingOptionalDraw? = null,

@@ -33,6 +33,7 @@ fun DecisionRequest.toDto(): DecisionRequestDto =
         is DecisionRequest.SingleOptionSelection -> singleOptionSelectionToDto(this)
         is DecisionRequest.SizedSelection -> sizedSelectionToDto(this)
         is DecisionRequest.RangedSelection -> rangedSelectionToDto(this)
+        is DecisionRequest.SummedSelection -> summedSelectionToDto(this)
         is DecisionRequest.PermutationSelection -> permutationSelectionToDto(this)
         is DecisionRequest.ChoiceCountSelection -> choiceCountSelectionToDto(this)
         is DecisionRequest.MulliganRequest -> mulliganRequestToDto(this)
@@ -223,6 +224,14 @@ private fun sizedSelectionToDto(request: DecisionRequest.SizedSelection): Decisi
                 request.options.map { cardOption(it.objectId, it.card) },
                 request.count,
             )
+        is DecisionRequest.ChooseOpponentSacrifice ->
+            DecisionRequestDto.ChooseOpponentSacrifice(
+                request.id.toDto(),
+                request.controller.seat,
+                request.sourceCard.name,
+                request.greatestPowerOnly,
+                request.options.map { cardOption(it.objectId, it.card) },
+            )
         is DecisionRequest.ChooseCardsToExile,
         is DecisionRequest.ChooseSacrifices,
         is DecisionRequest.ChooseTapsForCost,
@@ -292,6 +301,7 @@ private fun costSizedSelectionToDto(request: DecisionRequest.SizedSelection): De
         is DecisionRequest.ChooseOptionalCostObject,
         is DecisionRequest.ChooseResolutionDiscards,
         is DecisionRequest.ChooseOpponentDiscards,
+        is DecisionRequest.ChooseOpponentSacrifice,
         -> error("CR 601.2: non-cost sized selection routed to the cost helper: $request")
     }
 

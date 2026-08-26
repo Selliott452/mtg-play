@@ -35,12 +35,30 @@ fun defaultDecision(request: DecisionRequest): Decision =
         // CR 601.2c: the minimum is always legal and is the passive choice — an "up to N" target line
         // defaults to declining, matching this file's "blank input takes the do-nothing option" rule.
         is DecisionRequest.RangedSelection -> Decision.MultiSelect(request.id, (0 until request.minimumCount).toList())
+        // CR 601.2b/701.60a: a summed selection has no "do nothing" answer — declining happened one
+        // stage earlier, at the announcement — so the default is the cheapest legal payment, taking
+        // options in order until the threshold is reached.
+        is DecisionRequest.SummedSelection -> Decision.MultiSelect(request.id, cheapestPayment(request))
         is DecisionRequest.PermutationSelection ->
             Decision.MultiSelect(request.id, (0 until request.permutationSize).toList())
         // The trailing opt-out index is the last legal index (CR 701.16/601.3b/701.18): keep/find none, decline.
         is DecisionRequest.ChoiceCountSelection -> Decision.SingleSelect(request.id, request.choiceCount - 1)
         is DecisionRequest.MulliganRequest -> mulliganDefault(request)
     }
+
+/**
+ * The first legal payment of a summed selection (CR 601.2b, CR 701.60a): options in index order until
+ * their weights reach the threshold. Always succeeds — the request is surfaced only when the whole
+ * option list can pay it, so the loop cannot run out.
+ */
+private fun cheapestPayment(request: DecisionRequest.SummedSelection): List<Int> {
+    var total = 0
+    return (0 until request.optionCount).takeWhile { index ->
+        val short = total < request.requiredTotal
+        total += request.optionWeights[index]
+        short
+    }
+}
 
 /** The default mulligan answer: keep the hand, or - if bottoming - bottom the first [count] cards. */
 private fun mulliganDefault(request: DecisionRequest.MulliganRequest): Decision =

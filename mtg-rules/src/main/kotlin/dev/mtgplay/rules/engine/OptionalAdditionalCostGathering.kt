@@ -9,6 +9,7 @@ import dev.mtgplay.core.state.GameObject
 import dev.mtgplay.core.state.GameState
 import dev.mtgplay.core.state.PendingCast
 import dev.mtgplay.rules.AdvanceResult
+import dev.mtgplay.rules.effect.exileCardFromGraveyard
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toPersistentList
 
@@ -30,9 +31,11 @@ import kotlinx.collections.immutable.toPersistentList
  */
 
 /**
- * The battlefield permanents [seat] controls that can pay [cost] (CR 601.2h). For
- * [OptionalAdditionalCost.Bargain] (CR 702.166a) that is the union of their artifacts, their
- * enchantments, and their tokens, in battlefield order. Control is ownership in the MVP pool.
+ * The objects [seat] may spend on [cost] (CR 601.2b/h) — the option list of its selection stage, and
+ * **not** the same zone for every member. For [OptionalAdditionalCost.Bargain] (CR 702.166a) it is the
+ * union of their artifacts, their enchantments, and their tokens, in battlefield order (control is
+ * ownership in the MVP pool); for [OptionalAdditionalCost.CollectEvidence] (CR 701.60a) it is the whole
+ * of their graveyard, in graveyard order.
  *
  * **Tokenhood is not a card type**, so it cannot be a [dev.mtgplay.core.definition.SacrificeFilter]
  * axis: a token is a non-card game object (CR 111.1), tested here the way the whole engine tests it —
@@ -53,7 +56,47 @@ internal fun optionalCostPayableWith(
                 obj.owner == seat &&
                     (CardType.ARTIFACT in types || CardType.ENCHANTMENT in types || isToken(state, obj))
             }
+        // CR 701.60a: "exile cards ... from your graveyard" — every card there is spendable, unfiltered.
+        // That the list carries no filter is the point: a collect-evidence answer is constrained by a
+        // *sum*, and the constraint travels in the request rather than in this list (`SummedSelection`).
+        is OptionalAdditionalCost.CollectEvidence -> state.player(seat).graveyard
     }
+
+/**
+ * The mana value of the graveyard object [obj] for collect evidence (CR 202.3, CR 701.60a): its
+ * **printed** cost's, or zero for a card with none (a land) and for a definition the pool does not
+ * carry.
+ *
+ * Printed rather than announced, and that is a rule rather than a shortcut: CR 202.3b's "X is the
+ * announced value" holds only while a spell is on the stack, and these cards are in a graveyard, where
+ * an unvalued `{X}` counts as zero (CR 107.3e).
+ */
+internal fun evidenceManaValue(
+    state: GameState,
+    obj: GameObject,
+): Int = state.definitions[obj.card]?.characteristics?.manaValue ?: 0
+
+/**
+ * Whether [seat] could actually pay [cost] right now (CR 601.2b) — the gate on the *announcement*, and
+ * the reason the two members cannot share one `isNotEmpty()` test.
+ *
+ * Bargain needs one spendable permanent, so a non-empty option list is exactly the question. Collect
+ * evidence needs the option list's mana values to **sum** to its amount, and a graveyard of four lands
+ * is a long non-empty list that pays nothing. Testing emptiness there would offer a "yes" whose
+ * selection stage has no legal answer, which is the enumerated-then-unpayable defect ADR-005 forbids.
+ */
+internal fun optionalCostIsPayable(
+    state: GameState,
+    seat: PlayerId,
+    cost: OptionalAdditionalCost,
+): Boolean {
+    val payableWith = optionalCostPayableWith(state, seat, cost)
+    return when (cost) {
+        OptionalAdditionalCost.Bargain -> payableWith.isNotEmpty()
+        is OptionalAdditionalCost.CollectEvidence ->
+            payableWith.sumOf { evidenceManaValue(state, it) } >= cost.amount
+    }
+}
 
 /**
  * The settled announcement a cast starts with for [definition]'s optional additional cost (CR 601.2b):
@@ -75,7 +118,7 @@ internal fun initialOptionalCostAnnouncement(
     definition: SpellDefinition,
 ): Boolean? {
     val cost = definition.optionalAdditionalCost ?: return false
-    return if (optionalCostPayableWith(state, seat, cost).isEmpty()) false else null
+    return if (optionalCostIsPayable(state, seat, cost)) null else false
 }
 
 /**
@@ -100,9 +143,10 @@ internal fun applyOptionalCostAnnouncement(
 }
 
 /**
- * Records the permanents chosen to pay an announced optional additional cost (CR 601.2b/h) on the open
- * [PendingCast] and suspends for the next decision. They are sacrificed only when the cast executes,
- * atomically with everything else.
+ * Records the objects chosen to pay an announced optional additional cost (CR 601.2b/h) on the open
+ * [PendingCast] and suspends for the next decision — bargain's one permanent, or the graveyard cards
+ * whose mana values collect the evidence. They are consumed only when the cast executes, atomically
+ * with everything else.
  */
 internal fun applyChosenOptionalCostObjects(
     state: GameState,
@@ -118,10 +162,19 @@ internal fun applyChosenOptionalCostObjects(
 }
 
 /**
- * Stage CR 601.2b/h — the optional additional cost itself: sacrifices the permanents chosen to pay an
- * announced cost (CR 701.17), or does nothing when it was declined or absent (the settled list is
- * empty). The permanents were chosen legally while gathering (ADR-005), so a missing one is an engine
- * defect and [sacrificePermanents] fails loudly.
+ * Stage CR 601.2b/h — the optional additional cost itself: consumes the objects chosen to pay an
+ * announced cost, or does nothing when it was declined or absent (the settled list is empty).
+ *
+ * **How they are consumed belongs to the cost, not to this stage**, and the two members differ in zone
+ * as well as in verb: bargain sacrifices a permanent (CR 701.17), collect evidence exiles graveyard
+ * cards (CR 701.3a, CR 701.60a). Folding them behind one call would put two genuinely different moves
+ * behind one name, which is the objection `ExileFromGraveyard.kt` already records for the exile
+ * primitives themselves. A declined or absent cost settles the list empty, so [definition] is consulted
+ * only when there is something to consume.
+ *
+ * The objects were chosen legally while gathering (ADR-005): a missing permanent is an engine defect and
+ * [sacrificePermanents] fails loudly, while a missing graveyard card is not, for the reason
+ * [exileCardFromGraveyard] documents.
  *
  * Paid **after** the mana (CR 601.2g precedes CR 601.2h), beside the intrinsic sacrifice cost and for
  * the same reason: a permanent tapped for mana by the plan may be the one sacrificed
@@ -130,11 +183,19 @@ internal fun applyChosenOptionalCostObjects(
 internal fun payOptionalAdditionalCost(
     state: GameState,
     cast: PendingCast,
+    definition: SpellDefinition,
 ): GameState {
-    val toSacrifice =
+    val chosen =
         cast.optionalCostObjects
             ?: error("CR 601.2b: the optional additional cost of ${cast.cardObjectId} was not settled before payment")
-    return sacrificePermanents(state, cast.caster, toSacrifice)
+    if (chosen.isEmpty()) return state
+    return when (definition.optionalAdditionalCost) {
+        null ->
+            error("CR 601.2b: ${cast.cardObjectId} paid an optional additional cost its definition does not print")
+        OptionalAdditionalCost.Bargain -> sacrificePermanents(state, cast.caster, chosen)
+        // CR 701.60a: collecting evidence exiles the chosen cards from the caster's own graveyard.
+        is OptionalAdditionalCost.CollectEvidence -> chosen.fold(state, ::exileCardFromGraveyard)
+    }
 }
 
 /**

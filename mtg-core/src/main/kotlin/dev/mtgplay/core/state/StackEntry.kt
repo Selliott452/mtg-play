@@ -219,6 +219,33 @@ val StackEntry.resolutionTargets: PersistentList<Target>
             is StackEntry.ActivatedAbilityOnStack -> targets
         }
 
+/**
+ * Whether this stack object's **optional additional cost was paid** (CR 601.2b) — bargained, or evidence
+ * collected. Additive, flagged core (`W9-B`).
+ *
+ * A **spell** carries the answer on its cast record ([StackEntry.Spell.optionalCostPaid]), which is
+ * CR 702.166b's linked information; an **ability** is not cast and has no such cost, so it is always
+ * `false` rather than an error — an ability that asks the question is simply being told "no", the same
+ * answer a spell without the cost gives.
+ *
+ * The projection that lets a mid-resolution clause read the cost's linked information without knowing
+ * which kind of object is resolving, exactly as [resolutionController] does for the decider. Its first
+ * client is the each-opponent-sacrifices clause, whose choice narrows to greatest power *if evidence was
+ * collected* (Extract a Confession) — a clause narrowed by a cost paid one whole CR 601 stage earlier.
+ *
+ * Note this is the **resolution-time** read of the flag; [InterveningIf.SourcePaidOptionalAdditionalCost]
+ * is the *trigger*-time read of the same fact, which crosses CR 400.7 onto a permanent instead
+ * ([GameObject.optionalCostPaidWhenCast]). Two readers because the fact is needed on both sides of the
+ * zone change, not because they disagree.
+ */
+val StackEntry.resolutionOptionalCostPaid: Boolean
+    get() =
+        when (this) {
+            is StackEntry.Spell -> optionalCostPaid
+            is StackEntry.Ability -> false
+            is StackEntry.ActivatedAbilityOnStack -> false
+        }
+
 /** The printed identity of this stack object's source (CR 201) — the counterpart of [resolutionSourceId]. */
 val StackEntry.resolutionSourceCard: CardRef
     get() =

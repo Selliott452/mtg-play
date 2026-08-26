@@ -99,8 +99,12 @@ private fun lateClauseOrCompletion(
 ): AdvanceResult {
     val tapOrUntap = clauses.optionalTapOrUntap
     val chosenColor = clauses.chosenColorEffect
+    val opponentSacrifice = clauses.eachOpponentSacrifices
     return when {
         tapOrUntap != null -> orchestrateTapOrUntap(state, entry, tapOrUntap)
+        // CR 701.17a: "each opponent sacrifices a creature of their choice" (Extract a Confession) —
+        // the second clause whose decider is not the resolving object's controller.
+        opponentSacrifice != null -> orchestrateEachOpponentSacrifices(state, entry, opponentSacrifice)
         // CR 700.2 / CR 615.1: "sources of the color of your choice" (Prismatic Strands) — the colour
         // is named on resolution, so the clause pauses here rather than at CR 601.2b.
         chosenColor != null -> orchestrateChosenColor(state, entry)

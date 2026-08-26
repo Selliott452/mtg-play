@@ -24,6 +24,7 @@ fun renderMenu(
         is DecisionRequest.SingleOptionSelection -> singleOptionMenu(view, request)
         is DecisionRequest.SizedSelection -> sizedSelectionMenu(request)
         is DecisionRequest.RangedSelection -> rangedSelectionMenu(view, request)
+        is DecisionRequest.SummedSelection -> summedSelectionMenu(request)
         is DecisionRequest.PermutationSelection -> permutationMenu(view, request)
         is DecisionRequest.ChoiceCountSelection -> choiceCountMenu(request)
         is DecisionRequest.MulliganRequest -> mulliganMenu(request)

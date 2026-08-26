@@ -216,6 +216,9 @@ private fun libraryLookOrLatePauseRequest(state: GameState): DecisionRequest? =
         // CR 701.7a: an *opponent* of the resolving object's controller chooses from their own hand —
         // the one pause answered by a seat that is neither the controller nor the priority holder.
         state.pendingOpponentDiscard != null -> pendingOpponentDiscardRequest(state)
+        // CR 701.17a: its sibling with a public option list — an *opponent* chooses which of their own
+        // permanents to sacrifice (Extract a Confession).
+        state.pendingOpponentSacrifice != null -> pendingOpponentSacrificeRequest(state)
         state.pendingRebound != null -> pendingReboundRequest(state)
         // CR 601.3b: the resolving object's *controller* may pay for a draw (`W8-D`, Nihil Spellbomb).
         state.pendingOptionalManaPayment != null -> pendingOptionalManaPaymentRequest(state)

@@ -23,6 +23,7 @@ fun DecisionRequestDto.toDomain(): DecisionRequest =
         is DecisionRequestDto.SingleOptionSelectionDto -> singleOptionSelectionToDomain(this)
         is DecisionRequestDto.RangedSelectionDto -> rangedSelectionToDomain(this)
         is DecisionRequestDto.SizedSelectionDto -> sizedSelectionToDomain(this)
+        is DecisionRequestDto.SummedSelectionDto -> summedSelectionToDomain(this)
         is DecisionRequestDto.PermutationSelectionDto -> permutationSelectionToDomain(this)
         is DecisionRequestDto.ChoiceCountSelectionDto -> choiceCountSelectionToDomain(this)
         is DecisionRequestDto.MulliganRequestDto -> mulliganRequestToDomain(this)
@@ -89,6 +90,14 @@ private fun sizedSelectionToDomain(dto: DecisionRequestDto.SizedSelectionDto): D
                 dto.options.mapOptions { o, c -> DecisionRequest.ChooseOpponentDiscards.Option(o, c) },
                 dto.count,
             )
+        is DecisionRequestDto.ChooseOpponentSacrifice ->
+            DecisionRequest.ChooseOpponentSacrifice(
+                dto.id.toDomain(),
+                PlayerId(dto.controller),
+                CardRef(dto.sourceCard),
+                dto.greatestPowerOnly,
+                dto.options.mapOptions { o, c -> DecisionRequest.ChooseOpponentSacrifice.Option(o, c) },
+            )
         is DecisionRequestDto.ChooseCardsToExile,
         is DecisionRequestDto.ChooseSacrifices,
         is DecisionRequestDto.ChooseTapsForCost,
@@ -152,6 +161,7 @@ private fun costSizedSelectionToDomain(dto: DecisionRequestDto.SizedSelectionDto
         is DecisionRequestDto.ChooseOptionalCostObject,
         is DecisionRequestDto.ChooseResolutionDiscards,
         is DecisionRequestDto.ChooseOpponentDiscards,
+        is DecisionRequestDto.ChooseOpponentSacrifice,
         -> error("CR 601.2: non-cost sized selection routed to the cost helper: $dto")
     }
 

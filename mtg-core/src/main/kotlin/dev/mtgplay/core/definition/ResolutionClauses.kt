@@ -89,6 +89,16 @@ interface ResolutionClauses {
     val eachOpponentDiscards: EachOpponentDiscards? get() = null
 
     /**
+     * An "each opponent sacrifices a permanent of their choice" clause (CR 701.17a), or `null` for a
+     * definition with none. Extract a Confession's. Additive, flagged core (`W9-B`).
+     *
+     * The sibling of [eachOpponentDiscards] and the second clause whose decider is not the resolving
+     * object's controller — but the *first* whose option list is entirely public, and the first that is
+     * **narrowed by a cost paid while casting**. See [EachOpponentSacrifices] for both.
+     */
+    val eachOpponentSacrifices: EachOpponentSacrifices? get() = null
+
+    /**
      * A bare optional "you may draw N cards" clause (CR 601.3b), or `null` for a definition with none.
      * Ninja of the Deep Hours' *"you may draw a card"*. Additive, flagged core (`FW-OPTDRAW`).
      *
@@ -186,6 +196,7 @@ val ResolutionClauses.declaredClauses: List<Any>
             librarySearch,
             handRevealChoice,
             eachOpponentDiscards,
+            eachOpponentSacrifices,
             optionalDraw,
             permanentSelection,
             optionalTapOrUntap,

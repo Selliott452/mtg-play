@@ -470,6 +470,32 @@ private val allRequests: List<DecisionRequest> =
                 ),
             count = 1,
         ),
+        // CR 701.17a: the public-option sibling — an opponent picks which of their own creatures dies,
+        // narrowed here to the greatest-power ones (Extract a Confession with evidence collected).
+        DecisionRequest.ChooseOpponentSacrifice(
+            ID,
+            controller = PlayerId(1),
+            sourceCard = CardRef("Extract a Confession"),
+            greatestPowerOnly = true,
+            options =
+                listOf(
+                    DecisionRequest.ChooseOpponentSacrifice.Option(ObjectId(5), CardRef("Slippery Bogle")),
+                    DecisionRequest.ChooseOpponentSacrifice.Option(ObjectId(6), CardRef("Gladecover Scout")),
+                ),
+        ),
+        // CR 601.2b/701.60a: an announced collect evidence 6 — a summed-weight selection, the one
+        // request family whose legal answers cannot be read off the index range alone.
+        DecisionRequest.ChooseEvidence(
+            ID,
+            cardObjectId = ObjectId(7),
+            card = CardRef("Extract a Confession"),
+            options =
+                listOf(
+                    DecisionRequest.ChooseEvidence.Option(ObjectId(8), CardRef("Gurmag Angler"), 7),
+                    DecisionRequest.ChooseEvidence.Option(ObjectId(9), CardRef("Swamp"), 0),
+                ),
+            requiredTotal = 6,
+        ),
         // CR 701.17a: a scry 2's six arrangements over a two-card pool, the framework's smallest real space.
         DecisionRequest.ChooseLibraryArrangement(
             ID,

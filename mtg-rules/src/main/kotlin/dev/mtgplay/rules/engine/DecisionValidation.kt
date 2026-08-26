@@ -42,6 +42,17 @@ internal fun validateDecision(
                     "must be chosen, got $chosen"
             }
         }
+        // CR 601.2b/701.60a: a summed selection validates as a distinct in-range subset whose chosen
+        // weights *sum* to at least the request's threshold. The size is deliberately unconstrained at
+        // both ends — six one-drops and one six-drop both pay collect evidence 6 — so the sum is the
+        // whole of the rule, and an under-paying answer is rejected here rather than silently rounded up.
+        is DecisionRequest.SummedSelection -> {
+            validateDistinctSubset(request, decision, request.optionCount, "selection")
+            val total = decision.asMultiSelect(request).indices.sumOf { request.optionWeights[it] }
+            require(total >= request.requiredTotal) {
+                "CR 701.60a: the chosen options total $total, but at least ${request.requiredTotal} is required"
+            }
+        }
         is DecisionRequest.DeclareAttackers -> {
             // CR 508.1: any subset of the eligible attackers is a legal declaration (the empty
             // subset included); the only cross-option rule is distinctness.

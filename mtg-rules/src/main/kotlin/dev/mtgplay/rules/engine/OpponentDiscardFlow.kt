@@ -153,8 +153,11 @@ internal fun applyOpponentDiscards(
  * the rest in seating order. The order two opponents are asked in is observable — each sees the other's
  * discard before choosing in a game with three or more players — so it is fixed by rule rather than by
  * map iteration.
+ *
+ * Shared with the each-opponent-sacrifices flow (`OpponentSacrificeFlow.kt`): "each opponent" walks the
+ * same queue whatever the verb is, and two copies of CR 101.4 could drift apart.
  */
-private fun opponentsInApnapOrder(
+internal fun opponentsInApnapOrder(
     state: GameState,
     controller: PlayerId,
 ): List<PlayerId> {

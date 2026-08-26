@@ -38,6 +38,8 @@ internal fun applyDecision(
         is DecisionRequest.SizedSelection -> applySizedSelection(answered, request, decision)
         // CR 601.2c: the ranged subset selections — a multi-target choice — dispatch by kind.
         is DecisionRequest.RangedSelection -> applyRangedSelection(answered, request, decision)
+        // CR 601.2b/701.60a: the summed-weight subset selections — collect evidence — dispatch by kind.
+        is DecisionRequest.SummedSelection -> applySummedSelection(answered, request, decision)
         is DecisionRequest.ChoiceCountSelection -> {
             check(decision is Decision.SingleSelect) { "unreachable: decision shape was validated against the request" }
             // CR 701.16/601.3b/701.18: dispatch by kind; the trailing opt-out index means keep/decline/find none.
@@ -131,36 +133,13 @@ private fun applyAbilityOrResolutionSelection(
         // CR 701.7a: answered by an *opponent* of the resolving object's controller, over their own hand.
         is DecisionRequest.ChooseOpponentDiscards ->
             applyOpponentDiscards(state, decision.indices.map { request.options[it].objectId })
+        // CR 701.17a: its public-option sibling — an opponent sacrifices one of their own permanents.
+        is DecisionRequest.ChooseOpponentSacrifice ->
+            applyOpponentSacrifice(state, request.options[decision.indices.single()].objectId)
         // Every cast-side cost is handled by [applySizedSelection]; reaching here would mean a leaf fell
         // out of both `when`s, which the compiler cannot catch once one of them carries an `else`.
         else -> error("CR 601.2: no applier for the sized selection ${request::class.simpleName}")
     }
-
-/**
- * Applies one ranged subset selection — a multi-target choice (CR 601.2c) or an untargeted
- * mid-resolution permanent selection (CR 609.4) — dispatching by kind. The indices are already
- * validated as distinct, in range, and of a size within the request's bounds (ADR-004), so mapping them
- * straight onto options is safe.
- *
- * The chosen targets go to the same three-flow applier its single-target sibling uses
- * (`SingleOptionApplication.kt`): a cast, an activation, or a trigger placement, told apart by the open
- * pending record. The two request kinds differ only in how an agent *says* which targets it picked.
- */
-private fun applyRangedSelection(
-    state: GameState,
-    request: DecisionRequest.RangedSelection,
-    decision: Decision,
-): AdvanceResult {
-    check(decision is Decision.MultiSelect) { "unreachable: decision shape was validated against the request" }
-    return when (request) {
-        is DecisionRequest.ChooseMultipleTargets ->
-            applyChosenTargetList(state, decision.indices.map { request.options[it] }, request)
-        // CR 609.4: an untargeted mid-resolution selection of battlefield permanents — the same ranged
-        // shape, but the answer names permanents to act on rather than targets to record.
-        is DecisionRequest.ChoosePermanentsToAffect ->
-            applyPermanentSelection(state, decision.indices.map { request.options[it].objectId })
-    }
-}
 
 /**
  * Applies one pre-game mulligan decision (CR 103.4/103.5): the keep-or-mulligan choice, or the

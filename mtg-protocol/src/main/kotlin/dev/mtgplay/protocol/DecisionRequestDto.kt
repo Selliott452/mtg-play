@@ -31,6 +31,14 @@ sealed interface DecisionRequestDto {
     @Serializable
     sealed interface RangedSelectionDto : DecisionRequestDto
 
+    /**
+     * A **summed-weight** subset selection (CR 601.2b / 701.60a) — collect evidence. Its own family
+     * rather than a [SizedSelectionDto] or a [RangedSelectionDto] because its answer is bounded by the
+     * chosen options' summed weights and not by their count at all.
+     */
+    @Serializable
+    sealed interface SummedSelectionDto : DecisionRequestDto
+
     /** A full-ordering selection (CR 509.2 / 603.3b). */
     @Serializable
     sealed interface PermutationSelectionDto : DecisionRequestDto
@@ -248,6 +256,20 @@ sealed interface DecisionRequestDto {
         val options: List<CardObjectOptionDto>,
         val count: Int,
     ) : SizedSelectionDto
+
+    /**
+     * Wire form of [DecisionRequest.ChooseEvidence] (CR 601.2b, CR 701.60a) — `W9-B`. An announced
+     * collect evidence: any distinct subset of [options] whose weights sum to at least [requiredTotal].
+     */
+    @Serializable
+    @SerialName("choose_evidence")
+    data class ChooseEvidence(
+        override val id: DecisionRequestIdDto,
+        val cardObjectId: Long,
+        val card: String,
+        val options: List<WeightedCardOptionDto>,
+        val requiredTotal: Int,
+    ) : SummedSelectionDto
 
     /** Wire form of [DecisionRequest.ChooseTapsForCost] (CR 601.2h, CR 702.34c) — `FW-PREVENT2`. */
     @Serializable
@@ -472,6 +494,26 @@ sealed interface DecisionRequestDto {
         val sourceCard: String,
         val options: List<CardObjectOptionDto>,
         val count: Int,
+    ) : SizedSelectionDto
+
+    /**
+     * Wire form of [DecisionRequest.ChooseOpponentSacrifice] (CR 701.17a) — an "each opponent sacrifices
+     * a permanent of their choice" selection made by an opponent of the resolving object's controller
+     * over their **own** battlefield. Added by `W9-B`.
+     *
+     * The sibling of [ChooseOpponentDiscards] with nothing hidden: its options are battlefield permanents
+     * (CR 400.2), so no count-only seat-view projection accompanies it. [greatestPowerOnly] says the
+     * options have already been narrowed to the greatest-power permanents — the engine does the
+     * narrowing, and the flag is there so a client can *say* why the list is short.
+     */
+    @Serializable
+    @SerialName("choose_opponent_sacrifice")
+    data class ChooseOpponentSacrifice(
+        override val id: DecisionRequestIdDto,
+        val controller: Int,
+        val sourceCard: String,
+        val greatestPowerOnly: Boolean,
+        val options: List<CardObjectOptionDto>,
     ) : SizedSelectionDto
 
     /**

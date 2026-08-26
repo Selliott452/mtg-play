@@ -33,6 +33,9 @@ fun parseDecision(
         // CR 601.2c: a multi-target choice takes any distinct subset whose size is within the request's
         // bounds. `parseSubset` already rejects a repeated number, which is the same-object rule.
         is DecisionRequest.RangedSelection -> parseRanged(request, trimmed)
+        // CR 601.2b/701.60a: a summed selection takes any distinct subset whose *weights* reach the
+        // threshold. Size is unconstrained, so the only extra test beyond distinctness is the sum.
+        is DecisionRequest.SummedSelection -> parseSummed(request, trimmed)
         is DecisionRequest.PermutationSelection -> parsePermutation(request.id, trimmed, request.permutationSize)
         is DecisionRequest.MulliganRequest -> parseMulligan(request, trimmed)
     }
@@ -94,4 +97,19 @@ private fun parseRanged(
 ): Decision.MultiSelect? {
     val parsed = parseSubset(request.id, input, request.optionCount, exactly = null) ?: return null
     return if (parsed.indices.size in request.minimumCount..request.maximumCount) parsed else null
+}
+
+/**
+ * Parses a comma-separated list of one-based numbers into a distinct in-range subset whose **weights
+ * sum** to at least [request]'s threshold (CR 601.2b, CR 701.60a), or `null` to re-prompt. An
+ * under-paying answer is rejected here rather than passed on, so the player is re-prompted instead of
+ * meeting the engine's loud failure.
+ */
+private fun parseSummed(
+    request: DecisionRequest.SummedSelection,
+    input: String,
+): Decision.MultiSelect? {
+    val parsed = parseSubset(request.id, input, request.optionCount, exactly = null) ?: return null
+    val total = parsed.indices.sumOf { request.optionWeights[it] }
+    return if (total >= request.requiredTotal) parsed else null
 }

@@ -75,8 +75,9 @@ internal fun executeCastPipeline(
     // tapped by the plan may be the one sacrificed (docs/design/mana-payment.md §2.2).
     val sacrificed = payAdditionalSacrificeCost(paid, cast)
     // CR 601.2h: the optional additional cost is paid beside the intrinsic one, after the mana, so a
-    // permanent tapped for mana by the plan may be the one sacrificed.
-    val bargained = payOptionalAdditionalCost(sacrificed, cast)
+    // permanent tapped for mana by the plan may be the one sacrificed. The definition is passed because
+    // *how* the cost is paid is the cost's own — bargain sacrifices, collect evidence exiles.
+    val bargained = payOptionalAdditionalCost(sacrificed, cast, entry.definition)
     val complete = completeCast(bargained, entry)
     return priorityAfterCast(complete, cast)
 }

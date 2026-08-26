@@ -63,6 +63,23 @@ class RandomLegalResponder(
                 rng = next
                 Decision.MultiSelect(request.id, indices)
             }
+            // CR 601.2b/701.60a: a summed-weight selection (collect evidence) takes options in a random
+            // order until the threshold is reached, so a run genuinely explores different payments of
+            // the same cost rather than always the cheapest one. It stops at the threshold rather than
+            // going on, so an over-payment is possible only through a heavy last card — which is the
+            // honest distribution, since exiling more than needed is a choice and not an accident.
+            is DecisionRequest.SummedSelection -> {
+                val (order, next) = (0 until request.optionCount).toList().toPersistentList().shuffled(rng)
+                rng = next
+                var total = 0
+                val chosen =
+                    order.takeWhile { index ->
+                        val short = total < request.requiredTotal
+                        total += request.optionWeights[index]
+                        short
+                    }
+                Decision.MultiSelect(request.id, chosen)
+            }
             // CR 508.1: attack with a random subset of the eligible attackers (each independently
             // in or out) — the empty subset is legal, so the responder may declare no attackers.
             is DecisionRequest.DeclareAttackers -> {

@@ -74,6 +74,53 @@ sealed interface DecisionRequest {
     }
 
     /**
+     * A [Decision.MultiSelect] request asking for a distinct subset of its options whose **summed
+     * weight** — not its size — reaches a threshold. Additive, flagged (`W9-B`). Collect evidence
+     * (CR 701.60a) is the first and so far only client: "exile cards with total mana value 6 or greater
+     * from your graveyard".
+     *
+     * **The sixth shape, and the five that could not express it.** [SizedSelection] pins the answer's
+     * size at a point and [RangedSelection] pins it inside an interval; a summed selection bounds
+     * neither end, because six one-drops and one six-drop are both exactly-legal payments of evidence 6.
+     * [PermutationSelection] orders everything, [ChoiceCountSelection] and [SingleOptionSelection] pick
+     * one thing. Encoding this as a ranged selection over the graveyard would advertise size-legal
+     * answers that fail the sum, which is the enumerate-then-reject defect ADR-005 forbids; encoding it
+     * as a sized selection at any fixed count would delete every other legal payment.
+     *
+     * **The option list is flat and linear, and that is the framework's central decision.** The
+     * temptation is to enumerate the *subsets* that pay — or, more cleverly, only the minimal-sufficient
+     * ones. Both are exponential (a graveyard of twenty one-drops has C(20, 6) = 38,760 minimal subsets,
+     * and deduplicating by printed identity still leaves hundreds), and minimality is additionally wrong
+     * on the merits: exiling above the minimum is a real line, because which cards leave matters to a
+     * player holding back a flashback or escape card, and the engine must not assume a larger graveyard
+     * is always better for its owner. So the options are the *cards*, O(n) of them, exactly as escape's
+     * "exile N other cards" offers them, and the constraint rides in the request as [optionWeights] plus
+     * [requiredTotal]. Complete (every legal payment is expressible), sound (no illegal one is offered),
+     * and linear.
+     *
+     * **An agent must read [optionWeights] to answer.** This is the one family whose legal answers are
+     * not derivable from the index range alone, which is why the weights are published rather than kept
+     * inside the engine: a driver picking indices blindly cannot tell a paying subset from a failing
+     * one. Surfaced only when the whole option list can reach [requiredTotal] — a seat that cannot pay
+     * is never asked (ADR-005) — so at least one legal answer always exists, and taking *every* option
+     * is always one of them.
+     */
+    sealed interface SummedSelection : DecisionRequest {
+        /** How many options this selection offers; always at least one. */
+        val optionCount: Int
+
+        /**
+         * The weight of each option, positionally parallel to the options — collect evidence's per-card
+         * mana value (CR 202.3). Non-negative; a zero-weight option is legal to choose and pays nothing,
+         * which is exactly right for a land in a graveyard.
+         */
+        val optionWeights: List<Int>
+
+        /** The total the chosen options' weights must reach or exceed; at least 1. */
+        val requiredTotal: Int
+    }
+
+    /**
      * A [Decision.MultiSelect] request answered with a **permutation** of all of its options — a full
      * ordering (CR 509.2 blocker order, CR 603.3b trigger order). Grouping them lets drivers and the
      * probe handle "an ordering" uniformly. [permutationSize] is how many options the answer permutes.
@@ -811,6 +858,73 @@ sealed interface DecisionRequest {
             val objectId: ObjectId,
             val card: CardRef,
         )
+    }
+
+    /**
+     * The **collect evidence** selection of an announced optional additional cost (CR 601.2b,
+     * CR 701.60a): [seat] said yes to "you may collect evidence [requiredTotal]" while casting [card],
+     * and now picks any distinct subset of [options] — their own graveyard — whose mana values sum to at
+     * least [requiredTotal] (a [Decision.MultiSelect]). Additive, flagged (`W9-B`). Extract a
+     * Confession, Vitu-Ghazi Inspector.
+     *
+     * The [SummedSelection] sibling of [ChooseOptionalCostSacrifice]: the same CR 601.2b stage of the
+     * same cost family, differing only in that bargain's answer is bounded by a count and this one's by
+     * a sum. See [SummedSelection] for why the whole graveyard is offered flat rather than as a list of
+     * paying subsets.
+     *
+     * Reached only after the announcement's "yes", which is itself surfaced only when the graveyard can
+     * actually reach [requiredTotal] — so this request always has at least one legal answer, and
+     * choosing *every* option is always one of them. **Declining is not expressible here** and must not
+     * be: it is the announcement's own enumerated decline index (ADR-005), one stage earlier, so an
+     * empty selection at this point would be a cost half-paid rather than a cost refused.
+     *
+     * @property cardObjectId the object being cast (still in its source zone — see
+     *   [dev.mtgplay.core.state.PendingCast]).
+     * @property card the printed identity, for display.
+     * @property options the graveyard cards that may be exiled to pay the cost, in graveyard order;
+     *   indices stable within this request (ADR-005).
+     * @property requiredTotal the total mana value the chosen cards must reach — CR 701.60a's N.
+     */
+    data class ChooseEvidence(
+        override val id: DecisionRequestId,
+        val cardObjectId: ObjectId,
+        val card: CardRef,
+        val options: List<Option>,
+        override val requiredTotal: Int,
+    ) : SummedSelection {
+        override val optionCount: Int get() = options.size
+        override val optionWeights: List<Int> get() = options.map { it.manaValue }
+
+        init {
+            require(options.isNotEmpty()) {
+                "CR 701.60a: a collect-evidence selection is surfaced only when the graveyard can pay it (ADR-005)"
+            }
+            require(requiredTotal >= 1) {
+                "CR 701.60a: collect evidence N requires at least 1 mana value, was $requiredTotal"
+            }
+            require(options.sumOf { it.manaValue } >= requiredTotal) {
+                "CR 701.60a: the graveyard totals ${options.sumOf { it.manaValue }} mana value, which " +
+                    "cannot pay collect evidence $requiredTotal; the announcement must not have been offered"
+            }
+        }
+
+        /**
+         * One graveyard card that may be exiled to pay the collect-evidence cost.
+         *
+         * @property objectId the graveyard object that would be exiled.
+         * @property card its printed identity, for display.
+         * @property manaValue its mana value (CR 202.3), read from the printed cost — a card in a
+         *   graveyard has no announced X (CR 107.3e), so an `{X}` counts as zero here.
+         */
+        data class Option(
+            val objectId: ObjectId,
+            val card: CardRef,
+            val manaValue: Int,
+        ) {
+            init {
+                require(manaValue >= 0) { "CR 202.3: a mana value is non-negative, was $manaValue" }
+            }
+        }
     }
 
     /**
@@ -1638,6 +1752,67 @@ sealed interface DecisionRequest {
          *
          * @property objectId the hand object that would be discarded.
          * @property card its printed identity, for display — visible to the deciding seat only.
+         */
+        data class Option(
+            val objectId: ObjectId,
+            val card: CardRef,
+        )
+    }
+
+    /**
+     * An "each opponent sacrifices a permanent of their choice" selection made by **an opponent of the
+     * resolving object's controller**, over their own battlefield (CR 701.17a): [seat] picks exactly one
+     * of [options] by index. Extract a Confession's. Additive, flagged (`FW-NONCTRLDEC`, `W9-B`).
+     *
+     * The sibling of [ChooseOpponentDiscards] and the second request whose deciding seat is not the
+     * resolving object's controller — but its options are **public** (CR 400.2 — the battlefield), so
+     * unlike that one it hides nothing from anybody and needs no seat-view asymmetry.
+     *
+     * **[greatestPowerOnly] narrows the enumeration, and the narrowing is still a choice.** "A creature
+     * with the greatest power among creatures they control" leaves a real decision whenever two creatures
+     * tie at the top, and which of them goes matters (one may be enchanted, one may be the blocker they
+     * need). So the engine filters [options] to the top-power permanents and still asks; picking for the
+     * opponent would delete a line (ADR-005), and offering the smaller creature would enumerate an
+     * illegal one. Both are review-blocking, which is why the flag rides on the request rather than being
+     * resolved inside the engine.
+     *
+     * Surfaced only for an opponent who controls at least one matching permanent — one who controls none
+     * simply cannot sacrifice and is never asked (CR 701.17a) — so [options] is never empty.
+     *
+     * @property controller the resolving object's controller, carried for display so the deciding seat
+     *   knows whose spell is making them sacrifice.
+     * @property sourceCard the resolving object's printed identity, for display.
+     * @property greatestPowerOnly whether [options] has already been narrowed to the greatest-power
+     *   permanents (CR 613 effective power), for display — the engine has done the narrowing either way.
+     * @property options the deciding seat's own matching permanents, in battlefield order; never empty.
+     */
+    data class ChooseOpponentSacrifice(
+        override val id: DecisionRequestId,
+        val controller: PlayerId,
+        val sourceCard: CardRef,
+        val greatestPowerOnly: Boolean,
+        val options: List<Option>,
+    ) : SizedSelection {
+        override val optionCount: Int get() = options.size
+
+        /** CR 701.17a: the pool's only such clause sacrifices exactly one permanent per opponent. */
+        override val requiredCount: Int get() = 1
+
+        init {
+            require(options.isNotEmpty()) {
+                "CR 701.17a: an opponent who controls no matching permanent is never asked (ADR-005)"
+            }
+            require(id.seat != controller) {
+                "CR 701.17a: an each-opponent sacrifice is decided by an opponent, never by the " +
+                    "controller $controller"
+            }
+        }
+
+        /**
+         * One battlefield permanent the deciding opponent controls.
+         *
+         * @property objectId the permanent that would be sacrificed.
+         * @property card its printed identity, for display.
          */
         data class Option(
             val objectId: ObjectId,
