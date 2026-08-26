@@ -35,8 +35,13 @@ import dev.mtgplay.core.state.GameState
  *   Shapeshifter every creature type, so Priest of Titania and Wellwisher must count Rooftop Percher
  *   as an Elf while Gingerbread Cabin must **not** count it as a Forest — a distinction the seam draws
  *   with [dev.mtgplay.core.card.Subtype.isCreatureType] and a bare set membership cannot draw at all.
- *   Layer-4 type *changing* remains absent (`FW-TYPECHANGE`, its own framework); when it lands it
- *   extends [LayeredCharacteristics] and the seam follows it, and this line does not move again.
+ *   `FW-TYPECHANGE` has since landed and did exactly what this note predicted: it extended
+ *   [LayeredCharacteristics] with card types and subtypes, [hasSubtype] followed it, and this line did
+ *   not move.
+ * - **Card types are read layered too**, through [effectiveCardTypes] (CR 613 layer 4), which *is* a
+ *   change `FW-TYPECHANGE` made here: a permanent that became an artifact is counted by an
+ *   artifact-counting filter, and reading its printed type line would undercount by exactly the
+ *   permanents a type-changing effect created.
  *
  * - **Names are read printed too**, and for a stronger reason than card types: CR 201.2 settles identity
  *   of name by the printed word alone, and the only effect that could change one is a CR 613 layer-3
@@ -64,9 +69,9 @@ fun countMatchingPermanents(
  * The list and the count are one function so the two can never disagree: a cost enumerated against one
  * set and counted against another would offer an option its own payability check did not see, which is
  * the ADR-005 failure the joint derivations in `SacrificeCosts.kt` exist to prevent. Everything
- * [countMatchingPermanents] documents about *how* a permanent matches — controller is owner, subtypes
- * and card types are printed, keywords are layered, an object with no definition matches nothing —
- * lives here, because this is where it is decided.
+ * [countMatchingPermanents] documents about *how* a permanent matches — controller is owner, names are
+ * printed, card types and subtypes and keywords are all layered, an object with no definition matches
+ * nothing — lives here, because this is where it is decided.
  *
  * Battlefield order is the engine's determinism spine (CR 613.7 timestamps derive from entry order), so
  * an option list built from it is stable across equal states (ADR-006).
@@ -88,7 +93,8 @@ fun matchingPermanents(
             // CR 201.2: names are compared as printed; no CR 613 layer-3 text-changing effect exists.
             (filter.name == null || filter.name == characteristics.name) &&
             (subtype == null || hasSubtype(state, candidate.id, subtype)) &&
-            (filter.cardType == null || filter.cardType in characteristics.cardTypes) &&
+            // CR 613 layer 4: the in-game type line, so a permanent that *became* an artifact counts.
+            (filter.cardType == null || filter.cardType in effectiveCardTypes(state, candidate.id)) &&
             (filter.keyword == null || filter.keyword in effectiveKeywords(state, candidate.id))
     }
 }

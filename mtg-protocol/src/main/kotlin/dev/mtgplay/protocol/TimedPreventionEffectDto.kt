@@ -78,10 +78,23 @@ private fun preventionEffectOf(
             )
     }
 
-/** The wire word for an [EffectDuration]; exhaustive so a new duration breaks compilation. */
+/**
+ * The wire word for an [EffectDuration]; exhaustive so a new duration breaks compilation.
+ *
+ * [EffectDuration.Indefinite] (CR 611.2b) is a **real** duration this schema refuses to write for a
+ * *prevention* effect, and the refusal is the point: no card in the pool prints a durationless shield,
+ * so a stored one would mean a prevention effect that never wears off — the worst-behaved bug this
+ * framework can have (`FW-PREVENT2`) and one that leaves no other trace. Erroring here means it is
+ * caught the first time such a state is serialised rather than never.
+ */
 private fun EffectDuration.preventionWireName(): String =
     when (this) {
         EffectDuration.UntilEndOfTurn -> PREVENTION_UNTIL_END_OF_TURN
+        EffectDuration.Indefinite ->
+            error(
+                "CR 611.2b: no prevention effect in this pool is durationless, so an indefinite one " +
+                    "in the store is an engine defect rather than a wire-format gap",
+            )
     }
 
 /** The [EffectDuration] a wire [word] names; an unknown word is version skew and fails loudly. */

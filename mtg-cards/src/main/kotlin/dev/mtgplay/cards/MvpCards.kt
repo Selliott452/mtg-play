@@ -497,6 +497,7 @@ object MvpCards {
             impulse,
             island,
             journeyToNowhere,
+            kenkuArtificer,
             kessigFlamebreather,
             krarkClanShaman,
             kruphixsInsight,

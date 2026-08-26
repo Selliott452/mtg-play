@@ -205,7 +205,11 @@ class LayerSystemSpec :
 
         "CR 613 §1: applying an effect in an unpopulated layer fails loudly (the spine's loud gate)" {
             // Route a real effect to an unpopulated layer directly: the spine refuses it rather than
-            // silently dropping it. Layer 4 (type-changing) is unimplemented in the MVP pool.
+            // silently dropping it. Layer 5 (colour-changing) is unimplemented in the gauntlet pool.
+            //
+            // It named layer 4 until `FW-TYPECHANGE` populated that stage, and the swap is the point of
+            // the test rather than a maintenance chore: the gate has to be checked at a layer that is
+            // *actually* empty, or it stops proving anything the day the layer it names fills up.
             val state = auraState(listOf(bfObject(0, "Ent")))
             val base =
                 LayeredCharacteristics(
@@ -227,7 +231,7 @@ class LayerSystemSpec :
                 )
             val error =
                 shouldThrow<IllegalArgumentException> {
-                    applyLayer(state, base, Layer.TYPE, listOf(active), persistentMapOf())
+                    applyLayer(state, base, Layer.COLOR, listOf(active), persistentMapOf())
                 }
             error.message.shouldBeInstanceOf<String>() shouldContain "613"
         }

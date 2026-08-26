@@ -695,5 +695,33 @@ package dev.mtgplay.protocol
  *    field ([TapRequirementDto]) alongside its `sacrifice`, because CR 702.34c admits more than mana
  *    in a flashback cost. Recorded here rather than under `FW-PREVENT2` because it is the same
  *    permission payload, changed once.
+ *
+ * ### `10.0.0` — `FW-TYPECHANGE` / `FW-SETPT`: CR 613 layer 4, sublayer 7b, and a durationless effect
+ *
+ * **Call: bump.** The break is confined to one payload, [TimedContinuousEffectDto], but that payload
+ * travels inside **every** seat view and gains five **required** fields, so a `9.0.0` peer's strict
+ * codec rejects every seat view rather than only those containing a type change — the blast radius
+ * `FW-COUNTERS` and `FW-OPTCOST` both recorded for a required field on a ubiquitous shape.
+ *
+ * 1. `addedCardTypes`, `addedSubtypes`, `setPower` and `setToughness` carry the CR 613 layer-4 type
+ *    change and the sublayer-7b set-P/T that Kenku Artificer's ability creates. `setPower`/`setToughness`
+ *    are deliberately **not** folded into the existing `powerMod`/`toughnessMod`: 7b and 7c are
+ *    different sublayers applied in a fixed order, and a wire form that collapsed them would hand a
+ *    remote seat a state that recomputes to a different creature than the engine's.
+ * 2. `grantedEvasions` closes a **pre-existing hole** rather than adding a capability.
+ *    `ContinuousModification` has carried `grantedEvasions` since the keyword-tail packet and this
+ *    mirror never did, so a Gingerbrute's "can't be blocked except by creatures with haste this turn"
+ *    was silently dropped on the wire and a remote seat disagreed with the engine about a *combat
+ *    legality*. Recorded here because it is discovered here, and because it is the sharper of the two
+ *    breaks even though it is the smaller change.
+ * 3. `duration` gains the word `INDEFINITE` (CR 611.2b — an effect with no stated duration lasts as
+ *    long as the game does). This one fails **loudly** on an old peer rather than silently: `durationOf`
+ *    already errors on a word it does not know, which was written in `FW-DURATION` for exactly this
+ *    day and is why a new duration cannot be read as "until end of turn".
+ *
+ * The client→server direction is **unchanged**, and for the same reason `FW-PREVENT2`'s was: a type
+ * change alters the *value* of options, never the option list's shape. No [DecisionRequestKindDto]
+ * value is added — Kenku Artificer's "up to one target noncreature artifact" is an ordinary
+ * `ChooseTargets` over a `TargetPermanent` restriction — so nothing fails at `valueOf` mid-match.
  */
-const val PROTOCOL_VERSION: String = "9.0.0"
+const val PROTOCOL_VERSION: String = "10.0.0"

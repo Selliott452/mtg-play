@@ -314,6 +314,7 @@ class MvpCardsSpec :
                     CardRef("Impulse"),
                     CardRef("Island"),
                     CardRef("Journey to Nowhere"),
+                    CardRef("Kenku Artificer"),
                     CardRef("Kessig Flamebreather"),
                     CardRef("Krark-Clan Shaman"),
                     CardRef("Kruphix's Insight"),

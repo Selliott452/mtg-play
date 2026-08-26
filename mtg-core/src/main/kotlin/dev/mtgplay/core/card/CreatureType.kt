@@ -36,9 +36,11 @@ object CreatureType {
     val CREATURE_TYPES: Set<Subtype> =
         subtypesOf(
             """
+            Artificer
             Bear
             Beast
             Bird
+            Cat
             Dragon
             Drake
             Druid
@@ -51,6 +53,7 @@ object CreatureType {
             Giant
             Goblin
             Golem
+            Homunculus
             Horror
             Human
             Illusion

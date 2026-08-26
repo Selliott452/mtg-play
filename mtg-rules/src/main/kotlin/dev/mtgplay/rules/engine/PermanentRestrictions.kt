@@ -20,11 +20,17 @@ import dev.mtgplay.core.state.GameState
  * so cast-time legality (CR 601.2c), the CR 608.2b resolution re-check, and the option list an agent
  * sees (ADR-005) are the same predicate by construction.
  *
- * Card types and supertypes are read printed: no type-changing effect exists in the pool
- * (docs/design/layer-system.md §6). **Power is not** — it is read through [effectivePower], the
- * CR 613 sublayer-7c accessor, so a creature pumped in response to a "power 2 or less" spell stops
- * being a legal target and the spell fizzles (CR 608.2b). Reading printed power there would be
- * silently wrong on any board with an Aura.
+ * **Card types are read layered** ([effectiveCardTypes]) since `FW-TYPECHANGE`: a CR 613 layer-4
+ * effect makes a noncreature artifact a creature, and every arm of this predicate that names a card
+ * type must see that or a legal target goes unenumerated (ADR-005). Subtypes likewise, through the one
+ * changeling-aware [hasSubtype] seam. **Power** is read through [effectivePower], the CR 613
+ * sublayer-7c accessor, so a creature pumped in response to a "power 2 or less" spell stops being a
+ * legal target and the spell fizzles (CR 608.2b).
+ *
+ * **Supertypes and colour stay printed**, which is a statement about the rules rather than about work
+ * not done: a supertype change would be layer 4 and a colour change layer 5, and no effect in the pool
+ * writes to either — `ActiveEffect` has no supertype or colour field at all, so a printed read here
+ * cannot disagree with a layered read that does not exist.
  */
 
 /** The greatest in-game power a [PermanentRestriction.CREATURE_POWER_2_OR_LESS] target may have. */
@@ -57,7 +63,11 @@ internal fun satisfiesPermanentRestriction(
     you: PlayerId,
 ): Boolean {
     val characteristics = state.definitions[candidate.card]?.characteristics ?: return false
-    val isCreature = CardType.CREATURE in characteristics.cardTypes
+    // CR 613 layer 4: the *in-game* type line, so a type-changed permanent is offered where its printed
+    // types would not have been. Read once and threaded into the split arms below, so the helpers
+    // cannot answer from three different reads.
+    val cardTypes = effectiveCardTypes(state, candidate.id)
+    val isCreature = CardType.CREATURE in cardTypes
     return when (restriction) {
         PermanentRestriction.ANY_PERMANENT -> true
         PermanentRestriction.CREATURE -> isCreature
@@ -69,10 +79,11 @@ internal fun satisfiesPermanentRestriction(
         PermanentRestriction.CREATURE_POWER_2_OR_LESS ->
             isCreature && effectivePower(state, candidate.id) <= POWER_TWO_OR_LESS_LIMIT
         PermanentRestriction.ARTIFACT,
+        PermanentRestriction.NONCREATURE_ARTIFACT,
         PermanentRestriction.ENCHANTMENT,
         PermanentRestriction.LAND,
         PermanentRestriction.CREATURE_OR_VEHICLE,
-        -> satisfiesTypeRestriction(restriction, characteristics, isCreature)
+        -> satisfiesTypeRestriction(state, restriction, candidate, cardTypes, isCreature)
         PermanentRestriction.RED_PERMANENT,
         PermanentRestriction.BLUE_PERMANENT,
         -> satisfiesColourRestriction(restriction, characteristics)
@@ -81,7 +92,7 @@ internal fun satisfiesPermanentRestriction(
         PermanentRestriction.ARTIFACT_OR_ENCHANTMENT_AN_OPPONENT_CONTROLS,
         PermanentRestriction.CREATURE_YOU_CONTROL,
         PermanentRestriction.ARTIFACT_CREATURE_OR_LAND_YOU_CONTROL,
-        -> satisfiesControlRestriction(restriction, characteristics, candidate, you, isCreature)
+        -> satisfiesControlRestriction(restriction, cardTypes, candidate, you, isCreature)
     }
 }
 
@@ -93,25 +104,31 @@ internal fun satisfiesPermanentRestriction(
  *
  * [PermanentRestriction.CREATURE_OR_VEHICLE] is the one arm that is not a bare card-type test, and it is
  * here because it is *half* of one: a creature qualifies by card type (CR 302) and a Vehicle by the
- * printed artifact subtype (CR 301.7), which is the only disjunction in the family that crosses those two
- * axes. [isCreature] is passed in rather than recomputed so the caller's single read is the one answer.
+ * artifact subtype (CR 301.7), which is the only disjunction in the family that crosses those two axes.
+ * [cardTypes] and [isCreature] are passed in rather than recomputed so the caller's single layered read
+ * is the one answer.
  */
 private fun satisfiesTypeRestriction(
+    state: GameState,
     restriction: PermanentRestriction,
-    characteristics: PrintedCharacteristics,
+    candidate: GameObject,
+    cardTypes: Set<CardType>,
     isCreature: Boolean,
 ): Boolean =
     when (restriction) {
-        PermanentRestriction.ARTIFACT -> CardType.ARTIFACT in characteristics.cardTypes
+        PermanentRestriction.ARTIFACT -> CardType.ARTIFACT in cardTypes
+        // CR 205.1a: an artifact that is not *also* a creature. Both halves read the layered type line,
+        // so an artifact a layer-4 effect has already animated is correctly excluded.
+        PermanentRestriction.NONCREATURE_ARTIFACT -> CardType.ARTIFACT in cardTypes && !isCreature
         // CR 303: an Aura is an enchantment, so every Aura in the pool qualifies.
-        PermanentRestriction.ENCHANTMENT -> CardType.ENCHANTMENT in characteristics.cardTypes
+        PermanentRestriction.ENCHANTMENT -> CardType.ENCHANTMENT in cardTypes
         // CR 305: any land. An artifact land satisfies this *and* [ARTIFACT] — a permanent has every
         // card type printed on it (CR 205.1a) — which is why this is a card-type test, not an exclusion.
-        PermanentRestriction.LAND -> CardType.LAND in characteristics.cardTypes
-        // CR 302 / CR 301.7: a creature by card type, or a Vehicle by printed subtype. A crewed Vehicle
-        // qualifies both ways; crew is a layer-4 effect the engine does not have, so the subtype is
-        // read printed like every other subtype test.
-        PermanentRestriction.CREATURE_OR_VEHICLE -> isCreature || characteristics.hasSubtype(VEHICLE)
+        PermanentRestriction.LAND -> CardType.LAND in cardTypes
+        // CR 302 / CR 301.7: a creature by card type, or a Vehicle by subtype. A crewed Vehicle
+        // qualifies both ways; crew (CR 702.122) is the layer-4 effect that would grant the type, and
+        // now that layer 4 exists the subtype is read through the one battlefield seam that sees it.
+        PermanentRestriction.CREATURE_OR_VEHICLE -> isCreature || hasSubtype(state, candidate.id, VEHICLE)
         else -> error("CR 205.2: $restriction is not a card-type restriction")
     }
 
@@ -144,13 +161,13 @@ private fun satisfiesColourRestriction(
  * (docs/design/layer-system.md §4) — and these are the arms that must start reading a real controller
  * the day one does.
  *
- * Takes the whole [characteristics] rather than a pre-computed creature flag because
+ * Takes the whole layered [cardTypes] set rather than a pre-computed creature flag because
  * [PermanentRestriction.ARTIFACT_CREATURE_OR_LAND_YOU_CONTROL] is a **union** over three card types
  * (CR 205.1a) rather than a question about one.
  */
 private fun satisfiesControlRestriction(
     restriction: PermanentRestriction,
-    characteristics: PrintedCharacteristics,
+    cardTypes: Set<CardType>,
     candidate: GameObject,
     you: PlayerId,
     isCreature: Boolean,
@@ -162,11 +179,11 @@ private fun satisfiesControlRestriction(
         PermanentRestriction.CREATURE_AN_OPPONENT_CONTROLS -> isCreature && candidate.owner != you
         // CR 205.1a/205.2b: a disjunction over two card types, then the control test.
         PermanentRestriction.ARTIFACT_OR_ENCHANTMENT_AN_OPPONENT_CONTROLS ->
-            candidate.owner != you && characteristics.cardTypes.any { it in ARTIFACT_OR_ENCHANTMENT }
+            candidate.owner != you && cardTypes.any { it in ARTIFACT_OR_ENCHANTMENT }
         // CR 205.2b: a permanent may have several card types, so "and/or" is a disjunction over them —
         // one match is enough, and an artifact land satisfies it twice over.
         PermanentRestriction.ARTIFACT_CREATURE_OR_LAND_YOU_CONTROL ->
-            yours && characteristics.cardTypes.any { it in BLINKABLE_TYPES }
+            yours && cardTypes.any { it in BLINKABLE_TYPES }
         else -> error("CR 109.5: $restriction is not a control restriction")
     }
 }

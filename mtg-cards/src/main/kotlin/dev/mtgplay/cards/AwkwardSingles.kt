@@ -1,6 +1,7 @@
 package dev.mtgplay.cards
 
 import dev.mtgplay.core.card.CardType
+import dev.mtgplay.core.card.Keyword
 import dev.mtgplay.core.card.PrintedCharacteristics
 import dev.mtgplay.core.card.PrintedPowerToughness
 import dev.mtgplay.core.card.Subtype
@@ -10,14 +11,22 @@ import dev.mtgplay.core.definition.OptionalTapOrUntap
 import dev.mtgplay.core.definition.PermanentRestriction
 import dev.mtgplay.core.definition.ResolutionEffect
 import dev.mtgplay.core.definition.SpellDefinition
+import dev.mtgplay.core.definition.TargetCount
 import dev.mtgplay.core.definition.TargetSpec
 import dev.mtgplay.core.definition.TargetingRequirement
 import dev.mtgplay.core.definition.TimingClass
 import dev.mtgplay.core.definition.TriggerCondition
 import dev.mtgplay.core.definition.TriggeredAbility
+import dev.mtgplay.core.identity.CardRef
+import dev.mtgplay.core.identity.ObjectId
 import dev.mtgplay.core.mana.ManaCost
+import dev.mtgplay.core.state.ContinuousModification
+import dev.mtgplay.core.state.Counter
+import dev.mtgplay.core.state.GameState
 import dev.mtgplay.core.state.Target
+import dev.mtgplay.rules.effect.applyIndefinitely
 import dev.mtgplay.rules.effect.drawCards
+import dev.mtgplay.rules.effect.putCounters
 import dev.mtgplay.rules.effect.skipNextCombatPhase
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.persistentSetOf
@@ -35,29 +44,23 @@ import kotlinx.collections.immutable.persistentSetOf
  *   thing in the pool that changes what an *opponent* is allowed to point at.
  * - **Sewer-veillance Cam** (Grixis Affinity, Mono Blue Faeries) — dropped by `FW-TAPUNTAP` as needing
  *   modal resolution on a triggered ability. **That diagnosis was wrong**, and its own KDoc says why.
+ * - **Kenku Artificer** (Grixis Affinity) — added by `FW-TYPECHANGE`, which is the framework `W8-G`
+ *   diagnosed it as needing and then declined to build. Its diagnosis was exact and is worth keeping in
+ *   view: CR 613 layer 4 was a *declared but unpopulated* member of the layer walk, and the thing that
+ *   made populating it real work rather than a one-line addition was that `LayeredCharacteristics`, the
+ *   value the walk threads, carried no card types or subtypes at all. Filling it took two new fields on
+ *   that type, four on `ActiveEffect`, sublayer 7b alongside it (the 0/0 is a CR 613.4b set-P/T), an
+ *   **indefinite** [dev.mtgplay.core.state.EffectDuration] — CR 611.2b's "no duration" default, which the
+ *   engine could not represent — and the rerouting of six battlefield card-type reads onto the layer
+ *   engine.
  *
- * Bonder's Ornament, the packet's fourth encoded card, landed in ColorlessArtifacts.kt beside the header
+ * Bonder's Ornament, `W8-G`'s fourth encoded card, landed in ColorlessArtifacts.kt beside the header
  * paragraph that had been recording it absent for a reason that stopped being true two packets ago.
  *
- * **The three the packet dropped, and exactly what each would need.** Each was written far enough to know
- * the answer, and each is a framework this packet does not own; an approximation of any of them would be
- * a plausible-looking wrong card (PLAN.md §7).
+ * **The two still dropped, and exactly what each would need.** Each was written far enough to know the
+ * answer, and each is a framework this packet does not own; an approximation of either would be a
+ * plausible-looking wrong card (PLAN.md §7).
  *
- * - **Kenku Artificer** `{2}{U}` — "put three `+1/+1` counters on up to one target noncreature artifact.
- *   That artifact becomes a 0/0 Homunculus artifact creature with flying." The counters and the targeting
- *   are both ready; the type change is not. `Layer.TYPE` exists as a declared member of the layer walk,
- *   which makes this look like filling an empty slot — it is not, because
- *   `LayeredCharacteristics`, the value the walk threads, has fields for power, toughness, keywords, mana
- *   abilities, protections and evasions and **no card types or subtypes at all**. Populating CR 613
- *   layer 4 means widening that type and `ActiveEffect`, populating sublayer 7b as well (the 0/0 is a
- *   CR 613.4b set-P/T, also unpopulated), inventing an **indefinite** [dev.mtgplay.core.state.EffectDuration]
- *   (it is sealed with `UntilEndOfTurn` alone, and this change never ends), and rerouting the
- *   battlefield-object card-type reads in `PermanentRestrictions.kt`, `EnchantRestrictions.kt`,
- *   `EffectiveCharacteristics.kt`, `ObjectCount.kt`, `PermanentCount.kt`, `SacrificeCosts.kt` and
- *   `ActionEnumeration.kt`, every one of which currently reads printed *and says in its own KDoc that it
- *   does so because no type-changing effect exists*. The SBA half is already honest: `Layers.kt`'s
- *   `modifiedByCounters` names this card and fails loudly on P/T counters with no P/T box rather than
- *   dropping them, so the CR 704.5f ordering this card turns on cannot be got wrong by accident.
  * - **Sacred Cat** `{W}` — "Lifelink. Embalm `{W}`." The body is printed vocabulary. Embalm (CR 702.90a)
  *   needs four absent things, and the fourth is the interesting one: an `AbilityZoneScope.Graveyard` (the
  *   enum has `Battlefield` and `Hand` only), exiling the card itself from the graveyard as a cost,
@@ -290,3 +293,146 @@ val sewerVeillanceCam: SpellDefinition =
                 ),
             )
     }
+
+/** The subtype Kenku Artificer's layer-4 change grants (CR 205.3m). */
+private val HOMUNCULUS: Subtype = Subtype("Homunculus")
+
+/** How many `+1/+1` counters Kenku Artificer's trigger places (CR 122.1a). */
+private const val KENKU_ARTIFICER_COUNTERS: Int = 3
+
+/**
+ * Kenku Artificer — `{2}{U}` Creature — Bird Artificer, a 1/1 whose enters-the-battlefield trigger
+ * (CR 603.6a) reads: *"Homunculus Servant — When this creature enters, put three `+1/+1` counters on
+ * up to one target noncreature artifact. That artifact becomes a 0/0 Homunculus artifact creature with
+ * flying."*
+ *
+ * Grixis Affinity's payoff, and the card that finally populated CR 613 **layer 4**. It had been picked
+ * up and put down three times, and the packet that dropped it last was right about every blocker and
+ * right that the slot's emptiness was the problem: `Layer.TYPE` was a declared member of the layer walk,
+ * but `LayeredCharacteristics`, the value the walk threads, carried power, toughness, keywords, mana
+ * abilities, protections and evasions and **no card types or subtypes at all**, so there was nothing for
+ * a layer-4 effect to write to.
+ *
+ * **The card is four separate continuous-effect contributions in one sentence**, and putting each in the
+ * layer that owns it is the whole of encoding it:
+ * - "becomes a … artifact creature" and "Homunculus" are CR 613.1d **layer 4**, and they *add* to the
+ *   type line rather than replacing it (CR 205.1b) — the target stays an artifact, and an artifact
+ *   *land* stays a land;
+ * - "0/0" is a CR 613.4b **sublayer 7b** set;
+ * - "with flying" is a CR 613.1f **layer 6** grant;
+ * - the three `+1/+1` counters are CR 122.1a and land in **sublayer 7c**, which CR 613.4c names for
+ *   "effects *and counters* that modify power and/or toughness".
+ *
+ * **The artifact ends up a 3/3 rather than a corpse, and the reason is sublayer order, not timing.** A
+ * 0/0 creature is destroyed by the CR 704.5f state-based action, so an engine that applied the counters
+ * before the set — or folded the set into 7c, where the two contributions would commute — would kill the
+ * artifact the instant the trigger resolved and the card would do nothing at all. Sublayer 7b runs
+ * strictly before 7c, so the walk sets 0/0 and *then* adds `+3/+3`. State-based actions are not checked
+ * during a resolution (CR 704.3), so the intermediate 0/0 is never observed even in principle.
+ *
+ * **The type change has no duration, which is a distinct fact from lasting a long time** (CR 611.2b).
+ * The printed text says "becomes", not "becomes … until end of turn", so the effect lasts as long as the
+ * game does — [dev.mtgplay.rules.effect.applyIndefinitely], the primitive this card needed because the
+ * engine could previously represent only "until end of turn", and encoding this as a turn-long change
+ * would have produced a card that quietly un-does itself in the cleanup step with nothing in any log to
+ * say so.
+ *
+ * **"Up to one target" is a real choice with three answers, and the third one matters.** Choosing zero
+ * targets is legal ([dev.mtgplay.core.definition.TargetCount.UpTo]) — the Artificer still enters as a
+ * 1/1 — and it is the right answer when every artifact you control is one you would rather leave alone:
+ * an animated artifact starts dying to creature removal that could not touch it before, and it stops
+ * being a legal target for the next Kenku Artificer. The counters and the change are one instruction
+ * about one artifact, so "counters here, animation there" is not among the answers.
+ *
+ * **Its target must be a *noncreature* artifact, read in-game.**
+ * [PermanentRestriction.NONCREATURE_ARTIFACT] consults the layered type line, so an artifact a previous
+ * Kenku Artificer already animated is not offered — and animating one in response makes an
+ * already-announced trigger fizzle at the CR 608.2b re-check.
+ *
+ * **What the target loses is worth as much as what it gains.** An animated artifact can attack the turn
+ * it is animated if it has been under its controller's continuous control since their turn began
+ * (CR 302.6) — that is the Affinity line, a Myr Enforcer's worth of stats appearing on a Bauble — but it
+ * also becomes vulnerable to every creature-shaped answer in the opponent's deck.
+ */
+val kenkuArtificer: SpellDefinition =
+    object : SpellDefinition {
+        override val characteristics =
+            PrintedCharacteristics(
+                name = "Kenku Artificer",
+                manaCost = ManaCost.parse("{2}{U}"),
+                supertypes = persistentSetOf(),
+                cardTypes = persistentSetOf(CardType.CREATURE),
+                subtypes = persistentSetOf(Subtype("Bird"), Subtype("Artificer")),
+                powerToughness = PrintedPowerToughness(power = 1, toughness = 1),
+            )
+
+        // CR 302.1: the creature spell itself is untargeted and sorcery-speed; the *ability* targets.
+        override val timing = TimingClass.SORCERY_SPEED
+        override val targetSpec = TargetSpec.None
+        override val resolution = ResolutionEffect { state, _ -> state }
+
+        override val triggeredAbilities =
+            persistentListOf(
+                TriggeredAbility(
+                    condition = TriggerCondition.EnteredBattlefieldSelf,
+                    targetSpec =
+                        TargetSpec.TargetPermanent(
+                            restriction = PermanentRestriction.NONCREATURE_ARTIFACT,
+                            count = TargetCount.UpTo(1),
+                        ),
+                    effect =
+                        ResolutionEffect { state, context ->
+                            // CR 115.1: "up to one" may be zero, and a trigger that chose no target
+                            // still resolves and simply does nothing (CR 608.2c).
+                            val target = context.targets.singleOrNull() ?: return@ResolutionEffect state
+                            check(target is Target.Permanent) {
+                                "CR 115.1b: Kenku Artificer's trigger targets a noncreature artifact, got $target"
+                            }
+                            animateArtifact(state, target.id, context.sourceCard)
+                        },
+                ),
+            )
+    }
+
+/**
+ * Kenku Artificer's whole resolution on the chosen [artifact]: three `+1/+1` counters (CR 122.1a), then
+ * the durationless CR 613 layer-4/7b/6 change that makes it a 0/0 Homunculus artifact creature with
+ * flying (CR 611.2b).
+ *
+ * **The order of the two statements is unobservable; that both happen is not.** No player receives
+ * priority and no state-based action is checked inside a resolution (CR 704.3), so the artifact is never
+ * seen as a 0/0. What is load-bearing is the pairing: counters without the type change would be inert
+ * (CR 122.1a has nothing to modify on a noncreature), and the layer walk fails loudly on that rather
+ * than ignoring them — which is the guard that stops a half-applied resolution from looking like a
+ * merely smaller creature.
+ *
+ * @param sourceCard the trigger's own printed identity (CR 113.7c); the fallback names the card
+ *   directly, because a continuous effect must be attributable in the log even when the source object
+ *   is long gone.
+ */
+private fun animateArtifact(
+    state: GameState,
+    artifact: ObjectId,
+    sourceCard: CardRef?,
+): GameState {
+    val withCounters = putCounters(state, artifact, Counter.PLUS_ONE_PLUS_ONE, KENKU_ARTIFICER_COUNTERS)
+    return applyIndefinitely(
+        withCounters,
+        affected = artifact,
+        modification =
+            ContinuousModification(
+                // CR 613.1f: "with flying".
+                grantedKeywords = persistentSetOf(Keyword.FLYING),
+                // CR 613.1d: gained *in addition to* the artifact type the permanent already has.
+                addedCardTypes = persistentSetOf(CardType.CREATURE),
+                addedSubtypes = persistentSetOf(HOMUNCULUS),
+                // CR 613.4b: "a 0/0", set in sublayer 7b so the 7c counters land on top of it.
+                setPower = 0,
+                setToughness = 0,
+            ),
+        sourceCard = sourceCard ?: KENKU_ARTIFICER_REF,
+    )
+}
+
+/** Kenku Artificer's printed identity, for the CR 113.7c fallback in [animateArtifact]. */
+private val KENKU_ARTIFICER_REF: CardRef = CardRef("Kenku Artificer")

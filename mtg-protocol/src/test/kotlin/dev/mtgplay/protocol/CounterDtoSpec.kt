@@ -90,7 +90,14 @@ class CounterDtoSpec :
             // flashback or alternative-cost cast — so an 8.0.0 peer and a 9.0.0 peer disagree about a
             // message they both already know how to send. Three new DecisionRequest kinds and a new
             // CastingPermissionDto discriminator ride along.
+            // `FW-TYPECHANGE`/`FW-SETPT` takes it to 10.0.0. One payload changes, TimedContinuousEffectDto,
+            // but it rides inside every seat view and gains five required fields: the CR 613 layer-4 type
+            // change (`addedCardTypes`, `addedSubtypes`), the sublayer-7b set (`setPower`,
+            // `setToughness`), and `grantedEvasions` — which closes a *pre-existing* hole rather than
+            // adding a capability, since ContinuousModification has carried granted evasions since the
+            // keyword-tail packet and this mirror silently dropped them. The `duration` word gains
+            // INDEFINITE (CR 611.2b), which an older peer already fails loudly on by design.
             // Pinned here so no bump in the chain can be quietly reverted.
-            PROTOCOL_VERSION shouldBe "9.0.0"
+            PROTOCOL_VERSION shouldBe "10.0.0"
         }
     })

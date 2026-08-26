@@ -49,6 +49,24 @@ enum class PermanentRestriction {
     ARTIFACT,
 
     /**
+     * "Up to one target **noncreature** artifact" (CR 115.1b, CR 205.1a): an artifact that is not also a
+     * creature. Kenku Artificer. Additive, flagged core (`FW-TYPECHANGE`).
+     *
+     * **The exclusion is read against the *in-game* type line, and that is what makes it interesting**
+     * rather than a routine narrowing of [ARTIFACT]. A permanent has every card type it is printed with
+     * *plus* every one a CR 613 layer-4 effect has given it, so an artifact that a previous Kenku
+     * Artificer already turned into a creature is **not** a legal target for a second one — the card
+     * cannot double up on the same artifact, which is precisely the line an engine reading printed types
+     * would have offered and then mis-resolved.
+     *
+     * It also means the target can stop being legal *between* announcement and resolution: turn the
+     * artifact into a creature in response and the trigger fizzles at the CR 608.2b re-check. That is a
+     * real interaction rather than a hypothetical one, because the only way to do it in the pool is a
+     * second copy of this same card.
+     */
+    NONCREATURE_ARTIFACT,
+
+    /**
      * "Target land" (CR 115.1b, CR 305). Raze's destroy line. An artifact land satisfies this *and*
      * [ARTIFACT] — a permanent has every card type printed on it (CR 205.1a) — so this is a card-type
      * test rather than an exclusion.
