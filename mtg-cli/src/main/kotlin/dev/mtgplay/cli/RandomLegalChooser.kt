@@ -44,7 +44,8 @@ class RandomLegalChooser(
             // CR 508.1/508.1d: a random subset, plus every attacker the declaration is *required* to
             // include (CR 701.38a). A chooser that can produce an illegal answer is worse than useless
             // to the fuzz harness — the crash it reports would be its own.
-            is DecisionRequest.DeclareAttackers -> multi(request.id, attackerDeclaration(request))
+            is DecisionRequest.DeclareAttackers ->
+                multi(request.id, (anySizeSubset(request.options.size).toSet() + request.requiredIndices).sorted())
             is DecisionRequest.DeclareBlockers -> multi(request.id, blockAssignment(request.options))
             is DecisionRequest.MulliganRequest -> mulligan(request)
         }
@@ -109,15 +110,6 @@ class RandomLegalChooser(
     }
 
     /** Each index in `0 until size` included on an independent fair coin flip (attacker subset). */
-    /**
-     * A random legal declare-attackers answer (CR 508.1): a uniformly random subset of the options,
-     * unioned with the CR 508.1d requirements the request published, in option order.
-     */
-    private fun attackerDeclaration(request: DecisionRequest.DeclareAttackers): List<Int> {
-        val chosen = anySizeSubset(request.options.size).toSet() + request.requiredIndices
-        return chosen.sorted()
-    }
-
     private fun anySizeSubset(size: Int): List<Int> =
         (0 until size).filter {
             val (bit, next) = rng.nextInt(2)

@@ -25,8 +25,8 @@ import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.StringSpec
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContain
-import io.kotest.matchers.collections.shouldNotContain
 import io.kotest.matchers.collections.shouldContainExactly
+import io.kotest.matchers.collections.shouldNotContain
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
@@ -137,7 +137,10 @@ class GoadSpec :
     })
 
 /** [state]'s creature 0's goading player, or `null` when it is not goaded. */
-private fun goadedBy(state: GameState) = state.sharedZones.battlefield.single { it.id == ObjectId(0) }.goadedBy
+private fun goadedBy(state: GameState) =
+    state.sharedZones.battlefield
+        .single { it.id == ObjectId(0) }
+        .goadedBy
 
 /** A fixture "gains hexproof until alice's next turn" on creature 0 (CR 611.2, CR 702.11b). */
 private fun hexproofUntilAlicesNextTurn(state: GameState): GameState =

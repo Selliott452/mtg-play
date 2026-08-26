@@ -136,8 +136,9 @@ private fun finishReveal(
     kept: Set<ObjectId>,
 ): AdvanceResult {
     val cleared = state.copy(pendingRevealSelection = null)
-    val reveal = entry.resolutionClauses.libraryReveal
-        ?: error("CR 701.16: a reveal completes only for a resolving object that carries a reveal clause")
+    val reveal =
+        entry.resolutionClauses.libraryReveal
+            ?: error("CR 701.16: a reveal completes only for a resolving object that carries a reveal clause")
     val distributed =
         when (reveal.disposition) {
             RevealDisposition.CHOSEN_TO_HAND_REST_TO_GRAVEYARD ->

@@ -53,11 +53,13 @@ class GauntletCoverageSpec :
                 listOf(
                     // `W9-D` added Monstrous Emergence, an Elves sideboard card: 3 -> 4.
                     // `W10-B` added Sagu Wildling, the gauntlet's first omen card: 13 -> 14.
-                    Pinned("Elves", 15, 16, 5, 5),
+                    // `W11` added Avenging Hunter, the last mainboard card in the gauntlet: 15 -> 16.
+                    Pinned("Elves", 16, 16, 5, 5),
                     Pinned("Gates", 17, 17, 5, 5),
                     Pinned("Grixis Affinity", 22, 22, 7, 7),
                     Pinned("GW Bogles", 18, 18, 8, 8),
-                    Pinned("Jeskai Ephemerate", 22, 22, 6, 7),
+                    // `W11` added Goliath Paladin, the last sideboard card in the gauntlet: 6 -> 7.
+                    Pinned("Jeskai Ephemerate", 22, 22, 7, 7),
                     Pinned("Jund Wildfire", 22, 22, 7, 7),
                     // `FW-NINJUTSU` added Ninja of the Deep Hours and Harrier Strix: 6 -> 8.
                     // `W8-E` added Faerie Miscreant: 10 -> 11.
@@ -118,17 +120,27 @@ private const val SIDEBOARD_SIZE = 15
 /** Distinct cards named by at least one gauntlet mainboard. */
 private const val TOTAL_DISTINCT_MAIN = 178
 
-/** Of those, how many `mtg-cards` defines — the number this burn-down drives to [TOTAL_DISTINCT_MAIN]. */
-private const val TOTAL_ENCODED_MAIN = 177
-private const val TOTAL_MISSING_MAIN = 1
+/**
+ * Of those, how many `mtg-cards` defines — the number this burn-down drove to [TOTAL_DISTINCT_MAIN].
+ * `W11` closed the last gap: Avenging Hunter, which was waiting on the Undercity's Arena and Throne of
+ * the Dead Three. **The gauntlet's mainboards are whole.**
+ */
+private const val TOTAL_ENCODED_MAIN = 178
+private const val TOTAL_MISSING_MAIN = 0
 
 /** Distinct cards named by at least one gauntlet sideboard. */
 private const val TOTAL_DISTINCT_SIDEBOARD = 48
-private const val TOTAL_ENCODED_SIDEBOARD = 47
-private const val TOTAL_MISSING_SIDEBOARD = 1
 
-/** The whole backlog: distinct undefined cards across both boards of all thirteen decks. */
-private const val TOTAL_MISSING_BOTH_BOARDS = 2
+/** Of those, how many `mtg-cards` defines — whole since `W11` added Goliath Paladin. */
+private const val TOTAL_ENCODED_SIDEBOARD = 48
+private const val TOTAL_MISSING_SIDEBOARD = 0
+
+/**
+ * The whole backlog: distinct undefined cards across both boards of all thirteen decks. **Zero since
+ * `W11`** — every card in every gauntlet deck is encoded, and this constant now guards against a
+ * regression rather than tracking a burn-down.
+ */
+private const val TOTAL_MISSING_BOTH_BOARDS = 0
 
 /** Of the backlog, the cards that appear only in sideboards. */
-private const val TOTAL_MISSING_SIDEBOARD_ONLY = 1
+private const val TOTAL_MISSING_SIDEBOARD_ONLY = 0

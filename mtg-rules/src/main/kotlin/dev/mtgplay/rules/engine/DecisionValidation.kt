@@ -84,7 +84,12 @@ private fun validateAttackerDeclaration(
     decision: Decision,
 ) {
     validateDistinctSubset(request, decision, request.options.size, "attacker")
-    val declared = decision.asMultiSelect(request).indices.map { request.options[it].attacker }.toSet()
+    val declared =
+        decision
+            .asMultiSelect(request)
+            .indices
+            .map { request.options[it].attacker }
+            .toSet()
     request.required.forEach { requirement ->
         require(requirement.attacker in declared) {
             "CR 508.1d/701.38a: ${requirement.card.name} was goaded by ${requirement.goadedBy} and " +

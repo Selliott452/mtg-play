@@ -109,11 +109,16 @@ fun applyIndefinitely(
  * turn rather than the CR 514.2 cleanup, which answers "not mine" for this duration in all three
  * timed stores.
  *
+ * **It takes no `source` object, unlike its two siblings**, and the pool is why: the one printing is a
+ * *dungeon room's* ability, whose source is a dungeon card sitting in the command zone (CR 309.2) and
+ * is of no interest to any reader of the effect — [sourceCard] already carries the narration. A
+ * `source` joins this verb with the first card that grants an until-your-next-turn effect from a
+ * permanent, where the CR 113.7c last-known id is worth recording.
+ *
  * @param affected the permanent the effect modifies; its identity is fixed now (CR 611.2c).
  * @param player the player whose next turn ends the effect (CR 611.2).
  * @param modification what the effect does: the layer-6 grants and snapshotted layer-7c modifiers.
  * @param sourceCard the printed identity that created the effect, for narration and replay.
- * @param source the resolving object's own id (CR 113.7c last-known information), or `null`.
  */
 fun applyUntilYourNextTurn(
     state: GameState,
@@ -121,14 +126,13 @@ fun applyUntilYourNextTurn(
     player: PlayerId,
     modification: ContinuousModification,
     sourceCard: CardRef,
-    source: ObjectId? = null,
 ): GameState =
     state.storingContinuousEffect(
         affected,
         modification,
         EffectDuration.UntilYourNextTurn(player),
         sourceCard,
-        source,
+        source = null,
     )
 
 /**
