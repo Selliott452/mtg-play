@@ -109,6 +109,7 @@ object CreatureType {
             Blood
             Clue
             Desert
+            Equipment
             Food
             Forest
             Gate

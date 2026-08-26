@@ -495,6 +495,7 @@ object MvpCards {
             idyllicBeachfront,
             hydroblast,
             impulse,
+            inventorsAxe,
             island,
             journeyToNowhere,
             kenkuArtificer,

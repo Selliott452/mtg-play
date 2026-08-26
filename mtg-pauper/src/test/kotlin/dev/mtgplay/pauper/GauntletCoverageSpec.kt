@@ -62,7 +62,7 @@ class GauntletCoverageSpec :
                     Pinned("Mono-Blue Terror", 12, 14, 6, 6),
                     Pinned("Mono-Red Madness", 12, 12, 4, 5),
                     // `W8-E` added Rally at the Hornburg: 8 -> 9.
-                    Pinned("Mono Red Rally", 11, 13, 5, 5),
+                    Pinned("Mono Red Rally", 12, 13, 5, 5),
                     // `W8-E` added Troll of Khazad-dûm: 14 -> 15.
                     Pinned("Monster Tron", 17, 21, 5, 6),
                     // `W8-E` added Gatecreeper Vine and Bramble Wurm: 12 -> 14.
@@ -111,8 +111,8 @@ private const val SIDEBOARD_SIZE = 15
 private const val TOTAL_DISTINCT_MAIN = 178
 
 /** Of those, how many `mtg-cards` defines — the number this burn-down drives to [TOTAL_DISTINCT_MAIN]. */
-private const val TOTAL_ENCODED_MAIN = 160
-private const val TOTAL_MISSING_MAIN = 18
+private const val TOTAL_ENCODED_MAIN = 161
+private const val TOTAL_MISSING_MAIN = 17
 
 /** Distinct cards named by at least one gauntlet sideboard. */
 private const val TOTAL_DISTINCT_SIDEBOARD = 48
@@ -120,7 +120,7 @@ private const val TOTAL_ENCODED_SIDEBOARD = 37
 private const val TOTAL_MISSING_SIDEBOARD = 11
 
 /** The whole backlog: distinct undefined cards across both boards of all thirteen decks. */
-private const val TOTAL_MISSING_BOTH_BOARDS = 27
+private const val TOTAL_MISSING_BOTH_BOARDS = 26
 
 /** Of the backlog, the cards that appear only in sideboards. */
 private const val TOTAL_MISSING_SIDEBOARD_ONLY = 9

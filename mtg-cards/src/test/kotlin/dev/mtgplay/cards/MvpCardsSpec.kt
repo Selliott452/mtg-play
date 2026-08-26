@@ -312,6 +312,7 @@ class MvpCardsSpec :
                     CardRef("Idyllic Beachfront"),
                     CardRef("Hydroblast"),
                     CardRef("Impulse"),
+                    CardRef("Inventor's Axe"),
                     CardRef("Island"),
                     CardRef("Journey to Nowhere"),
                     CardRef("Kenku Artificer"),

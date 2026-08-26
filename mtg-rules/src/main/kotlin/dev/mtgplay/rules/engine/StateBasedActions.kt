@@ -11,14 +11,17 @@ import dev.mtgplay.core.state.GameState
 import dev.mtgplay.core.state.PriorityStatus
 import dev.mtgplay.core.state.cardObject
 import dev.mtgplay.rules.MatchResult
+import dev.mtgplay.rules.effect.unattachPermanent
 
 /**
  * One applicable state-based action (CR 704.5): something the game itself does the moment its
  * condition holds, checked whenever a player would receive priority (CR 704.3).
  *
  * Sealed so the performer handles every kind exhaustively; later phases add members next to the
- * checks that detect them, without reshaping the check-and-repeat loop. CR 704.5n (the Equipment
- * unattach analogue) has no member in the pool — the MVP has no Equipment.
+ * checks that detect them, without reshaping the check-and-repeat loop. CR 704.5n — the Equipment
+ * unattach analogue, which this KDoc recorded as absent for six packets — arrived with `FW-EQUIP` as
+ * [EquipmentUnattaches], and is the sharpest illustration of why the hierarchy is a sum rather than a
+ * flag: it fires on the *same* condition as [AuraFallsOff] and does the opposite thing.
  */
 internal sealed interface StateBasedAction {
     /**
@@ -50,6 +53,25 @@ internal sealed interface StateBasedAction {
      * this fires on the following check.
      */
     data class AuraFallsOff(
+        val objectId: ObjectId,
+    ) : StateBasedAction
+
+    /**
+     * The Equipment [objectId] becomes **unattached** because it is attached to an illegal permanent or
+     * to nothing (CR 704.5n). Added by `FW-EQUIP`.
+     *
+     * **The opposite outcome to [AuraFallsOff], and deliberately its own member rather than a widening
+     * of it.** Both fire on the same condition — a dangling attachment — and they do opposite things: a
+     * dangling Aura is put into its owner's graveyard (CR 704.5m) and a dangling Equipment lets go and
+     * *stays on the battlefield*, ready to be equipped onto something else. That is the whole reason a
+     * deck plays an Equipment rather than an Aura, so collapsing the two would delete the difference
+     * between the two card types while still passing every dangling-attachment test.
+     *
+     * Reachable the same way its sibling is: the equipped creature dies, is reborn in the graveyard with
+     * a new id (CR 400.7), the Equipment's [dev.mtgplay.core.state.GameObject.attachedTo] then names no
+     * battlefield object, and this fires on the following check.
+     */
+    data class EquipmentUnattaches(
         val objectId: ObjectId,
     ) : StateBasedAction
 
@@ -162,14 +184,21 @@ internal fun applicableStateBasedActions(state: GameState): List<StateBasedActio
             // CR 704.5m: an Aura attached to an illegal object or to nothing goes to its owner's
             // graveyard. Two reachable cases: a gone enchanted object (its creature died), and —
             // since `FW-PROTECT` — a still-present object that has protection from the Aura's own
-            // quality (CR 702.16c). CR 704.5n, the Equipment analogue, still has no member: nothing
-            // in the pool is Equipment.
+            // quality (CR 702.16c). CR 704.5n, the Equipment analogue, is the *separate* loop below:
+            // same condition, opposite outcome (`FW-EQUIP`).
             //
             // Ordering note (docs/design/protection.md §2.2): this check reads *layered* protections
             // and layered characteristics are computed on read, so an Aura granting protection is
             // still contributing its grant while the batch is collected.
             if (!auraAttachmentIsLegal(state, obj, restriction)) {
                 add(StateBasedAction.AuraFallsOff(obj.id))
+            }
+        }
+        for (obj in state.sharedZones.battlefield) {
+            // CR 704.5n: an Equipment attached to an illegal permanent becomes unattached and **stays on
+            // the battlefield** — the opposite outcome to the Aura check above, on the same condition.
+            if (isEquipment(state, obj) && obj.attachedTo != null && !equipmentAttachmentIsLegal(state, obj)) {
+                add(StateBasedAction.EquipmentUnattaches(obj.id))
             }
         }
         for (obj in tokensOffBattlefield(state)) {
@@ -304,6 +333,7 @@ private fun performBatch(
     val losses = mutableListOf<StateBasedAction.PlayerLoses>()
     val deaths = mutableListOf<StateBasedAction.CreatureDies>()
     val fallOffs = mutableListOf<StateBasedAction.AuraFallsOff>()
+    val unattachments = mutableListOf<StateBasedAction.EquipmentUnattaches>()
     val tokenCeases = mutableListOf<StateBasedAction.TokenCeasesToExist>()
     val annihilations = mutableListOf<StateBasedAction.CountersAnnihilate>()
     for (action in actions) {
@@ -312,6 +342,7 @@ private fun performBatch(
             is StateBasedAction.PlayerLoses -> losses += action
             is StateBasedAction.CreatureDies -> deaths += action
             is StateBasedAction.AuraFallsOff -> fallOffs += action
+            is StateBasedAction.EquipmentUnattaches -> unattachments += action
             is StateBasedAction.TokenCeasesToExist -> tokenCeases += action
             is StateBasedAction.CountersAnnihilate -> annihilations += action
         }
@@ -319,8 +350,14 @@ private fun performBatch(
     if (losses.isNotEmpty()) return performPlayerLoss(state, losses)
     val afterDeaths = performCreatureDeaths(state, deaths.map(StateBasedAction.CreatureDies::objectId))
     val afterFallOffs = performAuraFallOffs(afterDeaths, fallOffs.map(StateBasedAction.AuraFallsOff::objectId))
+    // CR 704.5n, in the same batch as the Aura fall-offs and after them for definiteness only: the two
+    // act on disjoint objects (an Equipment is never an Aura), so the order is unobservable.
+    val afterUnattach =
+        unattachments
+            .map(StateBasedAction.EquipmentUnattaches::objectId)
+            .fold(afterFallOffs, ::unattachPermanent)
     val afterTokens =
-        performTokenCeasesToExist(afterFallOffs, tokenCeases.map(StateBasedAction.TokenCeasesToExist::objectId))
+        performTokenCeasesToExist(afterUnattach, tokenCeases.map(StateBasedAction.TokenCeasesToExist::objectId))
     return SbaOutcome.Continued(performCounterAnnihilations(afterTokens, annihilations), performedWork = true)
 }
 
