@@ -103,6 +103,10 @@ internal fun manaSourcesReservedBy(
                     AbilityCost.DiscardSelf,
                     AbilityCost.ExileSelfFromGraveyard,
                     AbilityCost.DiscardACard,
+                    // CR 107.16: energy is not mana and comes from no permanent, so paying it reserves
+                    // nothing — an Equipment's controller may tap it for mana (if it could) and still
+                    // equip in the same activation.
+                    is AbilityCost.Energy,
                     is AbilityCost.Sacrifice,
                     is AbilityCost.ReturnPermanentYouControl,
                     -> false

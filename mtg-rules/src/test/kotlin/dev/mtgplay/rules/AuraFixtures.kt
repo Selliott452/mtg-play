@@ -123,6 +123,25 @@ internal val fixtureEnt = creatureBody("Ent", 2, 2)
 /** "Toad" — a second 2/2 creature body, for the "creature you control" restriction (owned by bob). */
 internal val fixtureToad = creatureBody("Toad", 2, 2)
 
+/**
+ * "Fixture Anvil" — a plain artifact with **no P/T box at all**, the shape CR 613 layer 4 and sublayer
+ * 7b are tested against (`FW-TYPECHANGE`). A creature fixture would hide the half of the behaviour that
+ * matters: only an object whose printed power and toughness are `null` can show that 7b *creates* a P/T
+ * box where none existed, and that the layer-7c counter guard fires when it does not.
+ */
+internal val fixtureAnvil: CardDefinition =
+    object : CardDefinition {
+        override val characteristics =
+            PrintedCharacteristics(
+                name = "Fixture Anvil",
+                manaCost = ManaCost.parse("{2}"),
+                supertypes = persistentSetOf(),
+                cardTypes = persistentSetOf(CardType.ARTIFACT),
+                subtypes = persistentSetOf(),
+                powerToughness = null,
+            )
+    }
+
 /** "Meadow" — a plain (non-Forest) land producing {G}. */
 internal val fixtureMeadow = landSource("Meadow", emptySet(), ManaType.GREEN)
 
@@ -208,6 +227,7 @@ internal val auraDefinitions: Map<CardRef, CardDefinition> =
     listOf(
         fixtureEnt,
         fixtureToad,
+        fixtureAnvil,
         fixtureMeadow,
         fixtureThicket,
         fixtureCloak,

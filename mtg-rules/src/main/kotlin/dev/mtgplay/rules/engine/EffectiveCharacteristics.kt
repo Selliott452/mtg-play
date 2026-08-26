@@ -1,6 +1,5 @@
 package dev.mtgplay.rules.engine
 
-import dev.mtgplay.core.card.CardType
 import dev.mtgplay.core.card.Keyword
 import dev.mtgplay.core.card.Quality
 import dev.mtgplay.core.identity.ObjectId
@@ -11,31 +10,20 @@ import kotlinx.collections.immutable.PersistentSet
 /*
  * The single read-through combat uses for a permanent's in-game characteristics.
  *
- * Combat asks these accessors — never a card definition directly — for the keywords, power, and
- * toughness it consults (CR 508–510). Each now delegates to the CR 613 continuous-effect layer
- * system ([layeredCharacteristics]): keyword grants in layer 6, P/T modifiers in sublayer 7c
- * (docs/design/layer-system.md §6). Because combat only ever reads through this one seam, no combat
- * rule changed when the layer engine landed — the P3.1 contract kept. A card without a definition is
- * inert: no keywords, and it is not a creature — so it can never be a combatant.
+ * Combat asks these accessors — never a card definition directly — for the card types, keywords,
+ * power, and toughness it consults (CR 508–510). Each delegates to the CR 613 continuous-effect layer
+ * system ([layeredCharacteristics]): type changes in layer 4, keyword grants in layer 6, set-P/T in
+ * sublayer 7b, P/T modifiers and counters in sublayer 7c (docs/design/layer-system.md §6). Because
+ * combat only ever reads through this one seam, no combat rule changed when the layer engine landed —
+ * the P3.1 contract kept — and none changed again when layer 4 populated it. A card without a
+ * definition is inert: no keywords, no types, and it is not a creature — so it can never be a
+ * combatant.
  */
 
 /** The battlefield object with [id]; fails loudly if it is not on the battlefield (CR 110.1). */
 internal fun GameState.battlefieldObject(id: ObjectId): GameObject =
     sharedZones.battlefield.firstOrNull { it.id == id }
         ?: error("object $id is not on the battlefield")
-
-/**
- * Whether the battlefield object [obj] is a creature right now (CR 302.1) — the P3.1 answer is
- * "its printed types include creature." An object with no definition is inert and not a creature.
- * Phase 4's layer system (type-changing effects, layer 4) reroutes through here.
- */
-internal fun isCreature(
-    state: GameState,
-    obj: GameObject,
-): Boolean {
-    val characteristics = state.definitions[obj.card]?.characteristics ?: return false
-    return CardType.CREATURE in characteristics.cardTypes
-}
 
 /**
  * The in-game keyword abilities of the battlefield object [id] (CR 702, CR 613 layer 6): printed

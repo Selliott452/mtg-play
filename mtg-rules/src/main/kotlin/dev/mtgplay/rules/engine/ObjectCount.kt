@@ -37,7 +37,8 @@ internal fun countMatching(
     scope: CountScope,
     predicate: ObjectPredicate,
     excluding: ObjectId? = null,
-): Int = objectsIn(state, seat, scope).count { it.id != excluding && matches(state, it, predicate) }
+): Int =
+    objectsIn(state, seat, scope).count { it.id != excluding && matches(state, it, predicate, scope.isBattlefield) }
 
 /** The objects [scope] names for [seat], in zone order (CR 400.1). */
 private fun objectsIn(
@@ -52,12 +53,28 @@ private fun objectsIn(
     }
 
 /**
- * Whether [obj] satisfies [predicate], read from its **printed** characteristics (CR 109.3).
+ * Whether [scope] names objects on the **battlefield**, and therefore objects CR 613 reaches. The
+ * `when` is exhaustive so a new scope must state which side of the layer boundary it falls on rather
+ * than inheriting an answer.
+ */
+private val CountScope.isBattlefield: Boolean
+    get() =
+        when (this) {
+            CountScope.BATTLEFIELD_YOU_CONTROL -> true
+            CountScope.YOUR_GRAVEYARD -> false
+        }
+
+/**
+ * Whether [obj] satisfies [predicate] (CR 109.3), read from its **in-game** characteristics when it is
+ * on the battlefield ([onBattlefield]) and from its printed ones everywhere else.
  *
- * Printed, not layered, and that is the seam [ObjectPredicate]'s KDoc names: the engine has no
- * layer-4 type-changing effect and `LayeredCharacteristics` carries no card types, so there is
- * nothing yet for a layered read to return that this does not. **When the first type-changing effect
- * arrives, this function is where the count must start routing through the layer engine.**
+ * **The split is CR 613's own scope, not a compromise.** CR 613 applies to objects on the battlefield;
+ * a card in a graveyard has its printed types and nothing else, so a layered read there would have
+ * nothing extra to say and no battlefield object to compute from. This function used to read printed in
+ * both cases with a KDoc promising a reroute "when the first type-changing effect arrives"; it has
+ * arrived (`FW-TYPECHANGE`), and the battlefield half now goes through [effectiveCardTypes] and
+ * [hasSubtype]. The observable consequence is that an affinity-style count of "artifacts you control"
+ * sees a permanent that *became* an artifact.
  *
  * An object whose card has no definition matches nothing: an inert card (architect decision, P2.1) is
  * legal to hold and to mill, and counting it as an artifact because nobody said otherwise would be
@@ -67,17 +84,29 @@ private fun matches(
     state: GameState,
     obj: GameObject,
     predicate: ObjectPredicate,
+    onBattlefield: Boolean,
 ): Boolean {
     val characteristics = state.definitions[obj.card]?.characteristics ?: return false
     return when (predicate) {
         ObjectPredicate.Anything -> true
-        is ObjectPredicate.HasCardType -> predicate.cardType in characteristics.cardTypes
-        // CR 702.73a: changeling works in every zone, which is why this reads the printed
-        // characteristics' own subtype accessor rather than the raw set — a Shapeshifter in a
-        // graveyard is a Human there too.
-        is ObjectPredicate.HasSubtype -> characteristics.hasSubtype(predicate.subtype)
-        is ObjectPredicate.Not -> !matches(state, obj, predicate.predicate)
-        is ObjectPredicate.And -> predicate.predicates.all { matches(state, obj, it) }
-        is ObjectPredicate.AnyOf -> predicate.predicates.any { matches(state, obj, it) }
+        is ObjectPredicate.HasCardType ->
+            if (onBattlefield) {
+                predicate.cardType in effectiveCardTypes(state, obj.id)
+            } else {
+                predicate.cardType in characteristics.cardTypes
+            }
+        // CR 702.73a: changeling works in every zone, which is why the off-battlefield answer is the
+        // printed characteristics' own subtype accessor rather than the raw set — a Shapeshifter in a
+        // graveyard is a Human there too. On the battlefield the same accessor is reached through
+        // [hasSubtype], which additionally unions the layer-4 additions and the layer-6 changeling grant.
+        is ObjectPredicate.HasSubtype ->
+            if (onBattlefield) {
+                hasSubtype(state, obj.id, predicate.subtype)
+            } else {
+                characteristics.hasSubtype(predicate.subtype)
+            }
+        is ObjectPredicate.Not -> !matches(state, obj, predicate.predicate, onBattlefield)
+        is ObjectPredicate.And -> predicate.predicates.all { matches(state, obj, it, onBattlefield) }
+        is ObjectPredicate.AnyOf -> predicate.predicates.any { matches(state, obj, it, onBattlefield) }
     }
 }

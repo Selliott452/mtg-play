@@ -124,6 +124,9 @@ internal fun cleanupRemoveDamageAndEndEffects(state: GameState): GameState {
             .filterNot { effect ->
                 when (effect.duration) {
                     EffectDuration.UntilEndOfTurn -> true
+                    // CR 611.2b: an effect with no duration lasts as long as the game does, so the
+                    // cleanup step does not touch it. Kenku Artificer's type change outlives its turn.
+                    EffectDuration.Indefinite -> false
                 }
             }.toPersistentList()
     // CR 118.5: "until the end of your next turn" — a play permission granted on an earlier turn ends
@@ -149,6 +152,9 @@ internal fun cleanupRemoveDamageAndEndEffects(state: GameState): GameState {
             .filterNot { effect ->
                 when (effect.duration) {
                     EffectDuration.UntilEndOfTurn -> true
+                    // CR 615: no prevention effect in the pool is durationless, but the `when` is
+                    // exhaustive over the shared [EffectDuration], so the member is answered here too.
+                    EffectDuration.Indefinite -> false
                 }
             }.toPersistentList()
     // CR 514.2 again, for the third turn-scoped store (`W9-D`): Torch the Tower's "if a permanent dealt
@@ -159,6 +165,11 @@ internal fun cleanupRemoveDamageAndEndEffects(state: GameState): GameState {
             .filterNot { replacement ->
                 when (replacement.duration) {
                     EffectDuration.UntilEndOfTurn -> true
+                    // CR 611.2b: no death replacement in the pool is durationless — Torch the Tower's
+                    // rider says "this turn" — but the `when` is exhaustive over the shared
+                    // [EffectDuration] precisely so a new member has to be answered in all three stores
+                    // rather than in the two whose authors happened to be looking.
+                    EffectDuration.Indefinite -> false
                 }
             }.toPersistentList()
     return state.copy(

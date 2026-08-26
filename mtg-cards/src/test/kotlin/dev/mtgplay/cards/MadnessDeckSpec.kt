@@ -134,7 +134,7 @@ class MadnessDeckSpec :
             trigger.condition shouldBe TriggerCondition.EnteredBattlefieldSelf
             val resolved = trigger.effect.resolve(twoPlayerState(alice, bob), noTargets(alice))
             resolved.players.getValue(bob).life shouldBe STARTING_LIFE - VOLDAREN_EPICURE_DAMAGE
-            resolved.sharedZones.battlefield.count { it.card == CardRef("Blood") } shouldBe 1
+            resolved.sharedZones.battlefield.count { it.card == CardRef.token("Blood") } shouldBe 1
         }
 
         "CR 115.4: Fiery Temper, Fireblast, and Lava Dart deal their printed damage to the targeted player" {
@@ -212,7 +212,7 @@ class MadnessDeckSpec :
             ability.cost shouldContainExactly
                 listOf(AbilityCost.Mana(ManaCost.parse("{3}")), AbilityCost.SacrificeSelf)
             val created = ability.effect.resolve(twoPlayerState(alice, bob), noTargets(alice))
-            val robot = created.sharedZones.battlefield.single { it.card == CardRef("Robot") }
+            val robot = created.sharedZones.battlefield.single { it.card == CardRef.token("Robot") }
             robot.tapped shouldBe true
         }
 

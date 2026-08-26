@@ -41,6 +41,11 @@ object CreatureType {
             Beast
             Bird
             Detective
+            Artificer
+            Bear
+            Beast
+            Bird
+            Cat
             Dragon
             Drake
             Druid
@@ -53,6 +58,7 @@ object CreatureType {
             Giant
             Goblin
             Golem
+            Homunculus
             Horror
             Human
             Illusion
@@ -108,6 +114,7 @@ object CreatureType {
             Blood
             Clue
             Desert
+            Equipment
             Food
             Forest
             Gate

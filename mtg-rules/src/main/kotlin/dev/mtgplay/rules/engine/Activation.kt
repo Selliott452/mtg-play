@@ -191,6 +191,9 @@ private fun componentPayable(
         AbilityCost.ExileSelf,
         -> selfCostMatchesZone(ability.zoneScope, component)
         AbilityCost.DiscardACard -> discardableForAbility(state, seat, source, ability.zoneScope).isNotEmpty()
+        // CR 118.4: energy is paid from a running per-player total, so payability is one comparison and
+        // there is nothing to choose. The ability is simply not enumerated below the threshold (ADR-005).
+        is AbilityCost.Energy -> state.player(seat).energyCounters >= component.amount
         // CR 602.1 with CR 701.17: at least one permanent both matches the filter and leaves the
         // sibling mana component payable once reserving it is accounted for.
         is AbilityCost.Sacrifice -> abilitySacrificeCandidates(state, seat, source, ability).isNotEmpty()
@@ -226,6 +229,7 @@ private fun selfCostMatchesZone(
         is AbilityCost.Mana,
         AbilityCost.TapSelf,
         AbilityCost.DiscardACard,
+        is AbilityCost.Energy,
         is AbilityCost.Sacrifice,
         is AbilityCost.ReturnPermanentYouControl,
         -> error("CR 602.1: $component does not consume its own source")

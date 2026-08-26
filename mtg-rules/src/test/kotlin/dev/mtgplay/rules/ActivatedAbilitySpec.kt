@@ -58,7 +58,7 @@ class ActivatedAbilitySpec :
         val cycler = CardRef("Fixture Cycler")
         val ornament = CardRef("Fixture Ornament")
         val mountain = CardRef("Ability Mountain")
-        val robot = CardRef("Robot")
+        val robot = CardRef.token("Robot")
 
         "CR 602.2: a composite-cost ability ({1},{T},discard,sac) is activated, gathering discard then payment" {
             // Blood: {1}, {T}, Discard a card, Sacrifice this: Draw a card.
@@ -305,7 +305,7 @@ class ActivatedAbilitySpec :
 
         "CR 605.1a: an Eldrazi-Spawn-style sacrifice-for-mana ability is paid during payment" {
             // An Eldrazi Spawn token: "Sacrifice this token: Add {C}." Tapping is irrelevant.
-            val spawn = CardRef("Eldrazi Spawn")
+            val spawn = CardRef.token("Eldrazi Spawn")
             val state = abilityState(battlefield = listOf(spawn.name), hand = emptyList(), library = 0)
             // The Spawn forms its own sacrifice source class producing colorless.
             val classes = manaSourceClasses(state, alice)
@@ -514,8 +514,8 @@ private val abilityRegistry: Map<CardRef, CardDefinition> =
             },
         CardRef("Ability Mountain") to mountainDef("Ability Mountain"),
         CardRef("Ability Filler") to mountainDef("Ability Filler"),
-        CardRef("Robot") to robotToken,
-        CardRef("Eldrazi Spawn") to
+        CardRef.token("Robot") to robotToken,
+        CardRef.token("Eldrazi Spawn") to
             TokenDefinition(
                 characteristics =
                     PrintedCharacteristics(

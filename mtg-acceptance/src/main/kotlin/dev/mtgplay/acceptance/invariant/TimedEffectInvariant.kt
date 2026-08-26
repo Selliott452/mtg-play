@@ -25,14 +25,20 @@ import dev.mtgplay.core.state.TimedContinuousEffect
  *    every one of them, so an effect carrying an earlier [TimedContinuousEffect.createdOnTurn] means
  *    that wear-off failed to fire and a pump has silently become permanent. It is caught at the very
  *    next observed pause, on the following turn.
+ *
+ *    [EffectDuration.Indefinite] is checked in the **opposite** direction and by the same `when`: an
+ *    effect with no duration (CR 611.2b) must survive, so it is simply never a violation here. Writing
+ *    it as an explicit arm rather than letting it fall through is what makes the pairing checkable —
+ *    the cleanup's own `when` and this one are the two halves of one contract, and both are exhaustive
+ *    so a third duration cannot be added to one without being answered in the other.
  * 2. **The timestamp sequence is sane.** Every timestamp is strictly below the object-id allocation
  *    counter — timed effects and objects draw from one monotonic sequence so their CR 613.7
  *    timestamps are comparable (docs/design/duration.md §4) — and timestamps strictly increase in
  *    store order, the append-only property the fingerprint's order-stability rests on.
- * 3. **Every stored effect does something.** An effect granting no keyword with both modifiers zero
- *    classifies into no implemented CR 613 layer; it is docs/design/layer-system.md §1's loud gate
- *    restated as a state property, so a bad effect is caught even on a turn when nothing reads the
- *    affected object's characteristics.
+ * 3. **Every stored effect does something.** An effect that grants nothing, changes no type, sets no
+ *    P/T and modifies none classifies into no implemented CR 613 layer; it is
+ *    docs/design/layer-system.md §1's loud gate restated as a state property, so a bad effect is caught
+ *    even on a turn when nothing reads the affected object's characteristics.
  *
  * **What this deliberately does not check.** It does **not** require [TimedContinuousEffect.affected]
  * to name a current battlefield object. Unlike an Aura's attachment (CR 704.5m, checked by
@@ -72,6 +78,10 @@ private fun checkDeathReplacementDurationsHonoured(state: GameState): List<Viola
         .filter { replacement ->
             when (replacement.duration) {
                 EffectDuration.UntilEndOfTurn -> replacement.createdOnTurn != state.turn.number
+                // CR 611.2b: a durationless replacement is *supposed* to outlive its turn, so surviving
+                // is not a violation for it. The oracle checks the store, not the store's intent, which
+                // is why this arm is a deliberate `false` rather than an omission.
+                EffectDuration.Indefinite -> false
             }
         }.map { replacement ->
             Violation(
@@ -101,6 +111,8 @@ private fun checkPreventionDurationsHonoured(state: GameState): List<Violation> 
         .filter { effect ->
             when (effect.duration) {
                 EffectDuration.UntilEndOfTurn -> effect.createdOnTurn != state.turn.number
+                // CR 611.2b: an effect with no duration is *supposed* to survive; never a violation.
+                EffectDuration.Indefinite -> false
             }
         }.map { effect ->
             Violation(
@@ -117,6 +129,8 @@ private fun checkDurationsHonoured(state: GameState): List<Violation> =
         .filter { effect ->
             when (effect.duration) {
                 EffectDuration.UntilEndOfTurn -> effect.createdOnTurn != state.turn.number
+                // CR 611.2b: an effect with no duration is *supposed* to survive; never a violation.
+                EffectDuration.Indefinite -> false
             }
         }.map { effect ->
             Violation(
@@ -161,12 +175,17 @@ private fun checkEveryEffectActs(effects: List<TimedContinuousEffect>): List<Vio
     effects
         .filter {
             it.modification.grantedKeywords.isEmpty() &&
+                it.modification.grantedEvasions.isEmpty() &&
+                it.modification.addedCardTypes.isEmpty() &&
+                it.modification.addedSubtypes.isEmpty() &&
+                it.modification.setPower == null &&
+                it.modification.setToughness == null &&
                 it.modification.powerMod == 0 &&
                 it.modification.toughnessMod == 0
         }.map { effect ->
             Violation(
                 Invariant.TIMED_EFFECT_SANITY,
-                "CR 613: the stored effect from ${effect.sourceCard.name} grants nothing and modifies " +
-                    "no power or toughness, so it classifies into no implemented layer",
+                "CR 613: the stored effect from ${effect.sourceCard.name} grants nothing, changes no " +
+                    "type and modifies no power or toughness, so it classifies into no implemented layer",
             )
         }

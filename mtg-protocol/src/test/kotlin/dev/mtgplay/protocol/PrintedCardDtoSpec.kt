@@ -74,7 +74,9 @@ class PrintedCardDtoSpec :
 
         "ADR-007/ADR-008: a seat view carrying a token round-trips with its whole card table" {
             val view = tokenSeatView()
-            val tokenRef = CardRef(warriorToken.characteristics.name)
+            // CR 111.1: a token's registry key is a token ref, not a card name (`FW-COPYTOKEN`) — which
+            // is exactly what lets the table hold a copy token beside the card it copies.
+            val tokenRef = CardRef.token(warriorToken.characteristics.name)
 
             // The table is on the view before it is on the wire, and the token is marked as one (CR 111).
             view.cards.getValue(tokenRef).isToken shouldBe true
@@ -131,7 +133,7 @@ private fun vocabularyProbe(): PrintedCharacteristics =
  * name-[CardRef] exactly as the create-token primitive registers it.
  */
 private fun tokenSeatView(): SeatView {
-    val tokenRef = CardRef(warriorToken.characteristics.name)
+    val tokenRef = CardRef.token(warriorToken.characteristics.name)
     val token = GameObject(id = ObjectId(1), card = tokenRef, owner = PlayerId(0))
     val empty =
         PlayerState(

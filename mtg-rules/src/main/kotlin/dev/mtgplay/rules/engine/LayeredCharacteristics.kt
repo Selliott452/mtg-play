@@ -1,8 +1,10 @@
 package dev.mtgplay.rules.engine
 
+import dev.mtgplay.core.card.CardType
 import dev.mtgplay.core.card.Evasion
 import dev.mtgplay.core.card.Keyword
 import dev.mtgplay.core.card.Quality
+import dev.mtgplay.core.card.Subtype
 import dev.mtgplay.core.definition.AffectedSet
 import dev.mtgplay.core.definition.Magnitude
 import dev.mtgplay.core.definition.ManaAbility
@@ -41,6 +43,17 @@ import kotlinx.collections.immutable.persistentSetOf
  *   the printed set, which is the change the keyword-tail packet had to make before any evasion could
  *   be granted at all: [dev.mtgplay.rules.engine.eligibleBlockPairings] previously read evasions
  *   straight off the definition registry, bypassing CR 613 entirely.
+ * @property cardTypes the layered card types (CR 205.2, CR 613 layer 4): printed card types unioned
+ *   with every layer-4 addition active on the object — how a Kenku-Artificer'd Sky Skiff is an
+ *   artifact **creature** while staying an artifact (CR 205.1b). Added by `FW-TYPECHANGE`; before it
+ *   there was nowhere for a type-changing effect to write, which is the real reason `Layer.TYPE`
+ *   stood declared-but-refused for four packets.
+ * @property subtypes the layered subtypes (CR 205.3, CR 613 layer 4): printed subtypes unioned with
+ *   every layer-4 addition — the "Homunculus" in "becomes a 0/0 Homunculus artifact creature".
+ *
+ *   **Read it through [hasSubtype], not directly**, at every battlefield site: this set is the printed
+ *   and layer-4 half only, and CR 702.73a changeling is a *layer-6 ability* that no set of subtype
+ *   words can carry. The two halves meet in that one seam and nowhere else.
  */
 data class LayeredCharacteristics(
     val power: Int?,
@@ -49,6 +62,8 @@ data class LayeredCharacteristics(
     val manaAbilities: PersistentList<ManaAbility>,
     val protections: PersistentSet<Quality> = persistentSetOf(),
     val evasions: PersistentSet<Evasion> = persistentSetOf(),
+    val cardTypes: PersistentSet<CardType> = persistentSetOf(),
+    val subtypes: PersistentSet<Subtype> = persistentSetOf(),
 )
 
 /**
@@ -77,6 +92,8 @@ fun layeredCharacteristics(
             manaAbilities = definition?.manaAbilities ?: persistentListOf(),
             protections = printed?.protections ?: persistentSetOf(),
             evasions = printed?.evasions ?: persistentSetOf(),
+            cardTypes = printed?.cardTypes ?: persistentSetOf(),
+            subtypes = printed?.subtypes ?: persistentSetOf(),
         )
     // CR 122.1: the object's own counters are applied by the same walk, at the layers the rules give
     // them — layer 6 for a keyword counter (CR 122.1b), sublayer 7c for a P/T counter (CR 613.4c).
@@ -174,6 +191,15 @@ private fun staticEffectsOn(
  * [affectedId]. Their modifiers were snapshotted when the effect was created (CR 608.2h, CR 611.2d)
  * and are therefore already constants — presented as [dev.mtgplay.core.definition.Magnitude.Fixed],
  * which is the only shape a timed magnitude can take (docs/design/duration.md §3.2).
+ *
+ * **This is also the only generator of a CR 613 layer-4 type change or a layer-7b set-P/T**
+ * (`FW-TYPECHANGE`). [dev.mtgplay.core.definition.StaticContinuousEffect] has no type or set-P/T
+ * fields and deliberately keeps none: every type change in the gauntlet pool is printed on a resolving
+ * *ability* ("that artifact becomes a 0/0 Homunculus artifact creature"), never on a permanent's
+ * static ability, and an always-empty pair of fields on the static declaration would be an untested
+ * branch of layers 4 and 7b. The day a card prints "other Slivers you control are …", the static
+ * declaration gains the fields and [staticEffectsOn] threads them exactly as this does — nothing below
+ * [ActiveEffect] changes, because both generators already collapse to it.
  */
 private fun timedEffectsOn(
     state: GameState,
@@ -189,6 +215,10 @@ private fun timedEffectsOn(
                 grantedEvasions = effect.modification.grantedEvasions,
                 powerMod = Magnitude.Fixed(effect.modification.powerMod),
                 toughnessMod = Magnitude.Fixed(effect.modification.toughnessMod),
+                addedCardTypes = effect.modification.addedCardTypes,
+                addedSubtypes = effect.modification.addedSubtypes,
+                setPower = effect.modification.setPower,
+                setToughness = effect.modification.setToughness,
                 timestamp = effect.timestamp,
             )
         }

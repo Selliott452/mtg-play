@@ -44,8 +44,9 @@ import dev.mtgplay.core.card.Subtype
  *   "each Elf **on the battlefield**").
  * @property cardType the card type every matching permanent must have (CR 205.2) — the "**creature**"
  *   in "each creature you control with defender" — or `null` to constrain no card type. Additive
- *   (`FW-COUNTERS`). Read printed, like every other card-type read in the engine, because no
- *   type-changing effect exists in the pool (that is `FW-TYPECHANGE`).
+ *   (`FW-COUNTERS`). Read **layered** since `FW-TYPECHANGE` populated CR 613 layer 4, like [subtype] and
+ *   [keyword]: a permanent that *became* an artifact is counted by an artifact-counting filter, and a
+ *   printed read would undercount by exactly the permanents a type-changing effect created.
  * @property keyword the keyword ability every matching permanent must have (CR 702) — the
  *   "**with defender**" — or `null` to constrain no keyword. Additive (`FW-COUNTERS`). Unlike
  *   [subtype] and [cardType] this is read **layered**, through the CR 613 effective-keyword accessor:

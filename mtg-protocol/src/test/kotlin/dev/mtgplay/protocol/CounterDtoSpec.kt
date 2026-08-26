@@ -98,6 +98,13 @@ class CounterDtoSpec :
             // Inferior — answered by the targeted permanent's **owner**), whose DecisionRequestKindDto
             // value fails `valueOf` mid-match on a 9.0.0 peer, plus a defaulted `optionalExile` field on
             // `choose_graveyard_card_to_exile` (CR 601.3b, Masked Vandal's "you may exile").
+            // `FW-TYPECHANGE`/`FW-SETPT` takes it to 10.0.0. One payload changes, TimedContinuousEffectDto,
+            // but it rides inside every seat view and gains five required fields: the CR 613 layer-4 type
+            // change (`addedCardTypes`, `addedSubtypes`), the sublayer-7b set (`setPower`,
+            // `setToughness`), and `grantedEvasions` — which closes a *pre-existing* hole rather than
+            // adding a capability, since ContinuousModification has carried granted evasions since the
+            // keyword-tail packet and this mirror silently dropped them. The `duration` word gains
+            // INDEFINITE (CR 611.2b), which an older peer already fails loudly on by design.
             // Pinned here so no bump in the chain can be quietly reverted.
             PROTOCOL_VERSION shouldBe "10.0.0"
         }

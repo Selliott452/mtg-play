@@ -269,7 +269,7 @@ class MvpCardsAcceptanceSpec :
                     .isEmpty()
             }
             game.state.sharedZones.battlefield
-                .any { it.card == CardRef("Eldrazi Spawn") }
+                .any { it.card == CardRef.token("Eldrazi Spawn") }
                 .shouldBeTrue()
         }
 
@@ -319,13 +319,13 @@ class MvpCardsAcceptanceSpec :
             game.payFirstPlan()
             game.driveUntil {
                 game.state.sharedZones.battlefield
-                    .any { it.card == CardRef("Blood") }
+                    .any { it.card == CardRef.token("Blood") }
             }
             game.state.players
                 .getValue(bob)
                 .life shouldBe STARTING_LIFE - 1
             game.state.sharedZones.battlefield
-                .count { it.card == CardRef("Blood") } shouldBe 1
+                .count { it.card == CardRef.token("Blood") } shouldBe 1
         }
 
         "CR 602 / CR 702.35: Voldaren Epicure's Blood token loots — pitching Fiery Temper exiles it by madness" {
@@ -345,7 +345,7 @@ class MvpCardsAcceptanceSpec :
             game.payFirstPlan()
             game.driveUntil {
                 game.state.sharedZones.battlefield
-                    .any { it.card == CardRef("Blood") }
+                    .any { it.card == CardRef.token("Blood") }
             }
             // Activate the Blood token's loot: discard Fiery Temper, pay {1}.
             game.activateAbility("Blood")
@@ -361,7 +361,7 @@ class MvpCardsAcceptanceSpec :
             }
             // The Blood token was sacrificed, Fiery Temper was exiled by madness, and alice drew a fresh card.
             game.state.sharedZones.battlefield
-                .none { it.card == CardRef("Blood") }
+                .none { it.card == CardRef.token("Blood") }
                 .shouldBeTrue()
             game.state.events
                 .filterIsInstance<GameEvent.CardExiledByMadness>()
@@ -390,11 +390,11 @@ class MvpCardsAcceptanceSpec :
             game.payFirstPlan()
             game.driveUntil {
                 game.state.sharedZones.battlefield
-                    .any { it.card == CardRef("Robot") }
+                    .any { it.card == CardRef.token("Robot") }
             }
             val robot =
                 game.state.sharedZones.battlefield
-                    .single { it.card == CardRef("Robot") }
+                    .single { it.card == CardRef.token("Robot") }
             robot.tapped.shouldBeTrue()
             game.state.sharedZones.battlefield
                 .none { it.card == CardRef("Melded Moxite") } shouldBe true
@@ -428,7 +428,7 @@ class MvpCardsAcceptanceSpec :
                     .isEmpty()
             }
             game.state.sharedZones.battlefield
-                .count { it.card == CardRef("Eldrazi Spawn") } shouldBe 1
+                .count { it.card == CardRef.token("Eldrazi Spawn") } shouldBe 1
             game.state.players
                 .getValue(alice)
                 .hand
@@ -757,7 +757,10 @@ private fun ScriptedGame.castFlashback(name: String): ScriptedGame {
 
 private fun ScriptedGame.activateAbility(name: String): ScriptedGame {
     val window = action()
-    val index = window.options.indexOfFirst { it is PriorityOption.ActivateAbility && it.card == CardRef(name) }
+    // Matched on the *name characteristic* rather than the registry key, so the helper finds a token's
+    // ability too: a token's key carries the CR 111.1 marker while its name does not (`FW-COPYTOKEN`).
+    val index =
+        window.options.indexOfFirst { it is PriorityOption.ActivateAbility && it.card.printedName == name }
     check(index >= 0) { "no ActivateAbility option for $name in ${window.options}" }
     return apply(Decision.SingleSelect(window.id, index))
 }

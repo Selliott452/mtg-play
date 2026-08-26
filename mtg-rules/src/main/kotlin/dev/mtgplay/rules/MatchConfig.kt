@@ -3,6 +3,7 @@ package dev.mtgplay.rules
 import dev.mtgplay.core.definition.CardDefinition
 import dev.mtgplay.core.identity.CardRef
 import dev.mtgplay.core.identity.PlayerId
+import dev.mtgplay.core.state.requireRegisteredUnderItsOwnName
 
 /**
  * Everything needed to start a game deterministically (ADR-006): the PRNG seed, the per-seat
@@ -46,11 +47,9 @@ data class MatchConfig(
         require(startingHandSize >= 0) { "starting hand size must be non-negative, was $startingHandSize" }
         val chosen = startingPlayer
         require(chosen == null || chosen in libraries) { "starting player $chosen has no seat in this match" }
-        definitions.forEach { (ref, definition) ->
-            require(definition.characteristics.name == ref.name) {
-                "definition registered under ${ref.name} describes \"${definition.characteristics.name}\""
-            }
-        }
+        // The same invariant [GameState] enforces, through the same function so the two cannot drift
+        // (`FW-COPYTOKEN`): a match configured with a registry the state would reject must fail here.
+        definitions.forEach { (ref, definition) -> requireRegisteredUnderItsOwnName(ref, definition) }
     }
 
     companion object {

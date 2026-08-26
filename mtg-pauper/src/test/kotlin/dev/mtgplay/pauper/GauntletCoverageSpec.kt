@@ -53,8 +53,8 @@ class GauntletCoverageSpec :
                 listOf(
                     // `W9-D` added Monstrous Emergence, an Elves sideboard card: 3 -> 4.
                     Pinned("Elves", 13, 16, 5, 5),
-                    Pinned("Gates", 15, 17, 5, 5),
-                    Pinned("Grixis Affinity", 20, 22, 7, 7),
+                    Pinned("Gates", 16, 17, 5, 5),
+                    Pinned("Grixis Affinity", 21, 22, 7, 7),
                     Pinned("GW Bogles", 18, 18, 8, 8),
                     Pinned("Jeskai Ephemerate", 22, 22, 6, 7),
                     Pinned("Jund Wildfire", 19, 22, 7, 7),
@@ -67,7 +67,7 @@ class GauntletCoverageSpec :
                     Pinned("Mono-Red Madness", 12, 12, 5, 5),
                     // `W8-E` added Rally at the Hornburg: 8 -> 9.
                     // `W9-A` added Clockwork Percussionist: 11 -> 12.
-                    Pinned("Mono Red Rally", 12, 13, 5, 5),
+                    Pinned("Mono Red Rally", 13, 13, 5, 5),
                     // `W8-E` added Troll of Khazad-dûm: 14 -> 15.
                     Pinned("Monster Tron", 19, 21, 6, 6),
                     // `W8-E` added Gatecreeper Vine and Bramble Wurm: 12 -> 14.
@@ -116,8 +116,8 @@ private const val SIDEBOARD_SIZE = 15
 private const val TOTAL_DISTINCT_MAIN = 178
 
 /** Of those, how many `mtg-cards` defines — the number this burn-down drives to [TOTAL_DISTINCT_MAIN]. */
-private const val TOTAL_ENCODED_MAIN = 168
-private const val TOTAL_MISSING_MAIN = 10
+private const val TOTAL_ENCODED_MAIN = 171
+private const val TOTAL_MISSING_MAIN = 7
 
 /** Distinct cards named by at least one gauntlet sideboard. */
 private const val TOTAL_DISTINCT_SIDEBOARD = 48
@@ -125,7 +125,7 @@ private const val TOTAL_ENCODED_SIDEBOARD = 45
 private const val TOTAL_MISSING_SIDEBOARD = 3
 
 /** The whole backlog: distinct undefined cards across both boards of all thirteen decks. */
-private const val TOTAL_MISSING_BOTH_BOARDS = 12
+private const val TOTAL_MISSING_BOTH_BOARDS = 9
 
 /** Of the backlog, the cards that appear only in sideboards. */
 private const val TOTAL_MISSING_SIDEBOARD_ONLY = 2

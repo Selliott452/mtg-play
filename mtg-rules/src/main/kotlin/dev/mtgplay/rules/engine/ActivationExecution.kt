@@ -16,6 +16,7 @@ import dev.mtgplay.rules.AdvanceResult
 import dev.mtgplay.rules.decision.PaymentPlan
 import dev.mtgplay.rules.effect.exileCardFromGraveyard
 import dev.mtgplay.rules.effect.exilePermanent
+import dev.mtgplay.rules.effect.payEnergy
 import dev.mtgplay.rules.effect.returnPermanentToOwnersHand
 
 /*
@@ -220,6 +221,10 @@ private fun payAbilityCost(
             AbilityCost.ExileSelfFromGraveyard -> exileCardFromGraveyard(current, source.id)
             AbilityCost.DiscardACard ->
                 chosenDiscard.fold(current) { s, id -> discardApplyingReplacements(s, payer, id) }
+            // CR 118.4: energy comes off the player's running total. No plan, no chosen object, and no
+            // clamp — [payEnergy] fails loudly below the threshold, because the payability check that
+            // enumerated this ability already proved the counters were there (ADR-005).
+            is AbilityCost.Energy -> payEnergy(current, payer, component.amount)
             // CR 701.17: the permanents chosen while gathering, sacrificed to their owner's graveyard.
             is AbilityCost.Sacrifice -> sacrificePermanents(current, payer, chosenSacrifice)
             // CR 701.4a: the permanents chosen while gathering, returned to their owners' hands. The

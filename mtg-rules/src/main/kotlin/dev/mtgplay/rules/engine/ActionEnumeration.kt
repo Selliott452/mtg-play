@@ -171,7 +171,22 @@ internal fun playGrantHasExpired(
     grantedTurn: Int,
 ): Boolean = state.turn.activePlayer == owner && state.turn.number > grantedTurn
 
-/** Whether this definition describes a land card (CR 305.1); `false` for an undefined card. */
+/**
+ * Whether this definition describes a land **card** (CR 305.1); `false` for an undefined card.
+ *
+ * **Printed types, and that is CR 613's scope rather than a deferral.** `FW-TYPECHANGE` rerouted every
+ * *battlefield* card-type read through the layer engine and deliberately left this one alone: all four
+ * of its callers ask about a card in a **hidden or non-battlefield zone** — the play-land enumeration
+ * over a hand ([playLandIsLegal]'s companion arms), the same over a card in exile with a play grant,
+ * Land Grant's "if you have no land cards in hand" in `CastConditions.kt`, and the play-land
+ * execution's own re-check. CR 613 continuous effects apply to permanents on the battlefield; a card in a hand has
+ * its printed type line and nothing else, so a layered read here would have nothing to add and no
+ * battlefield object to compute from.
+ *
+ * It is recorded because the packet's own brief listed this file among the reads to reroute, and it was
+ * wrong to: rerouting it would have replaced a correct printed read with a loud failure on every land
+ * in hand.
+ */
 internal fun CardDefinition?.isLand(): Boolean = this != null && CardType.LAND in characteristics.cardTypes
 
 /**

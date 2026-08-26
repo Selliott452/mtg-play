@@ -1,8 +1,10 @@
 package dev.mtgplay.rules.engine
 
+import dev.mtgplay.core.card.CardType
 import dev.mtgplay.core.card.Evasion
 import dev.mtgplay.core.card.Keyword
 import dev.mtgplay.core.card.Quality
+import dev.mtgplay.core.card.Subtype
 import dev.mtgplay.core.definition.Magnitude
 import dev.mtgplay.core.definition.ManaAbility
 import dev.mtgplay.core.identity.ObjectId
@@ -17,9 +19,10 @@ import kotlinx.collections.immutable.persistentSetOf
 /*
  * The CR 613 continuous-effect algorithm (docs/design/layer-system.md §3): apply active continuous
  * effects to an object's printed base, layer by layer 1→7 and sublayer 7a→7d, in timestamp order
- * within a layer. The full ordered spine is real even though the pinned pool populates only two
- * stages — layer 6 (ability adding) and sublayer 7c (P/T modification that doesn't set) — so any
- * effect that would land elsewhere fails loudly rather than being silently dropped (§1).
+ * within a layer. The full ordered spine is real even though the pinned pool populates only four
+ * stages — layer 4 (type changing), layer 6 (ability adding), sublayer 7b (P/T setting) and sublayer
+ * 7c (P/T modification that doesn't set) — so any effect that would land elsewhere fails loudly rather
+ * than being silently dropped (§1).
  *
  * **Two generators, one algorithm** (`FW-DURATION`, docs/design/duration.md §5.2). A continuous
  * effect comes either from a permanent's *static ability* (CR 604.3) — an Aura's "enchanted creature
@@ -47,22 +50,29 @@ import kotlinx.collections.immutable.persistentSetOf
  * own, and within 7c every contribution is an addition, so where in the sublayer they land is
  * unobservable; they are applied after that sublayer's effects for definiteness.
  *
- * Timestamps are the source permanent's battlefield-entry order (its fresh ObjectId, CR 400.7): an
- * MVP Aura enters already attached (CR 303.4f) and never re-attaches, so "became attached"
- * (CR 613.7c) and "entered" coincide, and entry order is ObjectId order — monotonic and replay-safe
- * (§3). The sort is performed (the 613.7 spine is real) even though every within-layer MVP
- * interaction commutes (additive grants and additive modifiers), so the order is not yet observable.
+ * **Within-layer order is still unobservable, and `FW-SETPT` narrowed the argument for it.** Layers 4,
+ * 6 and 7c contribute additively, so their internal order cannot matter. Sublayer 7b does **not**: two
+ * set-P/T effects on one object disagree, and the later timestamp wins (CR 613.7). That is why the sort
+ * that was previously performed only because the spine is real is now performed because a stage needs
+ * it — the fold applies 7b effects in timestamp order, so the last one written is the last one
+ * standing. No gauntlet card can put two set-P/T effects on the same object, so the case is still
+ * untaken in play; it is correct rather than merely absent.
  *
- * Dependency ordering (CR 613.8) is deferred and correct-by-construction: no interaction in the pool
- * creates a dependency (only additive layer-6 grants and additive 7c modifiers exist), so a
- * dependency-inducing effect kind is off the implemented list and is refused by the same loud gate
- * as every other unimplemented kind.
+ * Dependency ordering (CR 613.8) is deferred, and `FW-TYPECHANGE` is where that deferral stops being
+ * free by accident and starts resting on a stated fact. A type change is the classic dependency source:
+ * an effect that reads "creature" applies to a different set once layer 4 has run. It creates none here
+ * because no continuous effect in the pool selects its affected set by card type —
+ * [dev.mtgplay.core.definition.AffectedSet] has two members, `Enchanted` and `Self`, and neither reads
+ * a type line, while a *timed* effect's affected object was fixed at CR 611.2c and cannot be re-selected
+ * at all. The first affected set that filters on a characteristic is the first true CR 613.8 dependency
+ * and must land with the ordering rule, not before it.
  */
 
 /**
  * The CR 613.1 / 613.3 layers, in application order. Layers 1→7, with layer 7 split into sublayers
- * 7a→7d. Only [ABILITY_ADDING] (layer 6) and [PT_MODIFYING] (sublayer 7c) are populated in the MVP
- * pool; the rest are ordered stages the algorithm walks and the loud gate keeps empty.
+ * 7a→7d. Four are populated in the gauntlet pool — [TYPE] (layer 4), [ABILITY_ADDING] (layer 6),
+ * [PT_SETTING] (sublayer 7b) and [PT_MODIFYING] (sublayer 7c); the rest are ordered stages the
+ * algorithm walks and the loud gate keeps empty.
  *
  * **The sublayer citations were off by one until `FW-COUNTERS` and are now checked against the
  * Comprehensive Rules text of 2026-08-19.** CR 613.4 has exactly four lettered sublayers, a–d:
@@ -84,7 +94,13 @@ internal enum class Layer {
     /** Layer 3 — text-changing effects (CR 613.1c). Unpopulated. */
     TEXT,
 
-    /** Layer 4 — type-changing effects (CR 613.1d). Unpopulated. */
+    /**
+     * Layer 4 — type-changing effects (CR 613.1d). **Populated** since `FW-TYPECHANGE`: card types
+     * and subtypes an effect *adds* to an object, unioned onto its printed type line (CR 205.1b —
+     * "becomes an artifact creature" keeps every type the permanent already had). Type *removal* is
+     * still refused, because no gauntlet card prints it: [ActiveEffect] has no removal field, so a
+     * removing effect cannot be constructed rather than being silently ignored.
+     */
     TYPE,
 
     /** Layer 5 — color-changing effects (CR 613.1e). Unpopulated. */
@@ -96,7 +112,20 @@ internal enum class Layer {
     /** Sublayer 7a — characteristic-defining P/T (CR 613.4a). Unpopulated (no `*` P/T in the pool). */
     PT_CHARACTERISTIC_DEFINING,
 
-    /** Sublayer 7b — P/T setting effects (CR 613.4b). Unpopulated (no "becomes a 1/1"). */
+    /**
+     * Sublayer 7b — P/T **setting** effects (CR 613.4b). **Populated** since `FW-SETPT`: Kenku
+     * Artificer's "becomes a 0/0".
+     *
+     * Its position on the spine is the whole of its correctness. 7b runs strictly before
+     * [PT_MODIFYING] (7c), so an artifact set to 0/0 and given three `+1/+1` counters in the same
+     * resolution is a 3/3 at the first state-based-action check and survives CR 704.5f; had setting
+     * been folded into 7c the two contributions would commute and the card would be a coin flip
+     * against its own text.
+     *
+     * It is also the one stage that can **create** a P/T box where the printed card has none — a
+     * noncreature artifact has `null` power and toughness until layer 4 makes it a creature and 7b
+     * gives it numbers. Every other stage refuses to invent one.
+     */
     PT_SETTING,
 
     /**
@@ -128,6 +157,13 @@ internal enum class Layer {
  *   last-known information (CR 113.7c). `null` where the engine has none — a timed effect whose
  *   source it never recorded. Diagnostics only; nothing in the algorithm depends on it existing.
  * @property affected the object the effect modifies (CR 611.2c).
+ * @property addedCardTypes card types the effect adds in layer 4 (CR 613.1d, CR 205.1b).
+ * @property addedSubtypes subtypes the effect adds in layer 4 (CR 613.1d, CR 205.3).
+ * @property setPower the power the effect *sets* in sublayer 7b (CR 613.4b), or `null`. A plain
+ *   [Int] rather than a [Magnitude] because only a resolution-generated effect can carry one and its
+ *   value is snapshotted by then (CR 608.2h); a `*`-P/T characteristic-defining ability would be
+ *   sublayer 7a, a stage that is still an empty gate.
+ * @property setToughness the toughness the effect sets in sublayer 7b (CR 613.4b), or `null`.
  * @property timestamp the CR 613.7 timestamp, in the single allocation sequence described above.
  */
 internal data class ActiveEffect(
@@ -139,6 +175,10 @@ internal data class ActiveEffect(
     val grantedEvasions: PersistentSet<Evasion> = persistentSetOf(),
     val powerMod: Magnitude = Magnitude.Zero,
     val toughnessMod: Magnitude = Magnitude.Zero,
+    val addedCardTypes: PersistentSet<CardType> = persistentSetOf(),
+    val addedSubtypes: PersistentSet<Subtype> = persistentSetOf(),
+    val setPower: Int? = null,
+    val setToughness: Int? = null,
     val timestamp: Long,
 )
 
@@ -154,8 +194,17 @@ internal data class ActiveEffect(
  */
 internal fun layersOf(active: ActiveEffect): Set<Layer> =
     buildSet {
+        // CR 613.1d: a type or subtype addition is layer 4, whatever else the same effect does — one
+        // effect contributing to several layers is CR 613.1's normal case, not a special one.
+        if (active.addedCardTypes.isNotEmpty() || active.addedSubtypes.isNotEmpty()) {
+            add(Layer.TYPE)
+        }
         if (grantsAnAbility(active)) {
             add(Layer.ABILITY_ADDING)
+        }
+        // CR 613.4b: setting P/T is sublayer 7b and is a *different* contribution from modifying it.
+        if (active.setPower != null || active.setToughness != null) {
+            add(Layer.PT_SETTING)
         }
         if (active.powerMod != Magnitude.Zero || active.toughnessMod != Magnitude.Zero) {
             add(Layer.PT_MODIFYING)
@@ -178,9 +227,9 @@ private fun grantsAnAbility(active: ActiveEffect): Boolean =
 /**
  * Applies the active continuous effects [active] to the printed [base] characteristics of an object,
  * layer by layer (CR 613.1, 613.3). Every effect must classify into an implemented layer first
- * (the loud gate: an effect that produces no layer-6 grant and no layer-7c modifier is an
- * unimplemented kind and must not be silently dropped — §1); then the ordered spine is walked, each
- * layer receiving its own contributing effects in timestamp order (CR 613.7).
+ * (the loud gate: an effect that lands in none of layers 4, 6, 7b and 7c is an unimplemented kind
+ * and must not be silently dropped — §1); then the ordered spine is walked, each layer receiving its
+ * own contributing effects in timestamp order (CR 613.7).
  */
 internal fun applyContinuousEffects(
     state: GameState,
@@ -197,7 +246,7 @@ internal fun applyContinuousEffects(
 
 /**
  * Applies the [effects] contributing to one [layer] to [acc], in the order given (already
- * timestamp-sorted by [applyContinuousEffects]). Exhaustive over [Layer]: the two populated stages
+ * timestamp-sorted by [applyContinuousEffects]). Exhaustive over [Layer]: the four populated stages
  * act; every unpopulated stage is a loud gate that refuses any effect classified there (CR 613 —
  * unimplemented in the MVP pool, docs/design/layer-system.md §1), collapsing the CR 613.8 dependency
  * gate into the same refusal. Internal so the gate is unit-testable directly.
@@ -210,20 +259,24 @@ internal fun applyLayer(
     counters: PersistentMap<Counter, Int>,
 ): LayeredCharacteristics =
     when (layer) {
+        // CR 613.1d: layer 4 unions the added card types and subtypes onto the object's type line.
+        Layer.TYPE -> effects.fold(acc) { current, active -> current.retyping(active) }
         // CR 613.1f: layer 6 unions granted keywords and mana abilities onto the object, then the
         // keywords the object's own keyword counters grant it (CR 122.1b).
         Layer.ABILITY_ADDING ->
             effects
                 .fold(acc) { current, active -> current.granting(active) }
                 .grantingKeywordCounters(counters)
+        // CR 613.4b: sublayer 7b *sets* power and/or toughness, before any 7c modifier is added.
+        Layer.PT_SETTING -> effects.fold(acc) { current, active -> current.settingPowerToughness(active) }
         // CR 613.4c: sublayer 7c adds the (possibly dynamic) P/T modifiers, then the object's own
         // P/T counters (CR 122.1a) — the sublayer the rule names for both.
         Layer.PT_MODIFYING ->
             effects
                 .fold(acc) { current, active -> current.modifying(state, active) }
                 .modifiedByCounters(counters)
-        Layer.COPY, Layer.CONTROL, Layer.TEXT, Layer.TYPE, Layer.COLOR,
-        Layer.PT_CHARACTERISTIC_DEFINING, Layer.PT_SETTING, Layer.PT_SWITCHING,
+        Layer.COPY, Layer.CONTROL, Layer.TEXT, Layer.COLOR,
+        Layer.PT_CHARACTERISTIC_DEFINING, Layer.PT_SWITCHING,
         -> {
             require(effects.isEmpty()) {
                 "CR 613: continuous effects in $layer are not implemented in the MVP pool " +
@@ -234,112 +287,12 @@ internal fun applyLayer(
         }
     }
 
-/**
- * Layer 6 (CR 613.1f, CR 122.1b): unions onto the object the keywords its own keyword counters
- * grant it. Unconditional — a keyword counter grants its keyword to any object, creature or not
- * (CR 122.1b names permanents *and* cards in other zones), so there is nothing here to gate on a
- * P/T box the way [modifiedByCounters] must.
- */
-private fun LayeredCharacteristics.grantingKeywordCounters(
-    counters: PersistentMap<Counter, Int>,
-): LayeredCharacteristics {
-    val granted = counters.keys.filterIsInstance<Counter.KeywordCounter>().map(Counter.KeywordCounter::keyword)
-    return if (granted.isEmpty()) this else copy(keywords = keywords.addingAll(granted))
-}
-
-/**
- * Sublayer 7c (CR 613.4c, CR 122.1a): adds the object's own `+X/+Y` counters to its power and
- * toughness — N counters of a kind contribute N times that kind's components.
- *
- * Fails loudly on an object with P/T counters and no P/T box. CR 122.1a would leave such an object
- * with nothing to modify (a `+1/+1` counter on a noncreature artifact is real and inert until the
- * artifact becomes a creature), but nothing in the gauntlet pool can place one — the card that
- * does, Kenku Artificer, needs the layer-4 type change and layer-7b P/T setting that would give the
- * artifact a P/T box in the first place, and neither layer is implemented. Silently ignoring the
- * counters would make that card look encodable when it is not.
- */
-private fun LayeredCharacteristics.modifiedByCounters(counters: PersistentMap<Counter, Int>): LayeredCharacteristics {
-    var powerDelta = 0
-    var toughnessDelta = 0
-    for ((kind, count) in counters) {
-        if (kind !is Counter.PowerToughness) continue
-        powerDelta += kind.power * count
-        toughnessDelta += kind.toughness * count
-    }
-    if (powerDelta == 0 && toughnessDelta == 0) return this
-    val basePower = power
-    val baseToughness = toughness
-    require(basePower != null && baseToughness != null) {
-        "CR 613.4c / CR 122.1a: an object with no printed power/toughness carries P/T counters " +
-            "($counters); only a creature has power and toughness to modify, and no implemented " +
-            "layer can make this object one"
-    }
-    return copy(power = basePower + powerDelta, toughness = baseToughness + toughnessDelta)
-}
-
-/** The loud gate: an effect must contribute to an implemented layer (6 or 7c), never nothing. */
+/** The loud gate: an effect must contribute to an implemented layer (4, 6, 7b or 7c), never nothing. */
 private fun requireImplementedKind(active: ActiveEffect) {
     require(layersOf(active).isNotEmpty()) {
         "CR 613: the continuous effect from ${active.source} classifies into no implemented " +
-            "layer (a layer-6 grant or a layer-7c P/T modifier); an unimplemented effect kind must " +
-            "fail loudly, never silently drop (docs/design/layer-system.md §1)"
+            "layer (a layer-4 type change, a layer-6 grant, a layer-7b set-P/T or a layer-7c P/T " +
+            "modifier); an unimplemented effect kind must fail loudly, never silently drop " +
+            "(docs/design/layer-system.md §1)"
     }
 }
-
-/**
- * Layer 6 (CR 613.1f): unions [active]'s granted keywords, mana abilities, protections and evasions
- * onto the object. Every grant is additive, which is what keeps the within-layer order unobservable and the
- * CR 613.8 dependency gate correct-by-construction — a protection grant changes neither whether
- * another effect exists, nor what it applies to, nor what it does (docs/design/protection.md §5).
- */
-private fun LayeredCharacteristics.granting(active: ActiveEffect): LayeredCharacteristics =
-    copy(
-        keywords = keywords.addingAll(active.grantedKeywords),
-        manaAbilities = manaAbilities.addingAll(active.grantedManaAbilities),
-        protections = protections.addingAll(active.grantedProtections),
-        evasions = evasions.addingAll(active.grantedEvasions),
-    )
-
-/**
- * Sublayer 7c (CR 613.4c): adds [active]'s power/toughness modifiers, evaluating a dynamic magnitude
- * against the current [state] (CR 613.3c). Fails loudly if the object has no P/T box — a 7c modifier
- * on a non-creature is an engine defect (the enchant restrictions keep P/T Auras on creatures, and a
- * "target creature" spec keeps timed pumps there).
- */
-private fun LayeredCharacteristics.modifying(
-    state: GameState,
-    active: ActiveEffect,
-): LayeredCharacteristics {
-    val basePower = power
-    val baseToughness = toughness
-    require(basePower != null && baseToughness != null) {
-        "CR 613.4c: a layer-7c P/T modifier from ${active.source} applies to an object with no " +
-            "printed power/toughness; only creatures have P/T"
-    }
-    return copy(
-        power = basePower + evaluateMagnitude(active.powerMod, state, active.source),
-        toughness = baseToughness + evaluateMagnitude(active.toughnessMod, state, active.source),
-    )
-}
-
-/**
- * The value of [magnitude] now: a fixed amount — which a resolution-generated effect's snapshotted
- * modifier always is (CR 608.2h, CR 611.2d) — or a dynamic pure function of the live state
- * (CR 613.3c). A [Magnitude.Dynamic] needs the generating object, so it is unreachable without one.
- */
-private fun evaluateMagnitude(
-    magnitude: Magnitude,
-    state: GameState,
-    source: ObjectId?,
-): Int =
-    when (magnitude) {
-        is Magnitude.Fixed -> magnitude.amount
-        is Magnitude.Dynamic ->
-            magnitude.evaluate(
-                state,
-                source ?: error(
-                    "CR 613.3c: a dynamic magnitude is a function of its generating object, but the " +
-                        "effect records none; only a static ability's magnitude may be dynamic",
-                ),
-            )
-    }

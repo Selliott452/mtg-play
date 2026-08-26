@@ -79,6 +79,30 @@ sealed interface AbilityCost {
     data object DiscardACard : AbilityCost
 
     /**
+     * "Pay `{E}{E}`" (CR 107.16, CR 118.4): the ability's controller pays [amount] energy counters.
+     * Additive, flagged core (`FW-EQUIP`) — Inventor's Axe's equip cost.
+     *
+     * **Not a [Mana] cost, and the difference is not cosmetic.** `{E}` is not a mana symbol: it is never
+     * added to a mana pool, never produced by a mana ability, and never affected by cost reduction or by
+     * anything that cares about coloured mana. It is paid from a running total the player carries
+     * ([dev.mtgplay.core.state.PlayerState.energyCounters]), which is why it needs no payment plan and
+     * surfaces no decision — there is exactly one way to pay it, so ADR-005's enumeration is a yes/no.
+     *
+     * The payability rule is the whole of it: the ability is enumerated only while the controller has at
+     * least [amount] energy. A player who cannot pay never sees the option, rather than seeing it and
+     * dead-ending.
+     *
+     * @property amount how many energy counters are paid; at least one.
+     */
+    data class Energy(
+        val amount: Int,
+    ) : AbilityCost {
+        init {
+            require(amount >= 1) { "CR 118.4: an energy cost pays at least one counter, was $amount" }
+        }
+    }
+
+    /**
      * Sacrifice **one chosen permanent** matching [filter] (CR 602.1, CR 701.17) — Krark-Clan Shaman's
      * "Sacrifice an artifact", Makeshift Munitions' "Sacrifice an artifact or creature". Additive,
      * flagged core (`FW-ADDSAC`).

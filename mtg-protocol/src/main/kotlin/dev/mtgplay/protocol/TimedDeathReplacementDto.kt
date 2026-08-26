@@ -59,12 +59,17 @@ private fun deathReplacementOf(kind: String): DeathReplacement =
 private fun EffectDuration.deathReplacementWireName(): String =
     when (this) {
         EffectDuration.UntilEndOfTurn -> DEATH_REPLACEMENT_UNTIL_END_OF_TURN
+        // CR 611.2b: no pool card prints a durationless death replacement, but the duration type is
+        // shared with the continuous-effect and prevention stores, so the wire has to name every member
+        // or a future one would be silently unrepresentable here alone.
+        EffectDuration.Indefinite -> DEATH_REPLACEMENT_INDEFINITE
     }
 
 /** The [EffectDuration] a wire [word] names; an unknown word is version skew and fails loudly. */
 private fun deathReplacementDurationOf(word: String): EffectDuration =
     when (word) {
         DEATH_REPLACEMENT_UNTIL_END_OF_TURN -> EffectDuration.UntilEndOfTurn
+        DEATH_REPLACEMENT_INDEFINITE -> EffectDuration.Indefinite
         else ->
             error(
                 "unknown effect duration \"$word\" on the wire; this engine knows " +
@@ -75,6 +80,9 @@ private fun deathReplacementDurationOf(word: String): EffectDuration =
 private const val EXILE_INSTEAD: String = "EXILE_INSTEAD"
 
 private const val DEATH_REPLACEMENT_UNTIL_END_OF_TURN: String = "UNTIL_END_OF_TURN"
+
+/** The wire word for a durationless death replacement (CR 611.2b). */
+private const val DEATH_REPLACEMENT_INDEFINITE: String = "indefinite"
 
 /** [TimedDeathReplacement] to its wire form. */
 fun TimedDeathReplacement.toDto(): TimedDeathReplacementDto =

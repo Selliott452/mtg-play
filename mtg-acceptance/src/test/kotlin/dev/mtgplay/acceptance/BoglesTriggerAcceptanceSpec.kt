@@ -83,7 +83,7 @@ class BoglesTriggerAcceptanceSpec :
             val token =
                 game.state.sharedZones.battlefield
                     .single { isToken(game.state, it) }
-            token.card shouldBe CardRef("Warrior")
+            token.card shouldBe CardRef.token("Warrior")
             token.owner shouldBe alice
             val characteristics = layeredCharacteristics(game.state, token.id)
             characteristics.power shouldBe 1
@@ -96,7 +96,11 @@ class BoglesTriggerAcceptanceSpec :
             // sick) attacks the defender for its 1 power.
             val game =
                 gameFrom(
-                    alice = Board(battlefield = listOf(notSick(GameObject(ObjectId(1), CardRef("Warrior"), alice)))),
+                    alice =
+                        Board(
+                            battlefield =
+                                listOf(notSick(GameObject(ObjectId(1), CardRef.token("Warrior"), alice))),
+                        ),
                     definitions = withWarrior(),
                 )
             game.marchToCombatAndAttack(listOf(ObjectId(1)))
@@ -314,7 +318,11 @@ class BoglesTriggerAcceptanceSpec :
             // Bob Bolts alice's 1/1 Warrior token; it dies (CR 704.5g) and then ceases to exist.
             val game =
                 gameFrom(
-                    alice = Board(battlefield = listOf(notSick(GameObject(ObjectId(1), CardRef("Warrior"), alice)))),
+                    alice =
+                        Board(
+                            battlefield =
+                                listOf(notSick(GameObject(ObjectId(1), CardRef.token("Warrior"), alice))),
+                        ),
                     bob = Board(hand = listOf(obj(10, "Lightning Bolt")), battlefield = listOf(obj(11, "Mountain"))),
                     holder = bob,
                     definitions = withWarrior(),
@@ -323,9 +331,9 @@ class BoglesTriggerAcceptanceSpec :
             game.driveUntil { game.state.events.any { it is GameEvent.TokenCeasedToExist } }
             // The token is gone everywhere — battlefield and graveyard alike (CR 704.5d).
             game.state.sharedZones.battlefield
-                .none { it.card == CardRef("Warrior") } shouldBe true
+                .none { it.card == CardRef.token("Warrior") } shouldBe true
             game.state.players.values
-                .all { p -> p.graveyard.none { it.card == CardRef("Warrior") } } shouldBe true
+                .all { p -> p.graveyard.none { it.card == CardRef.token("Warrior") } } shouldBe true
         }
 
         "ADR-006: a full random aura game that fired triggers replays exactly (fingerprint + event log)" {
@@ -446,7 +454,8 @@ private data class Board(
 )
 
 /** The real-card registry plus the Warrior token definition (for tests that place a token directly). */
-private fun withWarrior(): Map<CardRef, CardDefinition> = MvpCards.definitions + (CardRef("Warrior") to warriorToken)
+private fun withWarrior(): Map<CardRef, CardDefinition> =
+    MvpCards.definitions + (CardRef.token("Warrior") to warriorToken)
 
 /** A battlefield/hand object [id] of card [name] (owner assigned by [gameFrom]). */
 private fun obj(

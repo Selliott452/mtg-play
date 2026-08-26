@@ -425,14 +425,53 @@ sealed interface GameEvent {
     ) : GameEvent
 
     /**
-     * The Aura [aura] entered the battlefield attached to [attachedTo] (CR 303.4f): a permanent
-     * spell resolved and became attached to the object it targeted while on the stack (CR 601.2c).
-     * Added in P4.1. Follows the [PermanentEntered] of the same resolution.
+     * The permanent [aura] became attached to [attachedTo] (CR 303.4f, CR 701.3a). Added in P4.1 for the
+     * Aura case — a permanent spell resolving and becoming attached to the object it targeted while on
+     * the stack (CR 601.2c), which follows the [PermanentEntered] of the same resolution.
+     *
+     * **`FW-EQUIP` widened what it narrates without renaming it.** The event now also carries an
+     * Equipment attaching or *re*-attaching on the battlefield (CR 701.3a), which an Aura never does. The
+     * name is kept because the event is already recorded in replay fingerprints and a rename would move
+     * every one of them for no rules difference; the [card] tells a reader which kind it was.
      */
     data class AuraAttached(
         val aura: ObjectId,
         val attachedTo: ObjectId,
         val card: CardRef,
+    ) : GameEvent
+
+    /**
+     * The Equipment [objectId] became **unattached** from [previouslyAttachedTo] and **stayed on the
+     * battlefield** (CR 704.5n, CR 701.3d). Added by `FW-EQUIP`.
+     *
+     * Deliberately a separate event from [AuraFellOff] rather than a widening of it, because the two
+     * state-based actions have opposite outcomes: a dangling Aura is put into its owner's graveyard
+     * (CR 704.5m) and a dangling Equipment simply lets go and remains a permanent. A log that narrated
+     * both with one word would hide the single most important difference between the two card types.
+     */
+    data class EquipmentUnattached(
+        val objectId: ObjectId,
+        val card: CardRef,
+        val previouslyAttachedTo: ObjectId,
+    ) : GameEvent
+
+    /**
+     * [player] got [amount] energy counters (CR 107.16) — Inventor's Axe's "you get `{E}{E}`". Added by
+     * `FW-EQUIP`. Energy is not turn-scoped: nothing narrates it expiring, because it never does.
+     */
+    data class EnergyCountersGained(
+        val player: PlayerId,
+        val amount: Int,
+    ) : GameEvent
+
+    /**
+     * [player] paid [amount] energy counters as a cost (CR 118.4) — the equip cost. Added by `FW-EQUIP`.
+     * Emitted during the atomic activation transition, before any player receives priority, so it is
+     * always adjacent in the log to the activation it paid for.
+     */
+    data class EnergyCountersPaid(
+        val player: PlayerId,
+        val amount: Int,
     ) : GameEvent
 
     /**

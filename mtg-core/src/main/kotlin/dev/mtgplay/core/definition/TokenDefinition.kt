@@ -19,10 +19,25 @@ import kotlinx.collections.immutable.persistentListOf
  * which is exactly what the CR 704.5d "token in a non-battlefield zone ceases to exist" state-based
  * action and the acceptance card-census (which excludes tokens from the conserved multiset) key on.
  *
- * The token's [dev.mtgplay.core.identity.CardRef] is its name; the create-token rules primitive
- * registers this definition under that ref if absent, so the token's characteristics ride in
+ * The token's [dev.mtgplay.core.identity.CardRef] is a **token ref** —
+ * [dev.mtgplay.core.identity.CardRef.token], its name plus a marker — and the create-token rules
+ * primitive registers this definition under that ref if absent, so the token's characteristics ride in
  * [dev.mtgplay.core.state.GameState] like every other definition (ADR-009). A token is not castable,
  * so this is a plain [CardDefinition], never a [SpellDefinition].
+ *
+ * **The ref used to be the bare name, and `FW-COPYTOKEN` changed that because a copy token broke it.**
+ * CR 111.1 says a token is not a card, so it has no card name to be keyed by; keying it by one was
+ * harmless only while no token shared a name with a card. Sacred Cat's embalm token does exactly that,
+ * and under the old model it would have landed on the registry entry the real card occupies —
+ * register-if-absent would then have found the card already there, registered nothing, and silently
+ * handed the token the *card's* definition: castable, embalmable again, and invisible to the CR 704.5d
+ * token-ceases state-based action. [dev.mtgplay.core.state.GameState]'s registration invariant now
+ * refuses a [TokenDefinition] under a card ref and a card definition under a token ref, so the two key
+ * spaces cannot overlap at all.
+ *
+ * **A token's characteristics are *defined*, not printed** (CR 111.4), which is why
+ * [PrintedCharacteristics] carries `definedColors` and only a token ever sets it: an embalm token is
+ * white with no mana cost, and colour is otherwise derived from a mana cost.
  *
  * @property characteristics the token's printed characteristics (CR 111.4): its name, types,
  *   power/toughness, and keywords — e.g. the 1/1 white Warrior creature token with vigilance.

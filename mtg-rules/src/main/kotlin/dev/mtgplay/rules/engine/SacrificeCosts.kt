@@ -34,21 +34,29 @@ import dev.mtgplay.core.state.GameState
  * question, so Fireblast's Mountains and Dread Return's creatures cannot be answered by two predicates
  * that drift.
  *
- * **Printed characteristics, not layered ones.** [LayeredCharacteristics] models power, toughness,
- * keywords, and mana abilities, but not types: no CR 613 layer-4 type-changing effect exists in the
- * pool, so there is nothing for a layered read to differ on. The subtype read goes through
- * [dev.mtgplay.core.card.PrintedCharacteristics.hasSubtype], so a changeling is correctly **not**
- * offered for a *land* subtype — CR 702.73a grants creature types, and Mountain is a land type. This is
- * where a type-changing effect must be wired in when one arrives.
+ * **Layered characteristics, not printed ones**, since `FW-TYPECHANGE` populated CR 613 layer 4 and
+ * gave [LayeredCharacteristics] a type line to carry. A permanent that *became* an artifact is a legal
+ * sacrifice for a cost that names artifacts, and reading printed types would have made that cost
+ * unpayable in a position where the rules say it is payable — an ADR-005 defect in the direction that
+ * silently removes a line of play, since an unpayable cost means the ability is never enumerated at
+ * all. The subtype read goes through [hasSubtype], the one battlefield seam, so a changeling is
+ * correctly **not** offered for a *land* subtype — CR 702.73a grants creature types, and Mountain is a
+ * land type.
+ *
+ * **Battlefield only**, which every caller already guarantees: a sacrifice cost sacrifices a permanent
+ * (CR 701.17a), and both [sacrificeableMatching] and the permission-side gathering scan the battlefield.
+ * The layered read fails loudly on anything else rather than answering from a zone CR 613 does not
+ * reach.
  */
 internal fun matchesSacrificeFilter(
     state: GameState,
     obj: GameObject,
     filter: SacrificeFilter,
 ): Boolean {
-    val printed = state.definitions[obj.card]?.characteristics ?: return false
-    val typeMatches = filter.anyOfCardTypes.isEmpty() || filter.anyOfCardTypes.any { it in printed.cardTypes }
-    val subtypeMatches = filter.subtype?.let { printed.hasSubtype(it) } ?: true
+    if (obj.card !in state.definitions) return false
+    val cardTypes = effectiveCardTypes(state, obj.id)
+    val typeMatches = filter.anyOfCardTypes.isEmpty() || filter.anyOfCardTypes.any { it in cardTypes }
+    val subtypeMatches = filter.subtype?.let { hasSubtype(state, obj.id, it) } ?: true
     return typeMatches && subtypeMatches
 }
 

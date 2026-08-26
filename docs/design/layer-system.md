@@ -203,9 +203,14 @@ flag in the packet report. `mtg-acceptance` already depends on everything.)
   `{T}: add one mana of any color`. Its KDoc currently says "Phase 5"; that refers to Utopia Sprawl's
   *triggered* mana ability. The plain (non-triggered) grant is layer 6 and is a genuine P4 caller —
   noted so the seam's own doc is corrected in P4.
-- **No new layered caller for targeting in P4.** Enchant-restriction legality reads *printed* types/
-  subtypes (no type-changing effect exists), so it needs no layer walk. Keyword-driven targeting
-  (hexproof) is P5.2.
+- **No new layered caller for targeting in P4.** Enchant-restriction legality read *printed* types/
+  subtypes, because no type-changing effect existed. Keyword-driven targeting (hexproof) is P5.2.
+
+  **Superseded by `FW-TYPECHANGE`.** Layer 4 is populated and enchant-restriction legality now reads the
+  layered type line. It is the sharpest of the rerouted reads rather than the mildest: the same predicate
+  is both cast-time target legality (CR 601.2c) and the CR 704.5m fall-off state-based action, so a
+  printed read would let an Aura legally enchant a permanent a type-changing effect had made a creature
+  and then have the SBA bin the Aura for enchanting something illegal.
 - **Unchanged: every combat/SBA call site** in `CombatDamage.kt` and `StateBasedActions.kt`. They keep
   calling the same three accessors; only the bodies change. That is the P3.1 contract, kept.
 

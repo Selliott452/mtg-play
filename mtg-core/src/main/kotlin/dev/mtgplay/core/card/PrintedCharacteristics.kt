@@ -44,6 +44,23 @@ import kotlinx.collections.immutable.persistentSetOf
  *   [Keyword] is a parameterless enum and protection carries a quality (CR 702.16a). CR 702.16g
  *   makes "protection from black and from red" two abilities rather than one, so this is a set of
  *   qualities; CR 702.16m's redundancy of repeated instances then falls out of the set for free.
+ * @property definedColors the colors an **effect** gave this object outright (CR 111.4), overriding the
+ *   CR 202.2 derivation from [manaCost]; `null` for every card, which is every object whose colors are
+ *   derived. Additive, flagged core (`FW-COPYTOKEN`).
+ *
+ *   **A token's characteristics are *defined*, not printed, and this is where the type stopped being
+ *   able to say so.** Sacred Cat's embalm token is "a white Zombie Cat with **no mana cost**"
+ *   (CR 702.90a), and colour was derived from the mana cost with exactly one exception — the
+ *   CR 702.114a devoid CDA — so "white and costless" had no representation at all. The engine would
+ *   have had to call the token colourless, which is not a cosmetic difference: it decides whether
+ *   protection from white stops it, whether a colour-based prevention shield covers it, and whether a
+ *   Red Elemental Blast can point at it.
+ *
+ *   **It is an override rather than a replacement of the derivation**, so no card changes: a card's
+ *   colour is still CR 202.2's function of its cost, devoid still wins over that, and the only objects
+ *   that carry this are the ones the rules say have their colours defined for them. A `null` here and
+ *   an empty set are therefore different values and both meaningful — `null` is "derive", empty is
+ *   "defined colourless".
  */
 data class PrintedCharacteristics(
     val name: String,
@@ -55,6 +72,7 @@ data class PrintedCharacteristics(
     val keywords: PersistentSet<Keyword> = persistentSetOf(),
     val evasions: PersistentSet<Evasion> = persistentSetOf(),
     val protections: PersistentSet<Quality> = persistentSetOf(),
+    val definedColors: PersistentSet<Color>? = null,
 ) {
     init {
         require(name.isNotBlank()) { "card name must not be blank" }
@@ -73,9 +91,13 @@ data class PrintedCharacteristics(
      * The card's colors, derived from its mana cost (CR 202.2); a card with no mana cost is
      * colorless — the empty set (CR 105.4). A card with [Keyword.DEVOID] is colorless whatever its
      * mana cost says (CR 702.114a), which is why the derivation reads the printed keywords too.
+     *
+     * [definedColors] overrides the derivation outright, and only a **token** may set it (CR 111.4).
      */
     val colors: Set<Color>
-        get() = if (Keyword.DEVOID in keywords) emptySet() else (manaCost?.colors ?: emptySet())
+        get() =
+            definedColors
+                ?: if (Keyword.DEVOID in keywords) emptySet() else (manaCost?.colors ?: emptySet())
 
     /**
      * Whether the card has the subtype [subtype] (CR 205.3) — the **single** predicate every subtype

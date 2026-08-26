@@ -7,6 +7,7 @@ import dev.mtgplay.core.card.PrintedCharacteristics
 import dev.mtgplay.core.card.PrintedPowerToughness
 import dev.mtgplay.core.card.Subtype
 import dev.mtgplay.core.card.Supertype
+import dev.mtgplay.core.mana.Color
 import dev.mtgplay.core.mana.ManaCost
 import dev.mtgplay.rules.PrintedCardView
 import kotlinx.collections.immutable.toPersistentSet
@@ -45,6 +46,14 @@ data class PrintedPowerToughnessDto(
  * @property keywords the printed keyword abilities (CR 702) as [Keyword] names.
  * @property evasions the printed non-keyword evasion abilities (CR 509.1b) as [Evasion] names.
  * @property protections the printed protection abilities (CR 702.16), one [QualityDto] per quality.
+ * @property definedColors the colors an effect gave the object outright (CR 111.4) as [Color] names, or
+ *   `null` when its colors are derived from [manaCost] the ordinary CR 202.2 way — which is every card.
+ *   Additive (`FW-COPYTOKEN`).
+ *
+ *   **`null` and the empty list are different values here**, and the difference is not pedantry: `null`
+ *   means "derive", so a peer computes the colors from the mana cost; `[]` means "defined colorless".
+ *   Sacred Cat's embalm token is white with **no mana cost**, so a peer that derived its colors would
+ *   make it colorless and then disagree with the engine about whether protection from white stops it.
  */
 @Serializable
 data class PrintedCharacteristicsDto(
@@ -57,6 +66,7 @@ data class PrintedCharacteristicsDto(
     val keywords: List<String>,
     val evasions: List<String>,
     val protections: List<QualityDto>,
+    val definedColors: List<String>? = null,
 )
 
 /**
@@ -87,6 +97,7 @@ fun PrintedCharacteristics.toDto(): PrintedCharacteristicsDto =
         keywords = keywords.map { it.name },
         evasions = evasions.map { it.name },
         protections = protections.map { it.toDto() },
+        definedColors = definedColors?.map { it.name },
     )
 
 /** [PrintedCharacteristicsDto] back to the engine value; an unknown vocabulary word fails loudly. */
@@ -101,6 +112,7 @@ fun PrintedCharacteristicsDto.toDomain(): PrintedCharacteristics =
         keywords = keywords.map { parseVocabulary<Keyword>(it, "keyword") }.toPersistentSet(),
         evasions = evasions.map { parseVocabulary<Evasion>(it, "evasion") }.toPersistentSet(),
         protections = protections.map { it.toDomain() }.toPersistentSet(),
+        definedColors = definedColors?.map { parseVocabulary<Color>(it, "color") }?.toPersistentSet(),
     )
 
 /** [PrintedCardView] to its wire form. */

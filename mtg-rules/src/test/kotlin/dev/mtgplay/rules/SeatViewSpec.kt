@@ -115,7 +115,7 @@ class SeatViewSpec :
 
             // A token is a public object with public characteristics (CR 111), so both seats get them.
             for (view in listOf(viewFor(state, alice), viewFor(state, bob))) {
-                val token = view.cards.getValue(CardRef("Table Warrior"))
+                val token = view.cards.getValue(CardRef.token("Table Warrior"))
                 token.isToken shouldBe true
                 token.characteristics.powerToughness shouldBe PrintedPowerToughness(1, 1)
                 token.characteristics.keywords shouldContain Keyword.VIGILANCE
@@ -130,10 +130,10 @@ class SeatViewSpec :
             // Alice: the public battlefield and graveyard plus her own hand — never Bob's hand, and
             // never either library, though the match registry defines all of them.
             viewFor(state, alice).cards.keys.map { it.name } shouldContainExactly
-                listOf("Table Bear", "Table Bolt", "Table Cantrip", "Table Warrior")
+                listOf("Table Bear", "Table Bolt", "Table Cantrip", "Table Warrior (token)")
             // Bob: the same public cards, with his own hand card instead of Alice's.
             viewFor(state, bob).cards.keys.map { it.name } shouldContainExactly
-                listOf("Table Bear", "Table Bogle", "Table Cantrip", "Table Warrior")
+                listOf("Table Bear", "Table Bogle", "Table Cantrip", "Table Warrior (token)")
         }
 
         "P2.1: a card with no definition is inert and simply has no card-table entry" {
@@ -337,7 +337,8 @@ private fun cardTableFixture(): GameState {
                 battlefield =
                     listOf(
                         obj(35, "Table Bear", alice),
-                        obj(36, "Table Warrior", bob),
+                        // A token, so its object carries a CR 111.1 token ref (`FW-COPYTOKEN`).
+                        GameObject(id(36), CardRef.token("Table Warrior"), bob),
                         obj(37, "Table Relic", alice),
                     ).toPersistentList(),
                 stack = persistentListOf(),
@@ -354,7 +355,7 @@ private fun cardTableFixture(): GameState {
                 CardRef("Table Cantrip") to spellCardDefinition("Table Cantrip"),
                 CardRef("Table Other Secret") to creatureDefinition("Table Other Secret"),
                 CardRef("Table Secret") to creatureDefinition("Table Secret"),
-                CardRef("Table Warrior") to tableWarriorToken,
+                CardRef.token("Table Warrior") to tableWarriorToken,
             ).toPersistentMap(),
     )
 }

@@ -246,13 +246,14 @@ cast object excluded (§2.3).
 
 Three specifics the implementation must get right:
 
-- **Card types are read printed, not layered — deliberately, with a named seam.** Affinity counts *artifacts
-  you control*, i.e. the in-game card type, which is layer 4 (CR 613.1d). The engine has no layer-4 effect and
-  `LayeredCharacteristics` does not even carry card types. Reading
-  `state.definitions[obj.card].characteristics.cardTypes` matches the existing `CardDefinition?.isLand()` and
-  `sacrificeableFor` pattern, and matches the identical argument layer-system.md §6 makes for enchant
-  restrictions. **When the first type-changing effect arrives, this count must route through the layer engine**;
-  say so in the KDoc, in one place, so there is one thing to change.
+- **Card types are read layered on the battlefield, printed off it — the seam this note named, now taken.**
+  Affinity counts *artifacts you control*, i.e. the in-game card type, which is layer 4 (CR 613.1d). When this
+  was written the engine had no layer-4 effect and `LayeredCharacteristics` did not carry card types, so the
+  count read `state.definitions[obj.card].characteristics.cardTypes` and this note promised it would route
+  through the layer engine when the first type-changing effect arrived. `FW-TYPECHANGE` arrived and it does:
+  `countMatching` reads `effectiveCardTypes` for a battlefield object, so an animated artifact is counted.
+  A `CountScope` naming a **graveyard** still reads printed, and that is CR 613's own scope rather than a
+  remaining deferral — a card in a graveyard has its printed types and nothing else.
 - **Control is ownership**, as everywhere else in the MVP (no layer-2 effect exists).
 - **A spell's colour comes from its *printed* mana cost (CR 202.2), not the cost being paid.** This is a live
   hazard here: the engine passes `permission.cost` around for madness, flashback, escape, and plot, and

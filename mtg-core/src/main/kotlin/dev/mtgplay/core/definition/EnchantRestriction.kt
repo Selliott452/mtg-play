@@ -5,11 +5,18 @@ package dev.mtgplay.core.definition
  * restriction of a [TargetSpec.Enchantable]. Additive, flagged core (P4.1).
  *
  * The MVP-minimal set: exactly the enchant restrictions the pinned pool prints
- * (docs/decklists.md). Modelled as nouns — printed-characteristic predicates — that `mtg-rules`
- * interprets against a candidate object (reading printed types/subtypes, no type-changing effect
- * exists) plus control; core states *which* restriction, rules decides *whether* an object
- * satisfies it. Sealed as an enum so the rules interpreter's `when` is exhaustive and a new
- * restriction breaks compilation rather than being silently mis-enforced.
+ * (docs/decklists.md). Modelled as nouns — characteristic predicates — that `mtg-rules` interprets
+ * against a candidate object, plus control; core states *which* restriction, rules decides *whether* an
+ * object satisfies it.
+ *
+ * **Types and subtypes are read *layered*, not printed**, since `FW-TYPECHANGE` populated CR 613
+ * layer 4. This is the sharpest of the rerouted reads: the same predicate is both the cast-time target
+ * legality (CR 601.2c) and the CR 704.5m fall-off state-based action, so a printed read here would let
+ * an Aura legally enchant a permanent that a type-changing effect had made a creature and then have the
+ * SBA throw the Aura into the graveyard for enchanting something illegal.
+ *
+ * Sealed as an enum so the rules interpreter's `when` is exhaustive and a new restriction breaks
+ * compilation rather than being silently mis-enforced.
  *
  * "Control" is ownership for now (docs/design/layer-system.md §4): no control-changing effect
  * exists, so "a creature you control" is "a creature you own" — the seam is noted for when layer 2

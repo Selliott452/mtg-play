@@ -2,7 +2,6 @@ package dev.mtgplay.acceptance.invariant
 
 import dev.mtgplay.core.card.CardType
 import dev.mtgplay.core.card.Keyword
-import dev.mtgplay.core.definition.SpellDefinition
 import dev.mtgplay.core.definition.TargetSpec
 import dev.mtgplay.core.definition.TokenDefinition
 import dev.mtgplay.core.definition.TriggerCondition
@@ -509,25 +508,33 @@ internal fun checkAttachmentIntegrity(state: GameState): List<Violation> {
                     ),
                 )
             }
-            if (!isAura(state, obj)) {
+            if (!isAura(state, obj) && !isEquipmentPermanent(state, obj)) {
                 add(
                     Violation(
                         Invariant.ATTACHMENT_INTEGRITY,
-                        "CR 303.4: battlefield object ${obj.id.value} carries an attachment but is not an Aura",
+                        "CR 303.4 / CR 301.5: battlefield object ${obj.id.value} carries an attachment but is " +
+                            "neither an Aura nor an Equipment",
+                    ),
+                )
+            }
+            // CR 301.5b: an Equipment is attached to a *creature* or to nothing. The Aura half of this
+            // check is the enchant restriction, which an Equipment has no equivalent of — CR 301.5b gives
+            // every Equipment the same host requirement, so it is asserted here directly.
+            val equipmentOnNonCreature =
+                isEquipmentPermanent(state, obj) &&
+                    attachedTo in battlefieldIds &&
+                    !isPrintedCreature(state, attachedTo)
+            if (equipmentOnNonCreature) {
+                add(
+                    Violation(
+                        Invariant.ATTACHMENT_INTEGRITY,
+                        "CR 704.5n: Equipment ${obj.id.value} is attached to ${attachedTo.value}, which is not a " +
+                            "creature; it should have become unattached before this pause",
                     ),
                 )
             }
         }
     }
-}
-
-/** Whether [obj] is an Aura: a permanent whose enchant ability is a [TargetSpec.Enchantable]. */
-private fun isAura(
-    state: GameState,
-    obj: GameObject,
-): Boolean {
-    val definition = state.definitions[obj.card] as? SpellDefinition ?: return false
-    return definition.targetSpec is TargetSpec.Enchantable
 }
 
 /**

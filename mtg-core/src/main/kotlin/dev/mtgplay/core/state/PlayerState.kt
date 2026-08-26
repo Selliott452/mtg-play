@@ -80,6 +80,20 @@ import kotlinx.collections.immutable.persistentListOf
  *
  *   Per-player rather than on [Turn] — the split [Turn.landsPlayedThisTurn] sits on the other side of —
  *   because the fact is written about a *non-active* player and must outlive the turn it was written on.
+ * @property energyCounters how many `{E}` energy counters this player has (CR 122.1, CR 107.16).
+ *   Additive, flagged core (`FW-EQUIP`) — Inventor's Axe's "you get `{E}{E}`" and "Equip—Pay `{E}{E}`".
+ *
+ *   **The first counter this engine puts on a *player* rather than on an object**, which is why it is a
+ *   field here rather than a reuse of [dev.mtgplay.core.state.Counter]: that type is a multiset key on a
+ *   [GameObject], and CR 122.1 is explicit that energy counters are counters a *player* has. Modelled as
+ *   a plain [Int] rather than a map because the pool prints exactly one kind of player counter; poison
+ *   and experience would each be a sibling field, not a widening, for the same reason
+ *   [dev.mtgplay.core.state.GameObject.manaAbilitiesActivatedThisTurn] and its sibling stayed apart.
+ *
+ *   **Not turn-scoped and never reset.** Energy is spent, not expired (CR 107.16): a player who gets
+ *   `{E}{E}` on turn three still has it on turn nine if nothing paid it. That makes it unlike every other
+ *   per-player tally on this type — [drawsThisTurn] is cleared each turn and [combatPhasesToSkip] is
+ *   consumed by an event — and it is the whole reason the Axe's equip cost is repeatable but finite.
  */
 data class PlayerState(
     val life: Int,
@@ -93,12 +107,17 @@ data class PlayerState(
     val drawsThisTurn: Int = 0,
     val landsEnteredThisTurn: Int = 0,
     val combatPhasesToSkip: Int = 0,
+    val energyCounters: Int = 0,
 ) {
     init {
         require(decisionsAnswered >= 0) { "answered-decision count must be non-negative, was $decisionsAnswered" }
         require(drawsThisTurn >= 0) { "CR 121.1: draws this turn must be non-negative, was $drawsThisTurn" }
         require(landsEnteredThisTurn >= 0) {
             "CR 305: lands entered this turn must be non-negative, was $landsEnteredThisTurn"
+        }
+        require(energyCounters >= 0) {
+            "CR 122.1: a player's energy-counter total is non-negative — a cost that cannot be paid is " +
+                "never enumerated (ADR-005), so it can never overdraw; was $energyCounters"
         }
         require(combatPhasesToSkip >= 0) {
             "CR 500.10: scheduled combat-phase skips must be non-negative, was $combatPhasesToSkip"
