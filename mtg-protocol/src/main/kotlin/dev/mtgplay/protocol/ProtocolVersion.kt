@@ -725,5 +725,37 @@ package dev.mtgplay.protocol
  * victim, but [StackEntryViewDto] deliberately does not carry it: it is engine-internal linkage, an
  * agent never sends it, and every option an agent is offered is already an index into an enumerated
  * list. Adding it would widen the wire for something nothing on the far side could use.
+ * ### `10.0.0` — `W9-G`: prototype and cascade
+ *
+ * Two alternate castings, and between them the wire breaks in **three** ways — one of them the first
+ * of its kind in this file's history.
+ *
+ * 1. **A new [CastingPermissionDto] member whose payload is not a cost.** [CastingPermissionDto.Prototype]
+ *    carries `cost`, `power` and `toughness` (CR 718.2), because a prototyped spell is a different
+ *    *creature*, not merely a cheaper one. Casting permissions travel server→client inside
+ *    [PriorityOptionDto] and [PendingCastDto], so a `9.0.0` peer meets the new `prototype` discriminator
+ *    as a **runtime** decode failure — the sharper of the two break modes, the one `4.0.0` first
+ *    recorded. [CastingPermissionDto.Cascade] adds a second discriminator with the same break shape and
+ *    no payload at all, exactly as `rebound` did.
+ * 2. **A required-in-practice field on a payload every seat view carries.** [GameObjectDto] gains
+ *    `prototyped` (CR 718.3b's linked information, public exactly as `kickedWhenCast` is). It is
+ *    defaulted, so a strict codec accepts an old payload — but a peer that *drops* it renders the wrong
+ *    creature, since the permanent's power, toughness and colours are read off this flag. That is a
+ *    stronger reason to bump than the fields `FW-BARGAIN` recorded, whose absence merely lost a fact
+ *    nothing displayed.
+ * 3. **A new [SeatViewDto] field**, `pendingCascade` ([PendingCascadeDto]) — the break shape `4.0.0`
+ *    recorded for `pendingLibraryLook`. It is the first pending record on the wire that stays open
+ *    **across** a nested cast: a peer that sees a `null` `candidateObjectId` beside a non-empty
+ *    `exiledObjectIds` is looking at a cascade whose free cast is in progress, not a malformed record.
+ *
+ * **No `DecisionRequest` kind is added**, which is the pleasant half. Prototype's cast is an ordinary
+ * `ChooseAction` option and cascade's free cast is a `ChooseYesNo` — the sixth flow to share that
+ * request, told apart by which pending record is open, the disambiguation `5.0.0`'s note already relies
+ * on. So nothing fails at `valueOf` mid-match in the client→server direction.
+ *
+ * **The random bottoming appears on no wire at all.** CR 702.85a's "in a random order" is drawn from the
+ * match PRNG as the ability finishes, and the resulting library order is in no seat view and in no
+ * event — [dev.mtgplay.core.event.GameEvent.CardsPutOnBottomInRandomOrder] names the cards in the order
+ * they were *exiled*, which is public, and never the order they were placed in, which is not.
  */
-const val PROTOCOL_VERSION: String = "9.0.0"
+const val PROTOCOL_VERSION: String = "10.0.0"

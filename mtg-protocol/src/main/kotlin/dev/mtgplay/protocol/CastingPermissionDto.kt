@@ -170,6 +170,33 @@ sealed interface CastingPermissionDto {
     @Serializable
     @SerialName("rebound")
     data object Rebound : CastingPermissionDto
+
+    /**
+     * Prototype (CR 702.160, CR 718): cast from the hand for the prototyped [cost], with the spell and
+     * the permanent it becomes taking the card's alternative [power]/[toughness] and the colours of
+     * [cost] (CR 718.3b). Added by `W9-G`.
+     *
+     * **The only permission whose payload is not purely a cost**, because it is the only one that
+     * changes what the object is rather than what it costs. A peer that rendered only [cost] would show
+     * a `{3}{G}` Boulderbranch Golem still reading 6/5, which is not a card.
+     */
+    @Serializable
+    @SerialName("prototype")
+    data class Prototype(
+        val cost: String,
+        val power: Int,
+        val toughness: Int,
+    ) : CastingPermissionDto
+
+    /**
+     * Cascade (CR 702.85): a free cast from exile offered while the cascade ability resolves, never at a
+     * plain priority window. Carries no payload — the cost is fixed at `{0}` and the source at exile —
+     * so it is a `data object` and rides the wire as its bare discriminator, exactly as [Rebound] does.
+     * Added by `W9-G`.
+     */
+    @Serializable
+    @SerialName("cascade")
+    data object Cascade : CastingPermissionDto
 }
 
 /** [CastingPermission] to its wire form. */
@@ -189,6 +216,8 @@ fun CastingPermission.toDto(): CastingPermissionDto =
         is CastingPermission.Escape -> CastingPermissionDto.Escape(cost.render(), exileOthers)
         is CastingPermission.Plot -> CastingPermissionDto.Plot(plotCost.render())
         is CastingPermission.Rebound -> CastingPermissionDto.Rebound
+        is CastingPermission.Prototype -> CastingPermissionDto.Prototype(cost.render(), power, toughness)
+        is CastingPermission.Cascade -> CastingPermissionDto.Cascade
     }
 
 /** [CastingPermissionDto] back to the engine value. */
@@ -208,6 +237,8 @@ fun CastingPermissionDto.toDomain(): CastingPermission =
         is CastingPermissionDto.Escape -> CastingPermission.Escape(ManaCost.parse(cost), exileOthers)
         is CastingPermissionDto.Plot -> CastingPermission.Plot(ManaCost.parse(plotCost))
         is CastingPermissionDto.Rebound -> CastingPermission.Rebound
+        is CastingPermissionDto.Prototype -> CastingPermission.Prototype(ManaCost.parse(cost), power, toughness)
+        is CastingPermissionDto.Cascade -> CastingPermission.Cascade
     }
 
 /**

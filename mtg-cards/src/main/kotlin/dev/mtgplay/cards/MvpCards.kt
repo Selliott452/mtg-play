@@ -400,6 +400,29 @@ import dev.mtgplay.core.identity.CardRef
  * whose **bargain** opens the one cost cell the engine lacked — optional *and* object-choosing — and
  * whose enters trigger reads the answer back through a second [InterveningIf] member. That packet's
  * four remaining cards are absent, with their diagnoses recorded in AdditionalCostCards.kt.
+ *
+ * The `W9-G` packet takes the **top of Monster Tron's curve** off the deferred list
+ * (AlternateCastings.kt): [boulderbranchGolem] with **prototype** (CR 702.160, CR 718) and
+ * [maelstromColossus] with **cascade** (CR 702.85), the two cards docs/gauntlet-deferred-ten.md called
+ * "the one to revisit first" and "three separate absences". Both of the recorded blockers were wrong,
+ * and in opposite directions:
+ *
+ * - *"The engine has no cast-without-paying-its-mana-cost path at all"* was **stale**.
+ *   [dev.mtgplay.core.definition.CastingPermission.Plot] and `Rebound` had both been casting for `{0}`
+ *   since P6.2a and `FW-BLINK`, with the CR wording in their own KDoc, so cascade's free cast needed no
+ *   new cast machinery — it is Ephemerate's flow with a different card in it. The **real** absences were
+ *   the two the note also named and got right: exiling from a library *until a predicate holds*, and a
+ *   seeded shuffle of a known set on the way to the bottom (ADR-006).
+ * - Prototype was filed as *"a CR 613 layer 1/7b effect keyed to how the spell was cast"*, which would
+ *   have made it wait on the layer system. CR 718.2a says the alternative characteristics are **copiable
+ *   values**: nothing is applied to a prototyped object, it simply starts from a different base. The
+ *   whole rules change is one base-characteristics seam (`Prototype.kt`), and it depends on the layer
+ *   packet running beside it for nothing at all.
+ *
+ * The packet's other two cards stay absent, diagnosed in full in AlternateCastings.kt: **Fang Dragon**
+ * (adventure) and **Sagu Wildling** (omen) are one card with two castable halves, and
+ * [dev.mtgplay.core.card.PrintedCharacteristics] carries one face. That is the blocker the deferred-ten
+ * note identified correctly, and it is unchanged.
  */
 object MvpCards {
     /** Every defined card, keyed by its printed-name [CardRef] (CR 201). */
@@ -422,6 +445,7 @@ object MvpCards {
             brambleWurm,
             blueElementalBlast,
             bondersOrnament,
+            boulderbranchGolem,
             barrelsOfBlastingJelly,
             brainstorm,
             burningTreeEmissary,
@@ -508,6 +532,7 @@ object MvpCards {
             lorienRevealed,
             lotlethGiant,
             lotusPetal,
+            maelstromColossus,
             makeshiftMunitions,
             manorGate,
             maskOfLawAndGrace,

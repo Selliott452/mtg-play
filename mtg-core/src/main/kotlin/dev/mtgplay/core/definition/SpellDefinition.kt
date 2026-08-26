@@ -195,4 +195,28 @@ interface SpellDefinition :
      * [TriggerCondition.ReboundCast].
      */
     val rebound: Boolean get() = false
+
+    /**
+     * Whether this spell has **cascade** (CR 702.85a), the keyword Maelstrom Colossus prints. Additive,
+     * flagged core (`W9-G`).
+     *
+     * A `Boolean` for [rebound]'s reason: CR 702.85a spells the keyword out in full and there is nothing
+     * for a card to vary — *"When you cast this spell, exile cards from the top of your library until you
+     * exile a nonland card whose mana value is less than this spell's mana value. You may cast that card
+     * without paying its mana cost if the resulting spell's mana value is less than this spell's mana
+     * value. Then put all cards exiled this way that weren't cast on the bottom of your library in a
+     * random order."* Every number in that sentence is read off the cascading spell rather than printed
+     * beside the keyword.
+     *
+     * **CR 702.85c — "if a spell has multiple instances of cascade, each triggers separately" — is why a
+     * later card would need a count rather than a flag.** No gauntlet card prints two, so the honest
+     * shape today is the boolean; a card that does would widen this to an `Int` and the engine would
+     * synthesize that many triggers, which is a change to one line in the cast pipeline.
+     *
+     * Everything the keyword does is owned by `mtg-rules`: the ability is synthesized at CR 601.2i as a
+     * [TriggerCondition.CascadeCast] trigger functioning from [TriggerZoneScope.Stack], and its
+     * resolution is the engine's flow — exile until the predicate holds, offer the free cast via
+     * [CastingPermission.Cascade], then bottom the rest through the match PRNG (ADR-006).
+     */
+    val cascade: Boolean get() = false
 }

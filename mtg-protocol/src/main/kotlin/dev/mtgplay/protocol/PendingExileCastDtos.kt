@@ -2,8 +2,10 @@ package dev.mtgplay.protocol
 
 import dev.mtgplay.core.identity.ObjectId
 import dev.mtgplay.core.identity.PlayerId
+import dev.mtgplay.core.state.PendingCascade
 import dev.mtgplay.core.state.PendingMadness
 import dev.mtgplay.core.state.PendingRebound
+import kotlinx.collections.immutable.toPersistentList
 import kotlinx.serialization.Serializable
 
 /*
@@ -45,3 +47,37 @@ fun PendingRebound.toDto(): PendingReboundDto = PendingReboundDto(controller.sea
 
 /** [PendingReboundDto] back to the engine value. */
 fun PendingReboundDto.toDomain(): PendingRebound = PendingRebound(PlayerId(controller), ObjectId(exiledObjectId))
+
+/**
+ * Wire form of [PendingCascade] (CR 702.85a) — a resolving cascade ability that has finished exiling and
+ * is awaiting either its controller's free-cast yes/no or the random bottoming that ends it. Added by
+ * `W9-G`.
+ *
+ * **The third member of this file and the one that is not the same two fields**, because cascade's
+ * record outlives its own decision: [candidateObjectId] is `null` once the yes/no is answered, while
+ * [exiledObjectIds] has to survive the nested free cast so the bottoming still knows what to put back.
+ * A peer reading a `null` candidate beside a non-empty exile list is looking at a cascade whose cast is
+ * in progress, not at a malformed record.
+ *
+ * Fully public for the reason madness and rebound are, and one more: cascade exiles **face up**, so both
+ * seats have already seen every card named here in the seat view's exile list. The order the unchosen
+ * cards return in is never on the wire at all — it is drawn from the match PRNG as the ability finishes.
+ */
+@Serializable
+data class PendingCascadeDto(
+    val controller: Int,
+    val exiledObjectIds: List<Long>,
+    val candidateObjectId: Long?,
+)
+
+/** [PendingCascade] to its wire form. */
+fun PendingCascade.toDto(): PendingCascadeDto =
+    PendingCascadeDto(controller.seat, exiledObjectIds.map { it.value }, candidateObjectId?.value)
+
+/** [PendingCascadeDto] back to the engine value. */
+fun PendingCascadeDto.toDomain(): PendingCascade =
+    PendingCascade(
+        PlayerId(controller),
+        exiledObjectIds.map(::ObjectId).toPersistentList(),
+        candidateObjectId?.let(::ObjectId),
+    )

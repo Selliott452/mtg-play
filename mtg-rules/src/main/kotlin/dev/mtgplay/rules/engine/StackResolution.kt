@@ -204,6 +204,12 @@ internal fun putResolvedSpellOntoBattlefield(
             // entering object. The cast record already knows *how* the spell was cast (`castVia`); this
             // is where that survives becoming a permanent.
             evokedWhenCast = entry.castVia is CastingPermission.Evoke,
+            // CR 718.3b: "both a prototyped spell and the permanent it becomes have only its alternative
+            // set of power, toughness, and mana cost characteristics" — so the fact crosses the CR 400.7
+            // boundary here beside the other two, and for a larger reason than either: this one decides
+            // what the permanent *is*, not merely what was paid for it. Boulderbranch Golem's own
+            // "gain life equal to its power" reads 3 off a prototyped body and 6 off a printed one.
+            prototyped = entry.castVia is CastingPermission.Prototype,
             // CR 702.166b: the same CR 400.7 bridge the kicked flag is, for the other optional cost.
             optionalCostPaidWhenCast = entry.optionalCostPaid,
         )

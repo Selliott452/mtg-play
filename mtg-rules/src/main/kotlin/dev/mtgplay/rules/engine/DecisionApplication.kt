@@ -208,6 +208,7 @@ private fun applyChosenYesNo(
         state.pendingLibraryLook != null -> applyLibraryLookShuffle(state, accept)
         state.pendingMadness != null -> applyMadnessCastChoice(state, accept)
         state.pendingRebound != null -> applyReboundCastChoice(state, accept)
+        state.pendingCascade?.candidateObjectId != null -> applyCascadeCastChoice(state, accept)
         else ->
             error(
                 "a yes/no was answered with no pending madness, rebound, discard, draw, or look flow " +

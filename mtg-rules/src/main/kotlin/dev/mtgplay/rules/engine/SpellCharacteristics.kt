@@ -1,6 +1,7 @@
 package dev.mtgplay.rules.engine
 
 import dev.mtgplay.core.card.PrintedCharacteristics
+import dev.mtgplay.core.definition.CastingPermission
 import dev.mtgplay.core.identity.ObjectId
 import dev.mtgplay.core.mana.Color
 import dev.mtgplay.core.state.GameState
@@ -29,9 +30,21 @@ import dev.mtgplay.core.state.stackObjectId
  * what was cast (CR 608.2c) — with no layer applied, because no effect in the pool changes a spell's
  * characteristics while it is on the stack.
  *
- * Note what is **not** rewritten: a spell cast for an alternative cost keeps its printed mana cost, so
+ * Note what is **not** rewritten: a spell cast for an alternative *cost* keeps its printed mana cost, so
  * its colours (CR 202.2) and its mana value (CR 202.3b) are the printed ones — a Fiery Temper cast for
  * its madness cost is still a red spell with mana value 3.
+ *
+ * **A spell cast prototyped is the one exception, and it is not a layer either** (`W9-G`). CR 718.3b:
+ * *"Both a prototyped spell and the permanent it becomes have only its alternative set of power,
+ * toughness, and mana cost characteristics"*, and CR 718.2a makes those values **copiable** — so a
+ * prototyped Boulderbranch Golem is not a colourless mana-value-7 spell with an effect applied to it,
+ * it is a green mana-value-4 spell full stop. The distinction matters for the file's own promise: the
+ * answer still depends on the cast record alone, and no continuous-effect machinery is involved.
+ *
+ * The rewrite is read off [dev.mtgplay.core.state.StackEntry.Spell.castVia], which is the only place
+ * the engine records *how* a spell was cast, so every predicate that reads a spell's characteristics
+ * through this seam — the counter restrictions, [spellManaValue], the cast-trigger colour filter —
+ * became prototype-aware with no edit of its own.
  */
 internal fun spellCharacteristics(
     state: GameState,
@@ -42,7 +55,10 @@ internal fun spellCharacteristics(
     check(state.sharedZones.stack.contains(entry)) {
         "CR 111.1: ${entry.obj.card.name} is not on the stack, so it is not a spell"
     }
-    return entry.definition.characteristics
+    val printed = entry.definition.characteristics
+    // CR 718.3b: a prototyped spell has only the card's alternative mana cost, power and toughness.
+    val prototype = entry.castVia as? CastingPermission.Prototype ?: return printed
+    return prototypedCharacteristics(printed, prototype)
 }
 
 /**
@@ -121,9 +137,10 @@ internal fun stackObjectOnStack(
  * can never disagree about what red means.
  *
  * A spell on the stack reads through [spellCharacteristics], the CR 613 seam; a battlefield permanent
- * reads its printed characteristics, because CR 613's layer 5 (colour-changing) has no client in the pool
- * and [layeredCharacteristics] does not model it. Both derivations therefore come from the printed mana
- * cost and both carry the same CR 204 colour-indicator caveat, which
+ * reads its **base** characteristics ([baseCharacteristics]), because CR 613's layer 5 (colour-changing)
+ * has no client in the pool and [layeredCharacteristics] does not model it. Both derivations therefore
+ * come from a mana cost (CR 202.2) — the prototyped one for an object cast that way, CR 718.3b — and
+ * both carry the same CR 204 colour-indicator caveat, which
  * [dev.mtgplay.core.definition.SpellRestriction.OfColor] records.
  *
  * Fails loudly for a player or a graveyard card: neither is an object a colour predicate in this pool
@@ -144,7 +161,7 @@ internal fun colorsOfTarget(
         is Target.Permanent ->
             state.sharedZones.battlefield
                 .firstOrNull { it.id == target.id }
-                ?.let { state.definitions[it.card]?.characteristics?.colors }
+                ?.let { baseCharacteristics(state, it)?.colors }
                 .orEmpty()
         is Target.Player ->
             error("CR 105: a player has no colour, so $target cannot answer a colour condition")

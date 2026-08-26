@@ -64,6 +64,14 @@ import kotlinx.collections.immutable.persistentSetOf
  * failure mode is the interesting part: a card's blocker was re-diagnosed each time it was picked up, and
  * nobody re-checked the *previous* diagnosis against the file it was written in.
  *
+ * **Monster Tron's two big colourless artifacts live in AlternateCastings.kt, not here**, and the split
+ * is deliberate rather than accidental: `boulderbranchGolem` and `maelstromColossus` are colourless
+ * artifact creatures whose printed text is an *alternative way to cast a card* (prototype, CR 702.160;
+ * cascade, CR 702.85) rather than an ability, so what they have in common is the cast pipeline and not
+ * their type line. Both were on docs/gauntlet-deferred-ten.md until `W9-G`, and both of the recorded
+ * blockers turned out to be stale or misdiagnosed — the same failure this file's header already records
+ * for Bonder's Ornament, one wave later and one file over.
+ *
  * Lotus Petal is absent for a different reason: its cost is `{T}` **and** sacrifice, which
  * [dev.mtgplay.core.definition.ManaAbility.viaSacrifice] cannot express — that flag means sacrifice
  * *instead of* tapping, and it makes a tapped source usable (docs/gauntlet-card-triage.md trap T2).

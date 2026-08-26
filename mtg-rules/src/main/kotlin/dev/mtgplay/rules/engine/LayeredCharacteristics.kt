@@ -64,7 +64,11 @@ fun layeredCharacteristics(
 ): LayeredCharacteristics {
     val obj = state.battlefieldObject(id)
     val definition = state.definitions[obj.card]
-    val printed = definition?.characteristics
+    // CR 613.1/CR 718.3b: the layer walk starts from the object's *base* characteristics, which for a
+    // permanent that was cast prototyped is the card's alternative set rather than its printed one
+    // (`W9-G`). Prototype is a copiable value (CR 718.2a), not a continuous effect, so it belongs here
+    // in the base rather than in any layer.
+    val printed = baseCharacteristics(state, obj)
     val base =
         LayeredCharacteristics(
             power = printed?.powerToughness?.power,

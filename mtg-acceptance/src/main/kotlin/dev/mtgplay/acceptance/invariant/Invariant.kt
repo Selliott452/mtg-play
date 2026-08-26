@@ -232,6 +232,17 @@ enum class Invariant {
     ENTERED_TURN_SCOPE,
 
     /**
+     * The prototyped marker ([dev.mtgplay.core.state.GameObject.prototyped]) is a **battlefield-only**
+     * status (CR 702.160a, CR 718.3b). Added with `W9-G`. The sibling of [KICKED_MARKER_SCOPE] and the
+     * sharper of the two: a kicked marker off the battlefield leaks a fact nothing would read, while a
+     * prototyped marker off the battlefield would make the engine answer the wrong **power, toughness
+     * and colours** for the object — every base-characteristics read consults it. A prototyped Golem
+     * that dies and is returned to the battlefield comes back as its printed 6/5, because the returning
+     * permanent is a new object that was never cast (CR 400.7).
+     */
+    PROTOTYPE_MARKER_SCOPE,
+
+    /**
      * Every P6.2c mid-resolution pause is well-formed (CR 601.2c/601.3b/701.18). Added in P6.2c. The
      * optional cost-then-draw ([dev.mtgplay.core.state.GameState.pendingOptionalCostDraw], Highway Robbery),
      * the mandatory resolution discard ([dev.mtgplay.core.state.GameState.pendingResolutionDiscard], Faithless

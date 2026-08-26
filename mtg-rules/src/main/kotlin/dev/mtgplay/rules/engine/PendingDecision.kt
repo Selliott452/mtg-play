@@ -217,6 +217,9 @@ private fun libraryLookOrLatePauseRequest(state: GameState): DecisionRequest? =
         // the one pause answered by a seat that is neither the controller nor the priority holder.
         state.pendingOpponentDiscard != null -> pendingOpponentDiscardRequest(state)
         state.pendingRebound != null -> pendingReboundRequest(state)
+        // CR 702.85a: cascade's free cast, offered only while the candidate is still set — once the
+        // controller says yes it is cleared, so the nested cast's own pauses are what this derives next.
+        state.pendingCascade?.candidateObjectId != null -> pendingCascadeRequest(state)
         // CR 601.3b: the resolving object's *controller* may pay for a draw (`W8-D`, Nihil Spellbomb).
         state.pendingOptionalManaPayment != null -> pendingOptionalManaPaymentRequest(state)
         // CR 701.3a: the *targeted player* chooses which of their own graveyard cards is exiled — a
