@@ -88,7 +88,10 @@ class TwoFacedCardAcceptanceSpec :
         "CR 120: Forktail Sweep damages each creature the caster does not control, and none of their own" {
             val game = ScriptedGame.startFrom(dragonBoard(mountains = ADVENTURE_COST_MOUNTAINS, withCreatures = true))
             castDragon(game, asAdventure = true)
-            game.driveUntil { game.state.sharedZones.stack.isEmpty() }
+            game.driveUntil {
+                game.state.sharedZones.stack
+                    .isEmpty()
+            }
 
             // bob's 1-toughness Bogle died to the sweep; alice's own creature is untouched.
             game.state.sharedZones.battlefield
@@ -102,14 +105,19 @@ class TwoFacedCardAcceptanceSpec :
         "CR 715.3d: an Adventure that resolves is exiled and marked, never put into a graveyard" {
             val game = ScriptedGame.startFrom(dragonBoard(mountains = ADVENTURE_COST_MOUNTAINS))
             castDragon(game, asAdventure = true)
-            game.driveUntil { game.state.sharedZones.stack.isEmpty() }
+            game.driveUntil {
+                game.state.sharedZones.stack
+                    .isEmpty()
+            }
 
             game.state
                 .players
                 .getValue(alice)
                 .graveyard
                 .shouldBeEmpty()
-            val exiled = game.state.sharedZones.exile.single()
+            val exiled =
+                game.state.sharedZones.exile
+                    .single()
             exiled.card shouldBe CardRef(FANG_DRAGON)
             exiled.onAnAdventure shouldBe true
         }
@@ -121,7 +129,10 @@ class TwoFacedCardAcceptanceSpec :
             // the board every turn for {1}{R}.
             val game = ScriptedGame.startFrom(dragonBoard(mountains = DRAGON_COST_MOUNTAINS))
             castDragon(game, asAdventure = true)
-            game.driveUntil { game.state.sharedZones.stack.isEmpty() }
+            game.driveUntil {
+                game.state.sharedZones.stack
+                    .isEmpty()
+            }
 
             val options = dragonOptions(game)
             options shouldHaveSize 1
@@ -132,12 +143,20 @@ class TwoFacedCardAcceptanceSpec :
         "CR 715.3d: playing the creature half off its adventure puts the printed 6/3 Dragon onto the battlefield" {
             val game = ScriptedGame.startFrom(dragonBoard(mountains = DRAGON_COST_MOUNTAINS))
             castDragon(game, asAdventure = true)
-            game.driveUntil { game.state.sharedZones.stack.isEmpty() }
+            game.driveUntil {
+                game.state.sharedZones.stack
+                    .isEmpty()
+            }
             // The sweep spent {1}{R}; the remaining Mountains are exactly the printed cost.
             castDragon(game, asAdventure = false)
-            game.driveUntil { game.state.sharedZones.stack.isEmpty() }
+            game.driveUntil {
+                game.state.sharedZones.stack
+                    .isEmpty()
+            }
 
-            val dragon = game.state.sharedZones.battlefield.single { it.card == CardRef(FANG_DRAGON) }
+            val dragon =
+                game.state.sharedZones.battlefield
+                    .single { it.card == CardRef(FANG_DRAGON) }
             // CR 400.7: the permanent is a new object, so the exile marker did not follow it.
             dragon.onAnAdventure shouldBe false
             game.state.sharedZones.exile
@@ -160,7 +179,10 @@ class TwoFacedCardAcceptanceSpec :
             // A basic land card, so the nonbasic in the pinned library is not a legal find.
             find.options.map { it.card } shouldContainExactlyInAnyOrder listOf(CardRef(FOREST), CardRef(FOREST))
             game.apply(Decision.SingleSelect(find.id, 0))
-            game.driveUntil { game.state.sharedZones.stack.isEmpty() }
+            game.driveUntil {
+                game.state.sharedZones.stack
+                    .isEmpty()
+            }
 
             game.state
                 .players
@@ -177,7 +199,10 @@ class TwoFacedCardAcceptanceSpec :
             game.driveUntil { game.pendingRequest is DecisionRequest.ChooseFromLibrary }
             val find = game.pendingRequest.shouldBeInstanceOf<DecisionRequest.ChooseFromLibrary>()
             game.apply(Decision.SingleSelect(find.id, 0))
-            game.driveUntil { game.state.sharedZones.stack.isEmpty() }
+            game.driveUntil {
+                game.state.sharedZones.stack
+                    .isEmpty()
+            }
 
             game.state.sharedZones.exile
                 .shouldBeEmpty()
@@ -200,7 +225,10 @@ class TwoFacedCardAcceptanceSpec :
             game.driveUntil { game.pendingRequest is DecisionRequest.ChooseFromLibrary }
             val find = game.pendingRequest.shouldBeInstanceOf<DecisionRequest.ChooseFromLibrary>()
             game.apply(Decision.SingleSelect(find.id, 0))
-            game.driveUntil { game.state.sharedZones.stack.isEmpty() }
+            game.driveUntil {
+                game.state.sharedZones.stack
+                    .isEmpty()
+            }
             game.state
                 .players
                 .getValue(alice)
@@ -234,7 +262,10 @@ class TwoFacedCardAcceptanceSpec :
             game.driveUntil { game.pendingRequest is DecisionRequest.ChooseFromLibrary }
             val find = game.pendingRequest.shouldBeInstanceOf<DecisionRequest.ChooseFromLibrary>()
             game.apply(Decision.SingleSelect(find.id, 0))
-            game.driveUntil { game.state.sharedZones.stack.isEmpty() }
+            game.driveUntil {
+                game.state.sharedZones.stack
+                    .isEmpty()
+            }
             (game.state.rng == before) shouldBe false
         }
     })
@@ -283,7 +314,9 @@ private const val OPPONENT_BASE: Long = 80
 
 // ---- boards --------------------------------------------------------------------------------------------
 
-private fun manaCost(text: String) = dev.mtgplay.core.mana.ManaCost.parse(text)
+private fun manaCost(text: String) =
+    dev.mtgplay.core.mana.ManaCost
+        .parse(text)
 
 private fun settled(
     id: Long,
@@ -435,7 +468,10 @@ private fun shuffledLibraryAfterOmen(seed: Long): List<CardRef> {
     game.driveUntil { game.pendingRequest is DecisionRequest.ChooseFromLibrary }
     val find = game.pendingRequest.shouldBeInstanceOf<DecisionRequest.ChooseFromLibrary>()
     game.apply(Decision.SingleSelect(find.id, 0))
-    game.driveUntil { game.state.sharedZones.stack.isEmpty() }
+    game.driveUntil {
+        game.state.sharedZones.stack
+            .isEmpty()
+    }
     return game.state.players
         .getValue(alice)
         .library

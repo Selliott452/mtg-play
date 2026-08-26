@@ -191,7 +191,10 @@ class CardFacePrimitivesSpec :
 
         "CR 715.3d: the marker rides on the exile object and nothing else changes" {
             val exiled = GameObject(ObjectId(77), CardRef(ADVENTURER), alice)
-            val state = emptyState().copy(sharedZones = SharedZones(persistentListOf(), persistentListOf(), persistentListOf(exiled)))
+            val state =
+                emptyState().copy(
+                    sharedZones = SharedZones(persistentListOf(), persistentListOf(), persistentListOf(exiled)),
+                )
             val marked = markAdventureExile(state, exiled.id)
             marked.sharedZones.exile
                 .single()

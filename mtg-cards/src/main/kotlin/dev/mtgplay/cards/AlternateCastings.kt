@@ -41,60 +41,42 @@ import kotlinx.collections.immutable.persistentSetOf
  * a library *until a predicate holds*, and a seeded shuffle of a known set on the way to the bottom of
  * that library (ADR-006 — `Rng`, never `kotlin.random`). Both live in `Cascade.kt`.
  *
- * ## The two cards this packet does **not** encode
+ * ## The two cards this packet did **not** encode, and how they landed
  *
  * **Fang Dragon** (`{5}{R}{R} // {1}{R}`, Creature — Dragon // Sorcery — Adventure 6/3) and **Sagu
- * Wildling** (`{4}{G} // {G}`, Creature — Dragon // Sorcery — Omen 3/3) are dropped, and the triage's
- * diagnosis for them stands exactly as written: *"one card with two castable halves … `CastingPermission`
+ * Wildling** (`{4}{G} // {G}`, Creature — Dragon // Sorcery — Omen 3/3) were dropped here, with the
+ * triage's diagnosis restated as it stood: *"one card with two castable halves … `CastingPermission`
  * could carry the permission; `PrintedCharacteristics` cannot carry two faces, and that is the real
- * blocker."* Re-derived against the code as it is now, here is what a packet that picks them up must
- * build, so the next one does not have to work it out again.
+ * blocker."* `W10-B` picked them up and both cards are now encoded (TwoFacedCards.kt). **The blocker
+ * was real; both of the shapes this note predicted it would force were avoidable**, and the correction
+ * is worth more than either card:
  *
- * **1. Two sets of characteristics on one card (CR 712, CR 715).** An adventurer card and an omen card
- * each have two faces printed on one side, with different names, mana costs, card types and rules text
- * (CR 715.2: *"the alternative characteristics of the adventurer card"*). Every one of the engine's
- * ~150 cards is a single [dev.mtgplay.core.definition.CardDefinition] whose one
- * [dev.mtgplay.core.card.PrintedCharacteristics] is reached through the registry by
- * [dev.mtgplay.core.identity.CardRef] — and `CardRef` is a name. Two faces means either a second
- * definition slot on the contract or a second registry key, and **either choice reaches every card in
- * the pool**: a nullable `alternativeFace` on `CardDefinition` costs the other cards nothing but is a
- * second thing every characteristics read must decide whether to consult; a second registry entry makes
- * `CardRef("Forktail Sweep")` and `CardRef("Fang Dragon")` two keys for one card, and the CR 400.7 zone
- * moves would have to agree which one an object carries in which zone.
+ * - This note said the choice was *"either a second definition slot on the contract or a second
+ *   registry key, and **either choice reaches every card in the pool**"*. Neither happened. A face is a
+ *   whole second [SpellDefinition] on [SpellDefinition.alternativeFace], and the *cast* substitutes it
+ *   for the card's — which is one function, [dev.mtgplay.rules.engine.castDefinitionOf], at the five
+ *   places the CR 601 pipeline already reached a definition through. Every downstream read
+ *   (the CR 111/613 stack seam, the permanent-spell test, the targeting lines, the CR 608.2b fizzle, the
+ *   resolution fold) goes through the cast record's definition and became face-aware with **no edit of
+ *   its own**. [dev.mtgplay.core.card.PrintedCharacteristics] grew nothing, and
+ *   [dev.mtgplay.core.identity.CardRef] stays the card's name in every zone (CR 715.2c: an adventurer
+ *   card is *one* card), so no CR 400.7 zone move had to decide which key an object carries.
+ * - The comparison with prototype above is **exactly right** and worth keeping: an Adventure's faces do
+ *   have different names, card types and resolutions, which is why a face could not ride inside a
+ *   [CastingPermission] the way `Prototype`'s three values do. What the note did not say is the reason
+ *   that matters most in practice — a permission has to **round-trip the wire** (ADR-005: an option is
+ *   sent to a seat and comes back), and a resolution effect is a function value. That is what settles
+ *   the face onto the *card* and leaves the permission carrying a cost and a name.
+ * - [SpellMode] was named as "the nearest existing shape and wrong", and that stands unchanged.
+ * - The exile marker was called "not the blocker … a morning's work *if faces existed*", and that was
+ *   accurate to the hour: [dev.mtgplay.core.state.GameObject.onAnAdventure] is the fifth exile marker
+ *   and CR 715.3d's grant is enumerated beside Reckless Impulse's, off the marker rather than off a
+ *   permission. The **Omen** half needed even less — CR 720.3d shuffles the card into its owner's
+ *   library instead, so there is no marker and no cast from exile at all, only a third destination on
+ *   the one function that takes a spell off the stack.
  *
- * **This is not prototype's problem with a different label**, which is the trap: prototype also has "two
- * sets of characteristics", and it turned out to be one line because CR 718.2a's alternative set differs
- * only in cost, colour and size, keeps the name and the types, and is chosen *by the caster at CR 601.2b*
- * with no second rules text. An adventure's two faces have different **card types** (a Creature and a
- * Sorcery), different **names**, and *different resolutions* — so a face is not a base-characteristics
- * substitution, it is a second card sharing a piece of cardboard.
- *
- * **2. A cast that changes which face is on the stack (CR 715.3).** Casting the adventure half puts a
- * *sorcery* on the stack under the alternative name; the creature half is the same object cast as a
- * creature spell. [dev.mtgplay.core.definition.CastingPermission] could carry the permission — its
- * [dev.mtgplay.core.definition.CastingPermission.cost] field is already the replacement cost, and
- * `spellCharacteristics` is already the seam that rewrites a spell on the stack (this packet made it
- * one). What it cannot do is name a *resolution*: `SpellDefinition.resolution` is one effect and
- * `targetSpec` one spec, so the adventure half's "deals 1 damage to each creature you don't control"
- * has nowhere to live. The nearest existing shape is [dev.mtgplay.core.definition.SpellMode] — a modal
- * card already carries per-mode targeting and resolution — but a mode is chosen *within* one cast at
- * CR 601.2b, while a face is chosen *before* the cast is even enumerated, at a different cost and a
- * different timing (the Dragon is sorcery-speed, the Adventure is too, but Sagu Wildling's omen and its
- * creature half differ in what a seat can afford).
- *
- * **3. The exile-and-recast marker (CR 715.3d, CR 731.2).** An adventure that resolves is **exiled** and
- * its owner may cast the creature half from exile later; an omen that resolves is **shuffled into its
- * owner's library** instead ("Also shuffle this card"). Both halves of this are cheap now and neither is
- * the blocker: [dev.mtgplay.core.state.GameObject] already carries four exile markers of exactly this
- * shape (`plottedTurn`, `reboundTurn`, `awaitingMadness`, `playGrantedTurn`), and
- * `shuffleIntoOwnersLibrary` is a published primitive. A fifth marker plus a
- * `CastingPermission.Adventure` from [dev.mtgplay.core.definition.CastSource.EXILE] would be a morning's
- * work **if faces existed**.
- *
- * **Value, honestly stated.** Fang Dragon is a Spy Combo *sideboard* card and Sagu Wildling is a flex
- * slot in Elves and Spy Combo, so neither costs the gauntlet a mainboard slot before sideboarding
- * exists. They share the two-faces framework with each other, so doing one nearly does both — which is
- * the argument for doing them together, and against doing either now for one deck's flex slot.
+ * One thing this note got wrong on the facts: it cites *"CR 715.3d, CR 731.2"* for the omen shuffle.
+ * Omen cards are **CR 720**; CR 716 is Class Cards and CR 731 is something else again.
  */
 
 /** Boulderbranch Golem, for its printed and prototyped identities (CR 201.1). */
