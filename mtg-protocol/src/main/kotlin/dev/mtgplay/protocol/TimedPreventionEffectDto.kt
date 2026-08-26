@@ -95,6 +95,15 @@ private fun EffectDuration.preventionWireName(): String =
                 "CR 611.2b: no prevention effect in this pool is durationless, so an indefinite one " +
                     "in the store is an engine defect rather than a wire-format gap",
             )
+        // CR 611.2, `W11`: likewise real, likewise unprinted on a shield. The Undercity gave the engine
+        // an "until your next turn" duration for a keyword grant and for goad; a *prevention* effect
+        // carrying it would be a shield that survives its own turn, which is the same never-wears-off
+        // bug the arm above refuses, one turn later.
+        is EffectDuration.UntilYourNextTurn ->
+            error(
+                "CR 611.2: no prevention effect in this pool lasts until a player's next turn, so one " +
+                    "in the store is an engine defect rather than a wire-format gap",
+            )
     }
 
 /** The [EffectDuration] a wire [word] names; an unknown word is version skew and fails loudly. */

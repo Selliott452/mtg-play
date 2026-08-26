@@ -160,8 +160,11 @@ internal fun beginPosition(state: GameState): AdvanceResult {
     return when (step) {
         // CR 505.5: the main phases have no turn-based actions in P1.2's scope.
         null -> grantPriorityRound(current)
-        // CR 502.4: no player receives priority during the untap step.
-        TurnStep.UNTAP -> advancePastCurrentPosition(untapStepTurnBasedActions(current))
+        // CR 502.4: no player receives priority during the untap step. CR 611.2: every "until your next
+        // turn" effect naming the player whose turn this is ends *as the turn begins* (`W11`), which is
+        // here and before the CR 502.2 untap — the one exit that duration has.
+        TurnStep.UNTAP ->
+            advancePastCurrentPosition(untapStepTurnBasedActions(endUntilYourNextTurnEffects(current)))
         // CR 503.1: the upkeep has no turn-based action of its own, but "at the beginning of your
         // upkeep" abilities trigger as it begins (CR 603.2) — rebound's delayed cast is the first
         // (CR 702.88a) and the initiative holder's venture the second (CR 701.51b). The triggers are

@@ -3,6 +3,7 @@ package dev.mtgplay.rules.effect
 import dev.mtgplay.core.event.GameEvent
 import dev.mtgplay.core.identity.CardRef
 import dev.mtgplay.core.identity.ObjectId
+import dev.mtgplay.core.identity.PlayerId
 import dev.mtgplay.core.state.ContinuousModification
 import dev.mtgplay.core.state.EffectDuration
 import dev.mtgplay.core.state.GameState
@@ -85,6 +86,50 @@ fun applyIndefinitely(
     sourceCard: CardRef,
     source: ObjectId? = null,
 ): GameState = state.storingContinuousEffect(affected, modification, EffectDuration.Indefinite, sourceCard, source)
+
+/**
+ * Effect primitive: creates a continuous effect on the battlefield permanent [affected] that lasts
+ * **until [player]'s next turn** (CR 611.2) — the Undercity's Throne of the Dead Three, *"It gains
+ * hexproof until your next turn."* `W11`.
+ *
+ * The third published duration verb, and a verb rather than a duration argument for the reason the
+ * other two are: a card author must **name** the duration they mean, because the three are three
+ * different cards. Getting this one wrong is not a rounding error — encoded as
+ * [applyUntilEndOfTurn] the Throne's creature is exposed to removal for the whole of the opponent's
+ * turn the card was protecting it through, and encoded as [applyIndefinitely] it is untouchable for
+ * the rest of the game.
+ *
+ * **[player] is the effect's controller, and it is a parameter rather than a read of [source].** The
+ * duration says "**your** next turn", which is the controller of the ability that created it — the
+ * resolving object's controller at every printing. The source object may already be gone (CR 113.7c),
+ * so the seat is passed in from the resolution context that still knows it rather than looked up.
+ *
+ * Nothing about the effect's storage, timestamp or layer classification differs from the other two;
+ * only its exit does, and that exit is `endUntilYourNextTurnEffects` at the start of [player]'s next
+ * turn rather than the CR 514.2 cleanup, which answers "not mine" for this duration in all three
+ * timed stores.
+ *
+ * @param affected the permanent the effect modifies; its identity is fixed now (CR 611.2c).
+ * @param player the player whose next turn ends the effect (CR 611.2).
+ * @param modification what the effect does: the layer-6 grants and snapshotted layer-7c modifiers.
+ * @param sourceCard the printed identity that created the effect, for narration and replay.
+ * @param source the resolving object's own id (CR 113.7c last-known information), or `null`.
+ */
+fun applyUntilYourNextTurn(
+    state: GameState,
+    affected: ObjectId,
+    player: PlayerId,
+    modification: ContinuousModification,
+    sourceCard: CardRef,
+    source: ObjectId? = null,
+): GameState =
+    state.storingContinuousEffect(
+        affected,
+        modification,
+        EffectDuration.UntilYourNextTurn(player),
+        sourceCard,
+        source,
+    )
 
 /**
  * The shared body of [applyUntilEndOfTurn] and [applyIndefinitely]: store one

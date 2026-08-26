@@ -1,5 +1,7 @@
 package dev.mtgplay.core.state
 
+import dev.mtgplay.core.identity.PlayerId
+
 /**
  * How long a resolution-generated continuous effect lasts (CR 611.2, CR 613.7d) — the duration a
  * [TimedContinuousEffect] carries. Additive, flagged core (`FW-DURATION`,
@@ -41,4 +43,55 @@ sealed interface EffectDuration {
      * and is the same growth an equivalent per-object field would have.
      */
     data object Indefinite : EffectDuration
+
+    /**
+     * **"Until your next turn"** (CR 611.2, CR 701.38a): the effect ends as [player]'s next turn
+     * *begins* — it survives the rest of the turn it was created in, survives every intervening turn,
+     * and is gone before anything in [player]'s next turn happens. Additive, flagged core (`W11`) —
+     * the Undercity's Arena (goad) and Throne of the Dead Three ("It gains hexproof until your next
+     * turn") are the pool's two printings, and they need the same duration.
+     *
+     * **It is neither of the other two, and the CR 514.2 cleanup could not have ended it anyway.**
+     * The effect outlives the turn it began in, so [UntilEndOfTurn] is wrong by a whole turn in the
+     * player's favour or against them depending on who is active; and something does end it, so
+     * [Indefinite] is wrong forever. The engine ends it with its own turn-based action at the start of
+     * [player]'s turn (`endUntilYourNextTurnEffects`), which is where the duration's own words put it.
+     *
+     * **It records *whose* turn ends it, not *which* turn number does, and that is the whole design.**
+     * "Your next turn" cannot be written down as a number when the effect is created without
+     * predicting the turn order two turns out — a prediction the engine has no business making, and
+     * one a turn-skipping or extra-turn effect would falsify. So this member carries the player, the
+     * effect's own [TimedContinuousEffect.createdOnTurn] carries the moment, and [hasEnded] below
+     * combines them into a rule that needs no foresight. That is exactly the shape
+     * [GameObject.playGrantedTurn] chose for CR 118.5's "until the end of your next turn", one step
+     * later in the turn; recording the beginning and deriving the end is the discipline, not a
+     * coincidence of two cards.
+     *
+     * @property player the player whose next turn ends the effect — the controller of the spell or
+     *   ability that created it, for both pool printings ("**your** next turn").
+     */
+    data class UntilYourNextTurn(
+        val player: PlayerId,
+    ) : EffectDuration {
+        /**
+         * Whether this duration has run out at a state whose turn is [turnNumber] and whose active
+         * player is [activePlayer], for an effect created on turn [createdOnTurn] (CR 611.2).
+         *
+         * True exactly when the current turn is [player]'s **and** is strictly later than the turn the
+         * effect began on. Created on [player]'s own turn N the effect survives N (same number),
+         * survives the opponent's N+1 (not [player]'s), and is ended as N+2 begins; created on the
+         * opponent's turn N it is ended as N+1 begins. Both are "until your next turn".
+         *
+         * **The one derivation, shared by the wear-off and by the acceptance invariant that checks the
+         * wear-off fired.** Two spellings of the same rule is how an effect comes to be swept a turn
+         * early by one and reported healthy by the other, which is [GameObject.playGrantedTurn]'s
+         * argument for a single `playGrantHasExpired`. Arithmetic over three recorded facts, so it
+         * decides no game rule and stays on this side of ADR-009.
+         */
+        fun hasEnded(
+            activePlayer: PlayerId,
+            turnNumber: Int,
+            createdOnTurn: Int,
+        ): Boolean = activePlayer == player && turnNumber > createdOnTurn
+    }
 }

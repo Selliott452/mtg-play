@@ -63,6 +63,16 @@ private fun EffectDuration.deathReplacementWireName(): String =
         // shared with the continuous-effect and prevention stores, so the wire has to name every member
         // or a future one would be silently unrepresentable here alone.
         EffectDuration.Indefinite -> DEATH_REPLACEMENT_INDEFINITE
+        // CR 611.2, `W11`: the third member arrived with the Undercity and is not printed on any death
+        // replacement either. Unlike the arm above it is *refused* rather than named, because naming it
+        // would need a second wire field to carry the seat the duration points at — a field this store
+        // has no producer for, and an empty branch of the schema is the untested-branch shape the
+        // continuous-effect mirror's `grantedEvasions` note argues against.
+        is EffectDuration.UntilYourNextTurn ->
+            error(
+                "CR 611.2: no death replacement in this pool lasts until a player's next turn, so one " +
+                    "in the store is an engine defect rather than a wire-format gap",
+            )
     }
 
 /** The [EffectDuration] a wire [word] names; an unknown word is version skew and fails loudly. */
