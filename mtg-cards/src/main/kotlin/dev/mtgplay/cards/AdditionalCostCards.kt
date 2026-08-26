@@ -81,16 +81,11 @@ import kotlinx.collections.immutable.persistentSetOf
  *
  * ## Absent — Call Damage Control `{1}{G}`
  *
- * > **Choose up to two.** Return those cards from your graveyard to your hand. • Target artifact card.
- * > • Target creature card. • Target enchantment card. • Target land card.
- *
- * `FW-MODAL` landed with "choose one" only, and says so out loud: `SpellModes.kt` fails loudly on "a
- * mode arity other than one", and [SpellDefinition.modes]' own KDoc records that a count on the
- * declaration, a multi-select mode decision, and per-mode targets are what an arity other than one
- * needs. "Up to two" needs all three, plus a CR 601.2c same-object rule applied **across** modes (the
- * two chosen modes may not name the same graveyard card), which is a rule no existing target check
- * states. Separately, [dev.mtgplay.core.definition.GraveyardCardRestriction] has no artifact,
- * enchantment or land member — that part is cheap, and is not what blocks the card.
+ * Still absent, and still blocked on **modal arity above one** rather than on anything this file owns.
+ * The diagnosis moved to `ModalInstants.kt`, beside the two modal cards that *are* encoded, where the
+ * next packet to raise the arity will actually be reading — `W9-B` worked the design out and recorded
+ * it there in full, including why the tempting flattening ("up to two target cards of different types")
+ * is not equivalent to the printed card.
  */
 
 /**

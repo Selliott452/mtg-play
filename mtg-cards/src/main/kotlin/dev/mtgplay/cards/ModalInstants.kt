@@ -45,6 +45,77 @@ import kotlinx.collections.immutable.persistentSetOf
  * board-counting damage effect, a plain destroy, and a whole-zone exile.
  *
  * Oracle text below is Scryfall's, fetched for this packet (`POST /cards/collection`, both found).
+ *
+ * ## Absent — Call Damage Control `{1}{G}` (`W9-B`)
+ *
+ * > **Choose up to two.** Return those cards from your graveyard to your hand.
+ * > • Target artifact card. • Target creature card. • Target enchantment card. • Target land card.
+ *
+ * Still absent, and the blocker is **modal arity above one** — the last thing standing between this
+ * engine and every "choose two" charm. `W9-B` built the sibling framework in its brief (collect
+ * evidence) and stopped here deliberately rather than ship a plausible-looking wrong card. What follows
+ * is the design that packet worked out, recorded so the next one starts from it rather than from the
+ * blank page.
+ *
+ * ### Why it cannot be approximated
+ *
+ * The tempting shortcut is "return up to two target cards from your graveyard to your hand, no two of
+ * the same card type" — one targeting line, no modality, and it looks equivalent. It is not, and the
+ * counter-example is an **artifact creature card** (Grixis Affinity fills a graveyard with them). Under
+ * the real card, choosing the artifact mode and the creature mode and naming that one card for **both**
+ * is legal (see the CR 115.3 note below), and the spell then returns it and does nothing for the second
+ * mode. The flattening cannot express that at all, because its single targeting line forbids naming one
+ * object twice. Encoding it would delete a legal line — silly here, but silent, which is the failure
+ * ADR-005 is about.
+ *
+ * ### A correction, because it changes the design
+ *
+ * The brief this packet was given asked for "the CR 601.2c same-object rule applied **across** modes —
+ * you may not choose the same object as the target of two different modes of the same spell." The repo's
+ * own CR text says the opposite, and the rule is **CR 115.3** rather than CR 601.2c:
+ *
+ * > The same target can't be chosen multiple times for any one instance of the word "target" on a spell
+ * > or ability. **If the spell or ability uses the word "target" in multiple places, the same object or
+ * > player can be chosen once for each instance of the word "target"** (as long as it fits the targeting
+ * > criteria).
+ *
+ * Each bullet is its own instance of the word "target", so cross-mode duplication is *permitted*. That
+ * removes what looked like the framework's hardest requirement. Had the brief been right, a chosen set
+ * of modes would only be legal when a **system of distinct representatives** existed across the modes'
+ * option lists — a bipartite matching, evaluated at CR 601.2b before any target is chosen, which would
+ * have forced the mode decision to enumerate whole *combinations* rather than modes. As the rule
+ * actually reads, each mode is independently choosable and the mode decision stays a plain subset
+ * choice over the individually-castable modes.
+ *
+ * ### What the engine needs, in order
+ *
+ * 1. **A count on the mode declaration.** [dev.mtgplay.core.definition.SpellDefinition.modes] is a bare
+ *    list and every reader assumes "choose one". "Choose up to two" needs a `minimum..maximum` beside it
+ *    — and note the minimum is genuinely **zero**: choosing no modes is legal, and the spell then
+ *    resolves and does nothing.
+ * 2. **A multi-select mode decision at CR 601.2b.** [dev.mtgplay.rules.decision.DecisionRequest.ChooseModes]
+ *    is a `SingleOptionSelection`; the arity-above-one shape is a `RangedSelection` over the choosable
+ *    modes, which is the family `ChooseMultipleTargets` already belongs to. Cross-mode duplication being
+ *    legal (CR 115.3, above) is what keeps this a plain subset choice: each mode is choosable or not on
+ *    its own, so no combination has to be enumerated or filtered.
+ * 3. **A target per chosen mode, and this is the real work.** Each bullet is its own instance of the
+ *    word "target" (CR 115.3), so two chosen modes means *two* target requests with two different option
+ *    lists — and the engine's whole targeting spine is written around one spec per object.
+ *    `PendingCast.chosenTargets` and `StackEntry.Spell.targets` are flat lists with no per-mode split,
+ *    and `effectiveTargetSpec`, `establishTargets`, `allTargetsIllegal` and `auraAttachmentTargetOf`
+ *    each ask the definition for *the* spec. Splitting them needs a per-mode target list carried on both
+ *    the pending cast and the cast record (and therefore on the wire), because the split cannot be
+ *    re-derived afterwards the moment any mode carries an "up to" count.
+ * 4. **A per-mode CR 608.2b re-check and a per-mode resolution.** The spell fizzles only if *every*
+ *    target of *every* chosen mode is illegal; otherwise it resolves and each mode does as much as it
+ *    can, which means `effectiveResolution` becomes a fold over the chosen modes with each one handed
+ *    its own slice of the targets.
+ *
+ * ### What is *not* the blocker
+ *
+ * [dev.mtgplay.core.definition.GraveyardCardRestriction] has no artifact, enchantment or land member.
+ * That is three enum members and a filter arm — genuinely cheap, and worth saying out loud because the
+ * previous diagnosis listed it alongside the modal work as though the two were comparable.
  */
 
 /** The damage Cast into the Fire's first mode deals to each creature it names (CR 120). */

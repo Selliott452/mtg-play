@@ -20,9 +20,17 @@ import dev.mtgplay.core.state.GameState
  * pass, and one that forgets to thread the mode fails loudly on the first modal card it meets.
  *
  * **Arity.** The pool prints only "Choose one —", so exactly one mode is chosen and every accessor here
- * demands exactly one. "Choose up to two" and "Choose two" need a count on the declaration, a
- * multi-select mode decision, and a target per chosen mode — the multi-target framework this packet does
- * not own — and until they arrive an arity other than one is an engine defect, not a rules case.
+ * demands exactly one; an arity other than one is an engine defect, not a rules case.
+ *
+ * `W9-B` looked at raising it for Call Damage Control's "Choose up to two" and did not, and its
+ * diagnosis lives in `mtg-cards/ModalInstants.kt` rather than being restated here. The short version is
+ * that the count and the multi-select decision are cheap, and the third requirement is not: each bullet
+ * is its own instance of the word "target" (CR 601.2c), so two chosen modes are **two** targeting lines
+ * with two option lists, while `PendingCast.chosenTargets` and `StackEntry.Spell.targets` are flat lists
+ * with no per-mode split and every accessor below asks the definition for *the* spec. The split has to
+ * be carried on the pending cast and the cast record — the moment any mode prints an "up to" count it
+ * cannot be re-derived — and it then propagates into the CR 608.2b re-check, the resolution fold, and
+ * a cross-mode same-object exclusion that no existing target check states.
  */
 
 /**
