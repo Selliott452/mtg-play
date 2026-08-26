@@ -26,6 +26,7 @@ import dev.mtgplay.rules.engine.DamageAssignment
 import dev.mtgplay.rules.engine.applyVentureRoomChoice
 import dev.mtgplay.rules.engine.enqueueUpkeepVenture
 import dev.mtgplay.rules.engine.fireInitiativeHandover
+import dev.mtgplay.rules.engine.pendingDecisionRequest
 import dev.mtgplay.rules.engine.pendingVentureRequest
 import dev.mtgplay.rules.engine.resolveVentureTrigger
 import io.kotest.assertions.throwables.shouldThrow
@@ -122,6 +123,9 @@ class InitiativeSpec :
                 .shouldNotBeNull()
                 .roomOf(alice) shouldBe 0
             pendingVentureRequest(needs.state) shouldBe request
+            // ADR-004: and the engine's own re-derivation finds it, so a stored game resumes to
+            // exactly this request rather than to whatever was pending before the venture began.
+            pendingDecisionRequest(needs.state) shouldBe request
         }
 
         "CR 309.4: answering the branch moves the marker to the chosen room and triggers it" {
