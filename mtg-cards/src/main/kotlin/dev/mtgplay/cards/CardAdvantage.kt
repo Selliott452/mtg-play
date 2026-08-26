@@ -48,21 +48,49 @@ import kotlinx.collections.immutable.persistentSetOf
  * first permission in the engine that is *granted by an effect to another object* rather than declared by
  * the card being played, and therefore the first that could not be a [CastingPermission].
  *
- * **Two of the packet's card-advantage cards are deliberately absent**, each blocked on a framework this
- * packet does not own; an approximation of either would be a plausible-looking wrong card (PLAN.md §7).
+ * **One of the packet's card-advantage cards is still deliberately absent**, blocked on a framework this
+ * packet does not own; an approximation of it would be a plausible-looking wrong card (PLAN.md §7).
  *
  * - **Fanatical Offering** — `{1}{B}` Instant, "As an additional cost to cast this spell, sacrifice an
- *   artifact or creature. Draw two cards and create a Map token." Every part but the token is already
- *   expressible: [dev.mtgplay.core.definition.AdditionalCost.Sacrifice] carries "an artifact or creature"
+ *   artifact or creature. Draw two cards and create a Map token." Every part but the token is expressible
+ *   today: [dev.mtgplay.core.definition.AdditionalCost.Sacrifice] carries "an artifact or creature"
  *   (Eviscerator's Insight prints the same line) and the draw is [drawCards]. The blocker is the **Map
  *   token**, whose ability is "{1}, {T}, Sacrifice this token: Target creature you control **explores**.
- *   Activate only as a sorcery." [dev.mtgplay.core.definition.TokenDefinition] can carry a targeted,
- *   sorcery-speed activated ability, so the token itself is not the gap — **explore** (CR 701.40) is: it
- *   reveals the top card, puts it into the hand if it is a land, and otherwise puts a `+1/+1` counter on
- *   the creature and then asks its controller to leave the card on top or bin it. That is a conditional
- *   mid-resolution decision, i.e. a new [dev.mtgplay.core.definition.ResolutionClauses] member with a
- *   branch no existing clause has. Encoding the card without the token would delete half of it — the
- *   token is why the card is played over a plain draw-two — so it waits.
+ *   Activate only as a sorcery."
+ *
+ *   The token itself is not the gap and never was: [dev.mtgplay.core.definition.TokenDefinition] carries
+ *   activated abilities, and [dev.mtgplay.core.definition.ActivatedAbility] already has every field this
+ *   one needs — the `{1}`/`{T}`/sacrifice-self cost, a `targetSpec` of
+ *   [dev.mtgplay.core.definition.PermanentRestriction.CREATURE_YOU_CONTROL], and
+ *   [dev.mtgplay.core.definition.TimingClass.SORCERY_SPEED] for "activate only as a sorcery". **Explore**
+ *   (CR 701.40a) is the gap, and `W9-D` refines W8-D's reading of it: the conditional branch is the
+ *   *smaller* half.
+ *
+ *   *The clause half*, as W8-D described it, is a genuine new
+ *   [dev.mtgplay.core.definition.ResolutionClauses] member and is the size of
+ *   [dev.mtgplay.core.definition.ChosenColorEffect]'s: reveal the top card; if it is a land put it into
+ *   the hand and open **no pause at all**; otherwise put a `+1/+1` counter on the exploring permanent and
+ *   *then* pause for top-or-graveyard. Two rulings come free from writing it that way and are lost by any
+ *   shortcut: the land branch must not surface a decision with one legal answer (ADR-005), and an **empty
+ *   library** reveals nothing, so no land card is revealed, so the "otherwise" arm runs — the creature
+ *   still gets its counter and there is still no pause.
+ *
+ *   *The disclosure half* is the one that makes this bigger than a clause, and W8-D did not name it.
+ *   CR 701.40a says **reveal**, so the revealed card is public — and it is sitting in a **library**, the
+ *   one zone [dev.mtgplay.rules.SeatView] never discloses. Making it visible is not a clause change at
+ *   all; it is an ADR-007 disclosure that has to land in five places across three modules: a view-shaped
+ *   pending record, `ViewFor`, `VisibleCards.visibleCardRefs`, a protocol DTO — and then, in
+ *   `mtg-acceptance`, both `ViewLeakPropertySpec.publicNames` and its `checkCardTable`. Those last two are
+ *   deliberately written as **independent oracles**, which is what makes the pair unavoidable: widen the
+ *   view without them and a correct disclosure fails as a leak; widen them without the view and the
+ *   opponent cannot see a card the card just told them about. `PendingRevealSelection`/`PendingRevealView`
+ *   is the precedent that makes this a known-size job rather than an unknown one — it is the same
+ *   public-library-card problem — but it is a disclosure framework, not a clause, and it is the larger
+ *   half of the work.
+ *
+ *   Encoding the card without the token would delete half of it — the token is why the card is played
+ *   over a plain draw-two, and a `{1}{B}` sacrifice-an-artifact draw-two is a worse card than the pool's
+ *   existing draw spells — so it waits for the packet that owns library disclosure.
  *
  * `W9-D` takes **[monstrousEmergence]** off that list, and W8-D's diagnosis of it was exactly right on
  * both counts. The cost is a shape nothing had — a **non-consuming** additional cost
@@ -73,7 +101,8 @@ import kotlinx.collections.immutable.persistentSetOf
  * chosen creature killed in response falls back to last known information, and the engine had no store
  * for it (`LastKnownPower.kt`, `W9-D`).
  *
- * **Fanatical Offering stays absent**, on explore alone; the diagnosis above is unchanged.
+ * **Fanatical Offering stays absent**, on explore — and specifically on explore's *reveal*, not on its
+ * conditional branch. The diagnosis above records what `W9-D` learned by scoping it.
  */
 
 /** The cards Mulldrifter's enters-the-battlefield trigger draws (CR 120.1). */

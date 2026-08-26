@@ -394,11 +394,12 @@ import dev.mtgplay.core.identity.CardRef
  * that requirement onto the [dev.mtgplay.core.definition.SacrificeFilter] the cast-side and
  * activation-side sacrifice costs already used, so all three now share one answer.
  *
- * Two of the packet's cards stay absent, diagnosed in full in CardAdvantage.kt: **Fanatical Offering**
- * needs **explore** (CR 701.40) for its Map token, a conditional mid-resolution clause no existing one
- * has; **Monstrous Emergence** needs an additional cost that is a *choice between two shapes*, neither of
- * which consumes what it names, whose two branches read power from the battlefield and from a hand
- * respectively (CR 613 versus CR 109.3).
+ * One of the packet's cards stays absent, diagnosed in full in CardAdvantage.kt: **Fanatical Offering**
+ * needs **explore** (CR 701.40) for its Map token. `W9-D` scoped it and sharpened the reading — the
+ * conditional mid-resolution clause is the *smaller* half, and the blocker is that CR 701.40a's reveal
+ * makes a **library** card public, which is an ADR-007 disclosure landing in five places across three
+ * modules including `mtg-acceptance`'s two independent leak oracles. **Monstrous Emergence** is encoded
+ * by `W9-D` (see below).
  *
  * The `FW-PREVENT2` packet adds the gauntlet's **prevention pair** (Flashback.kt): [flaringPain], whose
  * CR 615.9 "damage can't be prevented" is the off-switch for the whole CR 615 framework, and
