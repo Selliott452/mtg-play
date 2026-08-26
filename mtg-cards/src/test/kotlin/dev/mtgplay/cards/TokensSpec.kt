@@ -97,6 +97,19 @@ class TokensSpec :
             resolved.timedEffects.none { it.affected == yourNonHuman.id } shouldBe true
             resolved.timedEffects.any { it.affected == yourHuman.id } shouldBe true
         }
+
+        "W9-F: Writhing Chrysalis stays unencoded, on two trigger conditions this packet does not own" {
+            // CR 603.2/113.6a: "When you cast this spell" is an ability of the spell *on the stack*.
+            //   TriggerCondition.SpellCast is the other-object watcher a battlefield permanent has,
+            //   which is a different ability of a different object. The Stack zone scope it needs has
+            //   since landed on main (W9-C's storm, W9-G's cascade); a `CastSelf` condition has not.
+            // CR 701.17: "Whenever you sacrifice another Eldrazi" has no watcher at all, and no
+            //   TriggerCondition member carries a creature-subtype axis. One detection site, not a
+            //   fan-out — every sacrifice funnels through `sacrificeOnePermanent`.
+            // Devoid, reach, and the Spawn token's mana ability are **not** blockers and were re-checked
+            // against the code rather than inherited from the triage — see Tokens.kt's header.
+            MvpCards.definitions[CardRef("Writhing Chrysalis")].shouldBeNull()
+        }
     })
 
 /** Resolves Rally at the Hornburg for [controller] against [state] (CR 608.2). */
