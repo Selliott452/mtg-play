@@ -292,17 +292,6 @@ private fun establishTargets(
 }
 
 /**
- * The targets [entry] chose, split into one list per targeting line (CR 115.3) — the recorded per-mode
- * split for a modal spell, and the whole flat list as a single line for an ordinary one.
- *
- * The one place the two shapes are reconciled, so every per-line reader (the CR 601.2c re-validation,
- * the CR 608.2b fizzle, the resolution fold) asks the same question and cannot disagree about what a
- * non-modal spell's "lines" are.
- */
-internal fun targetLinesOf(entry: StackEntry.Spell): List<List<Target>> =
-    if (entry.definition.modes.isEmpty()) listOf(entry.targets) else entry.modeTargets
-
-/**
  * Stage CR 601.2f — cost determination: the mana cost the payment plan pays, after cost modification
  * (docs/design/cost-modification.md). A cast via an alternative permission (madness, flashback,
  * escape) starts from the permission's cost, which **replaces** the printed mana cost entirely

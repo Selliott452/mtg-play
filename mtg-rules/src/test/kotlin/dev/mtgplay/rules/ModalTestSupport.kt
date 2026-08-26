@@ -145,7 +145,7 @@ internal fun castModalSpell(
     val modeRequest = result.pending<DecisionRequest.ChooseModes>()
     val optionIndex = modeRequest.options.indexOfFirst { it.modeIndex == printedMode }
     check(optionIndex >= 0) { "mode $printedMode of $card is not offered; options were ${modeRequest.options}" }
-    result = engine.advance(result.pausedState, Decision.SingleSelect(modeRequest.id, optionIndex))
+    result = engine.advance(result.pausedState, Decision.MultiSelect(modeRequest.id, listOf(optionIndex)))
 
     // CR 601.2c: surfaced only when the chosen mode targets — a targetless mode skips straight to payment.
     val next = (result as AdvanceResult.NeedsDecision).request
@@ -175,7 +175,7 @@ internal fun targetsAfterChoosingMode(
     val optionIndex = modeRequest.options.indexOfFirst { it.modeIndex == printedMode }
     check(optionIndex >= 0) { "mode $printedMode of $card is not offered; options were ${modeRequest.options}" }
     return engine
-        .advance(afterCast.pausedState, Decision.SingleSelect(modeRequest.id, optionIndex))
+        .advance(afterCast.pausedState, Decision.MultiSelect(modeRequest.id, listOf(optionIndex)))
         .pending<DecisionRequest.ChooseTargets>()
 }
 

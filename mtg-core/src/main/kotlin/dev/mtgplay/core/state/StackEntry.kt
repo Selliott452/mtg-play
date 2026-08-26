@@ -65,7 +65,7 @@ sealed interface StackEntry {
      *   everything downstream depends on it. The CR 608.2b re-check reads the *chosen mode's* target
      *   spec through it, and resolution runs the *chosen mode's* effect — so a copy of this entry with
      *   the modes dropped would fizzle-check and resolve as a different card.
-         * @property modeTargets the targets each chosen mode named, one list per mode in chosen-mode order
+     * @property modeTargets the targets each chosen mode named, one list per mode in chosen-mode order
      *   (CR 115.3, CR 601.2c); empty for a non-modal spell. Additive, flagged core (`W9-B`).
      *
      *   Part of the cast record for [chosenModes]' reason and carrying the same weight: [targets] is

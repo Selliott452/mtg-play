@@ -4,7 +4,6 @@ import dev.mtgplay.core.definition.AdditionalCost
 import dev.mtgplay.core.definition.CastSource
 import dev.mtgplay.core.definition.CastingPermission
 import dev.mtgplay.core.definition.SpellDefinition
-import dev.mtgplay.core.definition.TargetSpec
 import dev.mtgplay.core.identity.CardRef
 import dev.mtgplay.core.identity.ObjectId
 import dev.mtgplay.core.identity.PlayerId
@@ -115,94 +114,6 @@ internal fun beginCastGathering(
     return pauseForNextCastDecision(
         state.copy(pendingCast = advanceTargetingLines(state, opened, definition)),
     )
-}
-
-/**
- * The settled modes a cast starts with (CR 601.2b): the empty list for a card with no modes, the empty
- * list again for a modal card with no choosable mode at all, and `null` \u2014 "still to be chosen" \u2014
- * otherwise.
- *
- * The middle case is only reachable for an "up to N" card, because [someModeIsCastable] refuses to
- * enumerate the cast of a card that must choose a mode and cannot. For that card choosing **no** modes
- * is the legal answer and the only one, so surfacing a request over an empty option list would be a
- * decision with nothing in it \u2014 the same rule that settles a vacuous target choice silently.
- */
-private fun initialChosenModes(
-    state: GameState,
-    definition: SpellDefinition,
-    caster: PlayerId,
-    cardObjectId: ObjectId,
-): PersistentList<Int>? =
-    when {
-        definition.modes.isEmpty() -> persistentListOf()
-        castableModes(state, definition, caster, Chooser.Spell(cardObjectId)).isEmpty() -> persistentListOf()
-        else -> null
-    }
-
-/**
- * Settles every targeting line of [cast] that has nothing to choose from, and settles
- * [PendingCast.chosenTargets] once every line is answered (CR 601.2c).
- *
- * **The one place the CR 601.2c cursor moves**, shared by the cast's opening, the mode answer, and every
- * target answer \u2014 so "which line is asked next" is written once and the three paths cannot disagree.
- * A modal card has one line per chosen mode (CR 115.3: each bullet is its own instance of the word
- * "target"); an ordinary card has exactly one, which is why the two travel the same code.
- *
- * `modeTargets.size` is the cursor: a vacuous line is recorded as an empty selection and the cursor
- * moves on, so a "choose up to two" card whose first mode has no legal target still asks about its
- * second. When the cursor reaches the end, the flattened concatenation becomes [PendingCast.chosenTargets]
- * and the CR 601.2c stage is done.
- */
-internal fun advanceTargetingLines(
-    state: GameState,
-    cast: PendingCast,
-    definition: SpellDefinition,
-): PendingCast {
-    val modes = cast.chosenModes ?: return cast
-    val specs = effectiveTargetSpecs(definition, modes)
-    var settled = cast
-    while (settled.modeTargets.size < specs.size &&
-        targetChoiceIsVacuous(
-            state,
-            specs[settled.modeTargets.size],
-            cast.caster,
-            Chooser.Spell(cast.cardObjectId),
-        )
-    ) {
-        settled = settled.copy(modeTargets = settled.modeTargets.adding(persistentListOf()))
-    }
-    return if (settled.modeTargets.size < specs.size) {
-        settled
-    } else {
-        settled.copy(chosenTargets = settled.modeTargets.flatten().toPersistentList())
-    }
-}
-
-/**
- * Records the chosen modes on the open [PendingCast] (CR 601.2b, CR 700.2) and suspends for whatever the
- * cast needs next \u2014 which for every modal card in the pool is the first chosen mode's target choice
- * (CR 601.2c).
- *
- * [modeIndices] are the modes' **printed** indices, in chosen order, translated from the option indices
- * by the caller, because the printed indices are what the cast record and the replay log carry.
- *
- * The targeting cursor starts here and only here: [advanceTargetingLines] settles any leading line with
- * nothing to choose from, so no empty target request is ever surfaced, and leaves the cursor on the first
- * line that is a real choice. This is the single point at which the CR 601.2b answer determines the
- * CR 601.2c questions \u2014 questions plural, since each chosen mode brings its own (CR 115.3).
- */
-internal fun applyChosenModes(
-    state: GameState,
-    modeIndices: List<Int>,
-): AdvanceResult {
-    val cast = state.pendingCast ?: error("no cast is gathering decisions")
-    require(cast.chosenModes == null) { "CR 601.2b: this cast's modes are already chosen" }
-    val card =
-        objectInZone(state, cast.caster, cast.source, cast.cardObjectId)
-            ?: error("CR 601.2b: pending cast's card ${cast.cardObjectId} is not in ${cast.caster}'s ${cast.source}")
-    val definition = spellDefinitionOf(state, card.card)
-    val moded = cast.copy(chosenModes = modeIndices.toPersistentList())
-    return pauseForNextCastDecision(state.copy(pendingCast = advanceTargetingLines(state, moded, definition)))
 }
 
 /** Suspends for whatever the open [PendingCast] still needs (ADR-004). */
