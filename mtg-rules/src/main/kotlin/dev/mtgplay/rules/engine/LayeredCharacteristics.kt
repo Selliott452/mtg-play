@@ -158,6 +158,35 @@ internal fun activeEffectsOn(
  * Raider's haste appears the instant an artifact enters and is gone the instant the last one leaves.
  * Because characteristics are computed on read and never cached (docs/design/layer-system.md §5), that
  * continuity costs exactly this one filter and no invalidation machinery.
+ *
+ * **"Does the layer store only hold effects created by a resolving ability?" — no, and the question
+ * contains the misreading worth naming** (`W10-C`, asked of Pinnacle Kill-Ship's "it's an artifact
+ * creature at 7+"). There is no single layer store. [activeEffectsOn] concatenates **two** generators
+ * with opposite mechanics, and only one of them is a store at all:
+ *
+ * - [dev.mtgplay.core.state.GameState.timedEffects] *is* a store, and it is the resolution-generated
+ *   half (CR 611.2). An effect is put in it when a spell or ability resolves, its magnitudes were
+ *   snapshotted at that moment (CR 608.2h), and nothing re-derives them afterwards. An effect whose
+ *   applicability had to change with the board could not live there — which is the true half of the
+ *   question, and the half that makes the other half look impossible.
+ * - This function is **not a store**. It re-derives the active static effects from the battlefield on
+ *   every characteristic read: which permanents are there, what their affected sets currently name, and
+ *   whether their conditions currently hold. Nothing is written down, so nothing can go stale.
+ *
+ * So a *conditional* continuous effect — one whose applicability is re-evaluated as the board changes,
+ * counters included — is not merely expressible, it is the only shape a static ability has ever had
+ * here. A Spacecraft is an artifact creature on the read after its seventh charge counter lands and a
+ * noncreature artifact on the read after one is removed, in both cases with nothing on the stack and no
+ * player receiving priority (CR 604.3). What `W10-C` actually had to add was **not** a mechanism for
+ * re-evaluation but a [StaticCondition] shape that counts counters on the source
+ * ([StaticCondition.CountersOnSelf]) and a layer-4 field for the static declaration to carry
+ * ([dev.mtgplay.core.definition.StaticContinuousEffect.addedCardTypes]) — a vocabulary gap, not an
+ * architectural one.
+ *
+ * The corollary is worth stating because it is the trap: a card whose type change **must** track state
+ * has to be encoded as a static ability, never as a resolving one. Writing "it's an artifact creature
+ * at 7+" as an effect a resolving ability creates would make a Spacecraft that became a creature once
+ * and stayed one — correct in every game that never removed a counter, and wrong in the ones that did.
  */
 private fun staticEffectsOn(
     state: GameState,
