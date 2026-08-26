@@ -18,14 +18,20 @@ Oracle text throughout is from the repo's own snapshot
 | Maelstrom Colossus | Monster Tron | cascade | ~~drop~~ — **built** (`W9-G`) |
 | Fang Dragon | Spy Combo (SB) | adventure | drop |
 | Sagu Wildling | Elves, Spy Combo | omen | drop |
-| Pinnacle Kill-Ship | Monster Tron | station / Spacecraft | drop |
+| Pinnacle Kill-Ship | Monster Tron | station / Spacecraft | ~~drop~~ — **built** (`W10-C`) |
 | Weather the Storm | Jund Wildfire (SB) | storm | **build** — see below |
-| Nyxborn Hydra | Elves, Jund Wildfire | bestow + CR 614.1c | drop |
+| Nyxborn Hydra | Elves, Jund Wildfire | bestow + CR 614.1c | ~~drop~~ — **built** (`W10-C`) |
 | Kaervek's Torch | Monster Tron | cost *increase* | drop |
 
-Nine drops and one build is the honest answer, and the reason it is not depressing is arithmetic:
-these ten are seven mainboard slots across four decks, and three of the four are already close to
-playable without them.
+Nine drops and one build was the honest answer *at the time*, and the reason it was not depressing is
+arithmetic: these ten are seven mainboard slots across four decks, and three of the four are already
+close to playable without them.
+
+Four of the nine drops have since been overturned by re-checking their diagnoses against the code
+rather than against this table — prototype and cascade (`W9-G`), then station and bestow (`W10-C`).
+That is the pattern worth carrying forward: **a verdict here is a snapshot of what the engine could do
+on the day it was written**, and every one of those four was reversed not by building the framework the
+table named but by discovering that most of it already existed under a different name.
 
 ## The two that share a blocker
 
@@ -76,18 +82,38 @@ Rebound) is uniformly a permission to cast *for some cost*, never for none.~~
   dependency on the layer packet running beside it. The instinct that it was "closer to reachable
   than anything else here" was right, and for a better reason than the one given.
 
-## The two that are one framework each
+## The two that are one framework each — both built by `W10-C`
 
 - **Pinnacle Kill-Ship** (`{7}` Artifact — Spacecraft). Station: tap another creature you control to
   put charge counters equal to its power on this, sorcery-speed only, and the permanent becomes an
   artifact creature at 7+ counters. Counters exist (`FW-COUNTERS`), tapping as a cost exists,
-  sorcery-speed activation exists (`TimingClass.SORCERY_SPEED`). What does not exist is **a
+  sorcery-speed activation exists (`TimingClass.SORCERY_SPEED`). What does not exist is ~~**a
   characteristic threshold keyed to a counter count** — "it's an artifact creature at 7+" is a layer
-  4 type change *and* a layer 7b P/T setting, both conditional on state.
+  4 type change *and* a layer 7b P/T setting, both conditional on state.~~
+
+  **Two thirds of that was wrong.** The layer-4 type change is real and is a *static ability of the
+  permanent* (CR 604.3) rather than an effect a resolving ability creates — `FW-TYPECHANGE` had put
+  layer 4 on the timed generator alone, so the field had to be added to the static declaration. The
+  layer-7b P/T setting is not merely unnecessary but **wrong**: a Spacecraft prints its 7/7 on the card
+  (CR 208.1b) and only the *creature type* arrives at seven counters, so what actually blocked the card
+  was `PrintedCharacteristics` asserting that only creature cards carry a P/T box. And "conditional on
+  state" was never a blocker at all: `FW-CONDSTATIC` had already made a static ability's condition a
+  live re-read on every characteristic computation. The one genuinely new thing was the **cost** —
+  "tap another creature you control" is a cost with a chosen object whose power the resolution then has
+  to read.
 - **Nyxborn Hydra** (`{X}{G}`, bestow `{X}{G}{G}`). Dropped once already by the X-costs packet, and
-  the diagnosis stands: bestow makes a creature card into an Aura spell that reverts to a creature
-  when unattached, and the card also needs the CR 614.1c "enters with X +1/+1 counters" replacement,
-  which the counters framework does not supply. Two frameworks, one card, two decks.
+  ~~the diagnosis stands~~ the diagnosis was right about *what* the card needs and wrong about how much
+  of it was missing. Of the five things bestow turns out to be, three were already built by the time
+  `W10-C` looked: entering attached (the Aura attachment read already went through the spec in force),
+  `{X}` on an alternative cost, and — the surprising one — "reverts to a creature when unattached",
+  which needs no rule of its own because the type change is *conditioned* on being attached and stops
+  applying the instant the host leaves, leaving CR 704.5m no Aura to act on.
+
+  The two that were real: CR 613 layer 4 gained type **removal** ("an Aura enchantment and not a
+  creature"), the first printed instance in the pool, and the CR 614.1c enters-with-counters
+  replacement, which cost one declaration and one line beside `entersTapped` at the entry seam. The
+  genuinely new seam is that **how a spell was cast now decides what it targets**: one card in hand
+  offers two casts and only the bestow one names a creature.
 
 ## Kaervek's Torch — the one that is blocked on purpose
 
@@ -138,12 +164,12 @@ treated as the gauntlet's last deck to reach playable, and prototype is the chea
 toward it.
 
 `W9-G` took that step and the one beside it: the deck's mainboard coverage moved 17 → 19 of 21, and
-what it now lacks is Pinnacle Kill-Ship (station) and Kaervek's Torch (a cost *increase* keyed on
-another spell's chosen targets). Both of those diagnoses were re-checked and both still stand.
+`W10-C` took it to 20 of 21 with Pinnacle Kill-Ship. What it now lacks is Kaervek's Torch alone (a
+cost *increase* keyed on another spell's chosen targets), whose diagnosis was re-checked and stands.
 
-Elves loses Avenging Hunter, Nyxborn Hydra, and Sagu Wildling; Spy Combo loses Sagu Wildling; Jund
-Wildfire loses Nyxborn Hydra. Those decks have enough else that they reach playable without these,
-with a slightly wrong top end.
+Elves loses Avenging Hunter and Sagu Wildling; Spy Combo loses Sagu Wildling. **Nyxborn Hydra was on
+both Elves' and Jund Wildfire's lists and is no longer missing from either** (`W10-C`). Those decks
+have enough else that they reach playable without the rest, with a slightly wrong top end.
 
 The three sideboard cards (Goliath Paladin, Fang Dragon, Weather the Storm) cost nothing until
 sideboarding exists, which is past the current milestone — the MVP is a single game, not a match.
