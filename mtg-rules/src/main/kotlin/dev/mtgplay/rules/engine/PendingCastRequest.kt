@@ -62,7 +62,7 @@ internal fun pendingCastRequest(
     val card =
         objectInZone(state, cast.caster, cast.source, cast.cardObjectId)
             ?: error("CR 601.2: pending cast's card ${cast.cardObjectId} is not in ${cast.caster}'s ${cast.source}")
-    val definition = spellDefinitionOf(state, card.card)
+    val definition = castDefinitionOf(state, card.card, cast.castingPermission)
     val id = DecisionRequestId(cast.caster, state.player(cast.caster).decisionsAnswered)
     return when {
         // CR 601.2b: modes first, and the precedence is load-bearing rather than ceremonial — a modal

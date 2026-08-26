@@ -76,6 +76,9 @@ internal fun legalPriorityOptions(
         // CR 118.5: cards an effect granted permission to *play* from exile (Reckless Impulse) — a
         // normal-cost cast or, for a land, the play-land special action.
         addAll(grantedExilePlayOptions(state, seat))
+        // CR 715.3d: a card exiled by its own Adventure resolving, which its controller may play from
+        // exile for as long as it stays there — the card's **normal** half, never the Adventure again.
+        addAll(adventureExilePlayOptions(state, seat))
         // CR 702.140: the plot special action, offered like a land play (sorcery timing).
         addAll(plotOptions(state, seat))
         // CR 602.1: activated abilities of the seat's permanents and (landcycling) hand cards.
@@ -98,11 +101,21 @@ private fun permissionCastOptions(
 ): List<PriorityOption.CastSpell> =
     objectsInZone(state, seat, source).flatMap { obj ->
         val definition = state.definitions[obj.card] as? SpellDefinition ?: return@flatMap emptyList()
-        definition.castingPermissions
+        // CR 715.3 / CR 720.3: the list includes the permission the engine synthesizes from a declared
+        // alternative face, so an Adventure or an Omen is offered by exactly the machinery flashback and
+        // escape go through — and gated against the **face's** definition, which is what CR 715.3a's
+        // "only the alternative characteristics are evaluated to see if it can be cast" means (`W10-B`).
+        castingPermissionsOf(definition)
             .filter { permission ->
                 permission.source == source &&
                     permission.offeredAtPriority &&
-                    permissionCastIsLegal(state, seat, definition, permission, obj)
+                    permissionCastIsLegal(
+                        state,
+                        seat,
+                        castDefinitionOf(state, obj.card, permission),
+                        permission,
+                        obj,
+                    )
             }.map { PriorityOption.CastSpell(obj.id, obj.card, source, it) }
     }
 
@@ -127,16 +140,55 @@ private fun grantedExilePlayOptions(
 ): List<PriorityOption> =
     objectsInZone(state, seat, CastSource.EXILE)
         .filter { playGrantMarkerAllows(state, it) }
-        .mapNotNull { obj ->
-            val definition = state.definitions[obj.card]
-            when {
-                definition is SpellDefinition && castIsLegal(state, seat, definition, obj.id, CastSource.EXILE) ->
-                    PriorityOption.CastSpell(obj.id, obj.card, CastSource.EXILE)
-                definition.isLand() && playLandIsLegal(state, seat) ->
-                    PriorityOption.PlayLand(obj.id, obj.card, CastSource.EXILE)
-                else -> null
-            }
-        }
+        .mapNotNull { obj -> exilePlayOption(state, seat, obj) }
+
+/**
+ * The priority-window options for the exile cards [seat] sent **on an adventure** (CR 715.3d) — Fang
+ * Dragon, exiled by its own *Forktail Sweep* resolving. One option per marked card, played at its
+ * printed cost. Additive (`W10-B`).
+ *
+ * **Not [permissionCastOptions] with another zone, and not a [dev.mtgplay.core.definition.CastingPermission]
+ * at all** — for [grantedExilePlayOptions]' reason twice over. The permission is granted by CR 715.3d
+ * rather than declared on the card, it costs the **printed** cost (nothing replaces it), and CR 715.3d
+ * is explicit that *"it can't be cast as an Adventure this way"*: the option is the card's normal half,
+ * so it is enumerated through [exilePlayOption]'s ordinary printed-cost path, which knows nothing about
+ * faces and therefore cannot offer one.
+ *
+ * The marker is read off the exiled object ([dev.mtgplay.core.state.GameObject.onAnAdventure]) and has
+ * no expiry to check: CR 715.3d's grant lasts *"for as long as that card remains exiled"*, and the
+ * marker leaves with the object the moment the card does (CR 400.7).
+ */
+private fun adventureExilePlayOptions(
+    state: GameState,
+    seat: PlayerId,
+): List<PriorityOption> =
+    objectsInZone(state, seat, CastSource.EXILE)
+        .filter { it.onAnAdventure }
+        .mapNotNull { obj -> exilePlayOption(state, seat, obj) }
+
+/**
+ * The one playable option for the exile card [obj] at its **printed** cost (CR 118.5, CR 601.2a,
+ * CR 715.3d), or `null` when it is not playable from this window — the shared body of the two exile
+ * scans above, which differ only in which marker admits a card to it.
+ *
+ * A spell is a normal-cost [PriorityOption.CastSpell] from [CastSource.EXILE]; a **land** is the
+ * play-land special action from exile, because both printed grants say *play* rather than *cast* and
+ * dropping the land half would silently delete every land the grant reaches.
+ */
+private fun exilePlayOption(
+    state: GameState,
+    seat: PlayerId,
+    obj: GameObject,
+): PriorityOption? {
+    val definition = state.definitions[obj.card]
+    return when {
+        definition is SpellDefinition && castIsLegal(state, seat, definition, obj.id, CastSource.EXILE) ->
+            PriorityOption.CastSpell(obj.id, obj.card, CastSource.EXILE)
+        definition.isLand() && playLandIsLegal(state, seat) ->
+            PriorityOption.PlayLand(obj.id, obj.card, CastSource.EXILE)
+        else -> null
+    }
+}
 
 /**
  * Whether the exile object [obj] still carries a live "you may play this" permission (CR 118.5) — it has

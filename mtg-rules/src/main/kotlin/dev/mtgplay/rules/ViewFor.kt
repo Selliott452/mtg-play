@@ -7,6 +7,7 @@ import dev.mtgplay.core.state.PendingTrigger
 import dev.mtgplay.core.state.PlayerState
 import dev.mtgplay.core.state.StackEntry
 import dev.mtgplay.core.state.resolutionClauses
+import dev.mtgplay.rules.engine.faceNameOf
 
 /**
  * The per-seat filtered view of [state] for [seat] (ADR-007) — the pure derivation of exactly what
@@ -122,6 +123,9 @@ private fun stackEntryViewOf(entry: StackEntry): StackEntryView =
                 card = entry.obj.card,
                 controller = entry.controller,
                 targets = entry.targets.toList(),
+                // CR 715.3b / CR 720.3b: a spell cast as a face has only the face's characteristics, and
+                // the stack is public (CR 405) — so which half is on it is a fact every seat may see.
+                castAsFace = faceNameOf(entry.castVia),
             )
 
         is StackEntry.Ability ->
