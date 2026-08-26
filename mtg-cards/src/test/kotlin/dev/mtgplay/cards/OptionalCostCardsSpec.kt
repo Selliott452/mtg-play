@@ -112,11 +112,15 @@ class OptionalCostCardsSpec :
             }
         }
 
-        "the two cards this packet was offered and could not encode stay absent" {
+        "the one card this packet was offered and could not encode stays absent" {
             // Kaervek's Torch needs a **cost increase** applied to another spell and keyed on that
-            // spell's chosen targets; Nyxborn Hydra needs bestow. Shipping either without its missing
-            // half would be a plausible-looking wrong card (PLAN.md §7) — see the packet report.
+            // spell's chosen targets. Shipping it without that half would be a plausible-looking wrong
+            // card (PLAN.md §7) — see the packet report.
             MvpCards.definitions[CardRef("Kaervek's Torch")].shouldBeNull()
-            MvpCards.definitions[CardRef("Nyxborn Hydra")].shouldBeNull()
+            // Nyxborn Hydra was the second of the pair and is **no longer absent**: `W10-C` built
+            // bestow (CR 702.103) and the CR 614.1c enters-with-counters replacement it also needed.
+            // The pin is inverted rather than deleted, so the day a packet claims to encode a card the
+            // registry still lacks, this line says so.
+            MvpCards.definitions[CardRef("Nyxborn Hydra")].shouldNotBeNull()
         }
     })

@@ -3,6 +3,7 @@ package dev.mtgplay.core.definition
 import dev.mtgplay.core.card.CardType
 import dev.mtgplay.core.card.Keyword
 import dev.mtgplay.core.card.Quality
+import dev.mtgplay.core.card.Subtype
 import kotlinx.collections.immutable.PersistentList
 import kotlinx.collections.immutable.PersistentSet
 import kotlinx.collections.immutable.persistentListOf
@@ -59,12 +60,24 @@ import kotlinx.collections.immutable.persistentSetOf
  *   stays an artifact. There is deliberately no `removedCardTypes` here either, and the reason is the
  *   same one and no weaker — no card in the gauntlet prints the removing form on a static ability, so
  *   the field would be an always-empty branch of the layer-4 application.
- * @property addedSubtypes deliberately absent, in the shape [addedCardTypes]'s note argues for. CR 613.1d
- *   is one layer for card types and subtypes alike and a static ability that granted a subtype would
- *   belong in it, but no gauntlet card prints one: the Spacecraft that gains a card type gains no
- *   subtype with it (it stays a Spacecraft, and "artifact creature" names types only). A field nothing
- *   sets would be an untested branch of the same fold, which is the objection this file already makes on
- *   the other side for evasions and mana abilities.
+ * @property removedCardTypes card types the affected object **loses** in CR 613 layer 4 (CR 613.1d) —
+ *   bestow's "it's an Aura enchantment **and not a creature**" (CR 702.103a). Additive, flagged core
+ *   (`W10-C`).
+ *
+ *   **The first removing type change in the engine**, and the field two packets declined to add for the
+ *   stated reason that no card printed the form. Bestow prints it, and it is not decoration: while a
+ *   bestowed permanent is an Aura it must not be able to attack, block, be targeted by removal that says
+ *   "creature", or die to a sweeper. Adding the Aura subtype without removing the creature type would
+ *   leave a 0/1 creature sitting in the combat enumeration, which is an enumerated-but-illegal action
+ *   (ADR-005) and the exact failure the union-only field was safe from only while nothing needed it.
+ *
+ *   Removal is applied **after** addition within layer 4, which is unobservable for every card that can
+ *   currently be written (no effect both adds and removes the same type) and is stated so that the day
+ *   one can, the answer is on the record rather than in the fold's iteration order.
+ * @property addedSubtypes subtypes the affected object gains in CR 613 layer 4 (CR 613.1d, CR 205.3) —
+ *   bestow's **Aura**. Additive, flagged core (`W10-C`). CR 613.1d is one layer for card types and
+ *   subtypes alike; this is a separate field only because a card may change one without the other, which
+ *   Pinnacle Kill-Ship (types, no subtype) and bestow (both) demonstrate in the same pool.
  * @property powerMod the layer-7c power modifier (CR 613.3 sublayer 7c), possibly [Magnitude.Zero].
  * @property toughnessMod the layer-7c toughness modifier (CR 613.3 sublayer 7c), possibly
  *   [Magnitude.Zero].
@@ -72,6 +85,8 @@ import kotlinx.collections.immutable.persistentSetOf
 data class StaticContinuousEffect(
     val affects: AffectedSet = AffectedSet.Enchanted,
     val addedCardTypes: PersistentSet<CardType> = persistentSetOf(),
+    val removedCardTypes: PersistentSet<CardType> = persistentSetOf(),
+    val addedSubtypes: PersistentSet<Subtype> = persistentSetOf(),
     val grantedKeywords: PersistentSet<Keyword> = persistentSetOf(),
     val grantedManaAbilities: PersistentList<ManaAbility> = persistentListOf(),
     val grantedProtections: PersistentSet<Quality> = persistentSetOf(),

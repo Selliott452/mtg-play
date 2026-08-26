@@ -276,7 +276,7 @@ private fun establishTargets(
     // For a modal spell these are the *chosen modes'* specs, one per mode (`FW-MODAL`, `W9-B`); for a
     // non-modal one it is the card's own line plus any additional lines it prints (`W9-C`). One helper
     // answers both, so the re-validation cannot disagree with the gathering about what a "line" is.
-    val lines = targetLinesOf(entry.definition, entry.chosenModes)
+    val lines = targetLinesOf(entry.definition, entry.chosenModes, entry.castVia)
     val byLine = targetLinesOf(entry)
     require(lines.size == byLine.size) {
         "CR 601.2c: ${entry.obj.card.name} has ${lines.size} targeting line(s) but recorded ${byLine.size}"

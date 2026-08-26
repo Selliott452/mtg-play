@@ -19,22 +19,30 @@ import kotlinx.collections.immutable.PersistentMap
  */
 
 /**
- * Layer 4 (CR 613.1d): unions [active]'s added card types and subtypes onto the object's type line.
+ * Layer 4 (CR 613.1d): unions [active]'s added card types and subtypes onto the object's type line, then
+ * removes the card types it takes away.
  *
- * **Union, not replacement, and CR 205.1b is the rule rather than a shortcut.** "That artifact becomes
- * a 0/0 Homunculus artifact creature" leaves the permanent an artifact — it gains the creature type and
- * the Homunculus subtype and loses nothing. The removing form ("is no longer a creature") has no field
- * on [ActiveEffect] to express it, so it cannot be written rather than being written and ignored.
+ * **Addition is a union and never a replacement, which is CR 205.1b rather than a shortcut.** "That
+ * artifact becomes a 0/0 Homunculus artifact creature" leaves the permanent an artifact — it gains the
+ * creature type and the Homunculus subtype and loses nothing.
  *
- * Additive like every other implemented contribution, which is what keeps the CR 613.7 within-layer
- * order unobservable *within layer 4*. A type change **can** create a CR 613.8 dependency across layers
- * — an effect that reads "creature you control" applies to a different set once this has run — and the
- * reason that is not yet a problem is narrower than "the effects commute": no continuous effect in the
- * pool selects its affected set by card type at all. See the header note on `Layers.kt`.
+ * **Removal is separate, explicit, and printed** (`W10-C`). Bestow says "it's an Aura enchantment and
+ * **not a creature**" (CR 702.103a), so the same effect both adds (the Aura subtype, the enchantment
+ * type it already has) and removes (creature). It is a second field rather than a "replace the type
+ * line" shape because CR 205.1b's default is still union: only the effects that say they remove
+ * something do, and a card that merely adds must not be able to express taking anything away.
+ *
+ * Additive contributions keep the CR 613.7 within-layer order unobservable *within layer 4*. Removal is
+ * not additive, and the ordering it needs is stated where it can be checked rather than left to the
+ * fold: an effect's removal is applied to that same effect's additions, and two effects still commute
+ * unless one adds what the other removes — a pairing no gauntlet card can produce. A type change **can**
+ * create a CR 613.8 dependency across layers; the reason that is not yet a problem is narrower than "the
+ * effects commute": no continuous effect in the pool selects its affected set by card type at all. See
+ * the header note on `Layers.kt`.
  */
 internal fun LayeredCharacteristics.retyping(active: ActiveEffect): LayeredCharacteristics =
     copy(
-        cardTypes = cardTypes.addingAll(active.addedCardTypes),
+        cardTypes = cardTypes.addingAll(active.addedCardTypes).removingAll(active.removedCardTypes),
         subtypes = subtypes.addingAll(active.addedSubtypes),
     )
 

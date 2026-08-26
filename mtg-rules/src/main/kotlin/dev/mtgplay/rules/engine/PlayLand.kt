@@ -87,6 +87,11 @@ internal fun completePlayLand(
         card.copy(
             id = id,
             tapped = entersTappedNow(allocated, player, definition),
+            // CR 614.1c again, at the other seam the sibling clause is read: a land is played rather
+            // than cast (CR 305.1), so there is no announcement and X is zero (CR 107.3b). No gauntlet
+            // land prints the clause; reading it here is what keeps the two entry paths from disagreeing
+            // about a rule they both implement.
+            counters = entersWithCountersNow(definition, 0),
             // CR 614.12: the colour chosen as this land entered (the Gates), or null.
             chosenColor = chosenColor,
             // CR 400.7 again: the play permission that let this land be played from exile does not

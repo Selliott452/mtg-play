@@ -49,6 +49,9 @@ private fun permissionName(permission: CastingPermission): String =
         is CastingPermission.Prototype ->
             "prototype ${permission.cost.render()} — ${permission.power}/${permission.toughness}"
         CastingPermission.Cascade -> "cascade (no mana cost)"
+        // CR 702.103b: the bestow cast's whole point is that the spell is a *different kind of spell*,
+        // so the label says so — the two options this card offers differ in what they target.
+        is CastingPermission.Bestow -> "bestow ${permission.cost.render()} (as an Aura)"
     }
 
 /** The zone a cast draws from (CR 601.2a). */

@@ -26,6 +26,29 @@ import dev.mtgplay.core.state.Counter
  */
 sealed interface StaticCondition {
     /**
+     * "As long as this permanent is **attached to a creature**" (CR 604.3, CR 702.103a) — the condition
+     * on bestow's battlefield static ability, and the reason a bestowed permanent is an Aura at all.
+     * Additive, flagged core (`W10-C`).
+     *
+     * **The whole of CR 702.103c is this condition failing.** When the enchanted creature leaves the
+     * battlefield, or stops being a creature, the condition stops holding — continuously, with no
+     * trigger, no stack and no player receiving priority (CR 604.3) — so the permanent stops being an
+     * Aura and is a creature again in the same instant. That is why bestow needs no rule of its own
+     * about graveyards: CR 704.5m acts on Auras, and at the moment the state-based actions are checked
+     * there is no longer an Aura to act on. Encoding the same text as a triggered ability, or as a
+     * one-shot type change, would put the permanent in a graveyard on the first check, which is the
+     * plausible-looking wrong card CONVENTIONS.md forbids.
+     *
+     * A `data object` with no host restriction, for [CountersOnSelf]'s inverse reason: the restriction
+     * is not a per-card choice. CR 702.103b writes "enchant creature" into the keyword, so every bestow
+     * card ever printed asks this one question, and a filter here would be a field with one value.
+     *
+     * "Attached to a creature" is the **layered** read (CR 613 layer 4): a permanent whose host was
+     * animated counts, and one whose host stopped being a creature does not.
+     */
+    data object AttachedToCreature : StaticCondition
+
+    /**
      * "As long as this permanent has [atLeast] or more [counter] counters on it" (CR 604.3, CR 122.6) —
      * Pinnacle Kill-Ship's **7+**, the threshold Station's counters climb towards. Additive, flagged
      * core (`W10-C`).

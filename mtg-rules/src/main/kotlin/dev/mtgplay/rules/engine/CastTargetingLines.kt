@@ -71,7 +71,7 @@ internal fun advanceTargetingLines(
     definition: SpellDefinition,
 ): PendingCast {
     val modes = cast.chosenModes ?: return cast
-    val specs = effectiveTargetSpecs(definition, modes)
+    val specs = effectiveTargetSpecs(definition, modes, cast.castingPermission)
     var settled = cast
     while (settled.modeTargets.size < specs.size &&
         targetChoiceIsVacuous(
@@ -130,7 +130,7 @@ internal fun targetLinesOf(entry: StackEntry.Spell): List<List<Target>> =
         // `W9-C`: a non-modal card may still print "target" more than once (Searing Blaze), in which
         // case the flat recorded list is sliced by the lines' own fixed widths. A single-line card
         // slices to exactly itself, so the two shapes stay one code path.
-        targetsByLine(targetLinesOf(entry.definition, entry.chosenModes), entry.targets)
+        targetsByLine(targetLinesOf(entry.definition, entry.chosenModes, entry.castVia), entry.targets)
     } else {
         entry.modeTargets
     }
@@ -149,7 +149,12 @@ internal fun castTargetLinesSettled(
     cast: PendingCast,
 ): Boolean =
     if (definition.modes.isEmpty()) {
-        targetLinesSettled(targetLinesOf(definition, cast.chosenModes.orEmpty()), cast.chosenTargets)
+        targetLinesSettled(
+            targetLinesOf(definition, cast.chosenModes.orEmpty(), cast.castingPermission),
+            cast.chosenTargets,
+        )
     } else {
-        cast.chosenModes?.let { cast.modeTargets.size == effectiveTargetSpecs(definition, it).size } ?: false
+        cast.chosenModes?.let {
+            cast.modeTargets.size == effectiveTargetSpecs(definition, it, cast.castingPermission).size
+        } ?: false
     }

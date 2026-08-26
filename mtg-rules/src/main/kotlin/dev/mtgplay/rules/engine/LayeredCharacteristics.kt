@@ -179,8 +179,11 @@ private fun staticEffectsOn(
                     grantedManaAbilities = effect.grantedManaAbilities,
                     grantedProtections = effect.grantedProtections,
                     // CR 613.1d: a static ability may change types too (`W10-C`) — the Spacecraft that
-                    // "is an artifact creature at 7+" while its condition holds.
+                    // "is an artifact creature at 7+" while its condition holds, and the bestowed
+                    // permanent that "is an Aura enchantment and not a creature" while attached.
                     addedCardTypes = effect.addedCardTypes,
+                    addedSubtypes = effect.addedSubtypes,
+                    removedCardTypes = effect.removedCardTypes,
                     powerMod = effect.powerMod,
                     toughnessMod = effect.toughnessMod,
                     timestamp = source.id.value,
@@ -285,7 +288,29 @@ private fun conditionHolds(
         // off the [GameObject] rather than through the layer system on purpose — counters are state, not
         // characteristics, so nothing here can recurse back into the walk that called it.
         is StaticCondition.CountersOnSelf -> source.counterCount(condition.counter) >= condition.atLeast
+        // CR 604.3 with CR 702.103a: bestow's "as long as this permanent is attached to a creature".
+        StaticCondition.AttachedToCreature -> attachedToCreature(state, source)
     }
+
+/**
+ * Whether [source] is attached to a permanent that is a creature **right now** (CR 702.103a) — the
+ * bestow condition, and the one place the layer walk asks a question about another object's type line.
+ *
+ * The creature read is layered (CR 613 layer 4), so a bestowed permanent stays an Aura on an animated
+ * host and stops being one the instant its host stops being a creature. That is a *cross-object* read
+ * inside the effect-collection step, which is worth naming because it is the first: it terminates
+ * because the host's own layer walk cannot reach back to [source] — no effect in the pool conditions on
+ * being *enchanted*, only on enchanting — and it would not terminate if one did. The day a card prints
+ * the other direction, this is the read that has to grow a CR 613.8 dependency answer.
+ */
+private fun attachedToCreature(
+    state: GameState,
+    source: GameObject,
+): Boolean {
+    val attachedTo = source.attachedTo
+    val host = state.sharedZones.battlefield.firstOrNull { it.id == attachedTo }
+    return host != null && isCreature(state, host)
+}
 
 /** The controller of [source] (CR 108.4); ownership across this pool. */
 private fun controllerOf(source: GameObject): PlayerId = source.owner

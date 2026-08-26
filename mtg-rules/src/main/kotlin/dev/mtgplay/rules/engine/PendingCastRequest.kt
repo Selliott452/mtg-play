@@ -116,7 +116,7 @@ private fun targetsRequestFor(
     // for a modal card (`W9-B`), one per printed line for an ordinary one (`W9-C`). Both shapes read
     // the same line list, and the cursor differs only in where the answers are recorded: a modal card
     // keeps them per mode, an ordinary one appends to a flat list.
-    val lines = targetLinesOf(definition, cast.chosenModes.orEmpty())
+    val lines = targetLinesOf(definition, cast.chosenModes.orEmpty(), cast.castingPermission)
     val cursor =
         if (definition.modes.isEmpty()) {
             firstUnsettledLine(lines, cast.chosenTargets.orEmpty()) ?: 0

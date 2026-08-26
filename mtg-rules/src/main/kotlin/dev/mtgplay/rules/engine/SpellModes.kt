@@ -1,5 +1,7 @@
 package dev.mtgplay.rules.engine
 
+import dev.mtgplay.core.definition.CastingPermission
+import dev.mtgplay.core.definition.EnchantRestriction
 import dev.mtgplay.core.definition.ResolutionEffect
 import dev.mtgplay.core.definition.SpellDefinition
 import dev.mtgplay.core.definition.SpellMode
@@ -83,9 +85,13 @@ internal fun someModeIsCastable(
     definition: SpellDefinition,
     seat: PlayerId,
     chooser: Chooser,
+    castVia: CastingPermission? = null,
 ): Boolean =
     when {
-        definition.modes.isEmpty() -> targetsAvailable(state, definition.targetSpec, seat, chooser)
+        // CR 702.103b (`W10-C`): the spec asked about is the one the *cast* puts in force, not the one
+        // printed on the card — a card cast for its bestow cost is an Aura spell and needs a creature to
+        // enchant, so a board with none makes that cast unavailable while the ordinary cast stays legal.
+        definition.modes.isEmpty() -> targetsAvailable(state, specInForce(definition, castVia), seat, chooser)
         // CR 700.2: an "up to N" card may choose *no* modes, so it is castable whatever the board looks
         // like — Call Damage Control with an empty graveyard is a legal cast that resolves doing
         // nothing, and binning it to bait a counter is a real line the engine must not delete (ADR-005).
@@ -111,11 +117,42 @@ internal fun someModeIsCastable(
 internal fun effectiveTargetSpecs(
     definition: SpellDefinition,
     chosenModes: List<Int>,
+    castVia: CastingPermission? = null,
 ): List<TargetSpec> =
     if (definition.modes.isEmpty()) {
-        listOf(definition.targetSpec)
+        listOf(specInForce(definition, castVia))
     } else {
         chosenSpellModes(definition, chosenModes).map { it.targetSpec }
+    }
+
+/**
+ * The single printed targeting line of a **non-modal** card, as the way it is being cast puts it in force
+ * (CR 115, CR 702.103b) — the card's own [SpellDefinition.targetSpec], except for a card being cast for
+ * its **bestow** cost, which is an Aura spell with enchant creature whatever its type line says.
+ *
+ * **One card, two target specs, decided by the cost paid** (`W10-C`). This is the first time in the
+ * engine that *how* a spell was cast changes *what it targets*, and it is why the permission is threaded
+ * through the whole targeting seam rather than read once: CR 601.2c's enumeration, the re-validation, the
+ * CR 608.2b re-check and the CR 303.4f attachment must all ask the same question, and a Nyxborn Hydra
+ * cast normally targets nothing while the same card cast for bestow must name a creature.
+ *
+ * A modal card never reaches here: no card prints both modes and bestow, and [effectiveTargetSpecs]
+ * keeps the two shapes apart so that combination would need an answer rather than getting a silent one.
+ *
+ * `null` [castVia] is an ordinary cast from hand, and every other permission leaves the printed spec
+ * alone — flashback, madness, escape and the rest change where the card is cast from and what it costs,
+ * never what kind of spell it is.
+ */
+private fun specInForce(
+    definition: SpellDefinition,
+    castVia: CastingPermission?,
+): TargetSpec =
+    if (castVia is CastingPermission.Bestow) {
+        // CR 702.103b: "an Aura spell with enchant creature" — the restriction is written into the
+        // keyword, so it is the same for every bestow card ever printed.
+        TargetSpec.Enchantable(EnchantRestriction.CREATURE)
+    } else {
+        definition.targetSpec
     }
 
 /**
@@ -130,8 +167,9 @@ internal fun effectiveTargetSpecs(
 internal fun effectiveTargetSpec(
     definition: SpellDefinition,
     chosenModes: List<Int>,
+    castVia: CastingPermission? = null,
 ): TargetSpec {
-    val specs = effectiveTargetSpecs(definition, chosenModes)
+    val specs = effectiveTargetSpecs(definition, chosenModes, castVia)
     return specs.singleOrNull()
         ?: error(
             "CR 115: ${definition.characteristics.name} has ${specs.size} targeting lines, but this " +

@@ -57,6 +57,7 @@ object CreatureType {
             Flagbearer
             Giant
             Goblin
+            Hydra
             Golem
             Homunculus
             Horror

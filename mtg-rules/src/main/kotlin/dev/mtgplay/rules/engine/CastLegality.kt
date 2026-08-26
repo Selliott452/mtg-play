@@ -42,7 +42,7 @@ internal fun targetsAndCostAvailable(
     // CR 601.2b–c: "its targets are available" means *some mode's* targets for a modal card (`FW-MODAL`).
     // The card is always a real object here — every caller names one — so it is a [Chooser.Spell] and
     // CR 702.16b has a source to test (CR 113.7c: a spell is its own source).
-    someModeIsCastable(state, definition, seat, Chooser.Spell(self)) &&
+    someModeIsCastable(state, definition, seat, Chooser.Spell(self), permission) &&
         // CR 601.2c for a card printing the word "target" more than once (`W9-C`, Searing Blaze): a
         // **search for a satisfying assignment**, not a per-line conjunction. Asking each line
         // independently says yes on a board whose only creature belongs to a seat the first line could
@@ -53,7 +53,12 @@ internal fun targetsAndCostAvailable(
         // shapes at once, so this guard is the same mutual exclusion stated at the call site.
         (
             definition.modes.isNotEmpty() ||
-                targetLinesSatisfiable(state, targetLinesOf(definition, emptyList()), seat, Chooser.Spell(self))
+                targetLinesSatisfiable(
+                    state,
+                    targetLinesOf(definition, emptyList(), permission),
+                    seat,
+                    Chooser.Spell(self),
+                )
         ) &&
 
         additionalSacrificeSatisfiable(state, seat, definition) &&

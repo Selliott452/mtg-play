@@ -621,6 +621,7 @@ object MvpCards {
             plains,
             ponder,
             pyroblast,
+            nyxbornHydra,
             pinnacleKillShip,
             preordain,
             priestOfTitania,

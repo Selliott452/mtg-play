@@ -113,6 +113,23 @@ interface CardDefinition {
     val entersTapped: EntersTapped get() = EntersTapped.Never
 
     /**
+     * This permanent's CR 614.1c "enters with N counters on it" self-replacement, or `null` for the many
+     * permanents that enter with none. Additive, flagged core (`W10-C`) — Nyxborn Hydra's "This
+     * permanent enters with X `+1/+1` counters on it".
+     *
+     * [entersTapped]'s sibling in every structural respect: the same rule (CR 614.1c), the same reason
+     * for being a declared property rather than a [ReplacementEffect] member, and the same seam in
+     * `mtg-rules` — both are read while the entering [dev.mtgplay.core.state.GameObject] is being
+     * constructed, before it joins the battlefield. Nullable rather than a "none" member because,
+     * unlike a tapped status, there is no counter multiset that means "no clause": an empty one would
+     * be indistinguishable from a clause that placed nothing.
+     *
+     * See [EntersWithCounters] for why this is a replacement and not a trigger — the short version is
+     * that a 0/1 Hydra with a trigger is a 0/0 that dies to CR 704.5f before its counters arrive.
+     */
+    val entersWithCounters: EntersWithCounters? get() = null
+
+    /**
      * Whether this permanent also untaps during the untap step of **each player other than its
      * controller** (CR 502.2) — Bender's Waterskin's "Untap this artifact during each other player's
      * untap step". `false` for every permanent that untaps only in its controller's untap step, which is
