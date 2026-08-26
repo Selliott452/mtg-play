@@ -3,6 +3,7 @@ package dev.mtgplay.cards
 import dev.mtgplay.core.card.CardType
 import dev.mtgplay.core.card.Keyword
 import dev.mtgplay.core.card.Subtype
+import dev.mtgplay.core.definition.CounterAmount
 import dev.mtgplay.core.definition.DungeonRoom
 import dev.mtgplay.core.definition.DungeonRoomAbility
 import dev.mtgplay.core.definition.LibraryLookMode
@@ -11,11 +12,15 @@ import dev.mtgplay.core.definition.LibrarySearchFilter
 import dev.mtgplay.core.definition.ManaAbilityCost
 import dev.mtgplay.core.definition.PermanentRestriction
 import dev.mtgplay.core.definition.ResolutionContext
+import dev.mtgplay.core.definition.RevealDisposition
+import dev.mtgplay.core.definition.RevealedCardFilter
 import dev.mtgplay.core.definition.TargetSpec
+import dev.mtgplay.core.definition.TriggerCondition
 import dev.mtgplay.core.identity.CardRef
 import dev.mtgplay.core.identity.ObjectId
 import dev.mtgplay.core.identity.PlayerId
 import dev.mtgplay.core.mana.Color
+import dev.mtgplay.core.mana.ManaCost
 import dev.mtgplay.core.mana.ManaType
 import dev.mtgplay.core.random.Rng
 import dev.mtgplay.core.state.Counter
@@ -27,8 +32,8 @@ import dev.mtgplay.core.state.Target
 import dev.mtgplay.core.state.Turn
 import dev.mtgplay.core.state.TurnPhase
 import io.kotest.core.spec.style.StringSpec
+import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContainExactly
-import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
@@ -36,12 +41,14 @@ import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.persistentMapOf
 
 /**
- * The Undercity (CR 309) as printed, and the drop of the two cards that enter it — `W10-A`.
+ * The Undercity (CR 309) as printed, and the two cards that enter it — `W10-A`, finished by `W11`.
  *
- * Every assertion here reads a printed line off the dungeon card. The two [DungeonRoomAbility.Unimplemented]
- * rooms are pinned **by name**, so the packet that implements goad and Throne of the Dead Three has to
- * delete assertions here on its way to registering Avenging Hunter and Goliath Paladin — the gap cannot
- * be closed silently, and it cannot be widened silently either.
+ * Every assertion here reads a printed line off the dungeon card. `W10-A` pinned the two
+ * [DungeonRoomAbility.Unimplemented] rooms **by name** and pinned both cards' absence, so that the
+ * packet implementing goad and Throne of the Dead Three had to delete assertions on its way to
+ * registering them rather than discovering the gap in a game. `W11` did exactly that, and the pins now
+ * point the other way: no room is unimplemented, both cards are registered, and neither fact can
+ * change back silently.
  */
 class InitiativeSpec :
     StringSpec({
@@ -137,34 +144,79 @@ class InitiativeSpec :
             printed.colors shouldContainExactly setOf(Color.BLACK)
         }
 
-        "CR 309.5: exactly Arena and Throne of the Dead Three are unimplemented" {
-            undercity.unimplementedRooms.map(DungeonRoom::name) shouldContainExactly
-                listOf("Arena", "Throne of the Dead Three")
+        "CR 309.5: every Undercity room now runs — the dungeon has no unimplemented rooms" {
+            // `W10-A` pinned Arena and Throne of the Dead Three here by name, and pinned both cards'
+            // absence below. `W11` implemented the two rooms, so this is the same assertion in the
+            // opposite direction: the gap cannot reopen silently either.
+            undercity.unimplementedRooms.shouldBeEmpty()
         }
 
-        "the drop is recorded: Arena needs an attack requirement and a duration the engine lacks" {
-            val arena = unimplemented("Arena")
-            arena.printed shouldBe "Goad target creature."
-            arena.diagnosis shouldBe
-                "CR 701.38a: goad is an attack *requirement* (CR 508.1d) lasting until the goading " +
-                "player's next turn. The engine has no attack-requirement framework — " +
-                "eligibleAttackers publishes a free subset and DecisionValidation accepts any " +
-                "distinct subset of it — and no 'until your next turn' EffectDuration, which the " +
-                "CR 514.2 cleanup could not end anyway since it outlives the turn it began in"
+        "CR 701.38a: Arena goads target creature, recording who goaded and when" {
+            ability("Arena").targetSpec shouldBe TargetSpec.TargetPermanent(PermanentRestriction.CREATURE)
+            val goaded =
+                ability("Arena").effect.resolve(
+                    boardWithBear(),
+                    ResolutionContext(alice, persistentListOf(Target.Permanent(BEAR_ID))),
+                )
+            val bear = goaded.sharedZones.battlefield.single()
+            // "Goad target creature", not "target creature an opponent controls": the venturing player
+            // may point it at their own, and the goader is recorded because CR 701.38a's second half
+            // names them — vacuous at two seats, but not dropped.
+            bear.goadedBy shouldBe alice
+            bear.goadedOnTurn shouldBe goaded.turn.number
         }
 
-        "the drop is recorded: Throne of the Dead Three needs four absent frameworks" {
-            unimplemented("Throne of the Dead Three").printed shouldBe
-                "Reveal the top ten cards of your library. Put a creature card from among them onto " +
-                "the battlefield with three +1/+1 counters on it. It gains hexproof until your " +
-                "next turn. Then shuffle."
+        "CR 701.16: Throne reveals ten and puts one creature card onto the battlefield" {
+            val reveal = ability("Throne of the Dead Three").libraryReveal.shouldNotBeNull()
+            reveal.count shouldBe 10
+            reveal.toHand shouldBe RevealedCardFilter.CREATURE_CARD
+            // "Put *a* creature card": exactly one, and no legal way to decline (ADR-005).
+            reveal.toHandCount shouldBe 1
+            reveal.mandatory shouldBe true
+            // "Then shuffle": the nine it did not take never left the library, and are shuffled back
+            // into obscurity rather than binned.
+            reveal.disposition shouldBe RevealDisposition.CHOSEN_TO_BATTLEFIELD_REST_SHUFFLED
         }
 
-        "Avenging Hunter and Goliath Paladin are not registered while the Undercity is incomplete" {
-            // Both print "When this creature enters, you take the initiative", which works — but the
-            // dungeon that line walks you into cannot be finished, and the last room is unavoidable.
-            MvpCards.definitions[CardRef("Avenging Hunter")].shouldBeNull()
-            MvpCards.definitions[CardRef("Goliath Paladin")].shouldBeNull()
+        "CR 614.1c: Throne's creature enters *with* three +1/+1 counters, and gains hexproof" {
+            val reveal = ability("Throne of the Dead Three").libraryReveal.shouldNotBeNull()
+            val counters = reveal.entersWithCounters.shouldNotBeNull()
+            counters.counter shouldBe Counter.PLUS_ONE_PLUS_ONE
+            // A replacement of the entering event, not a placement afterwards: the creature is never on
+            // the battlefield as a counterless body.
+            counters.amount shouldBe CounterAmount.Fixed(3)
+            reveal.grantedUntilYourNextTurn shouldContainExactly setOf(Keyword.HEXPROOF)
+        }
+
+        "CR 701.51a: Avenging Hunter is a 5/4 Elf Ranger with trample that takes the initiative" {
+            val printed = avengingHunter.characteristics
+            printed.manaCost shouldBe ManaCost.parse("{4}{G}")
+            printed.powerToughness.shouldNotBeNull().power shouldBe 5
+            printed.powerToughness.shouldNotBeNull().toughness shouldBe 4
+            printed.keywords shouldContainExactly setOf(Keyword.TRAMPLE)
+            // The snapshot's type line, which is the repo's pinned authority (`W11` briefly changed it
+            // to Elf on a misread coordinator note; see the card's KDoc). The subtype is load-bearing
+            // either way — Elves counts Elves with Priest of Titania, Timberwatch Elf and Wellwisher
+            // (CR 205.3m) — so this assertion is what would catch a silent change in either direction.
+            printed.subtypes shouldContainExactly setOf(Subtype("Dragon"), Subtype("Ranger"))
+            avengingHunter.triggeredAbilities.single().condition shouldBe TriggerCondition.EnteredBattlefieldSelf
+        }
+
+        "CR 701.51a: Goliath Paladin is a 3/6 Giant Knight with vigilance that takes the initiative" {
+            val printed = goliathPaladin.characteristics
+            printed.manaCost shouldBe ManaCost.parse("{4}{W}")
+            printed.powerToughness.shouldNotBeNull().power shouldBe 3
+            printed.powerToughness.shouldNotBeNull().toughness shouldBe 6
+            // CR 702.21b with CR 701.51c: the initiative passes to an opponent who deals combat damage
+            // to its holder, so attacking without tapping is what the card is for.
+            printed.keywords shouldContainExactly setOf(Keyword.VIGILANCE)
+            printed.subtypes shouldContainExactly setOf(Subtype("Giant"), Subtype("Knight"))
+            goliathPaladin.triggeredAbilities.single().condition shouldBe TriggerCondition.EnteredBattlefieldSelf
+        }
+
+        "CR 701.51a: both initiative cards are registered, now that the dungeon can be walked" {
+            MvpCards.definitions[CardRef("Avenging Hunter")] shouldBe avengingHunter
+            MvpCards.definitions[CardRef("Goliath Paladin")] shouldBe goliathPaladin
         }
     })
 
@@ -204,9 +256,6 @@ private fun leadsTo(room: String): List<String> = roomNamed(room).successors.map
 
 /** The triggered ability [room] runs on entry (CR 309.5); fails if the room is unimplemented. */
 private fun ability(room: String) = roomNamed(room).ability.shouldBeInstanceOf<DungeonRoomAbility.Runs>().ability
-
-/** The recorded gap of an unimplemented [room] (CR 309.5). */
-private fun unimplemented(room: String) = roomNamed(room).ability.shouldBeInstanceOf<DungeonRoomAbility.Unimplemented>()
 
 /** The Undercity room printed as [room]; fails loudly if the graph no longer has it. */
 private fun roomNamed(room: String): DungeonRoom =

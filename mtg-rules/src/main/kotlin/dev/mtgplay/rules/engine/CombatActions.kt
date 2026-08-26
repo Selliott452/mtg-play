@@ -218,6 +218,9 @@ private fun declareAttackersRequest(
     return DecisionRequest.DeclareAttackers(
         id = DecisionRequestId(active, state.player(active).decisionsAnswered),
         options = options,
+        // CR 508.1d: a goaded creature that is able to attack must (CR 701.38a). Derived from the same
+        // [eligible] list the options come from, so "able" and "on offer" are one predicate.
+        required = attackRequirementsFor(eligible),
     )
 }
 

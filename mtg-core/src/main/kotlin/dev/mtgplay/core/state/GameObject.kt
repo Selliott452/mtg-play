@@ -279,6 +279,30 @@ import kotlinx.collections.immutable.persistentSetOf
  *   `false` on the fresh object born of any later zone move (CR 400.7), which is what stops a card
  *   played off its adventure and later exiled again from still being playable. The acceptance
  *   invariant checker enforces the scope.
+ * @property goadedBy the player who **goaded** this creature (CR 701.38a) — the Undercity's Arena,
+ *   *"Goad target creature."* — or `null`, which is every permanent that was never goaded. Additive,
+ *   flagged core (`W11`), and set together with [goadedOnTurn] or not at all.
+ *
+ *   **Goad lives on the object rather than in a continuous-effect store, and CR 400.7 is why.** It is
+ *   not a characteristic: it changes no power, grants no ability, and classifies into no CR 613 layer,
+ *   so [ContinuousModification] has nowhere to put it and the layer engine has nothing to do with it.
+ *   What it *is* is a requirement on a future declaration (CR 508.1d), attached to one permanent, that
+ *   ends the moment that permanent stops being that permanent — a goaded creature that dies and is
+ *   returned comes back ungoaded, because the returning permanent is a different object. A field gets
+ *   that for free; a store keyed on an object id would have had to be told.
+ *
+ *   **The goading player is recorded, not derived**, unlike [playGrantedTurn]'s grantee: "Goad target
+ *   creature" may be pointed at either side, so the goader is neither the permanent's owner nor its
+ *   owner's opponent as a rule. The second half of CR 701.38a — *"attacks a player other than the
+ *   goading player if able"* — is what needs the name, and in a two-player game it is satisfied
+ *   trivially whichever way it points (see `attackRequirements`).
+ * @property goadedOnTurn the turn number [goadedBy] goaded this creature on (CR 701.38a), or `null`
+ *   when it is not goaded. Additive, flagged core (`W11`).
+ *
+ *   **The beginning of the window, not its end**, for [playGrantedTurn]'s reason and read through the
+ *   same shared derivation: goad lasts "until your next turn", which cannot be named as a turn number
+ *   without predicting the turn order. [EffectDuration.UntilYourNextTurn.hasEnded] combines the two
+ *   fields into the expiry, and `endUntilYourNextTurnEffects` clears them the instant it says so.
  */
 data class GameObject(
     val id: ObjectId,
@@ -305,6 +329,8 @@ data class GameObject(
     val optionalCostPaidWhenCast: Boolean = false,
     val enteredTurn: Int? = null,
     val onAnAdventure: Boolean = false,
+    val goadedBy: PlayerId? = null,
+    val goadedOnTurn: Int? = null,
 ) {
     init {
         require(damageMarked >= 0) { "CR 120.3: marked damage is non-negative, was $damageMarked" }
@@ -328,6 +354,11 @@ data class GameObject(
         require(linkedExiled.distinct().size == linkedExiled.size) {
             "CR 607.2: a linked exile record names each exiled object once, got $linkedExiled"
         }
+        require((goadedBy == null) == (goadedOnTurn == null)) {
+            "CR 701.38a: a goad records both who goaded and when, got goadedBy=$goadedBy " +
+                "goadedOnTurn=$goadedOnTurn"
+        }
+        require(goadedOnTurn == null || goadedOnTurn >= 1) { "CR 701.38a: a goad turn is a real turn number" }
         require(counters.values.all { it > 0 }) {
             "CR 122.1: a counter multiset records only counters that are present; a kind with a " +
                 "non-positive count must be absent, got $counters"

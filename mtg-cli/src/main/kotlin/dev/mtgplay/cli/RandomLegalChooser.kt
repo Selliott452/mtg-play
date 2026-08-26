@@ -41,7 +41,11 @@ class RandomLegalChooser(
             // threshold, so a run explores different payments of the same cost.
             is DecisionRequest.SummedSelection -> multi(request.id, summedPayment(request))
             is DecisionRequest.PermutationSelection -> multi(request.id, permutation(request.permutationSize))
-            is DecisionRequest.DeclareAttackers -> multi(request.id, anySizeSubset(request.options.size))
+            // CR 508.1/508.1d: a random subset, plus every attacker the declaration is *required* to
+            // include (CR 701.38a). A chooser that can produce an illegal answer is worse than useless
+            // to the fuzz harness — the crash it reports would be its own.
+            is DecisionRequest.DeclareAttackers ->
+                multi(request.id, (anySizeSubset(request.options.size).toSet() + request.requiredIndices).sorted())
             is DecisionRequest.DeclareBlockers -> multi(request.id, blockAssignment(request.options))
             is DecisionRequest.MulliganRequest -> mulligan(request)
         }

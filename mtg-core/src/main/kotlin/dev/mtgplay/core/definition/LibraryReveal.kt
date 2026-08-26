@@ -1,5 +1,9 @@
 package dev.mtgplay.core.definition
 
+import dev.mtgplay.core.card.Keyword
+import kotlinx.collections.immutable.PersistentSet
+import kotlinx.collections.immutable.persistentSetOf
+
 /**
  * A "reveal the top N cards, put up to M matching cards into your hand, the rest into your graveyard"
  * effect (CR 701.16, CR 707) — Malevolent Rumble's "Reveal the top four cards of your library. You may
@@ -19,19 +23,95 @@ package dev.mtgplay.core.definition
  * @property toHand which revealed cards may be put into the hand; the rest go to the graveyard in order.
  * @property toHandCount the **maximum** number of matching cards that may be put into the hand — the
  *   "up to M" of the oracle text (Malevolent Rumble's one, Kruphix's Insight's three). Keeping fewer
- *   (including none) is always legal, since every MVP reveal clause is a "you may"/"up to".
+ *   (including none) is always legal for a "you may"/"up to" line; see [mandatory].
+ * @property disposition where the chosen cards go and what becomes of the rest (CR 701.16) — the axis
+ *   that separates the hand-and-graveyard family from Throne of the Dead Three. Additive, flagged core
+ *   (`W11`); [RevealDisposition.CHOSEN_TO_HAND_REST_TO_GRAVEYARD] for every client before it.
+ * @property mandatory whether the printed line says "**Put** a … card" rather than "you **may** put"
+ *   (CR 701.16) — Throne of the Dead Three's *"Put a creature card from among them onto the
+ *   battlefield"*. Additive, flagged core (`W11`); `false` for every "up to" line, which is every
+ *   client before it.
+ *
+ *   **The engine stops offering "keep none" when this is set, and that is the whole of it** (ADR-005).
+ *   A mandatory instruction with a matching card revealed has no legal way to decline, so offering the
+ *   decline would be an illegal line the engine enumerated — the failure ADR-005 names first. It does
+ *   not make the *pause* mandatory: with no matching card among the revealed ones nothing is chosen,
+ *   which is CR 608.2's "do as much as you can" and not a violation of the instruction.
+ * @property entersWithCounters the CR 614.1c counters a chosen card **enters the battlefield with**,
+ *   or `null` — Throne of the Dead Three's *"with three `+1/+1` counters on it"*. Additive, flagged
+ *   core (`W11`); meaningful only with a battlefield [disposition].
+ *
+ *   **The effect's replacement, not the permanent's own, and both apply.** [CardDefinition.entersWithCounters]
+ *   is a self-replacement the card prints about itself; this is one the *moving effect* creates
+ *   (CR 614.1c covers both), so a card with its own clause put onto the battlefield this way gets both
+ *   sets. Reusing the same type rather than inventing a second is what keeps "enters with counters"
+ *   one concept — and it gives [CounterAmount.Fixed], which the gauntlet's self-replacements never
+ *   print, its first real client.
+ * @property grantedUntilYourNextTurn keywords a chosen card **gains until its controller's next turn**
+ *   once it is on the battlefield (CR 611.2, CR 613.1f) — Throne of the Dead Three's *"It gains
+ *   hexproof until your next turn."* Additive, flagged core (`W11`); empty for every other client, and
+ *   meaningful only with a battlefield [disposition].
+ *
+ *   Part of the reveal clause rather than a separate [ResolutionEffect] because it names *the card
+ *   chosen mid-resolution* — an object the definition's pure effect has no way to refer to, since it
+ *   did not exist when the effect ran (ADR-004).
  */
 data class LibraryReveal(
     val count: Int,
     val toHand: RevealedCardFilter,
     val toHandCount: Int = 1,
+    val disposition: RevealDisposition = RevealDisposition.CHOSEN_TO_HAND_REST_TO_GRAVEYARD,
+    val mandatory: Boolean = false,
+    val entersWithCounters: EntersWithCounters? = null,
+    val grantedUntilYourNextTurn: PersistentSet<Keyword> = persistentSetOf(),
 ) {
     init {
         require(count >= 1) { "CR 701.16: a reveal effect reveals at least one card, was $count" }
         require(toHandCount in 1..count) {
             "CR 701.16: a reveal effect keeps between 1 and the revealed $count cards, was $toHandCount"
         }
+        val ontoBattlefield = disposition == RevealDisposition.CHOSEN_TO_BATTLEFIELD_REST_SHUFFLED
+        require(ontoBattlefield || entersWithCounters == null) {
+            "CR 614.1c: an enters-with-counters replacement needs the chosen card to enter the " +
+                "battlefield, but this reveal puts it in a hand"
+        }
+        require(ontoBattlefield || grantedUntilYourNextTurn.isEmpty()) {
+            "CR 611.2c: a continuous effect's affected object is a permanent, but this reveal puts " +
+                "the chosen card in a hand"
+        }
     }
+}
+
+/**
+ * Where a [LibraryReveal] puts the cards it chose, and what becomes of the ones it did not
+ * (CR 701.16). Additive, flagged core (`W11`).
+ *
+ * **The two halves are one axis because both printings couple them**, which is the call
+ * [LibrarySearchDestination] makes for its reveal-and-destination pairing and for the same reason:
+ * splitting them would multiply out into four combinations of which two have no printing and would be
+ * untested branches of the distribution. Malevolent Rumble and Kruphix's Insight say "…and the rest of
+ * the revealed cards into your graveyard"; Throne of the Dead Three names no rest at all, because
+ * there is nothing to move — the cards it did not choose never left the library.
+ */
+enum class RevealDisposition {
+    /**
+     * "…put up to M matching cards into your hand and the rest of the revealed cards into your
+     * graveyard" (CR 701.16) — Malevolent Rumble, Kruphix's Insight. The library is **not** shuffled:
+     * every revealed card has left it.
+     */
+    CHOSEN_TO_HAND_REST_TO_GRAVEYARD,
+
+    /**
+     * "…put a creature card from among them onto the battlefield … Then shuffle." (CR 701.16,
+     * CR 701.18) — Throne of the Dead Three.
+     *
+     * The chosen card goes to the battlefield under the revealing player's control; every other
+     * revealed card **stays where it is**, on top of that player's library, and the library is then
+     * shuffled through the match PRNG (ADR-006 — the shuffle consumes seeded entropy, so replay
+     * reproduces the new order). "Then shuffle" is what makes the unchosen cards' fate matter: without
+     * it the revealer would know their next nine draws.
+     */
+    CHOSEN_TO_BATTLEFIELD_REST_SHUFFLED,
 }
 
 /**

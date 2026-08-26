@@ -735,6 +735,14 @@ Each is a slot the design reserves and a loud gate refuses to fake.
   "until your next turn" (Reckless Impulse), "until end of your next turn" (Clockwork Percussionist),
   and "until this leaves the battlefield" each break the cleanup `when` rather than silently
   expiring at the wrong time.
+
+  *Superseded twice.* `FW-TYPECHANGE` added `Indefinite` (CR 611.2b's no-duration default), and `W11`
+  added `UntilYourNextTurn(player)` for the Undercity's Arena (goad, CR 701.38a) and Throne of the
+  Dead Three. The sealing worked exactly as designed both times: each member had to be answered in
+  every exhaustive `when`. The one thing this section did not anticipate is that a duration ending at
+  the **start** of a turn needs its own turn-based action — the CR 514.2 cleanup below is the wrong
+  end of the turn for it, and §5.4's simultaneity argument does not reach it. See
+  `mtg-rules/.../engine/UntilYourNextTurn.kt`.
 - **Delayed triggered abilities (CR 603.7)** — "at the beginning of the next end step, sacrifice it".
   A stored *trigger*, not a stored continuous effect; different machinery, adjacent slot.
 - **Scheduled rule modifications** — "skips their next combat phase" (Stonehorn Dignitary), "doesn't

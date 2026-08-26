@@ -472,16 +472,53 @@ sealed interface DecisionRequest {
      * The empty selection is legal — the active player may attack with nothing (CR 508.8 then
      * skips the declare-blockers and combat-damage steps) — so [options] itself may be empty and,
      * unlike the casting requests, a surfaced request need not offer anything. Every option is an
-     * independently legal attacker (untapped, not summoning sick, CR 508.1a), so any subset is a
-     * legal declaration; the only cross-option rule is that indices are distinct.
+     * independently legal attacker (untapped, not summoning sick, CR 508.1a), so **any subset that
+     * includes every entry of [required] is a legal declaration**; the other cross-option rule is
+     * that indices are distinct.
      *
      * @property options one entry per eligible attacker, in battlefield order; indices stable
      *   within this request (ADR-005).
+     * @property required the eligible attackers this declaration **must** include (CR 508.1d) — the
+     *   goaded creatures (CR 701.38a), in [options] order; **empty** for the ordinary combat, which
+     *   is every combat in a game where the Undercity's Arena has not resolved. Additive, flagged
+     *   (`W11`).
+     *
+     *   **Published as its own field because no option list can say it**, which is
+     *   [DeclareBlockers.minimumBlockers]' argument one decision earlier. Each option here is an
+     *   independently legal attacker and stays one; what a requirement adds is that *not* taking a
+     *   particular option makes the whole declaration illegal, and a seat that cannot see the
+     *   requirement would pick an illegal line — the failure ADR-005 names.
+     *
+     *   Each entry names an attacker that appears exactly once in [options], so the index a seat must
+     *   include is the position of the option with the same [Option.attacker]; the `init` below
+     *   refuses a requirement naming a creature that is not on offer.
      */
     data class DeclareAttackers(
         override val id: DecisionRequestId,
         val options: List<Option>,
+        val required: List<Required> = emptyList(),
     ) : DecisionRequest {
+        init {
+            require(required.all { requirement -> options.any { it.attacker == requirement.attacker } }) {
+                "CR 508.1d: an attack requirement names a creature that is able to attack, but " +
+                    "${required.map { it.card.name }} is not among the eligible attackers"
+            }
+            require(required.map { it.attacker }.distinct().size == required.size) {
+                "CR 508.1d: each required attacker is named once, got ${required.map { it.attacker }}"
+            }
+        }
+
+        /**
+         * The [options] indices this declaration must include (CR 508.1d) — [required] resolved
+         * against the option list, in [required] order. Empty for the ordinary combat.
+         *
+         * Derived here rather than left to each seat because every seat needs the same translation and
+         * a seat that got it wrong would answer illegally (ADR-005). The `init` above guarantees each
+         * required attacker is on offer, so no index here is `-1`.
+         */
+        val requiredIndices: List<Int>
+            get() = required.map { requirement -> options.indexOfFirst { it.attacker == requirement.attacker } }
+
         /**
          * One creature that may be declared as an attacker.
          *
@@ -494,6 +531,21 @@ sealed interface DecisionRequest {
             val attacker: ObjectId,
             val card: CardRef,
             val defendingPlayer: PlayerId,
+        )
+
+        /**
+         * One creature this declaration is required to include (CR 508.1d).
+         *
+         * @property attacker the required attacker, which is also an [Option] of this request.
+         * @property card its printed identity, for display.
+         * @property goadedBy the player who goaded it (CR 701.38a) — the *"other than you"* of goad's
+         *   second half, which a two-player declaration satisfies whichever way it points and which is
+         *   carried so the fact is already here when a third seat exists.
+         */
+        data class Required(
+            val attacker: ObjectId,
+            val card: CardRef,
+            val goadedBy: PlayerId,
         )
     }
 
@@ -1580,12 +1632,16 @@ sealed interface DecisionRequest {
      * that card, or the extra "keep none" index ([options].size). Additive, flagged (P6.2a). Surfaced
      * only when at least one matching card was revealed; keeping none is always legal ("you may").
      *
-     * @property options the revealed cards that may be put into the hand, in reveal (top-first) order;
-     *   index `options.size` means "keep none".
+     * @property options the revealed cards that may be chosen, in reveal (top-first) order;
+     *   index `options.size` means "keep none" when [mayKeepNone].
+     * @property mayKeepNone whether declining is legal (CR 701.16) — `true` for every "you may"/"up
+     *   to" line, `false` for a mandatory one (Throne of the Dead Three's "**Put** a creature card
+     *   from among them onto the battlefield"). Additive, flagged (`W11`).
      */
     data class ChooseFromRevealed(
         override val id: DecisionRequestId,
         val options: List<Option>,
+        val mayKeepNone: Boolean = true,
     ) : ChoiceCountSelection {
         init {
             require(options.isNotEmpty()) {
@@ -1593,10 +1649,21 @@ sealed interface DecisionRequest {
             }
         }
 
-        /** How many selectable indices this request has: one per keepable card, plus the "keep none" index. */
-        override val choiceCount: Int get() = options.size + 1
+        /**
+         * How many selectable indices this request has: one per keepable card, plus the "keep none"
+         * index — **only** when [mayKeepNone].
+         *
+         * A mandatory instruction ("**Put** a creature card from among them onto the battlefield",
+         * Throne of the Dead Three) has no legal decline once a matching card has been revealed, so
+         * the decline is not an index at all rather than an index the validator would reject. An
+         * illegal line the engine enumerates is the failure ADR-005 names first.
+         */
+        override val choiceCount: Int get() = options.size + if (mayKeepNone) 1 else 0
 
-        /** The [Decision.SingleSelect] index meaning "keep none of the revealed cards". */
+        /**
+         * The [Decision.SingleSelect] index meaning "keep none of the revealed cards" — a legal answer
+         * only when [mayKeepNone], and out of range otherwise.
+         */
         val keepNoneIndex: Int get() = options.size
 
         /**

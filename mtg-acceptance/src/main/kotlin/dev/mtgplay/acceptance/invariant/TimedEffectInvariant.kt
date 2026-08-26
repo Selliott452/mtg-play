@@ -57,7 +57,46 @@ internal fun checkTimedEffectSanity(state: GameState): List<Violation> =
         addAll(checkEveryEffectActs(state.timedEffects))
         addAll(checkPreventionDurationsHonoured(state))
         addAll(checkDeathReplacementDurationsHonoured(state))
+        addAll(checkUntilYourNextTurnDurationsHonoured(state))
     }
+
+/**
+ * Property 1 for the **"until your next turn"** duration (CR 611.2, `W11`), across all three timed
+ * stores at once — the Undercity's Throne of the Dead Three grants hexproof with it, and Arena's goad
+ * carries the same duration on the permanent.
+ *
+ * One check over three stores rather than a fourth arm in each of the three above, because it is a
+ * different *action* that would have failed: not the CR 514.2 cleanup, which deliberately leaves this
+ * duration alone in all three stores, but `endUntilYourNextTurnEffects` at the start of the turn the
+ * duration names. A survivor here means a creature is hexproof for a turn nothing granted it, which
+ * shows up in a game as removal that mysteriously cannot be cast.
+ *
+ * Asked through the duration's own [EffectDuration.UntilYourNextTurn.hasEnded], so the oracle and the
+ * turn-based action share **one** derivation of "has this run out yet" — the discipline
+ * `playGrantHasExpired` set. Two spellings is how a store comes to be swept a turn early by one and
+ * reported healthy by the other.
+ */
+private fun checkUntilYourNextTurnDurationsHonoured(state: GameState): List<Violation> {
+    fun expired(
+        duration: EffectDuration,
+        createdOnTurn: Int,
+    ): Boolean =
+        duration is EffectDuration.UntilYourNextTurn &&
+            duration.hasEnded(state.turn.activePlayer, state.turn.number, createdOnTurn)
+
+    val survivors =
+        state.timedEffects.filter { expired(it.duration, it.createdOnTurn) }.map { it.sourceCard.name } +
+            state.preventionEffects.filter { expired(it.duration, it.createdOnTurn) }.map { it.sourceCard.name } +
+            state.deathReplacements.filter { expired(it.duration, it.createdOnTurn) }.map { it.sourceCard.name }
+    return survivors.map { source ->
+        Violation(
+            Invariant.TIMED_EFFECT_SANITY,
+            "CR 611.2: the until-your-next-turn effect from $source survives into turn " +
+                "${state.turn.number}, whose active player is the one its duration names; the untap " +
+                "step's end-of-until-your-next-turn turn-based action failed to fire",
+        )
+    }
+}
 
 /**
  * Property 1 a third time, for the **delayed death-replacement store** (`W9-D`, CR 614.1a, CR 514.2):
@@ -82,6 +121,10 @@ private fun checkDeathReplacementDurationsHonoured(state: GameState): List<Viola
                 // is not a violation for it. The oracle checks the store, not the store's intent, which
                 // is why this arm is a deliberate `false` rather than an omission.
                 EffectDuration.Indefinite -> false
+                // CR 611.2: "until your next turn" is *supposed* to outlive its turn too, and is
+                // checked by [checkUntilYourNextTurnDurationsHonoured] against a different action and
+                // with a different message. Not this check's business — a deliberate `false`.
+                is EffectDuration.UntilYourNextTurn -> false
             }
         }.map { replacement ->
             Violation(
@@ -113,6 +156,8 @@ private fun checkPreventionDurationsHonoured(state: GameState): List<Violation> 
                 EffectDuration.UntilEndOfTurn -> effect.createdOnTurn != state.turn.number
                 // CR 611.2b: an effect with no duration is *supposed* to survive; never a violation.
                 EffectDuration.Indefinite -> false
+                // Checked by [checkUntilYourNextTurnDurationsHonoured]; see the death-replacement arm.
+                is EffectDuration.UntilYourNextTurn -> false
             }
         }.map { effect ->
             Violation(
@@ -131,6 +176,8 @@ private fun checkDurationsHonoured(state: GameState): List<Violation> =
                 EffectDuration.UntilEndOfTurn -> effect.createdOnTurn != state.turn.number
                 // CR 611.2b: an effect with no duration is *supposed* to survive; never a violation.
                 EffectDuration.Indefinite -> false
+                // Checked by [checkUntilYourNextTurnDurationsHonoured]; see the death-replacement arm.
+                is EffectDuration.UntilYourNextTurn -> false
             }
         }.map { effect ->
             Violation(

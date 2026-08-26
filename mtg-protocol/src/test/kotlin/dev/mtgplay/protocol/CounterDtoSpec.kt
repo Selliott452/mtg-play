@@ -132,7 +132,16 @@ class CounterDtoSpec :
             // bestow half rides the bump: CastingPermissionDto gains a `bestow` variant, and a bestowed
             // permanent's Aura-ness deliberately adds no field — it is a layer-4 static ability a peer
             // computes from state it already has.
+            // `W11` takes it to 12.0.0: goad (CR 701.38a) makes the declare-attackers declaration
+            // something other than a free subset for the first time, so DecisionRequestDto.DeclareAttackers
+            // gains a defaulted `required` list and GameObjectDto gains the two goad markers behind it.
+            // No DecisionRequestKindDto value is added — nothing fails at `valueOf` — but the break is
+            // sharper than that: an 11.0.0 peer ignoring `required` would send a legal-looking
+            // declaration the engine refuses. Plus TimedContinuousEffectDto's `duration` word gains
+            // UNTIL_YOUR_NEXT_TURN with a defaulted `durationPlayer` (CR 611.2 — the first duration
+            // that names a seat), and ChooseFromRevealed gains a defaulted `mayKeepNone` for Throne of
+            // the Dead Three's mandatory keep.
             // Pinned here so no bump in the chain can be quietly reverted.
-            PROTOCOL_VERSION shouldBe "11.0.0"
+            PROTOCOL_VERSION shouldBe "12.0.0"
         }
     })

@@ -159,13 +159,22 @@ internal fun permutationMenu(
     return listOf(header) + numbered(labels) + ORDER_HINT
 }
 
-/** A "choose one of these, or opt out" pick (CR 701.16 / 601.3b / 701.18): the opt-out is the last item. */
+/**
+ * A "choose one of these, or opt out" pick (CR 701.16 / 601.3b / 701.18): the opt-out is the last item
+ * — **when there is one**. A mandatory reveal ("Put a creature card … onto the battlefield") has no
+ * opt-out index at all (`W11`), which the request says by its `choiceCount` falling short of its option
+ * count; rendering a decline the engine would refuse would be showing an illegal line (ADR-005).
+ */
 internal fun choiceCountMenu(request: DecisionRequest.ChoiceCountSelection): List<String> {
     val (header, labels, optOut) =
         when (request) {
             is DecisionRequest.ChooseFromRevealed ->
                 Triple(
-                    "Put one revealed card into your hand, or none (CR 701.16):",
+                    if (request.mayKeepNone) {
+                        "Put one revealed card into your hand, or none (CR 701.16):"
+                    } else {
+                        "Put one of the revealed cards onto the battlefield (CR 701.16):"
+                    },
                     request.options.map { it.card.name },
                     "keep none",
                 )
@@ -182,7 +191,8 @@ internal fun choiceCountMenu(request: DecisionRequest.ChoiceCountSelection): Lis
                     "decline",
                 )
         }
-    return listOf(header) + numbered(labels + "($optOut)") + SINGLE_HINT
+    val items = if (request.choiceCount > labels.size) labels + "($optOut)" else labels
+    return listOf(header) + numbered(items) + SINGLE_HINT
 }
 
 /** The pre-game mulligan decisions (CR 103.4/103.5): keep-or-mulligan, or bottom cards after a keep. */

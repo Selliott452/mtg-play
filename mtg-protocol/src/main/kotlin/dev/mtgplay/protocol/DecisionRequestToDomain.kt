@@ -39,6 +39,9 @@ private fun declareAttackersToDomain(dto: DecisionRequestDto.DeclareAttackers): 
                 PlayerId(it.defendingPlayer),
             )
         },
+        dto.required.map {
+            DecisionRequest.DeclareAttackers.Required(ObjectId(it.attacker), CardRef(it.card), PlayerId(it.goadedBy))
+        },
     )
 
 private fun declareBlockersToDomain(dto: DecisionRequestDto.DeclareBlockers): DecisionRequest =
@@ -188,6 +191,7 @@ private fun choiceCountSelectionToDomain(dto: DecisionRequestDto.ChoiceCountSele
             DecisionRequest.ChooseFromRevealed(
                 dto.id.toDomain(),
                 dto.options.mapOptions { o, c -> DecisionRequest.ChooseFromRevealed.Option(o, c) },
+                dto.mayKeepNone,
             )
         is DecisionRequestDto.ChooseCostMode ->
             DecisionRequest.ChooseCostMode(dto.id.toDomain(), dto.prompt, dto.options.map { it.toDomain() })

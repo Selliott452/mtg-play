@@ -1095,4 +1095,21 @@ sealed interface GameEvent {
         val player: PlayerId,
         val dungeon: String,
     ) : GameEvent
+
+    /**
+     * [goader] goaded the creature [objectId] (CR 701.38a) — the Undercity's Arena. Added with `W11`.
+     *
+     * Narrated because goad is otherwise **invisible until a combat**: it changes no characteristic, so
+     * nothing a seat reads off the permanent differs, and its whole consequence lands one or more turns
+     * later in a declare-attackers option list that has stopped being a free subset. Without this event a
+     * replay would show a creature that suddenly had to attack for no recorded reason.
+     *
+     * [goader] is carried because CR 701.38a's second half names them ("attacks a player other than
+     * *you*"), even though a two-player game satisfies that half whichever way it points.
+     */
+    data class CreatureGoaded(
+        val objectId: ObjectId,
+        val card: CardRef,
+        val goader: PlayerId,
+    ) : GameEvent
 }

@@ -135,6 +135,27 @@ data class BlockerMinimumDto(
 )
 
 /**
+ * One creature a declare-attackers declaration is **required** to include (CR 508.1d) — a goaded
+ * creature that is able to attack (CR 701.38a). Added by `W11`.
+ *
+ * [BlockerMinimumDto]'s sibling one decision earlier and carried for the same reason: the legality is a
+ * property of the whole declaration rather than of any option, so no option list can express it and a
+ * seat that could not see it would choose an illegal line (ADR-005). The attacker named here appears
+ * exactly once among the request's options, so the index that must be included is that option's.
+ *
+ * @property attacker the required attacker's object id.
+ * @property card the attacker's printed name.
+ * @property goadedBy the seat that goaded it (CR 701.38a) — goad's *"attacks a player other than you"*
+ *   half, which a two-player declaration satisfies whichever way it points.
+ */
+@Serializable
+data class RequiredAttackerDto(
+    val attacker: Long,
+    val card: String,
+    val goadedBy: Int,
+)
+
+/**
  * One simultaneous-trigger option to be ordered (CR 603.3b).
  *
  * @property sourceCard the printed name of the trigger's source.

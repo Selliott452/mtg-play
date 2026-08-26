@@ -19,6 +19,7 @@ fun DecisionRequest.toDto(): DecisionRequestDto =
             DecisionRequestDto.DeclareAttackers(
                 id.toDto(),
                 options.map { AttackerOptionDto(it.attacker.value, it.card.name, it.defendingPlayer.seat) },
+                required.map { RequiredAttackerDto(it.attacker.value, it.card.name, it.goadedBy.seat) },
             )
         is DecisionRequest.DeclareBlockers ->
             DecisionRequestDto.DeclareBlockers(
@@ -312,6 +313,7 @@ private fun choiceCountSelectionToDto(request: DecisionRequest.ChoiceCountSelect
             DecisionRequestDto.ChooseFromRevealed(
                 request.id.toDto(),
                 request.options.map { cardOption(it.objectId, it.card) },
+                request.mayKeepNone,
             )
         is DecisionRequest.ChooseCostMode ->
             DecisionRequestDto.ChooseCostMode(request.id.toDto(), request.prompt, request.options.map { it.toDto() })

@@ -2,6 +2,7 @@ package dev.mtgplay.rules.engine
 
 import dev.mtgplay.core.definition.CardDefinition
 import dev.mtgplay.core.definition.CounterAmount
+import dev.mtgplay.core.definition.EntersWithCounters
 import dev.mtgplay.core.state.Counter
 import kotlinx.collections.immutable.PersistentMap
 import kotlinx.collections.immutable.persistentMapOf
@@ -28,8 +29,22 @@ import kotlinx.collections.immutable.persistentMapOf
 internal fun entersWithCountersNow(
     definition: CardDefinition?,
     chosenX: Int,
+): PersistentMap<Counter, Int> = countersFrom(definition?.entersWithCounters, chosenX)
+
+/**
+ * The counter multiset one CR 614.1c "enters with N counters" [clause] places, empty for `null`.
+ *
+ * Split out of [entersWithCountersNow] by `W11` because the clause has a **second source**: a card
+ * whose own definition prints none can still be put onto the battlefield by an effect that says "with
+ * three `+1/+1` counters on it" (Throne of the Dead Three), and CR 614.1c is the same rule either way.
+ * Reading it from the clause rather than from the definition is what lets the two be *added* at the
+ * entry site instead of one of them winning.
+ */
+internal fun countersFrom(
+    clause: EntersWithCounters?,
+    chosenX: Int,
 ): PersistentMap<Counter, Int> {
-    val clause = definition?.entersWithCounters ?: return persistentMapOf()
+    if (clause == null) return persistentMapOf()
     val amount =
         when (val declared = clause.amount) {
             is CounterAmount.Fixed -> declared.amount

@@ -1102,5 +1102,38 @@ package dev.mtgplay.protocol
  *    characteristics from the state it already receives — the attachment, the counters, the card's static
  *    effects — gets the right answer with no extra bytes. Recording "was cast for bestow" on the object
  *    would have been a second source of truth on the wire as well as in the engine.
+ *
+ * ## 12.0.0 — `W11`: goad, the Undercity's last two rooms, and "until your next turn"
+ *
+ * Four schema changes, one of which is the **first time this wire has had to say that an enumerated
+ * answer is not free**. No `DecisionRequestKindDto` value is added — nothing fails at `valueOf` — but
+ * the break is the sharper kind anyway, because an old peer that ignored the new field would send a
+ * *legal-looking* decision the engine then rejects.
+ *
+ * 1. **[DecisionRequestDto.DeclareAttackers] gains a defaulted `required`** (CR 508.1d, CR 701.38a), a
+ *    list of the new [RequiredAttackerDto]. Every declare-attackers request before `W11` was a free
+ *    subset of its options, and a peer could safely answer with any distinct index list; a goaded
+ *    creature makes some of those answers illegal. This is [BlockerMinimumDto]'s situation one decision
+ *    earlier and it is published for the same ADR-005 reason: the legality is a property of the whole
+ *    declaration, no option list can express it, and a seat that cannot see it picks an illegal line.
+ *    An `11.0.0` peer's strict codec rejects the field outright the moment anything is goaded, which is
+ *    the good failure — the alternative is a peer whose every attack declaration is refused with no
+ *    visible cause.
+ * 2. **[GameObjectDto] gains defaulted `goadedBy` and `goadedOnTurn`** (CR 701.38a) — the marker behind
+ *    that requirement, and the one object marker whose entire visible consequence is on a *future*
+ *    decision. It changes no characteristic, so a peer that dropped it would render an identical
+ *    creature and be unable to explain the constraint. Public for the reason every other marker is: goad
+ *    resolves on the public stack and constrains a public declaration (ADR-007).
+ * 3. **[TimedContinuousEffectDto]'s `duration` word gains `UNTIL_YOUR_NEXT_TURN`, with a defaulted
+ *    `durationPlayer` beside it** (CR 611.2). The word fails loudly on an older peer by the design
+ *    `duration` has had since `FW-DURATION`; the companion field exists because this is the **first
+ *    duration with a payload** — "until your next turn" names a seat, and a word that encoded the seat
+ *    inside itself would have to be parsed back out. The two *other* timed stores refuse the duration
+ *    rather than naming it ([TimedPreventionEffectDto], [TimedDeathReplacementDto]): no card in the pool
+ *    puts it there, and an empty branch of a schema is a branch nothing tests.
+ * 4. **[DecisionRequestDto.ChooseFromRevealed] gains a defaulted `mayKeepNone`** (CR 701.16). Every
+ *    reveal before Throne of the Dead Three was "you may"/"up to", so the trailing keep-none index was
+ *    unconditional; a mandatory reveal has no legal decline and therefore does not enumerate one. A peer
+ *    that assumed the old invariant would offer its agent an index the engine does not have.
  */
-const val PROTOCOL_VERSION: String = "11.0.0"
+const val PROTOCOL_VERSION: String = "12.0.0"

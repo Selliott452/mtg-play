@@ -127,6 +127,11 @@ internal fun cleanupRemoveDamageAndEndEffects(state: GameState): GameState {
                     // CR 611.2b: an effect with no duration lasts as long as the game does, so the
                     // cleanup step does not touch it. Kenku Artificer's type change outlives its turn.
                     EffectDuration.Indefinite -> false
+                    // CR 611.2: "until your next turn" outlives the turn it began in by design, so
+                    // this step is not its exit — [endUntilYourNextTurnEffects] is, at the start of the
+                    // turn the duration names. Throne of the Dead Three's hexproof grant is the pool's
+                    // one printing on this store, and sweeping it here would end it a whole turn early.
+                    is EffectDuration.UntilYourNextTurn -> false
                 }
             }.toPersistentList()
     // CR 118.5: "until the end of your next turn" — a play permission granted on an earlier turn ends
@@ -155,6 +160,10 @@ internal fun cleanupRemoveDamageAndEndEffects(state: GameState): GameState {
                     // CR 615: no prevention effect in the pool is durationless, but the `when` is
                     // exhaustive over the shared [EffectDuration], so the member is answered here too.
                     EffectDuration.Indefinite -> false
+                    // CR 615: nor does any print "until your next turn". Answered rather than defaulted
+                    // for the same reason, and with the same answer the continuous store gives: this
+                    // step never ends that duration, whichever store holds it.
+                    is EffectDuration.UntilYourNextTurn -> false
                 }
             }.toPersistentList()
     // CR 514.2 again, for the third turn-scoped store (`W9-D`): Torch the Tower's "if a permanent dealt
@@ -170,6 +179,9 @@ internal fun cleanupRemoveDamageAndEndEffects(state: GameState): GameState {
                     // [EffectDuration] precisely so a new member has to be answered in all three stores
                     // rather than in the two whose authors happened to be looking.
                     EffectDuration.Indefinite -> false
+                    // …which is exactly what `W11`'s "until your next turn" then had to do. No death
+                    // replacement in the pool carries it either, and this step does not end it.
+                    is EffectDuration.UntilYourNextTurn -> false
                 }
             }.toPersistentList()
     return state.copy(

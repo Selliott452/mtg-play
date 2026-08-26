@@ -2,6 +2,7 @@ package dev.mtgplay.rules.engine
 
 import dev.mtgplay.core.card.CardType
 import dev.mtgplay.core.definition.LibraryReveal
+import dev.mtgplay.core.definition.RevealDisposition
 import dev.mtgplay.core.definition.RevealedCardFilter
 import dev.mtgplay.core.event.GameEvent
 import dev.mtgplay.core.identity.ObjectId
@@ -84,6 +85,9 @@ internal fun pendingRevealRequest(state: GameState): DecisionRequest.ChooseFromR
     return DecisionRequest.ChooseFromRevealed(
         id = DecisionRequestId(pending.decider, state.player(pending.decider).decisionsAnswered),
         options = options,
+        // CR 701.16: "Put a creature card …" has no legal decline once one has been revealed, so the
+        // decline is not enumerated at all (ADR-005).
+        mayKeepNone = !reveal.mandatory,
     )
 }
 
@@ -116,9 +120,13 @@ internal fun applyRevealSelection(
 }
 
 /**
- * Closes the reveal (CR 701.16): clears the pending selection, moves [kept] to [player]'s hand and every
- * other revealed card to their graveyard, and finishes the resolving object [entry] — a spell's CR 608.2m
- * graveyard move or an ability's CR 113.7a cessation, whichever [completeClauseResolution] says.
+ * Closes the reveal (CR 701.16): clears the pending selection, distributes the revealed cards as the
+ * clause's [dev.mtgplay.core.definition.RevealDisposition] says, and finishes the resolving object
+ * [entry] — a spell's CR 608.2m graveyard move or an ability's CR 113.7a cessation, whichever
+ * [completeClauseResolution] says.
+ *
+ * The `when` is exhaustive over the disposition so a new one breaks compilation here rather than
+ * silently sending a card to a graveyard.
  */
 private fun finishReveal(
     state: GameState,
@@ -128,7 +136,16 @@ private fun finishReveal(
     kept: Set<ObjectId>,
 ): AdvanceResult {
     val cleared = state.copy(pendingRevealSelection = null)
-    val distributed = putRevealedIntoGraveyard(cleared, player, revealedIds, kept)
+    val reveal =
+        entry.resolutionClauses.libraryReveal
+            ?: error("CR 701.16: a reveal completes only for a resolving object that carries a reveal clause")
+    val distributed =
+        when (reveal.disposition) {
+            RevealDisposition.CHOSEN_TO_HAND_REST_TO_GRAVEYARD ->
+                putRevealedIntoGraveyard(cleared, player, revealedIds, kept)
+            RevealDisposition.CHOSEN_TO_BATTLEFIELD_REST_SHUFFLED ->
+                putRevealedOntoBattlefield(cleared, entry, player, kept, reveal)
+        }
     return completeClauseResolution(distributed, entry)
 }
 
