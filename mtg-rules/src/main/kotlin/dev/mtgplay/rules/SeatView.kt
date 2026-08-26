@@ -5,6 +5,7 @@ import dev.mtgplay.core.identity.PlayerId
 import dev.mtgplay.core.mana.ManaType
 import dev.mtgplay.core.state.GameObject
 import dev.mtgplay.core.state.PendingActivation
+import dev.mtgplay.core.state.PendingCascade
 import dev.mtgplay.core.state.PendingCast
 import dev.mtgplay.core.state.PendingColorChoice
 import dev.mtgplay.core.state.PendingCounterPayment
@@ -198,6 +199,12 @@ import dev.mtgplay.core.state.Turn
  * @property pendingRebound a resolved rebound delayed ability awaiting its controller's free-cast yes/no
  *   (CR 702.88b), or `null`; public — exile is a public zone (CR 406.3), so the card in question and the
  *   fact that its controller is being offered a free cast are both already visible in [exile].
+ * @property pendingCascade an open cascade ability that has finished exiling and is awaiting either its
+ *   controller's free-cast yes/no or its random bottoming (CR 702.85a), or `null`; public for
+ *   [pendingRebound]'s reason and one more of its own — the cards were exiled **face up** into the
+ *   public exile zone (CR 406.3), so both seats have already seen every one of them in [exile] and know
+ *   exactly which is on offer. What stays hidden is the only thing that should: the *order* the
+ *   unchosen cards go back in, which is drawn from the match PRNG and lives in nobody's view.
  * @property pendingPermanentSelection an open untargeted "choose up to N permanents, then untap them or
  *   return them to their owners' hands" pause (CR 609.4), or `null`; **public, and carried in full to
  *   both seats** (`FW-TAPUNTAP`) — Snap, Azorius Chancery. There is nothing to redact: the record names
@@ -252,6 +259,7 @@ data class SeatView(
     val pendingHandReveal: PendingHandRevealView? = null,
     val pendingOpponentDiscard: PendingOpponentDiscardView? = null,
     val pendingRebound: PendingRebound? = null,
+    val pendingCascade: PendingCascade? = null,
     val pendingNinjutsu: PendingNinjutsu? = null,
     val pendingOptionalDraw: PendingOptionalDraw? = null,
     val pendingOptionalTrigger: PendingOptionalTrigger? = null,

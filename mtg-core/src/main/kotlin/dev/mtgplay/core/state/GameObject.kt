@@ -158,6 +158,23 @@ import kotlinx.collections.immutable.persistentSetOf
  *   `false` everywhere but the battlefield and on the fresh object born of any later zone move
  *   (CR 400.7) — which is what makes an evoked Mulldrifter reanimated out of the graveyard *stay* on the
  *   battlefield, since the returned permanent is a new object that was never cast.
+ * @property prototyped whether this permanent entered the battlefield from a spell cast **prototyped**
+ *   (CR 702.160a, CR 718.3b) — Boulderbranch Golem cast for its `Prototype {3}{G} — 3/3`. Additive,
+ *   flagged core (`W9-G`); the third member of the [kickedWhenCast]/[evokedWhenCast] family, and the
+ *   one that changes what the object *is* rather than what happened to it.
+ *
+ *   CR 718.3b: *"Both a prototyped spell and the permanent it becomes have only its alternative set of
+ *   power, toughness, and mana cost characteristics."* Because a permanent spell and the permanent it
+ *   becomes are different objects (CR 400.7), the permanent has no memory of how it was cast unless the
+ *   fact is carried across the move — the CR 702.33f situation the kicked flag already solves. Every
+ *   read of this permanent's **base** characteristics consults this flag, so the object is a 3/3 green
+ *   Golem everywhere at once rather than in the one place somebody remembered.
+ *
+ *   `false` everywhere but the battlefield, and on the fresh object born of any later zone move
+ *   (CR 400.7) — which is the rules answer as well as the state one: a prototyped Golem that dies and is
+ *   returned to the battlefield by an effect comes back as its printed 6/5, because the returning
+ *   permanent is a new object that was never cast at all. The acceptance invariant checker enforces the
+ *   scope.
  * @property playGrantedTurn the turn on which an effect gave this **exile** card's owner permission to
  *   play it (CR 118.5, CR 601.2a) — Reckless Impulse's *"Until the end of your next turn, you may play
  *   those cards."* `null` for every other object. Additive, flagged core (`W8-D`).
@@ -239,6 +256,7 @@ data class GameObject(
     val skipsNextUntapStep: Boolean = false,
     val kickedWhenCast: Boolean = false,
     val evokedWhenCast: Boolean = false,
+    val prototyped: Boolean = false,
     val playGrantedTurn: Int? = null,
     val optionalCostPaidWhenCast: Boolean = false,
 ) {

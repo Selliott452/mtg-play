@@ -211,6 +211,79 @@ sealed interface CastingPermission {
     }
 
     /**
+     * Prototype (CR 702.160, CR 718): the card may be cast from the hand for its **prototyped** [cost]
+     * instead of its printed mana cost, and the spell — and the permanent it becomes — then has the
+     * card's *alternative* set of mana cost, colour, power and toughness (CR 718.3b). Boulderbranch
+     * Golem's `Prototype {3}{G} — 3/3`. Additive, flagged core (`W9-G`).
+     *
+     * **The only permission that changes what the spell *is*, not merely what it costs**, which is why
+     * it cannot be an [AlternativeCost] with a different label. Every other member of this interface
+     * replaces a cost and leaves the object alone: a Fiery Temper cast for its madness cost is still a
+     * red spell with mana value 3 ([dev.mtgplay.core.definition.SpellDefinition] and the stack-
+     * characteristics seam in `mtg-rules` both say so). A prototyped Boulderbranch Golem is a **green**
+     * spell with mana value 4 that becomes a **3/3**, and the card's own "you gain life equal to its
+     * power" reads 3 rather than 6. Encoding it as an alternative cost would produce a `{3}{G}` 6/5 —
+     * a plausible-looking wrong card (PLAN.md §7), and wrong in the direction that makes the card
+     * strictly better than it is printed.
+     *
+     * **Not a CR 613 continuous effect, and this is the correction worth carrying forward.**
+     * docs/gauntlet-deferred-ten.md filed prototype as "a CR 613 layer 1/7b effect keyed to how the
+     * spell was cast", which would make it depend on the layer system's type/P-T slots. CR 718.2a says
+     * the opposite: *"The existence and values of these alternative characteristics are part of the
+     * object's copiable values"* — so a prototyped object has no layer effect applied to it at all, it
+     * simply has a different **base**. That is why the engine's change is one base-characteristics seam
+     * rather than a new layer, and why no counter, no aura and no pump interacts with it specially.
+     *
+     * **The permanent must know**, because a spell and the permanent it becomes are different objects
+     * (CR 400.7) — [kickedWhenCast]'s situation exactly, one keyword over. `mtg-rules` carries the fact
+     * onto the entering object as [dev.mtgplay.core.state.GameObject.prototyped], and every read of the
+     * permanent's base characteristics goes through it.
+     *
+     * Only power, toughness and mana cost are alternative (CR 702.160a): the card keeps its printed
+     * name, supertypes, card types, subtypes, keywords and every ability, which is why this carries
+     * three values and not a whole [dev.mtgplay.core.card.PrintedCharacteristics].
+     *
+     * @property cost the prototyped mana cost (CR 718.2), which is also what gives the prototyped
+     *   object its colours (CR 718.3b, CR 105.2) and its mana value (CR 202.3).
+     * @property power the prototyped power (CR 718.2).
+     * @property toughness the prototyped toughness (CR 718.2).
+     */
+    data class Prototype(
+        override val cost: ManaCost,
+        val power: Int,
+        val toughness: Int,
+    ) : CastingPermission {
+        override val source: CastSource = CastSource.HAND
+    }
+
+    /**
+     * Cascade (CR 702.85): the card was exiled by a resolving cascade ability and its controller may now
+     * cast it **without paying its mana cost** ([cost] is `{0}`) from [CastSource.EXILE]. Additive,
+     * flagged core (`W9-G`); Maelstrom Colossus's cascade is what exiles it.
+     *
+     * **The one permission a card never declares about itself.** Every other member is printed on the
+     * card it lets you cast — a Fiery Temper carries its own madness cost — so `mtg-rules` finds it by
+     * reading [SpellDefinition.castingPermissions] of the card in question. Cascade's is granted by a
+     * *different* spell's triggered ability to whatever happened to come off the top of a library, so
+     * this permission is handed to the cast pipeline directly by the resolving cascade ability and is
+     * never declared anywhere. [offeredAtPriority] is `false` for that reason as well as madness's: the
+     * cast happens as the cascade ability resolves (CR 702.85a) and a card sitting in exile is not
+     * castable on demand.
+     *
+     * Note what [cost] `{0}` does **not** mean. CR 702.85a's "without paying its mana cost" also fixes
+     * the value of any variable in that cost at zero (CR 601.2b), which falls out here because a `{0}`
+     * carries no [dev.mtgplay.core.mana.ManaSymbol.X] to announce; and CR 702.85a's own proviso —
+     * "if the resulting spell's mana value is less than this spell's mana value" — is then automatically
+     * satisfied, because the exiled card was chosen by that same comparison and X adds nothing to it.
+     */
+    data object Cascade : CastingPermission {
+        // CR 702.85a: cast without paying its mana cost — a {0} cost yields a single empty payment plan.
+        override val cost: ManaCost = ManaCost.parse("{0}")
+        override val source: CastSource = CastSource.EXILE
+        override val offeredAtPriority: Boolean = false
+    }
+
+    /**
      * Escape (CR 702.139): the card may be cast from the graveyard for its escape [cost] plus an
      * additional cost of exiling [additionalExileCount] *other* cards from the graveyard. A permanent
      * cast this way resolves onto the battlefield normally (no leave-stack replacement) and behaves as

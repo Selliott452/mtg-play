@@ -66,6 +66,9 @@ fun viewFor(
             pendingOpponentDiscard = state.pendingOpponentDiscard?.let { opponentDiscardViewOf(it) },
             // CR 406.3: exile is a public zone, so the rebounding card and its offer are already visible.
             pendingRebound = state.pendingRebound,
+            // CR 406.3/702.85a: cascade exiles face up into the public exile zone, so the cards and the
+            // offer are already visible; the random bottom order is in no seat's view by construction.
+            pendingCascade = state.pendingCascade,
             pendingNinjutsu = state.pendingNinjutsu,
             pendingOptionalDraw = state.pendingOptionalDraw,
             pendingOptionalTrigger = state.pendingOptionalTrigger,

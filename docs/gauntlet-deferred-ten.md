@@ -14,8 +14,8 @@ Oracle text throughout is from the repo's own snapshot
 |---|---|---|---|
 | Avenging Hunter | Elves | the initiative | drop |
 | Goliath Paladin | Jeskai Ephemerate (SB) | the initiative | drop |
-| Boulderbranch Golem | Monster Tron | prototype | drop |
-| Maelstrom Colossus | Monster Tron | cascade | drop |
+| Boulderbranch Golem | Monster Tron | prototype | ~~drop~~ — **built** (`W9-G`) |
+| Maelstrom Colossus | Monster Tron | cascade | ~~drop~~ — **built** (`W9-G`) |
 | Fang Dragon | Spy Combo (SB) | adventure | drop |
 | Sagu Wildling | Elves, Spy Combo | omen | drop |
 | Pinnacle Kill-Ship | Monster Tron | station / Spacecraft | drop |
@@ -43,9 +43,20 @@ initiative properly means a dungeon subsystem for two cards in thirteen decks.
 
 ## The four that need a cast-time mechanic the engine has no seam for
 
-The engine has **no "cast without paying its mana cost"** path at all — nothing in `mtg-core` or
+> **`W9-G` correction — the paragraph below was wrong when it was written.** The engine had **two**
+> cast-without-paying paths already: `CastingPermission.Plot` (P6.2a) and `CastingPermission.Rebound`
+> (`FW-BLINK`) both fix their cost at `{0}`, each carrying the comment *"cast without paying its mana
+> cost — a `{0}` cost yields a single empty payment plan"* in its own KDoc, and Ephemerate had been
+> driving that path end to end since `FW-BLINK`. Cascade needed no new cast machinery at all. The
+> failure mode is the one the shared brief warns about: a blocker was diagnosed once and never
+> re-checked against the code that had moved underneath it. **Both Monster Tron cards are now built** —
+> see `mtg-cards/.../AlternateCastings.kt`, `mtg-rules/.../Cascade.kt` and
+> `mtg-rules/.../Prototype.kt`. The two adventure/omen cards stay dropped, with the two-faces
+> diagnosis expanded in `AlternateCastings.kt`.
+
+~~The engine has **no "cast without paying its mana cost"** path at all — nothing in `mtg-core` or
 `mtg-rules` matches, and `CastingPermission` (Madness, Flashback, AlternativeCost, Escape, Plot,
-Rebound) is uniformly a permission to cast *for some cost*, never for none.
+Rebound) is uniformly a permission to cast *for some cost*, never for none.~~
 
 - **Maelstrom Colossus** (`{8}`, cascade). Cascade exiles from the top of the library until a
   cheaper nonland card, casts that card for free, then bottoms the exiled cards **in a random
@@ -58,9 +69,12 @@ Rebound) is uniformly a permission to cast *for some cost*, never for none.
   blocker.
 - **Boulderbranch Golem** (`{7}`, prototype `{3}{G}` — 3/3). Prototype is an alternative cost that
   *also* changes the spell's mana cost, colour, and power/toughness. `FW-ALTCOST` landed (Land
-  Grant) and handles the cost half. The characteristic half is a CR 613 layer 1/7b effect keyed to
-  how the spell was cast — closer to reachable than anything else here, and the one to revisit
-  first if Monster Tron ever needs to be complete.
+  Grant) and handles the cost half. ~~The characteristic half is a CR 613 layer 1/7b effect keyed to
+  how the spell was cast~~ — **also wrong**: CR 718.2a makes the alternative characteristics *copiable
+  values*, so nothing is applied to a prototyped object and no layer is involved; it simply starts
+  from a different base. That is why `W9-G` built it in one seam (`baseCharacteristics`) with no
+  dependency on the layer packet running beside it. The instinct that it was "closer to reachable
+  than anything else here" was right, and for a better reason than the one given.
 
 ## The two that are one framework each
 
@@ -122,6 +136,10 @@ Golem, Maelstrom Colossus, Pinnacle Kill-Ship, Kaervek's Torch — and three of 
 artifact finishers, the top of its curve and the point of the archetype. Monster Tron should be
 treated as the gauntlet's last deck to reach playable, and prototype is the cheapest single step
 toward it.
+
+`W9-G` took that step and the one beside it: the deck's mainboard coverage moved 17 → 19 of 21, and
+what it now lacks is Pinnacle Kill-Ship (station) and Kaervek's Torch (a cost *increase* keyed on
+another spell's chosen targets). Both of those diagnoses were re-checked and both still stand.
 
 Elves loses Avenging Hunter, Nyxborn Hydra, and Sagu Wildling; Spy Combo loses Sagu Wildling; Jund
 Wildfire loses Nyxborn Hydra. Those decks have enough else that they reach playable without these,

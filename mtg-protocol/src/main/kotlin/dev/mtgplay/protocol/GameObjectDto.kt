@@ -65,6 +65,12 @@ import kotlinx.serialization.Serializable
  *   exiled face up. It records when the permission *began*, not when it ends — see
  *   [dev.mtgplay.core.state.GameObject.playGrantedTurn] for why that is the honest encoding. Added by
  *   `W8-D`.
+ * @property prototyped whether this permanent entered from a spell cast **prototyped** (CR 702.160a,
+ *   CR 718.3b) — Boulderbranch Golem cast for its `Prototype {3}{G} — 3/3`; `false` for almost every
+ *   object. Public for [kickedWhenCast]'s reason and then some (ADR-007): the alternative mana cost was
+ *   paid in front of everyone, and unlike the other two markers this one decides what the permanent's
+ *   power, toughness and colours *are*, so a peer that dropped it would render the wrong creature.
+ *   Added by `W9-G`.
  */
 @Serializable
 data class GameObjectDto(
@@ -89,6 +95,7 @@ data class GameObjectDto(
     val evokedWhenCast: Boolean = false,
     val playGrantedTurn: Int? = null,
     val optionalCostPaidWhenCast: Boolean = false,
+    val prototyped: Boolean = false,
 )
 
 /** [GameObject] to its wire form. */
@@ -121,6 +128,9 @@ fun GameObject.toDto(): GameObjectDto =
         evokedWhenCast = evokedWhenCast,
         playGrantedTurn = playGrantedTurn,
         optionalCostPaidWhenCast = optionalCostPaidWhenCast,
+        // CR 718.3b: public, and load-bearing rather than decorative — the permanent's size and colours
+        // are read off this flag, so a seat view that omitted it would describe a different creature.
+        prototyped = prototyped,
     )
 
 /** [GameObjectDto] back to the engine value. */
@@ -147,4 +157,5 @@ fun GameObjectDto.toDomain(): GameObject =
         evokedWhenCast = evokedWhenCast,
         playGrantedTurn = playGrantedTurn,
         optionalCostPaidWhenCast = optionalCostPaidWhenCast,
+        prototyped = prototyped,
     )

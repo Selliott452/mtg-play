@@ -90,7 +90,11 @@ class CounterDtoSpec :
             // flashback or alternative-cost cast — so an 8.0.0 peer and a 9.0.0 peer disagree about a
             // message they both already know how to send. Three new DecisionRequest kinds and a new
             // CastingPermissionDto discriminator ride along.
+            // `W9-G` takes it to 10.0.0: two new CastingPermissionDto discriminators (prototype, which
+            // is the first whose payload is a *size* rather than a cost, and cascade), a new
+            // GameObjectDto field the permanent's power and colours are read off, and a new SeatViewDto
+            // pending record. No DecisionRequest kind is added.
             // Pinned here so no bump in the chain can be quietly reverted.
-            PROTOCOL_VERSION shouldBe "9.0.0"
+            PROTOCOL_VERSION shouldBe "10.0.0"
         }
     })

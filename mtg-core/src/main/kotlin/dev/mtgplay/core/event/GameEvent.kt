@@ -763,6 +763,27 @@ sealed interface GameEvent {
     ) : GameEvent
 
     /**
+     * [player] put [cards] on the **bottom** of their library **in a random order** (CR 702.85a) —
+     * cascade's last act, for every card it exiled that was not cast. Added by `W9-G`. One event for the
+     * whole move, in the shape [CardsExiledFromLibrary] uses.
+     *
+     * **[cards] is listed in the order they were exiled, not in the order they were placed**, and the
+     * difference is deliberate rather than an oversight. The identities are public — cascade exiles face
+     * up, so both players have already seen them through [CardsExiledFromLibrary] — but the resulting
+     * *order* is the output of the match PRNG and is information no player is entitled to (ADR-007). A
+     * per-card [CardPutOnLibrary] would publish the whole bottom of a library, which is why this is one
+     * event rather than several and why it names no object ids.
+     *
+     * The sibling of [CardShuffledIntoLibrary], which declines to report a position for the same class of
+     * reason: there, no rule assigns one at all; here, a rule assigns the end but leaves the order
+     * secret. Reporting a placed order would be reporting something the game deliberately hid.
+     */
+    data class CardsPutOnBottomInRandomOrder(
+        val player: PlayerId,
+        val cards: List<CardRef>,
+    ) : GameEvent
+
+    /**
      * [player] milled [card] (CR 701.13a): the top card of their library moved to their graveyard,
      * becoming the new object [objectId] there (CR 400.7). One event per milled card, in the order
      * milled (top-first). Distinct from [CardDiscarded] on purpose — a mill is not a discard, so

@@ -44,6 +44,11 @@ private fun permissionName(permission: CastingPermission): String =
         is CastingPermission.AlternativeCost -> "alternative cost ${permission.cost.render()}"
         is CastingPermission.Plot -> "plot (no mana cost)"
         CastingPermission.Rebound -> "rebound (no mana cost)"
+        // CR 718.2: the prototyped cast's whole point is that the spell is a different size, so the
+        // label carries the size as well as the cost — the two options this card offers differ in both.
+        is CastingPermission.Prototype ->
+            "prototype ${permission.cost.render()} — ${permission.power}/${permission.toughness}"
+        CastingPermission.Cascade -> "cascade (no mana cost)"
     }
 
 /** The zone a cast draws from (CR 601.2a). */

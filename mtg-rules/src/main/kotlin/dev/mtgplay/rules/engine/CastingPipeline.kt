@@ -87,16 +87,27 @@ internal fun executeCastPipeline(
  * held it (CR 117.3c). A **madness** cast happened *as a reflexive trigger resolved* (CR 702.35b), not
  * from a priority window — so, like any spell put on the stack during a resolution, the active player
  * receives priority in a fresh round.
+ *
+ * **A cascade cast finishes somebody else's resolution first** (CR 702.85a, `W9-G`). Cascade's printed
+ * order is exile, then the may-cast, then *"put all cards exiled this way that weren't cast on the bottom
+ * of your library in a random order"* — so the bottoming is the last thing the cascade ability does and
+ * cannot happen until the cast it offered has completed. This is the one point in the engine where a
+ * resolution resumes after a nested CR 601 pipeline, and it is a branch here rather than a general
+ * continuation mechanism because cascade is the only mechanic in the pool that needs one; the exiled ids
+ * survive the cast on [dev.mtgplay.core.state.GameState.pendingCascade], not on a hidden stack.
  */
 private fun priorityAfterCast(
     state: GameState,
     cast: PendingCast,
-): AdvanceResult =
-    if (cast.castingPermission is CastingPermission.Madness) {
-        grantPriorityRound(state)
+): AdvanceResult {
+    val settled =
+        if (cast.castingPermission is CastingPermission.Cascade) bottomCascadeExiles(state) else state
+    return if (cast.castingPermission is CastingPermission.Madness) {
+        grantPriorityRound(settled)
     } else {
-        priorityTo(clearPriorityRound(state), cast.caster)
+        priorityTo(clearPriorityRound(settled), cast.caster)
     }
+}
 
 /**
  * Stage CR 601.2a — propose: the card moves from the caster's hand to the top of the stack,
@@ -374,13 +385,22 @@ private fun payCosts(
 
 /**
  * Stage CR 601.2i — the cast completes: the spell is cast, and "when a player casts a spell"
- * abilities trigger now. Emits [GameEvent.SpellCast], then fires cast triggers at the wired seam
- * ([detectCastTriggers]) — a fired trigger is queued and placed on the stack at the priority grant
- * that follows (CR 603.3b). No MVP mainboard card carries a cast trigger; the seam exists for
- * Guttersnipe (P6) and is exercised by a rules-test fixture.
+ * abilities trigger now. Emits [GameEvent.SpellCast], then fires cast triggers at the two wired seams —
+ * a fired trigger is queued and placed on the stack at the priority grant that follows (CR 603.3b).
+ *
+ * The seams are two because the *watchers* are two, and CR 603.2 makes them different objects:
+ * - [detectCastTriggers] scans **battlefield permanents** for a "whenever a spell is cast" ability —
+ *   Guttersnipe's, Kessig Flamebreather's — which fire for any cast that matches their filters;
+ * - [detectCascadeTrigger] fires the ability of the **spell being cast itself**, which CR 702.85a says
+ *   functions only while that spell is on the stack (`W9-G`).
+ *
+ * Both fire at this one instant, so a cascading spell cast under a Guttersnipe queues two triggers whose
+ * order on the stack is their controller's choice (CR 603.3b) — an enumerated decision, and a real one.
  */
 private fun completeCast(
     state: GameState,
     entry: StackEntry.Spell,
-): GameState =
-    detectCastTriggers(state.emit(GameEvent.SpellCast(entry.controller, entry.obj.id, entry.obj.card)), entry)
+): GameState {
+    val cast = state.emit(GameEvent.SpellCast(entry.controller, entry.obj.id, entry.obj.card))
+    return detectCascadeTrigger(detectCastTriggers(cast, entry), entry)
+}

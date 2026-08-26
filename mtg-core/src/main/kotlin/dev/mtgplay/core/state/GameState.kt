@@ -62,6 +62,10 @@ import kotlinx.collections.immutable.persistentMapOf
  * @property pendingPlot a plot special action gathering its payment (CR 702.140), or `null`. Additive,
  *   flagged core (P6.2a). Non-null only at that payment pause, where the plotting player holds priority
  *   and the card is still in their hand — see [PendingPlot].
+ * @property pendingCascade a resolving cascade ability that has finished exiling and is awaiting either
+ *   its controller's yes/no free cast or the random bottoming that ends it (CR 702.85a), or `null`.
+ *   Additive, flagged core (`W9-G`). The one pending record that stays open **across** a nested cast —
+ *   see [PendingCascade] for why the bottoming cannot be done any earlier.
  * @property pendingNinjutsu a ninjutsu ability gathering its mana payment (CR 702.49a, CR 602.2b), or
  *   `null`. Additive, flagged core (`FW-NINJUTSU`). Non-null only at that payment pause, where the
  *   activating player holds priority and the ninja card is still in their hand — see [PendingNinjutsu].
@@ -191,6 +195,7 @@ data class GameState(
     val pendingHandReveal: PendingHandReveal? = null,
     val pendingOpponentDiscard: PendingOpponentDiscard? = null,
     val pendingRebound: PendingRebound? = null,
+    val pendingCascade: PendingCascade? = null,
     val pendingNinjutsu: PendingNinjutsu? = null,
     val pendingOptionalDraw: PendingOptionalDraw? = null,
     val pendingOptionalTrigger: PendingOptionalTrigger? = null,
@@ -352,6 +357,18 @@ data class GameState(
             require(sharedZones.exile.any { it.id == rebound.exiledObjectId }) {
                 "CR 702.88b: the rebounding card ${rebound.exiledObjectId} must still be in exile while its " +
                     "free cast is pending"
+            }
+        }
+        val cascade = pendingCascade
+        if (cascade != null) {
+            require(cascade.controller in players) {
+                "CR 702.85a: the cascading spell's controller ${cascade.controller} is not seated"
+            }
+            // CR 702.85a: the candidate is offered only while it is still in exile; the rest of the
+            // exiled cards may already have been bottomed by nothing, so only the candidate is checked.
+            val candidate = cascade.candidateObjectId
+            require(candidate == null || sharedZones.exile.any { it.id == candidate }) {
+                "CR 702.85a: the cascade card $candidate must still be in exile while its free cast is pending"
             }
         }
         val chosenColor = pendingChosenColor

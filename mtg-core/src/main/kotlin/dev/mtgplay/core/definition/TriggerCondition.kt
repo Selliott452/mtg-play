@@ -103,6 +103,29 @@ sealed interface TriggerCondition {
     data object ReboundCast : TriggerCondition
 
     /**
+     * Cascade's "when you cast this spell" ability (CR 702.85a) — the condition of the ability the
+     * engine synthesizes for a spell whose card declares [SpellDefinition.cascade]. Added by `W9-G` for
+     * Maelstrom Colossus.
+     *
+     * **The only condition in this type that functions from the stack** ([TriggerZoneScope.Stack]), and
+     * that is CR 702.85a's own first sentence: *"Cascade is a triggered ability that functions only
+     * while the spell with cascade is on the stack."* Its source is therefore neither a battlefield
+     * permanent nor a card in a graveyard but the *spell being cast* — which is why the ordinary
+     * [SpellCast] condition cannot express it. That one is watched by permanents already on the
+     * battlefield and fires for **any** matching cast; this one is watched by the cast spell itself and
+     * fires for exactly one.
+     *
+     * Like [MadnessCast] and [ReboundCast], the ability's [TriggeredAbility.effect] is never run: what
+     * cascade does — exile until a cheaper nonland card, offer a free cast, bottom the rest at random —
+     * involves a player choice mid-resolution, so it is the engine's flow (ADR-004) rather than a
+     * [ResolutionEffect]. The trigger carries the cascading spell's mana value as its
+     * [dev.mtgplay.core.state.PendingTrigger.amount], which is the number the "lesser mana value"
+     * comparison is made against (CR 118.9 linked information, captured while the spell is still on the
+     * stack — CR 608.2h).
+     */
+    data object CascadeCast : TriggerCondition
+
+    /**
      * "Whenever enchanted creature deals damage" (CR 603.2) — the Aura watches the object it is
      * attached to (CR 611.2c) and fires when that creature deals damage, combat or noncombat.
      * Armadillo Cloak's "you gain that much life" fires here; the fired trigger carries the amount

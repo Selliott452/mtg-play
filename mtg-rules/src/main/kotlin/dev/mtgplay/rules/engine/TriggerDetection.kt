@@ -136,6 +136,9 @@ internal fun detectDrawCountTriggers(
  * applied as it entered is what the trigger sees; the two are decided at the same instant and can
  * never disagree. A land that entered tapped fires **nothing**, which is a different game from firing
  * an ability that resolves doing nothing (that one would use the stack).
+ *
+ * The fired trigger carries the entering **creature's power** as its [PendingTrigger.amount] (`W9-G`);
+ * see [enteringPower] for what that value is for and what it is not.
  */
 internal fun detectEnterBattlefieldTriggers(
     state: GameState,
@@ -147,12 +150,13 @@ internal fun detectEnterBattlefieldTriggers(
             add(TriggerCondition.EnteredBattlefieldSelf)
             if (!obj.tapped) add(TriggerCondition.EnteredBattlefieldUntappedSelf)
         }
+    val power = enteringPower(state, obj)
     return conditions
         .flatMap { condition -> battlefieldTriggersOf(state, obj.card, condition) }
         .fold(state) { current, ability ->
             enqueuePendingTrigger(
                 current,
-                PendingTrigger(obj.id, obj.card, obj.owner, ability, subject = obj.id),
+                PendingTrigger(obj.id, obj.card, obj.owner, ability, amount = power, subject = obj.id),
             )
         }
 }

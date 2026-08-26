@@ -186,6 +186,7 @@ private fun resolveOrchestratedTrigger(
     when {
         entry.trigger.ability.condition == TriggerCondition.MadnessCast -> resolveMadnessTrigger(state, entry)
         entry.trigger.ability.condition == TriggerCondition.ReboundCast -> resolveReboundTrigger(state, entry)
+        entry.trigger.ability.condition == TriggerCondition.CascadeCast -> resolveCascadeTrigger(state, entry)
         entry.trigger.ability.optionalDiscardDraw != null -> resolveOptionalDiscardDrawTrigger(state, entry)
         else -> null
     }

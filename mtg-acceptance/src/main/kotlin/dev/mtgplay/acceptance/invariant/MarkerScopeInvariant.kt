@@ -7,7 +7,8 @@ import dev.mtgplay.core.zone.ZoneId
  * its function budget:
  * - [Invariant.PLOT_MARKER_SCOPE]: the plotted-turn marker (CR 702.140) is exile-only;
  * - [Invariant.CHOSEN_COLOUR_SCOPE]: the as-enters chosen colour (CR 614.12) is battlefield-only;
- * - [Invariant.KICKED_MARKER_SCOPE]: the was-kicked marker (CR 702.33f) is battlefield-only.
+ * - [Invariant.KICKED_MARKER_SCOPE]: the was-kicked marker (CR 702.33f) is battlefield-only;
+ * - [Invariant.PROTOTYPE_MARKER_SCOPE]: the prototyped marker (CR 718.3b) is battlefield-only.
  *
  * Both operate on the residence list so corrupt placements are directly testable, mirroring the madness
  * marker's exile-only scope and tapped's battlefield-only scope.
@@ -32,6 +33,17 @@ internal fun checkP62aMarkerScopes(residences: List<ZoneResidence>): List<Violat
                     Violation(
                         Invariant.KICKED_MARKER_SCOPE,
                         "CR 702.33f: object ${it.obj.id.value} is kicked-marked in ${it.zone}, but it is a " +
+                            "battlefield-only status — the fresh object born of any zone move carries none",
+                    ),
+                )
+            }
+        residences
+            .filter { it.obj.prototyped && it.zone != ZoneId.Battlefield }
+            .forEach {
+                add(
+                    Violation(
+                        Invariant.PROTOTYPE_MARKER_SCOPE,
+                        "CR 718.3b: object ${it.obj.id.value} is prototype-marked in ${it.zone}, but it is a " +
                             "battlefield-only status — the fresh object born of any zone move carries none",
                     ),
                 )
