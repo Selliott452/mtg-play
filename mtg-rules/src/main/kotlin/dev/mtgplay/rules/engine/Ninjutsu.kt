@@ -231,15 +231,18 @@ internal fun executeNinjutsu(
     // happens now and stays done even if the ability is later countered (CR 701.5a). CR 506.4's removal
     // from combat rides along inside the primitive.
     val returned = returnPermanentToOwnersHand(paid, pending.returnedAttacker)
+    // CR 111.1 / CR 400.7: the ability's identity for its stack residence (`FW-WARD`).
+    val (entryId, allocated) = returned.allocateObjectId()
     val entry =
         StackEntry.ActivatedAbilityOnStack(
             sourceId = pending.ninjaObjectId,
             sourceCard = ninja.card,
             controller = pending.activator,
             ability = ninjutsuAbility(ninjutsu, defendingPlayer),
+            entryId = entryId,
         )
     val onStack =
-        returned
+        allocated
             .updateStack { it.adding(entry) }
             // CR 702.49a's "Reveal this card from your hand" is why this names the ninja publicly: both
             // seats learn what is coming while the ability can still be responded to.

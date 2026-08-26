@@ -37,9 +37,10 @@ import kotlinx.collections.immutable.persistentSetOf
  * does not own; every one of them is a card whose *cost* half is encodable and whose other half is not:
  *
  * - **Tolarian Terror** prints the identical graveyard clause to [crypticSerpent] and adds **ward {2}**
- *   (CR 702.21a) — a *triggered* pay-or-be-countered ability, not a cost increase. It needs `FW-WARD`
- *   on top of the counter framework. Cryptic Serpent carries the clause here instead, which is what
- *   the design note's §0 recommended once the oracle text was re-read.
+ *   (CR 702.21a) — a *triggered* pay-or-be-countered ability, not a cost increase. That diagnosis was
+ *   right and is now **discharged**: `FW-WARD` built the parameterised keyword, the becomes-the-target
+ *   trigger, and the ability to counter an *ability*, and [tolarianTerror] lives in `Ward.kt` reusing
+ *   this file's cost declaration unchanged.
  * - **Refurbished Familiar** was listed here as blocked on `FW-NONCTRLDEC` — a discard the *opponent*
  *   chooses, which no decision request in this engine could surface. That framework has since landed
  *   (docs/design/exile-and-return.md §6) and the card is encoded in `ExileAndReturn.kt`, reusing this
@@ -198,8 +199,9 @@ val thoughtcast: SpellDefinition =
  * `{U}{U}` is the floor whatever the graveyard holds (CR 118.7a) — a generic reduction cannot touch a
  * coloured pip — which is the property this card exists in the tests to pin.
  *
- * Its twin **Tolarian Terror** prints the same clause and is deliberately absent: ward {2} (CR 702.21a)
- * is a triggered ability, not a cost, and needs a framework this packet does not own.
+ * Its twin **Tolarian Terror** prints the same clause and was absent for two waves on ward {2}
+ * (CR 702.21a) — a triggered ability, not a cost. `FW-WARD` landed it; the card is in `Ward.kt`, and its
+ * cost half is this declaration copied unchanged.
  */
 val crypticSerpent: SpellDefinition =
     object : SpellDefinition {

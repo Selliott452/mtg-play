@@ -222,6 +222,9 @@ class MvpCardsSpec :
             MvpCards.definitions.keys shouldBe
                 setOf(
                     CardRef("Abundant Growth"),
+                    CardRef("Clockwork Percussionist"),
+                    CardRef("Moon-Circuit Hacker"),
+                    CardRef("Tolarian Terror"),
                     CardRef("Faerie Miscreant"),
                     CardRef("God-Pharaoh's Faithful"),
                     CardRef("Gatecreeper Vine"),

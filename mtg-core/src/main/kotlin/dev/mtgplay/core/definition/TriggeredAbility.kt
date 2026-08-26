@@ -83,6 +83,16 @@ import kotlinx.collections.immutable.persistentListOf
  *   (`W8-E`). Gatecreeper Vine's enters-the-battlefield "you may search your library for a basic land
  *   card or a Gate card". Run **after** the ordinary [effect], pausing for the find-one choice.
  *
+ * @property counterUnlessPaid a "counter it unless that player pays [CounterUnlessPaid.cost]" part of this
+ *   ability's resolution (CR 702.21a, CR 118.3a), or `null` for an ability with none. Additive, flagged
+ *   core (`FW-WARD`) — the synthesized ward trigger, and nothing else in the pool.
+ *
+ *   The sibling of [SpellDefinition.counterUnlessPaid] and a separate property for the reason that one is
+ *   not a [ResolutionClauses] member either: it runs **before** the ability's own [effect] rather than
+ *   after it, and it names its victim differently — a spell reads its single
+ *   [dev.mtgplay.core.state.Target.SpellOnStack] target, while a ward trigger reads the
+ *   [dev.mtgplay.core.state.PendingTrigger.targetedBy] it captured when it fired, because ward's trigger
+ *   does not target at all.
  * @property addsMana the mana this ability's resolution adds to its controller's pool (CR 106.1,
  *   CR 106.4), in printed order; empty for every ability that adds none. Additive, flagged core
  *   (`W8-B`) — Burning-Tree Emissary's "When this creature enters, add `{R}{G}`".
@@ -122,6 +132,8 @@ data class TriggeredAbility(
     override val optionalManaThenDraw: OptionalManaThenDraw? = null,
     override val targetPlayerExilesFromGraveyard: TargetPlayerExilesFromGraveyard? = null,
     override val chosenTypeReveal: ChosenTypeReveal? = null,
+    override val optionalDrawThenDiscard: OptionalDrawThenDiscard? = null,
+    val counterUnlessPaid: CounterUnlessPaid? = null,
 ) : ResolutionClauses {
     init {
         requireAtMostOneClause(this) { "the $condition triggered ability" }

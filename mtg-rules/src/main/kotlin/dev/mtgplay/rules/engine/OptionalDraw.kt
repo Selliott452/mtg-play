@@ -64,9 +64,17 @@ internal fun pendingOptionalDrawRequest(state: GameState): DecisionRequest.Choos
 
 /**
  * Applies the optional-draw yes/no (CR 601.3b): [accept] `true` draws the clause's cards, `false` draws
- * nothing. Either way the clause closes and the resolving object then leaves the stack through
+ * nothing. The clause then closes through [afterOptionalDraw], which for a bare
+ * [dev.mtgplay.core.definition.OptionalDraw] is the resolving object leaving the stack via
  * [completeClauseResolution] — the shared completion that knows a spell goes to a graveyard (CR 608.2m)
- * and an ability merely ceases to exist (CR 113.7a).
+ * and an ability merely ceases to exist (CR 113.7a) — and for
+ * [dev.mtgplay.core.definition.OptionalDrawThenDiscard] is the conditional discard that follows an
+ * accepted draw (`W9-A`).
+ *
+ * **The two clauses share this landing site deliberately.** They ask the identical yes/no of the
+ * identical seat, so they raise the identical request and open the identical pending record; only what
+ * follows the answer differs, and that is re-derived from the resolving object's own declared clause
+ * rather than remembered in the record (ADR-004).
  */
 internal fun applyOptionalDrawYesNo(
     state: GameState,
@@ -76,5 +84,5 @@ internal fun applyOptionalDrawYesNo(
     val entry = resolvingClauseEntry(state)
     val cleared = state.copy(pendingOptionalDraw = null)
     val drawn = if (accept) drawCards(cleared, pending.decider, pending.drawCount) else cleared
-    return completeClauseResolution(drawn, entry)
+    return afterOptionalDraw(drawn, entry, pending.decider, accept)
 }

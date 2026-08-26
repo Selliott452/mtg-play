@@ -270,11 +270,15 @@ private fun establishTargets(
     }
     // A spell that announced no targets — one that targets nothing, or an "up to N" whose controller
     // declined them all — has no target choice to narrate.
-    return if (entry.targets.isEmpty()) {
-        state
-    } else {
-        state.emit(GameEvent.TargetsChosen(entry.controller, entry.obj.id, entry.targets))
-    }
+    val narrated =
+        if (entry.targets.isEmpty()) {
+            state
+        } else {
+            state.emit(GameEvent.TargetsChosen(entry.controller, entry.obj.id, entry.targets))
+        }
+    // CR 702.21a: the targets are now chosen, so any warded permanent among them has *become* a target
+    // and its ward triggers — here, at CR 601.2c, and therefore before the CR 601.2g payment below.
+    return detectWardTriggers(narrated, entry.targets, entry.controller, entry.obj.id)
 }
 
 /**

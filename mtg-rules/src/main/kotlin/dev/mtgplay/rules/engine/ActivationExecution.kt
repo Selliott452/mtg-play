@@ -72,6 +72,9 @@ internal fun executeActivation(
     val targets =
         pending.chosenTargets
             ?: error("CR 601.2c: an activation's targets must be settled before its cost is paid")
+    // CR 111.1 / CR 400.7: the ability is an object on the stack and gets an identity for that
+    // residence, so a ward trigger can name it as the object to counter (`FW-WARD`).
+    val (entryId, allocated) = state.allocateObjectId()
     // Capture the source's last-known information before any cost removes it (self-sacrifice, discard-self).
     val entry =
         StackEntry.ActivatedAbilityOnStack(
@@ -80,12 +83,16 @@ internal fun executeActivation(
             controller = pending.activator,
             ability = ability,
             targets = targets,
+            entryId = entryId,
         )
-    val cleared = state.copy(pendingActivation = null)
+    val cleared = allocated.copy(pendingActivation = null)
     establishActivationTargets(cleared, entry)
+    // CR 702.21a: the targets were chosen as the ability was announced (CR 602.2b), so a warded permanent
+    // among them has *become* a target now — before the cost below is paid.
+    val warded = detectWardTriggers(cleared, entry.targets, pending.activator, entryId)
     // CR 602.5b: the "activate only once each turn" record is made *before* the cost is paid, because a
     // cost that returns or sacrifices the source would otherwise leave nothing to record it on.
-    val marked = markAbilityOncePerTurn(cleared, source, ability, pending.abilityIndex)
+    val marked = markAbilityOncePerTurn(warded, source, ability, pending.abilityIndex)
     val paid = payAbilityCost(marked, source, ability, plan, pending)
     val onStack =
         paid

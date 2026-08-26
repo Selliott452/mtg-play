@@ -4,6 +4,7 @@ import dev.mtgplay.core.card.CardType
 import dev.mtgplay.core.card.Keyword
 import dev.mtgplay.core.card.PrintedPowerToughness
 import dev.mtgplay.core.card.Subtype
+import dev.mtgplay.core.definition.DiscardExemption
 import dev.mtgplay.core.definition.PermanentRestriction
 import dev.mtgplay.core.definition.ResolutionContext
 import dev.mtgplay.core.definition.TargetSpec
@@ -104,6 +105,36 @@ class NinjasSpec :
             ability.drawThenDiscard.shouldNotBeNull().let { clause ->
                 clause.drawCount shouldBe HARRIER_STRIX_LOOT_DRAW
                 clause.discardCount shouldBe HARRIER_STRIX_LOOT_DISCARD
+            }
+        }
+
+        "CR 202/205/208: Moon-Circuit Hacker is a {1}{U} 2/1 Enchantment Creature — Human Ninja" {
+            val printed = moonCircuitHacker.characteristics
+            printed.manaCost shouldBe ManaCost.parse("{1}{U}")
+            printed.cardTypes shouldBe persistentSetOf(CardType.ENCHANTMENT, CardType.CREATURE)
+            printed.subtypes shouldBe persistentSetOf(Subtype("Human"), Subtype("Ninja"))
+            printed.powerToughness shouldBe PrintedPowerToughness(power = 2, toughness = 1)
+        }
+
+        "CR 702.49a: Moon-Circuit Hacker declares Ninjutsu {U}, and it is not a casting permission" {
+            moonCircuitHacker.ninjutsu
+                .shouldNotBeNull()
+                .cost shouldBe ManaCost.parse("{U}")
+            moonCircuitHacker.castingPermissions.shouldHaveSize(0)
+        }
+
+        "CR 601.3b/701.8: the Hacker's combat-damage trigger is one optional draw with a conditional discard" {
+            val trigger = moonCircuitHacker.triggeredAbilities.single()
+            trigger.condition shouldBe TriggerCondition.DealtCombatDamageToPlayerSelf
+            // The whole printed tail is a single clause: two clauses side by side would discard even
+            // when the draw was declined, which "if you do" forbids.
+            trigger.optionalDraw shouldBe null
+            trigger.drawThenDiscard shouldBe null
+            trigger.optionalDrawThenDiscard.shouldNotBeNull().let { clause ->
+                clause.drawCount shouldBe MOON_CIRCUIT_HACKER_DRAW
+                clause.discardCount shouldBe MOON_CIRCUIT_HACKER_DISCARD
+                // "unless this creature entered this turn" — CR 603.6a, not CR 302.6 summoning sickness.
+                clause.skipDiscardWhen shouldBe DiscardExemption.SOURCE_ENTERED_THIS_TURN
             }
         }
     })

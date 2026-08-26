@@ -100,6 +100,17 @@ interface ResolutionClauses {
     val optionalDraw: OptionalDraw? get() = null
 
     /**
+     * A "you may draw N. If you do, discard M unless &lt;condition&gt;" clause (CR 601.3b, CR 701.8), or
+     * `null` for a definition with none. Moon-Circuit Hacker's combat-damage trigger. Additive, flagged
+     * core (`W9-A`).
+     *
+     * The first clause that chains **two** pauses, the second conditional on the first's answer *and* on
+     * a board fact — see [OptionalDrawThenDiscard] for why it is neither [optionalDraw] with a tail nor
+     * [drawThenDiscard] with a yes/no in front.
+     */
+    val optionalDrawThenDiscard: OptionalDrawThenDiscard? get() = null
+
+    /**
      * An **untargeted** "choose up to N permanents matching this, then untap them / return them to
      * their owners' hands" clause (CR 609.4), or `null` for a definition with none. Snap's "Untap up to
      * two lands" and Azorius Chancery's "return a land you control to its owner's hand". Additive,
@@ -187,6 +198,7 @@ val ResolutionClauses.declaredClauses: List<Any>
             handRevealChoice,
             eachOpponentDiscards,
             optionalDraw,
+            optionalDrawThenDiscard,
             permanentSelection,
             optionalTapOrUntap,
             optionalManaThenDraw,

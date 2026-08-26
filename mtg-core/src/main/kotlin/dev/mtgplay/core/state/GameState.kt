@@ -303,8 +303,11 @@ data class GameState(
             require(counterPayment.decider in players) {
                 "CR 118.3a: the unless-pay decider ${counterPayment.decider} is not seated"
             }
-            require(sharedZones.stack.any { (it as? StackEntry.Spell)?.obj?.id == counterPayment.counteredObjectId }) {
-                "CR 701.5a: the spell ${counterPayment.counteredObjectId} an unless-pay clause would counter " +
+            // CR 702.21a widened this from "spell" to "spell or ability" (`FW-WARD`): a ward trigger's
+            // unless-pay clause may be holding an ability's stack identity, and an ability on the stack is
+            // an object (CR 111.1) even though it is not a card (CR 113.7a).
+            require(sharedZones.stack.any { it.stackObjectId == counterPayment.counteredObjectId }) {
+                "CR 701.5a: the object ${counterPayment.counteredObjectId} an unless-pay clause would counter " +
                     "must still be on the stack while the payment is pending"
             }
         }

@@ -313,4 +313,21 @@ sealed interface TriggerCondition {
             }
         }
     }
+
+    /**
+     * "Whenever this permanent becomes the target of a spell or ability an opponent controls"
+     * (CR 702.21a) — the condition ward's synthesized trigger carries. Additive, flagged core
+     * (`FW-WARD`).
+     *
+     * **It fires while the targeting object is being put on the stack**, not when that object resolves:
+     * CR 601.2c for a spell, CR 602.2b for an activated ability, CR 603.3d for a triggered one. For a
+     * spell that is *before* CR 601.2g's payment — which is the whole of ward's tempo cost, since an
+     * opponent who tapped out to cast the removal has nothing left to pay with.
+     *
+     * **No detector matches it against a printed ability list.** `mtg-rules` fires ward from the
+     * [CardDefinition.ward] declaration at the three target-establishment sites, and this member is what
+     * the fired record names as its condition. A card printing the clause longhand would need a detector
+     * built for it; nothing in the pool does.
+     */
+    data object BecameTargetOfOpponentsSpellOrAbility : TriggerCondition
 }

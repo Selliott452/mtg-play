@@ -116,10 +116,30 @@ sealed interface StackEntry {
      *   order chosen; empty for an untargeted ability *and* for a targeting one whose controller had no
      *   legal choice at placement — the latter still goes on the stack and then does nothing (CR 608.2b).
      *   Additive, flagged core (`FW-ABILTGT`, docs/design/targeted-abilities.md).
+     * @property entryId this ability's identity **as an object on the stack** (CR 111.1: an ability on the
+     *   stack is an object), fresh for this stack residence and dying with it, exactly as a spell's
+     *   [Spell.obj] id is. Additive, flagged core (`FW-WARD`).
+     *
+     *   **The stack-entry identity docs/design/countering-spells.md §4 flagged as missing and did not
+     *   build.** Its argument for leaving it out was that "abilities are structurally untargetable" and
+     *   nothing in the pool countered one. Ward (CR 702.21a) counters *"that spell or ability"*, so an
+     *   ability now has to be nameable while it sits on the stack, and neither of the facts already on
+     *   the record can name it: [PendingTrigger.sourceId] names the *source permanent*, of which one
+     *   object can put several abilities on the stack at once, and structural equality would confuse two
+     *   identical triggers from two identical sources.
+     *
+     *   It is still **not** a target: [Target.SpellOnStack] names a spell and nothing constructs a target
+     *   from this. It is the linked information a ward trigger carries about what to counter.
+     *
+     *   **Nullable, and never null in a real game.** Every production placement path allocates one; the
+     *   `null` is for an entry a test fixture built by hand, and it is modelled in the type rather than
+     *   as a sentinel so that "counter the object with no identity" cannot silently match an arbitrary
+     *   ability on the stack.
      */
     data class Ability(
         val trigger: PendingTrigger,
         val targets: PersistentList<Target> = persistentListOf(),
+        val entryId: ObjectId? = null,
     ) : StackEntry
 
     /**
@@ -137,6 +157,9 @@ sealed interface StackEntry {
      *   chosen; empty for an untargeted ability. Never short: an ability with no legal target cannot be
      *   activated (CR 601.2c) and is not enumerated. Additive, flagged core (`FW-ABILTGT`,
      *   docs/design/targeted-abilities.md).
+     * @property entryId this ability's identity as an object on the stack — the exact sibling of
+     *   [Ability.entryId], for the exact reason, and distinct from [sourceId], which names the permanent
+     *   whose ability this is and stays the same across two activations of it.
      */
     data class ActivatedAbilityOnStack(
         val sourceId: ObjectId,
@@ -144,8 +167,29 @@ sealed interface StackEntry {
         val controller: PlayerId,
         val ability: ActivatedAbility,
         val targets: PersistentList<Target> = persistentListOf(),
+        val entryId: ObjectId? = null,
     ) : StackEntry
 }
+
+/**
+ * This stack object's own identity for its stack residence (CR 400.7, CR 111.1) — a spell's card-object
+ * id, an ability's [StackEntry.Ability.entryId] / [StackEntry.ActivatedAbilityOnStack.entryId].
+ *
+ * The projection that lets "counter it" (CR 701.5, CR 702.21a) name its victim without asking which kind
+ * of object it is. Deliberately **not** [resolutionSourceId], which for an ability names the *source
+ * permanent* and not the ability: countering an ability by its source's id would counter the wrong
+ * object whenever a permanent has two abilities on the stack at once.
+ *
+ * `null` only for a fixture-built ability entry that was never given an identity; a spell always has one,
+ * and so does every ability a production path put on the stack.
+ */
+val StackEntry.stackObjectId: ObjectId?
+    get() =
+        when (this) {
+            is StackEntry.Spell -> obj.id
+            is StackEntry.Ability -> entryId
+            is StackEntry.ActivatedAbilityOnStack -> entryId
+        }
 
 /**
  * The card object a stack entry places on the stack, or `null` for an ability (CR 113.7a — an ability

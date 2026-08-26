@@ -7,9 +7,11 @@ import dev.mtgplay.core.card.PrintedPowerToughness
 import dev.mtgplay.core.card.Subtype
 import dev.mtgplay.core.definition.AbilityCost
 import dev.mtgplay.core.definition.ActivatedAbility
+import dev.mtgplay.core.definition.DiscardExemption
 import dev.mtgplay.core.definition.DrawThenDiscard
 import dev.mtgplay.core.definition.Ninjutsu
 import dev.mtgplay.core.definition.OptionalDraw
+import dev.mtgplay.core.definition.OptionalDrawThenDiscard
 import dev.mtgplay.core.definition.PermanentRestriction
 import dev.mtgplay.core.definition.ResolutionEffect
 import dev.mtgplay.core.definition.SpellDefinition
@@ -42,6 +44,12 @@ const val HARRIER_STRIX_LOOT_DRAW: Int = 1
 
 /** How many cards Harrier Strix's activated ability discards after its draw (CR 701.8). */
 const val HARRIER_STRIX_LOOT_DISCARD: Int = 1
+
+/** How many cards Moon-Circuit Hacker's combat-damage trigger may draw (CR 601.3b). */
+const val MOON_CIRCUIT_HACKER_DRAW: Int = 1
+
+/** How many cards Moon-Circuit Hacker's trigger discards when its "unless" does not hold (CR 701.8). */
+const val MOON_CIRCUIT_HACKER_DISCARD: Int = 1
 
 /**
  * Ninja of the Deep Hours — `{3}{U}` Creature — Human Ninja, a 2/2. "Ninjutsu {1}{U} ({1}{U}, Return an
@@ -150,6 +158,74 @@ val harrierStrix: SpellDefinition =
                     // Everything the ability does is its clause, which the engine runs after this no-op.
                     effect = entersTheBattlefield,
                     drawThenDiscard = DrawThenDiscard(HARRIER_STRIX_LOOT_DRAW, HARRIER_STRIX_LOOT_DISCARD),
+                ),
+            )
+    }
+
+/**
+ * Moon-Circuit Hacker — `{1}{U}` Enchantment Creature — Human Ninja, a 2/1. "Ninjutsu `{U}` (`{U}`,
+ * Return an unblocked attacker you control to hand: Put this card onto the battlefield from your hand
+ * tapped and attacking.) Whenever this creature deals combat damage to a player, you may draw a card. If
+ * you do, discard a card unless this creature entered this turn."
+ *
+ * **The Faeries deck's second ninja, and the one whose tail is the whole card.** Ninja of the Deep Hours
+ * draws; this one draws and then usually pays a card back — *unless* it arrived this turn, which is
+ * exactly what its own ninjutsu cost makes happen. Ninjutsu it in during combat and it connects the same
+ * turn for a free card; leave it on the battlefield and every later connection is a loot rather than a
+ * draw. Encoding either half alone would delete the tempo argument for playing it at all.
+ *
+ * **The triage filed this card as blocked on ninjutsu, and that entry is stale.** `FW-NINJUTSU` and
+ * `FW-TRIGCOMBAT` both landed with Ninja of the Deep Hours, so [Ninjutsu] and
+ * [TriggerCondition.DealtCombatDamageToPlayerSelf] are plain declarations here. What was genuinely
+ * missing is the two things `W8-E` named, and this packet built:
+ *
+ * - **[dev.mtgplay.core.state.GameObject.enteredTurn]** — nothing on a game object recorded when a
+ *   permanent entered. `summoningSick` merely *coincides* with "entered this turn" on the states this
+ *   engine can currently reach, and it is a different fact (CR 302.6 is about continuous control, not
+ *   about this turn); it would answer wrongly the first time anything grants haste, and a ninja that
+ *   arrives tapped and attacking is precisely the shape that makes the two come apart. The stamp lives in
+ *   the single battlefield-entry home, so the ninjutsu path records it exactly as a resolving spell does.
+ * - **[OptionalDrawThenDiscard]** — "you may draw a card. **If you do**, discard a card **unless** …" is
+ *   two chained pauses where the second is conditional on both the first answer and a board fact. It is
+ *   not [OptionalDraw] (which has no tail) and not [DrawThenDiscard] (which is mandatory and asks
+ *   nothing), and it is not both declared side by side — that would discard even when the draw was
+ *   declined, and the engine forbids two clauses on one definition for exactly this reason.
+ *
+ * **The "unless" is answered from last-known information** (CR 603.10), so a Hacker killed in response to
+ * its own trigger still remembers that it entered this turn and its controller still keeps the card.
+ *
+ * **The printed `{1}{U}` is not dead text**, for the reason it is not on Ninja of the Deep Hours: ninjutsu
+ * is an activated ability (CR 702.49a), not an alternative cost, so the ordinary creature spell remains a
+ * real and separately enumerated line.
+ */
+val moonCircuitHacker: SpellDefinition =
+    object : SpellDefinition {
+        override val characteristics =
+            PrintedCharacteristics(
+                name = "Moon-Circuit Hacker",
+                manaCost = ManaCost.parse("{1}{U}"),
+                supertypes = persistentSetOf(),
+                cardTypes = persistentSetOf(CardType.ENCHANTMENT, CardType.CREATURE),
+                subtypes = persistentSetOf(Subtype("Human"), Subtype("Ninja")),
+                powerToughness = PrintedPowerToughness(power = 2, toughness = 1),
+            )
+        override val timing = TimingClass.SORCERY_SPEED
+        override val targetSpec = TargetSpec.None
+        override val resolution = entersTheBattlefield
+
+        // CR 702.49a. The cost only; the ability text is the engine's.
+        override val ninjutsu = Ninjutsu(ManaCost.parse("{U}"))
+        override val triggeredAbilities =
+            persistentListOf(
+                TriggeredAbility(
+                    condition = TriggerCondition.DealtCombatDamageToPlayerSelf,
+                    effect = entersTheBattlefield,
+                    optionalDrawThenDiscard =
+                        OptionalDrawThenDiscard(
+                            drawCount = MOON_CIRCUIT_HACKER_DRAW,
+                            discardCount = MOON_CIRCUIT_HACKER_DISCARD,
+                            skipDiscardWhen = DiscardExemption.SOURCE_ENTERED_THIS_TURN,
+                        ),
                 ),
             )
     }

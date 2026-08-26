@@ -223,6 +223,15 @@ enum class Invariant {
     KICKED_MARKER_SCOPE,
 
     /**
+     * The entry-turn stamp ([dev.mtgplay.core.state.GameObject.enteredTurn]) is a **battlefield-only**
+     * quantity (CR 603.6a) and never names a future turn. Added with `W9-A`. Every entry path stamps it
+     * through the one battlefield-entry home, and the fresh object born of any zone move carries none
+     * (CR 400.7) — a creature that dies and is reanimated entered on the turn it was reanimated. A stamp
+     * off the battlefield is a leaked status; a stamp later than the current turn is an engine defect.
+     */
+    ENTERED_TURN_SCOPE,
+
+    /**
      * Every P6.2c mid-resolution pause is well-formed (CR 601.2c/601.3b/701.18). Added in P6.2c. The
      * optional cost-then-draw ([dev.mtgplay.core.state.GameState.pendingOptionalCostDraw], Highway Robbery),
      * the mandatory resolution discard ([dev.mtgplay.core.state.GameState.pendingResolutionDiscard], Faithless

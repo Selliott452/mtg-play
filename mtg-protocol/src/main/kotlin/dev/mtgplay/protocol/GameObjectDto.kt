@@ -65,6 +65,11 @@ import kotlinx.serialization.Serializable
  *   exiled face up. It records when the permission *began*, not when it ends — see
  *   [dev.mtgplay.core.state.GameObject.playGrantedTurn] for why that is the honest encoding. Added by
  *   `W8-D`.
+ * @property enteredTurn the turn this permanent entered the battlefield (CR 603.6a); `null` for every
+ *   object that is not on the battlefield. Public information (ADR-007) — every seat watched it arrive,
+ *   and Moon-Circuit Hacker's *"unless this creature entered this turn"* is a question both players must
+ *   be able to answer. Deliberately **not** `summoningSick`, which is a different fact about control
+ *   (CR 302.6) and already rides separately. Added by `W9-A`.
  */
 @Serializable
 data class GameObjectDto(
@@ -89,6 +94,7 @@ data class GameObjectDto(
     val evokedWhenCast: Boolean = false,
     val playGrantedTurn: Int? = null,
     val optionalCostPaidWhenCast: Boolean = false,
+    val enteredTurn: Int? = null,
 )
 
 /** [GameObject] to its wire form. */
@@ -121,6 +127,8 @@ fun GameObject.toDto(): GameObjectDto =
         evokedWhenCast = evokedWhenCast,
         playGrantedTurn = playGrantedTurn,
         optionalCostPaidWhenCast = optionalCostPaidWhenCast,
+        // CR 603.6a: every seat watched the permanent arrive, so when it arrived is public (ADR-007).
+        enteredTurn = enteredTurn,
     )
 
 /** [GameObjectDto] back to the engine value. */
@@ -147,4 +155,5 @@ fun GameObjectDto.toDomain(): GameObject =
         evokedWhenCast = evokedWhenCast,
         playGrantedTurn = playGrantedTurn,
         optionalCostPaidWhenCast = optionalCostPaidWhenCast,
+        enteredTurn = enteredTurn,
     )

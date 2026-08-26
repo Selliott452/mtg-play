@@ -695,5 +695,35 @@ package dev.mtgplay.protocol
  *    field ([TapRequirementDto]) alongside its `sacrifice`, because CR 702.34c admits more than mana
  *    in a flashback cost. Recorded here rather than under `FW-PREVENT2` because it is the same
  *    permission payload, changed once.
+ *
+ * ### Held at `9.0.0` — `W9-A`: the entry-turn stamp, the conditional loot, and ward
+ *
+ * **Call: no bump**, on this file's own repeatedly-applied standard — `9.0.0` is **unreleased**. The
+ * only tag is `v0.1.0`, which shipped protocol `1.0.0`, so `1.0.0` remains the last version any
+ * consumer can have seen and an unshipped major absorbs a further break rather than inflating a major
+ * count for a version nobody could have consumed. Naming the break is still owed, and there is exactly
+ * one:
+ *
+ * 1. **A field on a payload every seat view carries.** [GameObjectDto] gains `enteredTurn` (CR 603.6a —
+ *    the turn a permanent entered the battlefield), public for the reason `kickedWhenCast` is: every
+ *    seat watched it arrive, and a card asking *"unless this creature entered this turn"* is a question
+ *    both players must be able to answer. Every game object on the wire is a [GameObjectDto], so a
+ *    strict `8.0.0`-era codec would reject **every** seat view, not only boards containing a ward or a
+ *    ninja — the break shape `FW-COUNTERS`, `FW-OPTCOST`, and `FW-BARGAIN` all recorded. It is
+ *    defaulted rather than required, so a peer that omits it still decodes.
+ *
+ * **No new `DecisionRequest` kind, and that is the notable part of a packet that added ward.** Ward's
+ * CR 702.21a payment reuses [DecisionRequestDto.ChooseCounterPayment], the request Force Spike's
+ * CR 118.3a unless-pay already defined: the payload is identical (decline at index 0, then affordable
+ * plans) and the two flows differ only in which object is about to be countered, which the request's
+ * existing `card` field names. The conditional-loot clause likewise reuses `ChooseYesNo` and then
+ * `ChooseResolutionDiscards` — its whole design was to chain two pauses that already exist rather than
+ * mint a third. So [DecisionRequestKindDto] is unchanged and nothing fails at `valueOf` mid-match.
+ *
+ * **Ward's stack-entry identity does not reach the wire either.** [StackEntry.Ability] and
+ * [StackEntry.ActivatedAbilityOnStack] gained an `entryId` so "counter that ability" can name its
+ * victim, but [StackEntryViewDto] deliberately does not carry it: it is engine-internal linkage, an
+ * agent never sends it, and every option an agent is offered is already an index into an enumerated
+ * list. Adding it would widen the wire for something nothing on the far side could use.
  */
 const val PROTOCOL_VERSION: String = "9.0.0"

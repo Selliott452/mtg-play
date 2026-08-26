@@ -177,6 +177,27 @@ import kotlinx.collections.immutable.persistentSetOf
  *
  *   `null` on the fresh object born of any zone move (CR 400.7), which is what stops a card played from
  *   exile and later returned to exile from still being playable.
+ * @property enteredTurn the turn number on which this permanent **entered the battlefield** (CR 603.6a),
+ *   or `null` for an object that is not on the battlefield. Additive, flagged core (`W9-A`).
+ *
+ *   **It is not [summoningSick], and the two only coincide by accident.** Summoning sickness is "has
+ *   not been continuously controlled since the start of its controller's most recent turn" (CR 302.6) —
+ *   a fact about *control*, cleared at the beginning of the controller's turn and irrelevant to a
+ *   creature with haste. "Entered this turn" is a fact about *this turn*, true for a hasty creature and
+ *   for one that entered during an opponent's turn, and false for a creature that has been on the
+ *   battlefield since before the turn began even when it is still summoning sick (put onto the
+ *   battlefield during the opponent's turn, it is sick on your turn and did not enter on it). Moon-Circuit
+ *   Hacker's *"discard a card **unless this creature entered this turn**"* asks the second question, and
+ *   reading the first would answer it wrongly the moment anything grants haste.
+ *
+ *   **A turn number rather than a boolean**, matching [plottedTurn] and [reboundTurn]: "this turn" is
+ *   then `enteredTurn == state.turn.number`, which needs no per-turn sweep to clear and cannot go stale.
+ *
+ *   Stamped in the single battlefield-entry home every entry path shares, so no path can put a permanent
+ *   onto the battlefield without recording when. A battlefield-only quantity like [tapped]: `null`
+ *   everywhere else, and the fresh object born of any zone move carries none (CR 400.7) — a creature that
+ *   dies and is reanimated entered on the turn it was reanimated, because it is a new object. The
+ *   acceptance invariant checker enforces the scope.
  * @property manaAbilitiesActivatedThisTurn the indices of this object's **printed** mana abilities that
  *   have been activated during the turn now in progress (CR 602.5b). Additive, flagged core
  *   (`FW-MANACOST`). Empty for every object that has no "Activate only once each turn" mana ability —
@@ -241,6 +262,7 @@ data class GameObject(
     val evokedWhenCast: Boolean = false,
     val playGrantedTurn: Int? = null,
     val optionalCostPaidWhenCast: Boolean = false,
+    val enteredTurn: Int? = null,
 ) {
     init {
         require(damageMarked >= 0) { "CR 120.3: marked damage is non-negative, was $damageMarked" }
@@ -259,6 +281,7 @@ data class GameObject(
         require(attachedTo != id) { "CR 303.4: an Aura cannot be attached to itself ($id)" }
         require(plottedTurn == null || plottedTurn >= 1) { "CR 702.140: a plotted turn is a real turn number" }
         require(reboundTurn == null || reboundTurn >= 1) { "CR 702.88a: a rebound turn is a real turn number" }
+        require(enteredTurn == null || enteredTurn >= 1) { "CR 603.6a: an entry turn is a real turn number" }
         require(id !in linkedExiled) { "CR 607.2: a permanent cannot be its own linked exile ($id)" }
         require(linkedExiled.distinct().size == linkedExiled.size) {
             "CR 607.2: a linked exile record names each exiled object once, got $linkedExiled"

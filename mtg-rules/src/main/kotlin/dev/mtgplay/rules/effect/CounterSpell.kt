@@ -3,11 +3,16 @@ package dev.mtgplay.rules.effect
 import dev.mtgplay.core.event.GameEvent
 import dev.mtgplay.core.identity.ObjectId
 import dev.mtgplay.core.state.GameState
+import dev.mtgplay.core.state.StackEntry
 import dev.mtgplay.core.state.Target
+import dev.mtgplay.core.state.resolutionController
+import dev.mtgplay.core.state.resolutionSourceCard
 import dev.mtgplay.rules.engine.emit
 import dev.mtgplay.rules.engine.narrateLeaveStackExile
 import dev.mtgplay.rules.engine.putSpellOffStack
 import dev.mtgplay.rules.engine.spellOnStack
+import dev.mtgplay.rules.engine.stackObjectOnStack
+import dev.mtgplay.rules.engine.updateStack
 
 /**
  * Counters the spell [target] on behalf of the resolving object [counteredBy] (CR 701.5) — the published
@@ -69,6 +74,15 @@ internal fun counterSpellById(
                 "CR 701.5a: spell $counteredObjectId is not on the stack — the CR 608.2b re-check " +
                     "should have fizzled its counter before resolution",
             )
+    return counterSpellEntry(state, entry, counteredBy)
+}
+
+/** The body of [counterSpellById] once its victim has been located (CR 701.5a). */
+private fun counterSpellEntry(
+    state: GameState,
+    entry: StackEntry.Spell,
+    counteredBy: ObjectId,
+): GameState {
     val left = putSpellOffStack(state, entry)
     val countered =
         left.state.emit(
@@ -81,4 +95,62 @@ internal fun counterSpellById(
             ),
         )
     return narrateLeaveStackExile(countered, entry, left)
+}
+
+/**
+ * Counters the stack object — spell **or ability** — whose stack-residence identity is
+ * [counteredObjectId] (CR 701.5a), on behalf of [counteredBy]. Additive (`FW-WARD`).
+ *
+ * The widening of [counterSpellById] that ward (CR 702.21a) needs, since *"counter that spell or
+ * ability"* may name either, and the two are **not** the same action:
+ *
+ * - a **spell** is a card (CR 111.1), so its card goes to its owner's graveyard as a new object — or to
+ *   exile for a flashback cast (CR 702.34e) — and the log says [GameEvent.SpellCountered];
+ * - an **ability** is not a card (CR 113.7a), so countering it removes it from the stack and it simply
+ *   ceases to exist. Nothing moves, no object is born, and the log says [GameEvent.AbilityCountered].
+ *   Its *cost* stays paid exactly as a countered spell's does (CR 701.5a) — a ninjutsu ability countered
+ *   this way leaves the returned attacker in its owner's hand and the mana spent.
+ *
+ * **An object that has already left the stack is a no-op here, not a defect**, and that is the difference
+ * from [counterSpellById]. A counter *spell* names its victim as a target and so gets the CR 608.2b
+ * re-check before it resolves; a ward trigger names its victim as linked information and gets no re-check
+ * at all, so the victim may perfectly legally have resolved or been countered in the meantime. Ward then
+ * counters nothing, which is the printed outcome.
+ */
+internal fun counterStackObjectById(
+    state: GameState,
+    counteredObjectId: ObjectId,
+    counteredBy: ObjectId,
+): GameState =
+    when (val entry = stackObjectOnStack(state, counteredObjectId)) {
+        null -> state
+        is StackEntry.Spell -> counterSpellEntry(state, entry, counteredBy)
+        is StackEntry.Ability -> ceaseCounteredAbility(state, entry, counteredObjectId, counteredBy)
+        is StackEntry.ActivatedAbilityOnStack ->
+            ceaseCounteredAbility(state, entry, counteredObjectId, counteredBy)
+    }
+
+/**
+ * The CR 113.7a removal of a countered ability: it leaves the stack from wherever it sits and ceases to
+ * exist. Deliberately not the resolved-ability cessation — that one narrates a resolution, and this
+ * ability never resolved.
+ */
+private fun ceaseCounteredAbility(
+    state: GameState,
+    entry: StackEntry,
+    entryId: ObjectId,
+    counteredBy: ObjectId,
+): GameState {
+    val index = state.sharedZones.stack.indexOfFirst { it === entry }
+    check(index >= 0) { "CR 701.5a: the ability being countered is not on the stack" }
+    return state
+        .updateStack { it.removingAt(index) }
+        .emit(
+            GameEvent.AbilityCountered(
+                controller = entry.resolutionController,
+                entryId = entryId,
+                sourceCard = entry.resolutionSourceCard,
+                counteredBy = counteredBy,
+            ),
+        )
 }

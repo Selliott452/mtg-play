@@ -45,10 +45,27 @@ internal fun resolveAbility(
     val early =
         fizzleTrigger(state, entry)
             ?: interveningIfFailure(state, entry)
+            ?: wardCounterPause(state, entry)
             ?: resolveOrchestratedTrigger(state, entry)
             ?: optionalTriggerPause(state, entry)
     return early ?: performTriggerEffect(state, entry)
 }
+
+/**
+ * The CR 702.21a "counter it unless that player pays" pause of a resolving ward trigger, or `null` for
+ * every other ability — including a ward trigger whose victim has already left the stack, which counters
+ * nothing and resolves on through its (empty) effect.
+ *
+ * Ordered after the CR 608.2b and CR 603.4 early exits and before every "you may": an ability that does
+ * not resolve at all must never open a payment its controller's opponent would then have to un-pay. It is
+ * the mirror of `resolveSpell`'s placement of the same clause, and for the same reason.
+ */
+private fun wardCounterPause(
+    state: GameState,
+    entry: StackEntry.Ability,
+): AdvanceResult? =
+    entry.trigger.ability.counterUnlessPaid
+        ?.let { orchestrateCounterUnlessPaid(state, entry, it) }
 
 /**
  * The CR 603.2 "you may" pause of an ability whose **whole** effect is inside that permission — Mortuary
