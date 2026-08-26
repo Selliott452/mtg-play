@@ -313,6 +313,7 @@ private fun choiceCountSelectionToDto(request: DecisionRequest.ChoiceCountSelect
             DecisionRequestDto.ChooseFromRevealed(
                 request.id.toDto(),
                 request.options.map { cardOption(it.objectId, it.card) },
+                request.mayKeepNone,
             )
         is DecisionRequest.ChooseCostMode ->
             DecisionRequestDto.ChooseCostMode(request.id.toDto(), request.prompt, request.options.map { it.toDto() })

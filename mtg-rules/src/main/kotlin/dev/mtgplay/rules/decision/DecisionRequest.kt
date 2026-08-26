@@ -1632,12 +1632,16 @@ sealed interface DecisionRequest {
      * that card, or the extra "keep none" index ([options].size). Additive, flagged (P6.2a). Surfaced
      * only when at least one matching card was revealed; keeping none is always legal ("you may").
      *
-     * @property options the revealed cards that may be put into the hand, in reveal (top-first) order;
-     *   index `options.size` means "keep none".
+     * @property options the revealed cards that may be chosen, in reveal (top-first) order;
+     *   index `options.size` means "keep none" when [mayKeepNone].
+     * @property mayKeepNone whether declining is legal (CR 701.16) — `true` for every "you may"/"up
+     *   to" line, `false` for a mandatory one (Throne of the Dead Three's "**Put** a creature card
+     *   from among them onto the battlefield"). Additive, flagged (`W11`).
      */
     data class ChooseFromRevealed(
         override val id: DecisionRequestId,
         val options: List<Option>,
+        val mayKeepNone: Boolean = true,
     ) : ChoiceCountSelection {
         init {
             require(options.isNotEmpty()) {
@@ -1645,10 +1649,21 @@ sealed interface DecisionRequest {
             }
         }
 
-        /** How many selectable indices this request has: one per keepable card, plus the "keep none" index. */
-        override val choiceCount: Int get() = options.size + 1
+        /**
+         * How many selectable indices this request has: one per keepable card, plus the "keep none"
+         * index — **only** when [mayKeepNone].
+         *
+         * A mandatory instruction ("**Put** a creature card from among them onto the battlefield",
+         * Throne of the Dead Three) has no legal decline once a matching card has been revealed, so
+         * the decline is not an index at all rather than an index the validator would reject. An
+         * illegal line the engine enumerates is the failure ADR-005 names first.
+         */
+        override val choiceCount: Int get() = options.size + if (mayKeepNone) 1 else 0
 
-        /** The [Decision.SingleSelect] index meaning "keep none of the revealed cards". */
+        /**
+         * The [Decision.SingleSelect] index meaning "keep none of the revealed cards" — a legal answer
+         * only when [mayKeepNone], and out of range otherwise.
+         */
         val keepNoneIndex: Int get() = options.size
 
         /**

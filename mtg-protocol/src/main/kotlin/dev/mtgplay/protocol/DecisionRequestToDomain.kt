@@ -191,6 +191,7 @@ private fun choiceCountSelectionToDomain(dto: DecisionRequestDto.ChoiceCountSele
             DecisionRequest.ChooseFromRevealed(
                 dto.id.toDomain(),
                 dto.options.mapOptions { o, c -> DecisionRequest.ChooseFromRevealed.Option(o, c) },
+                dto.mayKeepNone,
             )
         is DecisionRequestDto.ChooseCostMode ->
             DecisionRequest.ChooseCostMode(dto.id.toDomain(), dto.prompt, dto.options.map { it.toDomain() })

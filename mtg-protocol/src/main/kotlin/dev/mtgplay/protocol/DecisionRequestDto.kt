@@ -436,12 +436,19 @@ sealed interface DecisionRequestDto {
         val options: List<TriggerOptionDto>,
     ) : PermutationSelectionDto
 
-    /** Wire form of [DecisionRequest.ChooseFromRevealed] (CR 701.16). */
+    /**
+     * Wire form of [DecisionRequest.ChooseFromRevealed] (CR 701.16).
+     *
+     * @property mayKeepNone whether declining is one of the indices — `false` for a mandatory reveal
+     *   ("**Put** a creature card from among them onto the battlefield"). Defaulted so a peer on the
+     *   older schema, which had no mandatory reveal to describe, still decodes. Added by `W11`.
+     */
     @Serializable
     @SerialName("choose_from_revealed")
     data class ChooseFromRevealed(
         override val id: DecisionRequestIdDto,
         val options: List<CardObjectOptionDto>,
+        val mayKeepNone: Boolean = true,
     ) : ChoiceCountSelectionDto
 
     /** Wire form of [DecisionRequest.ChooseCostMode] (CR 601.3b). */

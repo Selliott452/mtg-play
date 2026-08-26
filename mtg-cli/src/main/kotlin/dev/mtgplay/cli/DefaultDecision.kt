@@ -19,7 +19,8 @@ import dev.mtgplay.rules.decision.PriorityOption
  *  - ranged (multi-target) selection: the fewest allowed — none for an "up to N" line, which is the
  *    passive answer, and the first N for a line that demands them;
  *  - full ordering: the identity order (0,1,2,...);
- *  - "choose one or opt out": opt out (keep/find none, decline);
+ *  - "choose one or opt out": opt out (keep/find none, decline), or the last option when the
+ *    request is mandatory and offers no opt-out;
  *  - yes/no: decline;
  *  - mulligan: keep, and - if bottoming - the first N.
  */
@@ -46,7 +47,9 @@ fun defaultDecision(request: DecisionRequest): Decision =
         is DecisionRequest.SummedSelection -> Decision.MultiSelect(request.id, cheapestPayment(request))
         is DecisionRequest.PermutationSelection ->
             Decision.MultiSelect(request.id, (0 until request.permutationSize).toList())
-        // The trailing opt-out index is the last legal index (CR 701.16/601.3b/701.18): keep/find none, decline.
+        // The last legal index (CR 701.16/601.3b/701.18): the trailing opt-out — keep/find none,
+        // decline — where the request offers one, and the last real option on a *mandatory* reveal
+        // (`W11`), which has no opt-out index and where declining is not a choice.
         is DecisionRequest.ChoiceCountSelection -> Decision.SingleSelect(request.id, request.choiceCount - 1)
         is DecisionRequest.MulliganRequest -> mulliganDefault(request)
     }

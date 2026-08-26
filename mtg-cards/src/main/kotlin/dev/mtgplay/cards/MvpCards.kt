@@ -251,6 +251,18 @@ import dev.mtgplay.core.identity.CardRef
  * genuinely new seam is that **how a spell was cast now decides what it targets**: one card in hand
  * offers two casts, and only the bestow one names a creature.
  *
+ * The `W11` packet finishes the gauntlet with the Undercity's last two rooms and the two cards that
+ * walk into it (Initiative.kt): [avengingHunter] and [goliathPaladin], each an ordinary body whose one
+ * printed line is *"When this creature enters, you take the initiative."* `W10-A` shipped the dungeon
+ * with Arena and Throne of the Dead Three recorded as unimplemented and both cards deliberately
+ * unregistered, because every path through the Undercity meets one of the two. Arena needed the
+ * engine's first **attack requirement** (CR 508.1d, goad) — the declare-attackers declaration is no
+ * longer a free subset — and Throne needed a reveal that ends on the battlefield, a "then shuffle" over
+ * the cards it did *not* take, and an [dev.mtgplay.core.state.EffectDuration] of "until your next
+ * turn", which both rooms print and neither of the existing two could express. Avenging Hunter also
+ * corrects the repo's Scryfall snapshot, which typed it Dragon Ranger: it is an **Elf** Ranger, and
+ * Elves counts Elves three different ways.
+ *
  * [definitions] is shaped for direct `MatchConfig.definitions` consumption: the engine carries
  * it into `GameState` in canonical name-sorted order regardless of this map's own order
  * (ADR-009 — definitions ride in the state; a [CardRef] without an entry is inert). The pool
@@ -538,6 +550,7 @@ object MvpCards {
             annul,
             archaeomancer,
             augurOfBolas,
+            avengingHunter,
             armadilloCloak,
             ashBarrens,
             basiliskGate,
@@ -612,6 +625,7 @@ object MvpCards {
             gnawToTheBone,
             godPharaohsFaithful,
             goblinTombRaider,
+            goliathPaladin,
             gorillaShaman,
             grabThePrize,
             greatFurnace,

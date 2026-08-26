@@ -197,8 +197,12 @@ private fun takeLibraryCard(
     return library[index] to state.updatePlayer(player) { it.copy(library = it.library.removingAt(index)) }
 }
 
-/** Shuffles [player]'s library through the match PRNG (CR 701.18, ADR-006); the seeded draw makes replay reproduce. */
-private fun shuffleLibrary(
+/**
+ * Shuffles [player]'s library through the match PRNG (CR 701.18, ADR-006); the seeded draw makes replay
+ * reproduce. `internal` since `W11`: Throne of the Dead Three's reveal ends in the same "then shuffle",
+ * and two shuffle implementations drawing from one PRNG would be two ways to consume seeded entropy.
+ */
+internal fun shuffleLibrary(
     state: GameState,
     player: PlayerId,
 ): GameState {

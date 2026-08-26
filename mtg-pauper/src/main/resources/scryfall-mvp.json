@@ -137,7 +137,7 @@
     {
       "name": "Avenging Hunter",
       "mana_cost": "{4}{G}",
-      "type_line": "Creature — Dragon Ranger",
+      "type_line": "Creature — Elf Ranger",
       "oracle_text": "Trample\nWhen this creature enters, you take the initiative.",
       "power": "5",
       "toughness": "4",
