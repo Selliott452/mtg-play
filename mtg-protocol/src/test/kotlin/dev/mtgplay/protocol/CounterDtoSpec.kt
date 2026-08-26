@@ -109,7 +109,10 @@ class CounterDtoSpec :
             // closed sealed discriminator makes a *loud* decode failure on an older peer, and
             // PendingActivationDto gains an optional `chosenTap` that the strict codec still rejects
             // as an unknown field. The client->server direction is unchanged — the tap cost reuses the
-            // existing ChooseTapsForCost rather than adding a DecisionRequest kind.
+            // existing ChooseTapsForCost rather than adding a DecisionRequest kind. The same packet's
+            // bestow half rides the bump: CastingPermissionDto gains a `bestow` variant, and a bestowed
+            // permanent's Aura-ness deliberately adds no field — it is a layer-4 static ability a peer
+            // computes from state it already has.
             // Pinned here so no bump in the chain can be quietly reverted.
             PROTOCOL_VERSION shouldBe "11.0.0"
         }

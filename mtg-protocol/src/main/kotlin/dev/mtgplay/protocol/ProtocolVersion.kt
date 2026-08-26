@@ -1007,5 +1007,24 @@ package dev.mtgplay.protocol
  * One field is **not** on the wire and the omission is deliberate:
  * [dev.mtgplay.core.state.StackEntry.ActivatedAbilityOnStack.tappedForCost] is engine-internal
  * resolution linkage (CR 608.2h), like `blockingAtActivation` beside it, and no seat view renders it.
+ *
+ * ### Also `11.0.0` — `W10-C`: bestow
+ *
+ * Landed in the same packet, so it rides the same bump. One schema change and one that is not:
+ *
+ * 1. **[CastingPermissionDto] gains a `bestow` variant** (CR 702.103), carrying the bestow cost.
+ *    Casting permissions travel in the printed-card table of every seat view, so this reaches a peer on
+ *    any board with the card, and it fails **loudly** on a `10.0.0` peer for [CounterDto]'s reason: the
+ *    discriminator is closed.
+ *
+ *    The payload is only the cost, and that is not an omission — unlike [CastingPermissionDto.Prototype],
+ *    whose alternative power and toughness a peer could not derive, everything else bestow does is fixed
+ *    by CR 702.103b (the spell is an Aura with enchant creature) or is a static ability the card already
+ *    publishes in its own declaration.
+ * 2. **A bestowed permanent's Aura-ness is *not* a new field**, which is the more interesting half. It is
+ *    a CR 613 layer-4 static ability conditioned on the permanent being attached, so a peer that computes
+ *    characteristics from the state it already receives — the attachment, the counters, the card's static
+ *    effects — gets the right answer with no extra bytes. Recording "was cast for bestow" on the object
+ *    would have been a second source of truth on the wire as well as in the engine.
  */
 const val PROTOCOL_VERSION: String = "11.0.0"
