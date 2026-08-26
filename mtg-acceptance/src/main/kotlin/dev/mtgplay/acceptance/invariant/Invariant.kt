@@ -413,4 +413,15 @@ enum class Invariant {
      * nothing. See `checkSkipsNextUntapScope`.
      */
     SKIPS_NEXT_UNTAP_SCOPE,
+
+    /**
+     * Every venture marker's dungeon card (CR 309.2) is its own object: an id below the allocation
+     * counter (CR 400.7), shared with nothing in any ordinary zone, and distinct from every other
+     * player's. Added with `W10-A`.
+     *
+     * The one piece of initiative state `GameState` cannot check for itself — its id-uniqueness walk
+     * covers the zones it holds lists for, and the command zone is not one of them. See
+     * `checkDungeonObjectIdentity` for the quiet failure it backstops.
+     */
+    DUNGEON_OBJECT_IDENTITY,
 }

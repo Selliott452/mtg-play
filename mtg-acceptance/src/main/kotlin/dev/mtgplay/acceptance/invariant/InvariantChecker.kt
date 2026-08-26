@@ -88,6 +88,9 @@ object InvariantChecker {
             addAll(checkEntryTriggerDetection(state))
             addAll(checkExileAndReturnState(state, residences))
             addAll(checkNinjutsuCost(state))
+            // CR 309.2/400.7 (`W10-A`): the command zone holds a dungeon card this state models as a
+            // marker alone, so its object identity is outside every core uniqueness check.
+            addAll(checkDungeonObjectIdentity(state, residences))
             if (expectedCards != null) addAll(checkCardConservation(state, expectedCards))
         }
     }

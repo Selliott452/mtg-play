@@ -49,6 +49,36 @@ class BlockerCountRestrictionSpec :
             floor.minimum shouldBe 3
         }
 
+        "CR 702.110a: menace publishes a floor of two through the same CR 509.1b seam" {
+            val state =
+                attackStep(
+                    aliceField = listOf(Combatant("Menacer")),
+                    bobField = listOf(Combatant("Bear"), Combatant("Ogre")),
+                )
+            val request = engine.toDeclareBlockers(state, "Menacer").pending<DecisionRequest.DeclareBlockers>()
+
+            val floor = request.minimumBlockers.single()
+            floor.attackerCard.name shouldBe "Menacer"
+            floor.minimum shouldBe 2
+            // Menace restricts the *set*, not the pairings: both blockers are individually offered.
+            request.blockPairs() shouldContainExactlyInAnyOrder listOf("Bear" to "Menacer", "Ogre" to "Menacer")
+        }
+
+        "CR 702.110a: blocking a menace creature with one creature is rejected" {
+            val state =
+                attackStep(
+                    aliceField = listOf(Combatant("Menacer")),
+                    bobField = listOf(Combatant("Bear"), Combatant("Ogre")),
+                )
+            val paused = engine.toDeclareBlockers(state, "Menacer")
+
+            shouldThrow<IllegalArgumentException> {
+                engine.declareBlocks(paused, "Bear" to "Menacer")
+            }
+            // Two is legal, which is what makes the floor a floor rather than a ban.
+            engine.declareBlocks(paused, "Bear" to "Menacer", "Ogre" to "Menacer")
+        }
+
         "CR 509.1b: an ordinary attacker publishes no minimum at all" {
             val state =
                 attackStep(
