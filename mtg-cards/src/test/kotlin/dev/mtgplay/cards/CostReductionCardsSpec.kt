@@ -148,6 +148,8 @@ class CostReductionCardsSpec :
                     ofOneMind,
                     refurbishedFamiliar,
                     ridesEnd,
+                    // `W9-F`: the pool's first reduction that counts an *event tally* rather than a zone.
+                    deemInferior,
                 )
             registered.forEach { card ->
                 MvpCards.definitions[CardRef(card.characteristics.name)] shouldBe card
@@ -171,16 +173,15 @@ class CostReductionCardsSpec :
                 .map { it.characteristics.name } shouldContainExactly listOf("Sunscape Familiar")
         }
 
-        "the two other FW-COST cards stay unencoded, each on a framework this packet does not own" {
+        "the last FW-COST card stays unencoded, on a framework this packet does not own" {
             // Tolarian Terror: ward {2} (CR 702.21a) — a triggered ability, `FW-WARD`.
-            // Deem Inferior: the *owner* chooses a library position, second-from-top or bottom — a zone
-            //   move nothing performs plus a non-controller mid-resolution decision. Its reduction is
-            //   **not** the blocker: `W8-B` found `PlayerState.drawsThisTurn` has existed since Sneaky
-            //   Snacker, so the earlier "the state does not track it" diagnosis was wrong.
+            // Deem Inferior has left this list: `W9-F` shipped both halves it was waiting on —
+            //   `CostReduction.PerDrawThisTurn` for the cost and `OwnerLibraryPlacement` plus
+            //   `LibraryPosition` for the owner-chosen library insertion (CostReduction.kt).
             // Refurbished Familiar has left this list: `FW-NONCTRLDEC` landed and it is now encoded.
             // Ride's End has left it too: `W8-C` shipped `FW-TGTCOND` (BurnAndRemoval.kt), so a cost
             // priced off the chosen target is expressible and the card is registered above.
-            listOf("Tolarian Terror", "Deem Inferior").forEach {
+            listOf("Tolarian Terror").forEach {
                 MvpCards.definitions[CardRef(it)].shouldBeNull()
             }
         }

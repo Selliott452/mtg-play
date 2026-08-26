@@ -197,8 +197,12 @@ private fun resolutionClauseOptionCount(request: DecisionRequestDto.SingleOption
         is DecisionRequestDto.ChooseTapOrUntap -> request.options.size
         // CR 601.3b: decline at index 0, then one option per affordable payment plan.
         is DecisionRequestDto.ChooseOptionalManaPayment -> request.options.size
-        // CR 701.3a: the targeted player's own graveyard, one index per card.
-        is DecisionRequestDto.ChooseGraveyardCardToExile -> request.options.size
+        // CR 701.3a: the deciding player's own graveyard, one index per card, plus the "exile nothing"
+        // index of a "you may exile" (CR 601.3b, Masked Vandal).
+        is DecisionRequestDto.ChooseGraveyardCardToExile ->
+            request.options.size + if (request.optionalExile) 1 else 0
+        // CR 401.1: the two library depths a permanent's owner may name.
+        is DecisionRequestDto.ChooseLibraryPosition -> request.options.size
         // CR 609.4: one index per offered card type, chosen before anything is revealed.
         is DecisionRequestDto.ChooseRevealedCardType -> request.options.size
         else -> error("no option count for ${request::class.simpleName}")

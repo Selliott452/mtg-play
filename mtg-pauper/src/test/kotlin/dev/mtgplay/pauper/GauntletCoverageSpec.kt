@@ -47,26 +47,26 @@ class GauntletCoverageSpec :
                     sideboardDistinct = report.sideboard.distinctCount,
                 )
             } shouldBe
-                // `W8-C` added Cryoshatter, Dust to Dust, and Ride's End: three cards across seven rows,
-                // all three of them sideboard staples, which is why the sideboard columns move most.
+                // `W9-F` added Cleansing Wildfire, Deem Inferior, and Masked Vandal: three cards across
+                // five rows, all three mainboard cards, which is why only Spy Combo's sideboard moves.
                 listOf(
-                    Pinned("Elves", 12, 16, 3, 5),
+                    Pinned("Elves", 13, 16, 3, 5),
                     Pinned("Gates", 15, 17, 5, 5),
                     Pinned("Grixis Affinity", 20, 22, 5, 7),
                     Pinned("GW Bogles", 18, 18, 8, 8),
                     Pinned("Jeskai Ephemerate", 21, 22, 6, 7),
-                    Pinned("Jund Wildfire", 18, 22, 6, 7),
+                    Pinned("Jund Wildfire", 19, 22, 6, 7),
                     // `FW-NINJUTSU` added Ninja of the Deep Hours and Harrier Strix: 6 -> 8.
                     // `W8-E` added Faerie Miscreant: 10 -> 11.
                     Pinned("Mono Blue Faeries", 13, 14, 6, 6),
-                    Pinned("Mono-Blue Terror", 12, 14, 6, 6),
+                    Pinned("Mono-Blue Terror", 13, 14, 6, 6),
                     Pinned("Mono-Red Madness", 12, 12, 4, 5),
                     // `W8-E` added Rally at the Hornburg: 8 -> 9.
                     Pinned("Mono Red Rally", 11, 13, 5, 5),
                     // `W8-E` added Troll of Khazad-dûm: 14 -> 15.
                     Pinned("Monster Tron", 17, 21, 5, 6),
                     // `W8-E` added Gatecreeper Vine and Bramble Wurm: 12 -> 14.
-                    Pinned("Spy Combo", 18, 21, 5, 8),
+                    Pinned("Spy Combo", 19, 21, 6, 8),
                     // `W8-E` added God-Pharaoh's Faithful: 16 -> 17.
                     Pinned("UWX Familiar", 20, 20, 6, 6),
                 )
@@ -111,16 +111,16 @@ private const val SIDEBOARD_SIZE = 15
 private const val TOTAL_DISTINCT_MAIN = 178
 
 /** Of those, how many `mtg-cards` defines — the number this burn-down drives to [TOTAL_DISTINCT_MAIN]. */
-private const val TOTAL_ENCODED_MAIN = 158
-private const val TOTAL_MISSING_MAIN = 20
+private const val TOTAL_ENCODED_MAIN = 161
+private const val TOTAL_MISSING_MAIN = 17
 
 /** Distinct cards named by at least one gauntlet sideboard. */
 private const val TOTAL_DISTINCT_SIDEBOARD = 48
-private const val TOTAL_ENCODED_SIDEBOARD = 37
-private const val TOTAL_MISSING_SIDEBOARD = 11
+private const val TOTAL_ENCODED_SIDEBOARD = 38
+private const val TOTAL_MISSING_SIDEBOARD = 10
 
 /** The whole backlog: distinct undefined cards across both boards of all thirteen decks. */
-private const val TOTAL_MISSING_BOTH_BOARDS = 29
+private const val TOTAL_MISSING_BOTH_BOARDS = 26
 
 /** Of the backlog, the cards that appear only in sideboards. */
 private const val TOTAL_MISSING_SIDEBOARD_ONLY = 9

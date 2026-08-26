@@ -222,6 +222,9 @@ class MvpCardsSpec :
             MvpCards.definitions.keys shouldBe
                 setOf(
                     CardRef("Abundant Growth"),
+                    CardRef("Cleansing Wildfire"),
+                    CardRef("Deem Inferior"),
+                    CardRef("Masked Vandal"),
                     CardRef("Faerie Miscreant"),
                     CardRef("God-Pharaoh's Faithful"),
                     CardRef("Gatecreeper Vine"),

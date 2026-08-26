@@ -36,12 +36,68 @@ import kotlinx.collections.immutable.toPersistentSet
  *   Collapsing the two would quietly hand a free shuffle to a seat that had just arranged its top cards
  *   with Brainstorm or Ponder, or quietly deny one to a seat that wanted it — wrong in both directions,
  *   which is why the decline is its own enumerated index rather than a reading of the find-none one.
+ * @property searcher **whose** library is searched, and therefore who decides (CR 701.18a). Additive,
+ *   flagged core (`W9-F`); [LibrarySearchSearcher.CONTROLLER] for every client before Cleansing Wildfire.
+ * @property thenDraw how many cards the resolving object's **controller** draws once the search is over
+ *   (CR 121.1) — Cleansing Wildfire's trailing "Draw a card.", `0` for every other client. Additive,
+ *   flagged core (`W9-F`), and the sibling of [LibraryLook.thenDraw].
+ *
+ *   **A tail on the clause rather than a fold into the resolution effect, and the shuffle is why.** A
+ *   clause runs *after* the ordinary effect and nothing runs after a clause, so a draw written into the
+ *   effect would happen **before** the search and its "then shuffle" — a different card off a different
+ *   library order. The shuffle consumes seeded entropy (ADR-006), which makes the reordering
+ *   replay-visible rather than cosmetic even when the two libraries belong to different seats.
+ *
+ *   **It draws for the controller, not for the searcher**, which is the one place this differs from
+ *   [LibraryLook.thenDraw]: with [LibrarySearchSearcher.TARGET_CONTROLLER] the deciding seat is normally
+ *   an opponent, and "Draw a card." is still the caster's sentence.
  */
 data class LibrarySearch(
     val find: LibrarySearchFilter,
     val destination: LibrarySearchDestination = LibrarySearchDestination.REVEALED_TO_HAND,
     val optional: Boolean = false,
-)
+    val searcher: LibrarySearchSearcher = LibrarySearchSearcher.CONTROLLER,
+    val thenDraw: Int = 0,
+) {
+    init {
+        require(thenDraw >= 0) { "CR 121.1: a draw count is non-negative, was $thenDraw" }
+    }
+}
+
+/**
+ * Whose library a [LibrarySearch] searches (CR 701.18a) — and, because searching a library is a
+ * decision made by the player who searches it, **who the engine pauses for**. Additive, flagged core
+ * (`W9-F`).
+ *
+ * Every search in the pool before Cleansing Wildfire was "search **your** library", so the searcher was
+ * derived from the resolving object's controller and there was no axis at all. Cleansing Wildfire's
+ * *"Destroy target land. **Its controller** may search their library for a basic land card…"* is the
+ * first whose searcher is named by a **target** rather than by control of the spell, which in practice
+ * means the opponent decides and the opponent's library is shuffled.
+ *
+ * The sibling of [TargetPlayerExilesFromGraveyard], which made the same move for a graveyard exile: a
+ * clause exists as a clause because of *who chooses*, so "who chooses" is the axis worth naming.
+ */
+enum class LibrarySearchSearcher {
+    /**
+     * "Search **your** library" (CR 701.18a) — the resolving object's controller searches and decides.
+     * Every cycling ability, Crop Rotation, the Landscape cycle, Expedition Map, Gatecreeper Vine.
+     */
+    CONTROLLER,
+
+    /**
+     * "**Its controller** may search **their** library" — the controller of the single permanent this
+     * object targets, read as CR 608.2h last-known information from the game state as the object
+     * *began* resolving.
+     *
+     * **The LKI is load-bearing and is why this cannot be read at clause time.** Cleansing Wildfire
+     * destroys the land first; by the time the clause runs the permanent is a new object in a graveyard
+     * (CR 400.7) and the target names nothing on the battlefield. CR 608.2h settles the answer once, as
+     * the effect is applied, so the engine captures the controller before the resolution effect runs
+     * and hands it to the clause.
+     */
+    TARGET_CONTROLLER,
+}
 
 /**
  * Where a [LibrarySearch] puts the card it finds (CR 701.18) — the axis that separates the cycling

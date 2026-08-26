@@ -193,10 +193,13 @@ class KeywordTailCardsSpec :
             (CreatureType.CREATURE_TYPES intersect CreatureType.NON_CREATURE_TYPES).shouldBeEmpty()
         }
 
-        "CR 702.73a: the pool has exactly one changeling, and it is Rooftop Percher" {
+        "CR 702.73a: the pool's changelings are Rooftop Percher and Masked Vandal" {
+            // Masked Vandal joined in `W9-F`; the pin stays a whole-registry set so a third cannot arrive
+            // unnoticed, which is what makes CR 702.73a's every-creature-type reading testable at all.
             MvpCards.definitions.values
                 .filter { Keyword.CHANGELING in it.characteristics.keywords }
-                .map { it.characteristics.name } shouldContainExactly listOf("Rooftop Percher")
+                .map { it.characteristics.name }
+                .sorted() shouldContainExactly listOf("Masked Vandal", "Rooftop Percher")
         }
 
         "CR 509.1b: no card in the pool *prints* the haste evasion — Gingerbrute grants its own" {

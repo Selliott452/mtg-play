@@ -166,6 +166,8 @@ private fun selfReduction(
                 countMatching(state, seat, declared.scope, declared.predicate, excluding = castObjectId)
         is CostReduction.IfAll ->
             if (declared.conditions.all { holds(state, seat, it, castObjectId) }) declared.amount else 0
+        // CR 121.1: an event tally on the caster, not a set of objects in a zone (`W9-F`, Deem Inferior).
+        is CostReduction.PerDrawThisTurn -> declared.amountPerDraw * state.player(seat).drawsThisTurn
         // CR 601.2f/601.2c: read off the choice already made, not off the board (`FW-TGTCOND`).
         is CostReduction.IfTargets ->
             if (targets.any { satisfiesTargetCondition(state, declared.condition, it) }) declared.amount else 0

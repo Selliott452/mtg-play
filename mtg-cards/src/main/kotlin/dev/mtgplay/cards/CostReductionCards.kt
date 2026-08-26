@@ -47,11 +47,13 @@ import kotlinx.collections.immutable.persistentSetOf
  * - **Deem Inferior** reduces "for each card you've drawn this turn". `FW-COST` recorded that as a
  *   turn-scoped event count "the state does not track at all", and `W8-B` found that **wrong**:
  *   [dev.mtgplay.core.state.PlayerState.drawsThisTurn] has existed since Sneaky Snacker's
- *   [dev.mtgplay.core.definition.TriggerCondition.DrewNthCardThisTurn], so the reduction is a
- *   [CountScope]-sized addition rather than a state change. What still keeps the card out is its
- *   *effect*: "the owner of target nonland permanent puts it into their library second from the top or
- *   on the bottom" is a library-position insertion nothing in the engine performs, chosen by somebody
- *   other than the caster (`FW-NONCTRLDEC` landed only as an opponent *discard*).
+ *   [dev.mtgplay.core.definition.TriggerCondition.DrewNthCardThisTurn]. `W9-F` has now shipped the
+ *   card (CostReduction.kt) and found the reduction was **not** a [CountScope]-sized addition either:
+ *   a scope counts objects in a zone and this counts an *event tally*, so it is its own member,
+ *   [dev.mtgplay.core.definition.CostReduction.PerDrawThisTurn]. Its effect half needed the two things
+ *   that entry named — a library-position insertion (`putPermanentIntoOwnersLibrary` plus
+ *   [dev.mtgplay.core.definition.LibraryPosition]) and a mid-resolution decision made by the
+ *   permanent's **owner** ([dev.mtgplay.core.definition.OwnerLibraryPlacement]).
  * - **Ride's End** was listed here as blocked on `FW-TGTCOND`: "{3} less if it targets a tapped
  *   permanent" is a cost that depends on the chosen target, while cast *legality* is decided before any
  *   target is chosen. That framework landed with `W8-C` and the card is encoded in `BurnAndRemoval.kt`.

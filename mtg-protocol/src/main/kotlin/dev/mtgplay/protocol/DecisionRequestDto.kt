@@ -5,8 +5,7 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 /**
- * Wire form of the full [DecisionRequest] hierarchy (ADR-004/ADR-005) — all 27 request kinds, each
- * Wire form of the full [DecisionRequest] hierarchy (ADR-004/ADR-005) — all 30 request kinds, each
+ * Wire form of the full [DecisionRequest] hierarchy (ADR-004/ADR-005) — every request kind, each
  * carrying its stable [id] and its enumerated options. The mapping to and from the engine
  * ([toDto]/[toDomain]) is exhaustive in both directions, so a new request kind is a compile-time
  * schema break (ADR-008 amendment).
@@ -497,6 +496,10 @@ sealed interface DecisionRequestDto {
      * card from their graveyard" choice, made by the **targeted** player. [controller] is the ability's
      * controller, carried for display; unlike [ChooseOpponentDiscards] the options are public, because a
      * graveyard is a public zone (CR 400.2). Added by `W8-D`.
+     *
+     * [optionalExile] (`W9-F`) is the "**you may** exile" of Masked Vandal's enters trigger: it adds one
+     * selectable index after [options], meaning "exile nothing", on which the clause's gated "if you do"
+     * half does not happen. `false` for Relic of Progenitus, whose targeted player must exile.
      */
     @Serializable
     @SerialName("choose_graveyard_card_to_exile")
@@ -505,6 +508,25 @@ sealed interface DecisionRequestDto {
         val controller: Int,
         val sourceCard: String,
         val options: List<CardObjectOptionDto>,
+        val optionalExile: Boolean = false,
+    ) : SingleOptionSelectionDto
+
+    /**
+     * Wire form of [DecisionRequest.ChooseLibraryPosition] (CR 401.1) — a "second from the top or on the
+     * bottom" choice, made by the targeted permanent's **owner**. [controller] is the resolving spell's
+     * controller, carried for display, and is normally the deciding seat's opponent. The options are
+     * [LibraryPosition] names, read through the shared vocabulary reader so an unknown name is a loud
+     * decode failure rather than a silently dropped depth. Added by `W9-F`.
+     */
+    @Serializable
+    @SerialName("choose_library_position")
+    data class ChooseLibraryPosition(
+        override val id: DecisionRequestIdDto,
+        val controller: Int,
+        val sourceCard: String,
+        val permanent: Long,
+        val permanentCard: String,
+        val options: List<String>,
     ) : SingleOptionSelectionDto
 
     /**

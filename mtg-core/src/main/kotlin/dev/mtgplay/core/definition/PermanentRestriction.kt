@@ -56,6 +56,23 @@ enum class PermanentRestriction {
     LAND,
 
     /**
+     * "Target **nonland** permanent" (CR 115.1b, CR 205.2b) — Deem Inferior's *"The owner of target
+     * nonland permanent puts it into their library second from the top or on the bottom."* Additive,
+     * flagged core (`W9-F`).
+     *
+     * **The pool's first restriction that is an *exclusion* of a card type rather than a demand for
+     * one.** A permanent has every card type printed on it (CR 205.1a), so an artifact land is a land
+     * and is **not** a legal choice here even though it is also an artifact — the exclusion reads all
+     * of the object's types, not just its first. That is the difference between this and a hypothetical
+     * "artifact, creature, or enchantment" disjunction, which would offer a Drossforge Bridge.
+     *
+     * A token is a nonland permanent and is a legal choice; the printed line does not care, and a token
+     * put into a library ceases to exist as a state-based action (CR 704.5d) — which is a fine and
+     * frequently correct use of the card.
+     */
+    NONLAND_PERMANENT,
+
+    /**
      * "Target enchantment" (CR 303): any enchantment on the battlefield, Auras included. Thraben Charm's
      * "Destroy target enchantment" mode. Additive, flagged core.
      *

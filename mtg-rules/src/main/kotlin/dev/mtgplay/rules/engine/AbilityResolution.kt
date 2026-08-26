@@ -111,7 +111,7 @@ internal fun performTriggerEffect(
     }
     // CR 608.2c: a post-resolution clause the ability carries runs after its ordinary effect and may pause
     // (Faerie Seer's enters-the-battlefield scry). With no clause this is the bare CR 113.7a cessation.
-    return orchestrateResolutionClauses(resolved, entry)
+    return orchestrateResolutionClauses(resolved, entry, beforeEffect = state)
 }
 
 /**

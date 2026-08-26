@@ -71,6 +71,7 @@ internal fun satisfiesPermanentRestriction(
         PermanentRestriction.ARTIFACT,
         PermanentRestriction.ENCHANTMENT,
         PermanentRestriction.LAND,
+        PermanentRestriction.NONLAND_PERMANENT,
         PermanentRestriction.CREATURE_OR_VEHICLE,
         -> satisfiesTypeRestriction(restriction, characteristics, isCreature)
         PermanentRestriction.RED_PERMANENT,
@@ -108,6 +109,9 @@ private fun satisfiesTypeRestriction(
         // CR 305: any land. An artifact land satisfies this *and* [ARTIFACT] — a permanent has every
         // card type printed on it (CR 205.1a) — which is why this is a card-type test, not an exclusion.
         PermanentRestriction.LAND -> CardType.LAND in characteristics.cardTypes
+        // CR 205.1a/205.2b: a permanent has *every* card type printed on it, so "nonland" excludes an
+        // artifact land as well as a basic — the exclusion reads the whole type line, not the first type.
+        PermanentRestriction.NONLAND_PERMANENT -> CardType.LAND !in characteristics.cardTypes
         // CR 302 / CR 301.7: a creature by card type, or a Vehicle by printed subtype. A crewed Vehicle
         // qualifies both ways; crew is a layer-4 effect the engine does not have, so the subtype is
         // read printed like every other subtype test.

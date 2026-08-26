@@ -101,7 +101,7 @@ private fun resolveSpell(
         // simply leaves the stack now. The dispatch is the shared `FW-CLAUSEHOOK` hook (ResolutionClauseHook.kt),
         // which a resolving ability reaches through the same call — the clauses are carried by
         // [dev.mtgplay.core.definition.ResolutionClauses], not by a spell definition.
-        orchestrateResolutionClauses(resolved, entry)
+        orchestrateResolutionClauses(resolved, entry, beforeEffect = state)
     }
 }
 

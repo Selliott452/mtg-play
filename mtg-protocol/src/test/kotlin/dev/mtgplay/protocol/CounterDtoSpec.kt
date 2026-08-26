@@ -90,7 +90,11 @@ class CounterDtoSpec :
             // flashback or alternative-cost cast — so an 8.0.0 peer and a 9.0.0 peer disagree about a
             // message they both already know how to send. Three new DecisionRequest kinds and a new
             // CastingPermissionDto discriminator ride along.
+            // `W9-F` takes it to 10.0.0: a new `choose_library_position` request kind (CR 401.1, Deem
+            // Inferior — answered by the targeted permanent's **owner**), whose DecisionRequestKindDto
+            // value fails `valueOf` mid-match on a 9.0.0 peer, plus a defaulted `optionalExile` field on
+            // `choose_graveyard_card_to_exile` (CR 601.3b, Masked Vandal's "you may exile").
             // Pinned here so no bump in the chain can be quietly reverted.
-            PROTOCOL_VERSION shouldBe "9.0.0"
+            PROTOCOL_VERSION shouldBe "10.0.0"
         }
     })

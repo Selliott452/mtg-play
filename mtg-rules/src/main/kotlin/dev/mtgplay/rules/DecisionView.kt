@@ -195,6 +195,13 @@ enum class DecisionRequestKind {
     CHOOSE_GRAVEYARD_CARD_TO_EXILE,
 
     /**
+     * [DecisionRequest.ChooseLibraryPosition] — a "second from the top or on the bottom" choice
+     * (CR 401.1), made by the targeted permanent's **owner**. The kind an opposing seat may see, options
+     * included: the two depths are a closed public vocabulary, so nothing here needs ADR-007 hiding.
+     */
+    CHOOSE_LIBRARY_POSITION,
+
+    /**
      * [DecisionRequest.ChooseRevealedCardType] — a resolution-time "choose creature or land" (CR 609.4),
      * answered by the resolving spell's controller before anything is revealed.
      */
@@ -258,6 +265,7 @@ private fun resolutionClauseKind(request: DecisionRequest.SingleOptionSelection)
         is DecisionRequest.ChooseTapOrUntap -> DecisionRequestKind.CHOOSE_TAP_OR_UNTAP
         is DecisionRequest.ChooseOptionalManaPayment -> DecisionRequestKind.CHOOSE_OPTIONAL_MANA_PAYMENT
         is DecisionRequest.ChooseGraveyardCardToExile -> DecisionRequestKind.CHOOSE_GRAVEYARD_CARD_TO_EXILE
+        is DecisionRequest.ChooseLibraryPosition -> DecisionRequestKind.CHOOSE_LIBRARY_POSITION
         is DecisionRequest.ChooseRevealedCardType -> DecisionRequestKind.CHOOSE_REVEALED_CARD_TYPE
         else -> error("no request kind for ${request::class.simpleName}; every request must have one")
     }

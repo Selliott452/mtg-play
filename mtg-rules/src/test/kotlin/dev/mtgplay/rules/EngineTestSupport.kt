@@ -85,6 +85,7 @@ internal fun respondTo(request: DecisionRequest): Decision =
         is DecisionRequest.ChooseRevealedHandCard,
         is DecisionRequest.ChooseOptionalManaPayment,
         is DecisionRequest.ChooseGraveyardCardToExile,
+        is DecisionRequest.ChooseLibraryPosition,
         is DecisionRequest.ChooseRevealedCardType,
         ->
             error("the pass-everything responder never reaches a cast/block/activation request: $request")

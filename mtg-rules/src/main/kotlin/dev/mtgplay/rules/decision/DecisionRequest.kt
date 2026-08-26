@@ -1,5 +1,6 @@
 package dev.mtgplay.rules.decision
 
+import dev.mtgplay.core.definition.LibraryPosition
 import dev.mtgplay.core.definition.OptionalCostMode
 import dev.mtgplay.core.definition.RevealedCardFilter
 import dev.mtgplay.core.definition.TapOrUntapChoice
@@ -1915,29 +1916,40 @@ sealed interface DecisionRequest {
      * and unlike that one its option list is **public**, because a graveyard is a public zone
      * (CR 400.2), so nothing here needs ADR-007 filtering.
      *
-     * **Every answer exiles exactly one card; there is no decline.** The printed line is mandatory for
-     * the targeted player. The request is therefore surfaced only when their graveyard is non-empty — an
-     * empty graveyard means the clause does nothing and nobody is asked, rather than a request with no
-     * legal answer (ADR-005).
+     * **A mandatory answer exiles exactly one card; a "you may" one carries a decline index after the
+     * cards** ([optionalExile], `W9-F` — Masked Vandal's *"you may exile a creature card from your
+     * graveyard"*). Either way the request is surfaced only when there is at least one card to name — an
+     * empty option list means the clause does nothing and nobody is asked, rather than a request with no
+     * legal answer, or one whose only answer is "no" (ADR-005).
      *
      * @property controller the ability's controller, carried for display only.
      * @property sourceCard the printed identity of the ability's source, for display.
-     * @property options the deciding player's graveyard cards, in graveyard (bottom-first) order; never
-     *   empty.
+     * @property options the deciding player's graveyard cards this clause may exile, in graveyard
+     *   (bottom-first) order; never empty, and already narrowed to the clause's own restriction.
+     * @property optionalExile whether the printed line says "**you may** exile" (CR 601.3b), which adds
+     *   the [declineExileIndex] after [options]. `false` for Relic of Progenitus.
      */
     data class ChooseGraveyardCardToExile(
         override val id: DecisionRequestId,
         val controller: PlayerId,
         val sourceCard: CardRef,
         val options: List<Option>,
+        val optionalExile: Boolean = false,
     ) : SingleOptionSelection {
-        override val optionCount: Int get() = options.size
+        override val optionCount: Int get() = options.size + if (optionalExile) 1 else 0
 
         init {
             require(options.isNotEmpty()) {
                 "CR 701.3a: this choice is surfaced only when the targeted player has a graveyard card"
             }
         }
+
+        /**
+         * The [Decision.SingleSelect] index meaning "**exile nothing**" (CR 601.3b), or `null` for a
+         * mandatory exile, which has no such choice. Masked Vandal's decline, and the branch on which
+         * its "if you do" half does not happen.
+         */
+        val declineExileIndex: Int? get() = if (optionalExile) options.size else null
 
         /**
          * One card in the deciding player's graveyard.
@@ -1949,6 +1961,45 @@ sealed interface DecisionRequest {
             val objectId: ObjectId,
             val card: CardRef,
         )
+    }
+
+    /**
+     * A "put this permanent into your library, second from the top or on the bottom" choice
+     * (CR 401.1, CR 108.3) — Deem Inferior's whole effect. Additive, flagged (`W9-F`).
+     *
+     * **[seat] is the permanent's *owner***, which is neither the resolving spell's controller (normally
+     * its opponent) nor necessarily the permanent's controller: CR 108.3 fixes ownership for the game
+     * while control can change hands. The third request whose decider is not the resolving object's
+     * controller, after [ChooseOpponentDiscards] and [ChooseGraveyardCardToExile], and the first decided
+     * by an owner.
+     *
+     * **Both options are always legal and the list never varies**, which is what distinguishes this from
+     * every zone-drawn request in the family: there is nothing to enumerate off the board and no "cannot
+     * be done" branch. The permanent is going to a library either way; only the depth is in question.
+     *
+     * @property controller the resolving spell's controller, carried for display — the seat answering
+     *   this is doing so under someone else's instruction and should be able to see whose.
+     * @property sourceCard the printed identity of the spell that issued the instruction, for display.
+     * @property permanent the object being put into the library, for display.
+     * @property permanentCard its printed identity, for display.
+     * @property options the depths offered, in printed order; exactly [LibraryPosition]'s two members.
+     */
+    data class ChooseLibraryPosition(
+        override val id: DecisionRequestId,
+        val controller: PlayerId,
+        val sourceCard: CardRef,
+        val permanent: ObjectId,
+        val permanentCard: CardRef,
+        val options: List<LibraryPosition>,
+    ) : SingleOptionSelection {
+        override val optionCount: Int get() = options.size
+
+        init {
+            require(options.isNotEmpty()) { "CR 401.1: a library-position choice offers at least one depth" }
+            require(options.distinct().size == options.size) {
+                "CR 401.1: a library-position choice offers each depth at most once, got $options"
+            }
+        }
     }
 
     /**

@@ -92,9 +92,13 @@ private fun applyResolutionClauseSelection(
                 state,
                 (request.options[decision.index] as? DecisionRequest.ChooseOptionalManaPayment.Option.Pay)?.plan,
             )
-        // CR 701.3a: the targeted player's pick from their own graveyard; every index exiles one card.
+        // CR 701.3a/CR 601.3b: the deciding player's pick from their own graveyard. Every index but the
+        // "you may exile" decline names a card, and only a named card runs a gated "if you do" half.
         is DecisionRequest.ChooseGraveyardCardToExile ->
-            applyGraveyardExileChoice(state, request.options[decision.index].objectId)
+            applyGraveyardExileChoice(state, request.options.getOrNull(decision.index)?.objectId)
+        // CR 401.1: the owner's chosen depth for a permanent going into their library.
+        is DecisionRequest.ChooseLibraryPosition ->
+            applyLibraryPlacement(state, request.options[decision.index])
         // CR 609.4: the named card type, which then drives the reveal and its partition.
         is DecisionRequest.ChooseRevealedCardType ->
             applyChosenRevealType(state, request.options[decision.index])

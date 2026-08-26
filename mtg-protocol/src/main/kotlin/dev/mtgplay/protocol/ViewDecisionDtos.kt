@@ -168,6 +168,13 @@ enum class DecisionRequestKindDto {
      */
     CHOOSE_GRAVEYARD_CARD_TO_EXILE,
 
+    /**
+     * A "second from the top or on the bottom" choice (CR 401.1) — Deem Inferior — made by the targeted
+     * permanent's **owner**. Public in both directions: the permanent is on the battlefield and the two
+     * depths are a closed vocabulary, so nothing here is hidden.
+     */
+    CHOOSE_LIBRARY_POSITION,
+
     /** A resolution-time "choose creature or land" (CR 609.4) — Winding Way. */
     CHOOSE_REVEALED_CARD_TYPE,
 }

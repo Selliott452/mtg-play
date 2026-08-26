@@ -5,6 +5,9 @@ import dev.mtgplay.core.card.Keyword
 import dev.mtgplay.core.card.PrintedCharacteristics
 import dev.mtgplay.core.card.PrintedPowerToughness
 import dev.mtgplay.core.card.Subtype
+import dev.mtgplay.core.definition.CostReduction
+import dev.mtgplay.core.definition.OwnerLibraryPlacement
+import dev.mtgplay.core.definition.PermanentRestriction
 import dev.mtgplay.core.definition.ResolutionEffect
 import dev.mtgplay.core.definition.SpellCostReduction
 import dev.mtgplay.core.definition.SpellDefinition
@@ -107,4 +110,60 @@ val sunscapeFamiliar: SpellDefinition =
                     spellColors = persistentSetOf(Color.BLUE, Color.GREEN),
                 ),
             )
+    }
+
+/** The generic mana Deem Inferior sheds per card its caster has drawn this turn (CR 601.2f). */
+private const val DEEM_INFERIOR_REDUCTION_PER_DRAW: Int = 1
+
+/**
+ * Deem Inferior — `{3}{U}` Sorcery. "This spell costs {1} less to cast for each card you've drawn this
+ * turn. / The owner of target nonland permanent puts it into their library second from the top or on
+ * the bottom."
+ *
+ * Added by `W9-F`, and the card that opens two slots at once — a **scalar** cost reduction and a
+ * **library-position insertion decided by an owner**. Four readings of the printed text are
+ * load-bearing:
+ *
+ * - **The reduction counts an event tally, not a zone.** "Each card you've drawn this turn" is not a
+ *   set of objects anywhere: the cards are in a hand, indistinguishable from the ones already there,
+ *   and a card drawn and then discarded still counts. That is why it is
+ *   [dev.mtgplay.core.definition.CostReduction.PerDrawThisTurn] and not a fourth
+ *   [dev.mtgplay.core.definition.CountScope] — see that member for the argument in full. The turn's
+ *   own draw step counts, so this is already `{2}{U}` in a first main phase.
+ * - **The **owner** chooses the depth, not the caster.** CR 108.3 fixes ownership for the game, and the
+ *   printed line names it explicitly. Letting the caster choose would turn a tempo card into a
+ *   near-removal spell — bottoming every threat — which is the plausible-looking better card PLAN.md §7
+ *   warns about. It is why this needs a clause at all rather than a resolution effect.
+ * - **"Second from the top", not "on top".** The one card of insulation is what stops the card from
+ *   being a strictly worse bounce spell against a creature the opponent would happily recast, and it is
+ *   a *depth* rather than an end of the library — the position no existing library primitive could
+ *   express (see [dev.mtgplay.core.definition.LibraryPosition]).
+ * - **"Nonland permanent", an exclusion of a card type.** An artifact land is a land and is not a legal
+ *   target, even though it is also an artifact: a permanent has every card type printed on it
+ *   (CR 205.1a), so the exclusion reads the whole type line.
+ *
+ * The move is a zone change, not destruction, so indestructible is no answer to it (CR 702.12b) and
+ * neither is regeneration; hexproof is, because this targets (CR 702.11).
+ */
+val deemInferior: SpellDefinition =
+    object : SpellDefinition {
+        override val characteristics =
+            PrintedCharacteristics(
+                name = "Deem Inferior",
+                manaCost = ManaCost.parse("{3}{U}"),
+                supertypes = persistentSetOf(),
+                cardTypes = persistentSetOf(CardType.SORCERY),
+                subtypes = persistentSetOf(),
+                powerToughness = null,
+            )
+        override val timing = TimingClass.SORCERY_SPEED
+        override val targetSpec = TargetSpec.TargetPermanent(PermanentRestriction.NONLAND_PERMANENT)
+
+        // CR 601.2f: read as the total cost is determined, off the caster's own per-turn tally.
+        override val costReduction = CostReduction.PerDrawThisTurn(DEEM_INFERIOR_REDUCTION_PER_DRAW)
+
+        // CR 608.2c: the whole effect is the clause, because the depth is a decision and the deciding
+        // seat is the permanent's owner rather than this spell's controller (ADR-004).
+        override val resolution = ResolutionEffect { state, _ -> state }
+        override val ownerLibraryPlacement = OwnerLibraryPlacement
     }

@@ -1,12 +1,16 @@
 package dev.mtgplay.rules.engine
 
+import dev.mtgplay.core.definition.OptionalGraveyardExileGate
+import dev.mtgplay.core.definition.ResolutionContext
 import dev.mtgplay.core.identity.ObjectId
 import dev.mtgplay.core.state.GameState
 import dev.mtgplay.core.state.PendingGraveyardExile
 import dev.mtgplay.core.state.StackEntry
 import dev.mtgplay.core.state.Target
+import dev.mtgplay.core.state.resolutionClauses
 import dev.mtgplay.core.state.resolutionController
 import dev.mtgplay.core.state.resolutionSourceCard
+import dev.mtgplay.core.state.resolutionSourceId
 import dev.mtgplay.core.state.resolutionTargets
 import dev.mtgplay.rules.AdvanceResult
 import dev.mtgplay.rules.decision.DecisionRequest
@@ -78,24 +82,94 @@ internal fun pendingGraveyardExileRequest(state: GameState): DecisionRequest.Cho
         id = DecisionRequestId(pending.decider, state.player(pending.decider).decisionsAnswered),
         controller = entry.resolutionController,
         sourceCard = pending.sourceCard,
-        options =
-            state
-                .player(pending.decider)
-                .graveyard
-                .map { DecisionRequest.ChooseGraveyardCardToExile.Option(it.id, it.card) },
+        options = exilableGraveyardCards(state, pending),
+        optionalExile = pending.optional,
     )
 }
 
 /**
- * Applies the exile choice (CR 701.3a): [objectId] leaves its owner's graveyard for exile as a new
- * object (CR 400.7), then the resolving object finishes through the shared [completeClauseResolution].
+ * The deciding player's graveyard cards this pause may exile (CR 404), in graveyard (bottom-first)
+ * order — every card for a clause with no filter, and only the matching ones for a filtered "you may
+ * exile a **creature** card" (Masked Vandal).
+ */
+private fun exilableGraveyardCards(
+    state: GameState,
+    pending: PendingGraveyardExile,
+): List<DecisionRequest.ChooseGraveyardCardToExile.Option> {
+    val restriction = pending.restriction
+    return state
+        .player(pending.decider)
+        .graveyard
+        .filter { restriction == null || satisfiesGraveyardCardRestriction(state, restriction, it) }
+        .map { DecisionRequest.ChooseGraveyardCardToExile.Option(it.id, it.card) }
+}
+
+/**
+ * Applies the exile choice (CR 701.3a, CR 404): [objectId] leaves its owner's graveyard for exile as a
+ * new object (CR 400.7) — or, for a declined "you may exile" ([objectId] `null`), nothing leaves at all
+ * — and the resolving object then finishes through the shared [completeClauseResolution].
+ *
+ * **The "if you do" half runs here, and only on the branch that exiled.** A resolving object declaring
+ * [dev.mtgplay.core.definition.OptionalGraveyardExileGate] left its ordinary
+ * [dev.mtgplay.core.definition.ResolutionEffect] empty precisely so this gate could withhold the gated
+ * effect, so the gated effect is performed at this point and never before (Masked Vandal). An object
+ * declaring the mandatory clause has no gated half and reaches [completeClauseResolution] directly.
  */
 internal fun applyGraveyardExileChoice(
     state: GameState,
-    objectId: ObjectId,
+    objectId: ObjectId?,
 ): AdvanceResult {
-    state.pendingGraveyardExile ?: error("no graveyard exile choice is pending")
+    val pending = state.pendingGraveyardExile ?: error("no graveyard exile choice is pending")
+    require(pending.optional || objectId != null) {
+        "CR 701.3a: a mandatory graveyard exile names a card, but this choice named none"
+    }
     val entry = resolvingClauseEntry(state)
     val cleared = state.copy(pendingGraveyardExile = null)
-    return completeClauseResolution(exileCardFromGraveyard(cleared, objectId), entry)
+    if (objectId == null) return completeClauseResolution(cleared, entry)
+    val exiled = exileCardFromGraveyard(cleared, objectId)
+    val gate = entry.resolutionClauses.optionalGraveyardExileGate
+    val gated = if (gate == null) exiled else gate.thenEffect.resolve(exiled, gatedContext(entry))
+    return completeClauseResolution(gated, entry)
+}
+
+/**
+ * The [dev.mtgplay.core.definition.ResolutionContext] a gated "if you do" effect resolves against — the
+ * same one the ordinary effect would have received, so a gated effect reads its object's CR 603.3d
+ * targets and CR 113.7c source exactly as an ungated one does.
+ */
+private fun gatedContext(entry: StackEntry): ResolutionContext =
+    ResolutionContext(
+        controller = entry.resolutionController,
+        targets = entry.resolutionTargets,
+        source = entry.resolutionSourceId,
+        sourceCard = entry.resolutionSourceCard,
+    )
+
+/**
+ * Runs the optional graveyard-exile gate of the resolving [entry] (CR 404, CR 608.2c): pauses for the
+ * controller to name one matching card in their own graveyard or decline, and — on the decline branch,
+ * or with no matching card at all — completes the resolution having done nothing.
+ *
+ * Called by the clause hook after the object's (deliberately empty) ordinary effect. With no matching
+ * card the "you may" has no yes branch, so nothing is asked: a request whose only answer is "no" is not
+ * a decision (ADR-005).
+ */
+internal fun orchestrateOptionalGraveyardExile(
+    state: GameState,
+    entry: StackEntry,
+    gate: OptionalGraveyardExileGate,
+): AdvanceResult {
+    val decider = entry.resolutionController
+    val paused =
+        state.copy(
+            pendingGraveyardExile =
+                PendingGraveyardExile(
+                    decider = decider,
+                    sourceCard = entry.resolutionSourceCard,
+                    optional = true,
+                    restriction = gate.restriction,
+                ),
+        )
+    if (pendingGraveyardExileRequest(paused).options.isEmpty()) return completeClauseResolution(state, entry)
+    return AdvanceResult.NeedsDecision(paused, pendingGraveyardExileRequest(paused))
 }

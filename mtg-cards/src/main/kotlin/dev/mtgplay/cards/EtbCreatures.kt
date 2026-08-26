@@ -9,9 +9,12 @@ import dev.mtgplay.core.card.Subtype
 import dev.mtgplay.core.definition.AbilityCost
 import dev.mtgplay.core.definition.AbilityZoneScope
 import dev.mtgplay.core.definition.ActivatedAbility
+import dev.mtgplay.core.definition.GraveyardCardRestriction
 import dev.mtgplay.core.definition.InterveningIf
 import dev.mtgplay.core.definition.LibrarySearch
 import dev.mtgplay.core.definition.LibrarySearchFilter
+import dev.mtgplay.core.definition.OptionalGraveyardExileGate
+import dev.mtgplay.core.definition.PermanentRestriction
 import dev.mtgplay.core.definition.ResolutionEffect
 import dev.mtgplay.core.definition.SpellDefinition
 import dev.mtgplay.core.definition.TargetSpec
@@ -21,6 +24,7 @@ import dev.mtgplay.core.definition.TriggeredAbility
 import dev.mtgplay.core.mana.Color
 import dev.mtgplay.core.mana.ManaCost
 import dev.mtgplay.rules.effect.drawCards
+import dev.mtgplay.rules.effect.exilePermanent
 import dev.mtgplay.rules.effect.gainLife
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.persistentSetOf
@@ -44,6 +48,13 @@ import kotlinx.collections.immutable.persistentSetOf
  *
  * Every mechanism composes a published `mtg-rules` primitive (ADR-003); nothing here reimplements a
  * rule, and the two new cost/zone members are declarations the engine interprets, not card-local code.
+ *
+ * `W9-F` adds a sixth, [maskedVandal], and with it the seam the other five did not need: an **optional
+ * selection that gates the effect instead of following it**
+ * ([dev.mtgplay.core.definition.OptionalGraveyardExileGate]). It is the only clause in the family that
+ * carries its own [ResolutionEffect], because "you may exile a creature card from your graveyard. **If
+ * you do**, exile target artifact or enchantment an opponent controls" makes the second half
+ * conditional on the first, and a clause that runs *after* the ordinary effect cannot withhold it.
  */
 
 /** The resolution of a permanent spell with no CR 608.2c instructions of its own (CR 608.3). */
@@ -60,6 +71,9 @@ const val BRAMBLE_WURM_LIFEGAIN: Int = 5
 
 /** The Gate land type (CR 205.3b) Gatecreeper Vine's search names beside the basic lands. */
 private val GATE: Subtype = Subtype("Gate")
+
+/** Masked Vandal's printed toughness (CR 208.2) — a 1/3. */
+private const val MASKED_VANDAL_TOUGHNESS: Int = 3
 
 /**
  * Faerie Miscreant — `{U}` Creature — Faerie Rogue, a 1/1. "Flying. When this creature enters, if you
@@ -330,6 +344,81 @@ val trollOfKhazadDum: SpellDefinition =
                     zoneScope = AbilityZoneScope.Hand,
                     effect = entersTheBattlefield,
                     librarySearch = LibrarySearch(find = LibrarySearchFilter.SWAMP_CARD),
+                ),
+            )
+    }
+
+/**
+ * Masked Vandal — `{1}{G}` Creature — Shapeshifter, a 1/3. "Changeling. When this creature enters, you
+ * may exile a creature card from your graveyard. If you do, exile target artifact or enchantment an
+ * opponent controls."
+ *
+ * Added by `W9-F`, and the reason [OptionalGraveyardExileGate] exists. Four readings of the printed
+ * line decide the encoding, and three of them are ways to get a plausible-looking wrong card:
+ *
+ * - **The exile from the graveyard is not a cost.** Nothing is announced or paid at CR 601.2b/h: the
+ *   trigger is put on the stack for free and the graveyard card leaves during CR 608.2 resolution. So
+ *   the choice is a mid-resolution decision, which ADR-004 forbids inside a
+ *   [dev.mtgplay.core.definition.ResolutionEffect] and which is exactly what a [ResolutionClauses]
+ *   member is for.
+ * - **The "if you do" half is *gated* by that choice, so it cannot be the ordinary effect.** Every other
+ *   clause runs after the resolution effect; an exile-the-target effect in the ordinary slot would have
+ *   already fired before anyone was asked. The gated half therefore rides on the clause
+ *   ([OptionalGraveyardExileGate.thenEffect]) and the ability declares a no-op ordinary effect.
+ * - **It is not [dev.mtgplay.core.definition.TriggeredAbility.optional].** That flag is a bare yes/no
+ *   over a whole ability. This answer has to name *which* creature card left the graveyard, which a
+ *   yes/no cannot say and which anything later counting or returning that card would need.
+ * - **The target is chosen at CR 603.3d, long before the graveyard question.** Against a board with no
+ *   opposing artifact or enchantment the trigger has no legal target, does not resolve (CR 608.2b), and
+ *   **nothing is exiled from the graveyard** — the "you may" is never asked, because the ability never
+ *   gets that far. Playing the 1/3 changeling body into that board is still a legal and often correct
+ *   line, and the engine keeps it enumerable.
+ *
+ * Changeling (CR 702.73a) is the printed keyword, read through
+ * [dev.mtgplay.core.card.PrintedCharacteristics.hasSubtype] as a characteristic-defining ability in
+ * every zone — so the Vandal is a legal exile fodder for *itself* from a graveyard, and counts for every
+ * tribal effect in the pool. Its printed Shapeshifter type is redundant beside it and is printed anyway,
+ * because CR 205.3 is about what the card says.
+ */
+val maskedVandal: SpellDefinition =
+    object : SpellDefinition {
+        override val characteristics =
+            PrintedCharacteristics(
+                name = "Masked Vandal",
+                manaCost = ManaCost.parse("{1}{G}"),
+                supertypes = persistentSetOf(),
+                cardTypes = persistentSetOf(CardType.CREATURE),
+                subtypes = persistentSetOf(Subtype("Shapeshifter")),
+                powerToughness = PrintedPowerToughness(power = 1, toughness = MASKED_VANDAL_TOUGHNESS),
+                keywords = persistentSetOf(Keyword.CHANGELING),
+            )
+        override val timing = TimingClass.SORCERY_SPEED
+        override val targetSpec = TargetSpec.None
+        override val resolution = entersTheBattlefield
+        override val triggeredAbilities =
+            persistentListOf(
+                TriggeredAbility(
+                    condition = TriggerCondition.EnteredBattlefieldSelf,
+                    // CR 603.3d: the target is named as the trigger goes on the stack, before anyone is
+                    // asked about the graveyard.
+                    targetSpec =
+                        TargetSpec.TargetPermanent(
+                            PermanentRestriction.ARTIFACT_OR_ENCHANTMENT_AN_OPPONENT_CONTROLS,
+                        ),
+                    // CR 608.2c: everything this trigger does is gated by its clause, so the ordinary
+                    // slot is empty and the gated half rides on the gate.
+                    effect = entersTheBattlefield,
+                    optionalGraveyardExileGate =
+                        OptionalGraveyardExileGate(
+                            restriction = GraveyardCardRestriction.CREATURE,
+                            thenEffect =
+                                ResolutionEffect { state, context ->
+                                    exilePermanent(
+                                        state,
+                                        targetedPermanent(context.targets, "Masked Vandal"),
+                                    )
+                                },
+                        ),
                 ),
             )
     }

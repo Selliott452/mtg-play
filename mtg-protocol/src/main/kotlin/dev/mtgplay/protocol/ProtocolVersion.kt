@@ -695,5 +695,34 @@ package dev.mtgplay.protocol
  *    field ([TapRequirementDto]) alongside its `sacrifice`, because CR 702.34c admits more than mana
  *    in a flashback cost. Recorded here rather than under `FW-PREVENT2` because it is the same
  *    permission payload, changed once.
+ *
+ * ### `10.0.0` — `W9-F`: search variants, gated clauses, and a library-position insertion
+ *
+ * **Bumped**, and the sharper of the two reasons is a new request kind rather than the added field.
+ *
+ * 1. **A new `DecisionRequest` kind** — the runtime break mode. [DecisionRequestDto] gains
+ *    `choose_library_position` (CR 401.1, Deem Inferior's "second from the top or on the bottom"),
+ *    and [DecisionRequestKindDto] gains the matching value, whose `valueOf` mapping fails **mid-match**
+ *    on an older peer rather than at connect. Answerable client→server, and answered by a seat that is
+ *    neither the resolving spell's controller nor the priority holder: it is the targeted permanent's
+ *    **owner** (CR 108.3), the third reading of "somebody else decides" the wire now carries after
+ *    `choose_opponent_discards` and `choose_graveyard_card_to_exile`. Its options travel as
+ *    [dev.mtgplay.core.definition.LibraryPosition] names, read through a loud lookup, so an unknown
+ *    depth is a decode failure rather than a silently different one.
+ * 2. **A new defaulted field on an existing payload.** [DecisionRequestDto.ChooseGraveyardCardToExile]
+ *    gains `optionalExile` (CR 601.3b, Masked Vandal's "**you may** exile a creature card from your
+ *    graveyard"), which adds one selectable index after the cards. Defaulted `false`, so an older
+ *    payload still decodes here; a strict older peer meeting the field is the usual asymmetry, and a
+ *    peer that ignores it would answer a decline index it believes is out of range — which is why the
+ *    index count is carried by the flag rather than left implicit.
+ *
+ * **No seat-view field is added.** All three pauses this packet opens are public: the library-position
+ * choice names a battlefield permanent and two fixed depths, the optional graveyard exile draws from a
+ * public zone (CR 400.2), and Cleansing Wildfire's search reuses `choose_from_library`, whose options
+ * already reach only the searching seat through [DecisionRequestKindDto]'s `Elsewhere` projection —
+ * unchanged even though the searching seat is, for the first time, **not** the resolving spell's
+ * controller. That is the one thing about this wave worth stating on the wire: nothing in the request
+ * envelope ever assumed the deciding seat was the controller, so a search decided by an opponent needed
+ * no schema change at all.
  */
-const val PROTOCOL_VERSION: String = "9.0.0"
+const val PROTOCOL_VERSION: String = "10.0.0"
