@@ -77,6 +77,16 @@ data class Dungeon(
      */
     val unimplementedRooms: List<DungeonRoom>
         get() = rooms.filter { it.ability is DungeonRoomAbility.Unimplemented }
+
+    /**
+     * Whether [room] is this dungeon's **last** room (CR 309.6) — the one a venture marker reaching it
+     * completes the dungeon from, because it leads nowhere.
+     *
+     * "Has no successors" and "is the last room" are the same fact here, guaranteed by the `init` above:
+     * exactly one room is terminal and it is printed last. Naming it makes the completion check read as
+     * the rule rather than as a graph property.
+     */
+    fun isLastRoom(room: Int): Boolean = rooms[room].successors.isEmpty()
 }
 
 /**

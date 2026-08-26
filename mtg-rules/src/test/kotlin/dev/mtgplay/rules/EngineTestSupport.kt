@@ -88,6 +88,7 @@ internal fun respondTo(request: DecisionRequest): Decision =
         is DecisionRequest.ChooseGraveyardCardToExile,
         is DecisionRequest.ChooseLibraryPosition,
         is DecisionRequest.ChooseRevealedCardType,
+        is DecisionRequest.ChooseDungeonRoom,
         ->
             error("the pass-everything responder never reaches a cast/block/activation request: $request")
         // CR 603.3b: order any simultaneous triggers in the deterministic identity permutation.

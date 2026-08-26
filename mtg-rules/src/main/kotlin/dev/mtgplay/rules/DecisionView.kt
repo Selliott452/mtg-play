@@ -223,6 +223,13 @@ enum class DecisionRequestKind {
      * answered by the resolving spell's controller before anything is revealed.
      */
     CHOOSE_REVEALED_CARD_TYPE,
+
+    /**
+     * [DecisionRequest.ChooseDungeonRoom] — a venturing player's branch choice in a dungeon (CR 309.4).
+     * The kind an opposing seat may see, options included: a dungeon card and every venture marker on it
+     * are public (CR 309.2), so nothing here needs ADR-007 hiding.
+     */
+    CHOOSE_DUNGEON_ROOM,
 }
 
 /**
@@ -284,6 +291,7 @@ private fun resolutionClauseKind(request: DecisionRequest.SingleOptionSelection)
         is DecisionRequest.ChooseGraveyardCardToExile -> DecisionRequestKind.CHOOSE_GRAVEYARD_CARD_TO_EXILE
         is DecisionRequest.ChooseLibraryPosition -> DecisionRequestKind.CHOOSE_LIBRARY_POSITION
         is DecisionRequest.ChooseRevealedCardType -> DecisionRequestKind.CHOOSE_REVEALED_CARD_TYPE
+        is DecisionRequest.ChooseDungeonRoom -> DecisionRequestKind.CHOOSE_DUNGEON_ROOM
         else -> error("no request kind for ${request::class.simpleName}; every request must have one")
     }
 

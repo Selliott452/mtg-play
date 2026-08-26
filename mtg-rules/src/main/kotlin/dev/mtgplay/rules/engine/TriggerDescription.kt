@@ -29,6 +29,11 @@ internal fun describeCondition(condition: TriggerCondition): String =
         TriggerCondition.EnchantedPermanentIsDealtDamage -> "enchanted-permanent-is-dealt-damage"
         TriggerCondition.DealtCombatDamageToPlayerSelf -> "deals-combat-damage-to-a-player"
         TriggerCondition.BecameTargetOfOpponentsSpellOrAbility -> "ward"
+        // CR 701.51/CR 309.5: the initiative's venture ability and a dungeon room's own ability, both
+        // sourced on a dungeon card in the command zone rather than on an object in any ordinary zone.
+        TriggerCondition.VentureIntoDungeon,
+        TriggerCondition.EnteredDungeonRoom,
+        -> describeDungeonCondition(condition)
         is TriggerCondition.DrewNthCardThisTurn -> "drew-card-number-${condition.n}"
         // CR 603.2: a disjunctive condition is one ability, so it gets one description â€” the patterns it
         // watches, joined. Which of them actually fired is not recorded on the trigger and is not the
@@ -74,7 +79,24 @@ private fun describeCastCondition(condition: TriggerCondition): String =
         TriggerCondition.EnchantedPermanentIsDealtDamage,
         TriggerCondition.DealtCombatDamageToPlayerSelf,
         TriggerCondition.BecameTargetOfOpponentsSpellOrAbility,
+        TriggerCondition.VentureIntoDungeon,
+        TriggerCondition.EnteredDungeonRoom,
         is TriggerCondition.DrewNthCardThisTurn,
         is TriggerCondition.AnyOf,
         -> error("CR 603.2: $condition is not a cast-shaped condition; describeCondition names it")
+    }
+
+/**
+ * The dungeon-shaped half of [describeCondition] (CR 309, CR 701.51): the two abilities whose source is a
+ * dungeon card in the command zone rather than an object in a zone this engine keeps a list for.
+ *
+ * Split out for [describeCastCondition]'s reason and with its warning: detekt's complexity budget fell
+ * here, and the split is at a real seam. It stays exhaustive over the pair it names and fails loudly on
+ * anything else, so a new [TriggerCondition] member still breaks compilation in [describeCondition].
+ */
+private fun describeDungeonCondition(condition: TriggerCondition): String =
+    when (condition) {
+        TriggerCondition.VentureIntoDungeon -> "venture-into-the-dungeon"
+        TriggerCondition.EnteredDungeonRoom -> "dungeon-room"
+        else -> error("CR 309: $condition is not a dungeon-shaped condition; describeCondition names it")
     }

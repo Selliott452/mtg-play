@@ -174,7 +174,12 @@ private fun dealCombatDamage(
     // trigger is placed — so it can never race the Armadillo Cloak "gain that much life" trigger.
     val lifelinked = applyCombatLifelink(damaged, dealt)
     val triggered = fireCombatDamageTriggers(lifelinked, dealt)
-    return triggered.updateCombat {
+    // CR 701.51c: the initiative changes hands to whoever's creatures got through to its holder, and
+    // that handover ventures (CR 701.51a). Enqueued beside the step's other triggers so it is placed on
+    // the stack in APNAP order with them (CR 603.3b), and read off `dealt` for the same reason the two
+    // results above are: prevented damage never happens (CR 615.6) and so hands nothing over.
+    val handed = fireInitiativeHandover(triggered, dealt)
+    return handed.updateCombat {
         when (step) {
             DamageStep.FIRST_STRIKE -> it.copy(firstStrikeDamageDealt = true)
             DamageStep.REGULAR -> it.copy(regularDamageDealt = true)

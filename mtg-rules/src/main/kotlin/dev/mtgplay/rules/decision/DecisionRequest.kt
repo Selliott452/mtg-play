@@ -2288,4 +2288,56 @@ sealed interface DecisionRequest {
             }
         }
     }
+
+    /**
+     * A venturing player's **branch choice** in a dungeon (CR 309.4) — "which of these rooms do you move
+     * your venture marker to?". [seat] is the venturing player, who is the initiative holder for every
+     * venture in the pool. Additive, flagged (`W10-A`).
+     *
+     * **The only decision the dungeon has, and it is a real one.** A dungeon room may lead to two, and the
+     * two are not interchangeable: in the Undercity, Forge's successors are Trap! (five life off a player)
+     * and Arena, and choosing between them is choosing what the rest of the run does. Nothing about the
+     * choice is derivable from the state, which is exactly why it is enumerated rather than picked by the
+     * engine (ADR-005).
+     *
+     * There is **no opt-out index**. CR 309.4 is a mandatory move: a player who ventures moves their
+     * marker, and a room with successors always has at least one legal destination, so every index here is
+     * a real room. That is why it is a [SingleOptionSelection] and not a [ChoiceCountSelection].
+     *
+     * @property dungeon the dungeon's name (CR 309.3), for display.
+     * @property fromRoom the name of the room the marker is still on, for display — the branch is read
+     *   from *there*, and a driver that showed only the destinations would hide which fork this is.
+     * @property options the rooms the marker may move to, in the printed order they appear on the dungeon
+     *   card; at least two, since a venture only pauses where the room branches.
+     */
+    data class ChooseDungeonRoom(
+        override val id: DecisionRequestId,
+        val dungeon: String,
+        val fromRoom: String,
+        val options: List<Option>,
+    ) : SingleOptionSelection {
+        override val optionCount: Int get() = options.size
+
+        init {
+            require(options.size >= 2) {
+                "CR 309.4: a venture only asks where a room branches, so it offers at least two rooms, " +
+                    "got $options"
+            }
+            require(options.distinctBy(Option::room).size == options.size) {
+                "CR 309.4: a branch offers each room at most once, got $options"
+            }
+        }
+
+        /**
+         * One destination room of a branch (CR 309.4).
+         *
+         * @property room the room's index in the dungeon's room list — the engine's handle on it, so a
+         *   driver never has to match a room by name.
+         * @property name the room's printed name (CR 309.3), for display.
+         */
+        data class Option(
+            val room: Int,
+            val name: String,
+        )
+    }
 }
