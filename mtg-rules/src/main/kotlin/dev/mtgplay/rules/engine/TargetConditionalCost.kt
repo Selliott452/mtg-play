@@ -119,6 +119,12 @@ internal fun cheapestTargetsFor(
  * option that achieves that price is affordable and survives. That is a structural argument rather than a
  * board-by-board one, which is what it has to be.
  *
+ * **Two reasons a choice can matter, one filter.** A target-conditional *reduction* is the card's own
+ * declaration; a [dev.mtgplay.core.definition.StackTargetTax] is another spell's, live only while that
+ * spell is on the stack (`W10-D`). Both make the total cost a function of the chosen target, so both are
+ * filtered here — and the increase is the direction that makes the filter load-bearing rather than merely
+ * tidy: without it a caster is offered a target they cannot pay for.
+ *
  * **One target only.** With a maximum above one the cost would depend on the *set* chosen, so filtering per
  * option would be wrong in both directions — an option unaffordable alone may be affordable beside a
  * discounting sibling. That needs a subset enumeration, no card prints it, and the `require` says so rather
@@ -136,7 +142,12 @@ internal fun affordableTargetOptions(
     options: List<Target>,
 ): List<Target> {
     val definition = subject.definition
-    if (definition.costReduction !is CostReduction.IfTargets) return options
+    // `W10-D`: the second reason a target choice can change what a cast costs — a spell on the stack
+    // taxing spells that target it (CR 601.2f). Unlike the reduction, this one is a property of the
+    // *board* rather than of the card, so the early-out asks both questions; see `StackTargetTax.kt`.
+    if (definition.costReduction !is CostReduction.IfTargets && !taxedPricingApplies(state, definition)) {
+        return options
+    }
     require(spec.count.maximum <= 1) {
         "CR 601.2c/f: ${definition.characteristics.name} chooses up to ${spec.count.maximum} targets and " +
             "prices itself off them; affording that needs a subset enumeration, not a per-option test " +

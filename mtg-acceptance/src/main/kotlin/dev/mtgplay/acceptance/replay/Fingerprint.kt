@@ -168,36 +168,6 @@ private fun StringBuilder.appendFrameworkPendingPositions(state: GameState) {
     )
 }
 
-// The P6.2a mid-resolution / gathering pauses, each digested by cause (whose choice, which object).
-private fun StringBuilder.appendP62aPendingPositions(state: GameState) {
-    append("|pendingColour=").append(state.pendingColorChoice?.let { it.decider.seat.toString() } ?: "-")
-    append("|pendingActivation=")
-    append(
-        state.pendingActivation?.let {
-            "${it.activator.seat}:${it.sourceObjectId.value}:${it.abilityIndex}:" +
-                (it.chosenDiscard?.joinToString("+") { id -> id.value.toString() } ?: "-") + ":" +
-                (it.chosenTargets?.joinToString("+") { target -> renderTarget(target) } ?: "-") + ":" +
-                // CR 602.1: the chosen-object cost components decide what the activation will do to the
-                // board and what its payment plan may tap, so two gatherings differing only in them are
-                // different positions. Added by `FW-TAPUNTAP`, which also picked up the sacrifice half.
-                (it.chosenSacrifice?.joinToString("+") { id -> id.value.toString() } ?: "-") + ":" +
-                (it.chosenReturn?.joinToString("+") { id -> id.value.toString() } ?: "-")
-        } ?: "-",
-    )
-    append("|pendingOptDiscard=")
-    append(
-        state.pendingOptionalDiscardDraw?.let { "${it.decider.seat}:${it.drawCount}:${it.awaitingDiscard}" } ?: "-",
-    )
-    append("|pendingReveal=")
-    append(
-        state.pendingRevealSelection?.let {
-            "${it.decider.seat}:${it.revealedIds.joinToString("+") { id -> id.value.toString() }}" +
-                ":${it.keptIds.joinToString("+") { id -> id.value.toString() }}"
-        } ?: "-",
-    )
-}
-
-// Digests the in-progress cast's gathered-so-far choices (CR 601.2), which govern how the pipeline runs.
 private fun StringBuilder.appendPendingCast(cast: dev.mtgplay.core.state.PendingCast?) {
     append("|pendingCast=")
     if (cast == null) {

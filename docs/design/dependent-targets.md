@@ -308,11 +308,26 @@ Leaving that to a card definition would be three chances to forget, silently.
 - **An ability that announces X *and* chooses an object for another cost component.** Its X would be bounded
   against a reservation the payment enumeration does not use; `requireXBoundIsExact` refuses it. The fix is
   a joint (X, object) enumeration, not a wider filter.
-- **A cost *increase*.** §6.
+- **A cost *increase*.** §6 — dropped here, built by `W10-D`; see the note at the head of that section.
 
 ---
 
-## 6. Kaervek's Torch, dropped — and the standing diagnosis was wrong
+## 6. Kaervek's Torch — dropped here, built by `W10-D`
+
+> **Superseded.** Everything below is the analysis as of `W9-C` and is preserved because it was right
+> about *where* the problem was. It was wrong about one thing, and `W10-D` built the card on that: the
+> minimum-over-choices gate does **not** have to run on every cast in every priority window. A cast can
+> only be taxed when a taxing spell is on the stack *and* the card being cast can name a spell — a list
+> scan and a static read of the definition — and when either is false, pricing at no targets is *exact*
+> rather than merely cheap. The trade §3.2 rejected as option (a) was never the trade this needed.
+>
+> Point 2 below turned out to be the easy half and resolved exactly as predicted: the gate is literally
+> `affordableTargetOptions(...).isNotEmpty()`, which is consistent by construction. The half neither this
+> note nor the card comment saw is that the pool's counterspells are **modal**, so a modal caster could
+> not be refused loudly; `castableModes` is narrowed by affordability instead, which narrows the mode
+> offer, the castability gate and the per-mode target request at once. See `StackTargetTax.kt`.
+
+### The analysis as it stood
 
 > "As long as Kaervek's Torch is on the stack, spells that target it cost `{2}` more to cast."
 

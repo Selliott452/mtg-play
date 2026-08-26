@@ -260,23 +260,7 @@ private fun checkCardTable(
     state: GameState,
     view: SeatView,
 ): Int {
-    val named = mutableSetOf<CardRef>()
-    view.battlefield.forEach { named += it.card }
-    view.exile.forEach { named += it.card }
-    view.stack.forEach { named += stackEntryViewName(it) }
-    view.pendingTriggers.forEach { named += it.sourceCard }
-    view.pendingReveal?.revealed?.forEach { named += it.card }
-    // CR 701.16a (`FW-HIDDENCHOICE`): an open hand reveal makes those cards public to every seat, so the
-    // view legitimately names them and the table must describe them. Rebuilt here independently of
-    // `visibleCardRefs`, like every other clause in this function.
-    view.pendingHandReveal?.revealed?.forEach { named += it.card }
-    view.players.forEach { player ->
-        player.graveyard.forEach { named += it.card }
-        when (val hand = player.hand) {
-            is HandView.Revealed -> hand.cards.forEach { named += it.card }
-            is HandView.Concealed -> Unit
-        }
-    }
+    val named = namesTheViewItselfCarries(view)
 
     // Completeness: no card the seat can see is left undescribed (an undefined ref is inert, P2.1).
     named.filter { state.definitions.containsKey(it) }.forEach { ref -> view.cards.containsKey(ref) shouldBe true }
@@ -289,6 +273,35 @@ private fun checkCardTable(
         card.isToken shouldBe (definition is TokenDefinition)
     }
     return view.cards.count { it.value.isToken }
+}
+
+/**
+ * Every printed identity [view] itself names, rebuilt from its public lists — the independent half of
+ * [checkCardTable]. Split out when `W10-D`'s explore clause pushed that function past detekt's
+ * complexity budget; the split changes nothing about the oracle's independence, which is the property
+ * that matters: nothing here consults `visibleCardRefs`.
+ */
+private fun namesTheViewItselfCarries(view: SeatView): Set<CardRef> {
+    val named = mutableSetOf<CardRef>()
+    view.battlefield.forEach { named += it.card }
+    view.exile.forEach { named += it.card }
+    view.stack.forEach { named += stackEntryViewName(it) }
+    view.pendingTriggers.forEach { named += it.sourceCard }
+    view.pendingReveal?.revealed?.forEach { named += it.card }
+    // CR 701.40a (`W10-D`): an open explore has revealed the top card of a library, so the view
+    // legitimately names it and the table must describe it.
+    view.pendingExplore?.let { named += it.revealed.card }
+    // CR 701.16a (`FW-HIDDENCHOICE`): an open hand reveal makes those cards public to every seat, so the
+    // view legitimately names them and the table must describe them.
+    view.pendingHandReveal?.revealed?.forEach { named += it.card }
+    view.players.forEach { player ->
+        player.graveyard.forEach { named += it.card }
+        when (val hand = player.hand) {
+            is HandView.Revealed -> hand.cards.forEach { named += it.card }
+            is HandView.Concealed -> Unit
+        }
+    }
+    return named
 }
 
 /**
@@ -472,15 +485,40 @@ private fun publicNames(
     opponentState.graveyard.forEach { names += it.card.name }
     opponentState.hand.forEach { names += it.card.name }
     opponentState.library.forEach { names += it.card.name }
+    return names + namesAnOpenRevealPublishes(state)
+}
+
+/**
+ * The names an **open reveal** puts on the table (CR 701.16, CR 701.40a, CR 701.16a) — the clauses that
+ * make a card in an otherwise-hidden zone legitimately observable for as long as the pause lasts.
+ *
+ * Every clause here widens the **oracle**, not the view: it records what a printed card published, so a
+ * name the card itself gave away is not counted as a leak. Split out of [publicNames] when `W10-D`'s
+ * explore clause pushed it past detekt's complexity budget; the oracle stays independent of
+ * `visibleCardRefs`, which is the property that makes the pair worth having.
+ */
+private fun namesAnOpenRevealPublishes(state: GameState): Set<String> {
+    val names = mutableSetOf<String>()
+    // CR 701.16: the reveal selection's cards are the top of a library and are public while it is open.
     val reveal = state.pendingRevealSelection
     if (reveal != null) {
         val library = state.players.getValue(reveal.decider).library
         reveal.revealedIds.forEach { id -> library.firstOrNull { it.id == id }?.let { names += it.card.name } }
     }
+    // CR 701.40a (`W10-D`): an explore *reveals* the top card of the exploring permanent's controller's
+    // library, so that one card is observable while the placement decision is open — from inside a
+    // library, the one zone the seat view otherwise never discloses.
+    val explore = state.pendingExplore
+    if (explore != null) {
+        state.players
+            .getValue(explore.decider)
+            .library
+            .firstOrNull { it.id == explore.revealed }
+            ?.let { names += it.card.name }
+    }
     // CR 701.16a (`FW-HIDDENCHOICE`): a hand told to reveal itself is public to the table while the
-    // reveal is open, so Duress's and Mesmeric Fiend's target's cards are legitimately observable. This
-    // widens the *oracle*, not the view: it records what the printed card publishes, so that a name the
-    // card gave away is not counted as a leak. Every other hand stays secret.
+    // reveal is open, so Duress's and Mesmeric Fiend's target's cards are legitimately observable. Every
+    // other hand stays secret.
     val handReveal = state.pendingHandReveal
     if (handReveal != null) {
         state.players

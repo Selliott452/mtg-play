@@ -1,5 +1,6 @@
 package dev.mtgplay.rules.engine
 
+import dev.mtgplay.core.definition.CastingPermission
 import dev.mtgplay.core.definition.ResolutionEffect
 import dev.mtgplay.core.definition.SpellDefinition
 import dev.mtgplay.core.definition.SpellMode
@@ -63,10 +64,27 @@ internal fun castableModes(
     definition: SpellDefinition,
     seat: PlayerId,
     chooser: Chooser,
-): List<Int> =
-    definition.modes.indices.filter { index ->
-        targetsAvailable(state, definition.modes[index].targetSpec, seat, chooser)
+    permission: CastingPermission? = null,
+): List<Int> {
+    // `W10-D`: a second reason a mode may be unchoosable — every target it could name would price the
+    // cast beyond what the caster can pay (CR 601.2f). Asked only when a taxing spell is on the stack
+    // *and* some mode of this card can name a spell, so an ordinary modal cast is untouched; see
+    // `StackTargetTax.kt` for why offering such a mode would dead-end at an empty option list (ADR-005).
+    val taxed = taxedPricingApplies(state, definition)
+    return definition.modes.indices.filter { index ->
+        val spec = definition.modes[index].targetSpec
+        targetsAvailable(state, spec, seat, chooser) &&
+            (
+                !taxed ||
+                    someTargetIsAffordable(
+                        state,
+                        seat,
+                        CastSubject(definition, permission, (chooser as? Chooser.Spell)?.objectId),
+                        spec,
+                    )
+            )
     }
+}
 
 /**
  * Whether [definition] can be cast at all as far as targeting is concerned (CR 601.2b–c). A non-modal
@@ -83,6 +101,7 @@ internal fun someModeIsCastable(
     definition: SpellDefinition,
     seat: PlayerId,
     chooser: Chooser,
+    permission: CastingPermission? = null,
 ): Boolean =
     when {
         definition.modes.isEmpty() -> targetsAvailable(state, definition.targetSpec, seat, chooser)
@@ -91,7 +110,7 @@ internal fun someModeIsCastable(
         // nothing, and binning it to bait a counter is a real line the engine must not delete (ADR-005).
         definition.modeChoice.minimum == 0 -> true
         // CR 700.2b: a card that must choose N modes needs N modes it could legally choose.
-        else -> castableModes(state, definition, seat, chooser).size >= definition.modeChoice.minimum
+        else -> castableModes(state, definition, seat, chooser, permission).size >= definition.modeChoice.minimum
     }
 
 /**

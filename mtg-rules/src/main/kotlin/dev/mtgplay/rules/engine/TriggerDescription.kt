@@ -24,10 +24,13 @@ internal fun describeCondition(condition: TriggerCondition): String =
         TriggerCondition.EnteredBattlefieldUntappedSelf -> "enters-the-battlefield-untapped"
         TriggerCondition.PutIntoGraveyardFromBattlefieldSelf -> "put-into-graveyard-from-the-battlefield"
         TriggerCondition.LeftBattlefieldSelf -> "leaves-the-battlefield"
-        TriggerCondition.EnchantedCreatureDealsDamage -> "enchanted-creature-deals-damage"
-        TriggerCondition.EnchantedPermanentBecomesTapped -> "enchanted-permanent-becomes-tapped"
-        TriggerCondition.EnchantedPermanentIsDealtDamage -> "enchanted-permanent-is-dealt-damage"
-        TriggerCondition.DealtCombatDamageToPlayerSelf -> "deals-combat-damage-to-a-player"
+        // CR 303.4: the three conditions an Aura watches on the permanent it enchants, plus the
+        // combat-damage watcher, all described by the same helper.
+        TriggerCondition.EnchantedCreatureDealsDamage,
+        TriggerCondition.EnchantedPermanentBecomesTapped,
+        TriggerCondition.EnchantedPermanentIsDealtDamage,
+        TriggerCondition.DealtCombatDamageToPlayerSelf,
+        -> describeAttachedOrCombatCondition(condition)
         TriggerCondition.BecameTargetOfOpponentsSpellOrAbility -> "ward"
         // CR 701.51/CR 309.5: the initiative's venture ability and a dungeon room's own ability, both
         // sourced on a dungeon card in the command zone rather than on an object in any ordinary zone.
@@ -35,6 +38,7 @@ internal fun describeCondition(condition: TriggerCondition): String =
         TriggerCondition.EnteredDungeonRoom,
         -> describeDungeonCondition(condition)
         is TriggerCondition.DrewNthCardThisTurn -> "drew-card-number-${condition.n}"
+        is TriggerCondition.YouSacrificedAnother -> "you-sacrifice-another-${condition.subtype.value}"
         // CR 603.2: a disjunctive condition is one ability, so it gets one description â€” the patterns it
         // watches, joined. Which of them actually fired is not recorded on the trigger and is not the
         // ordering decision's business; the description exists to tell two *abilities* apart (ADR-005).
@@ -47,7 +51,24 @@ internal fun describeCondition(condition: TriggerCondition): String =
         TriggerCondition.ReboundCast,
         TriggerCondition.CascadeCast,
         TriggerCondition.StormCast,
+        TriggerCondition.CastSelf,
         -> describeCastCondition(condition)
+    }
+
+/**
+ * The Aura-watching and combat-damage arms of [describeCondition] (CR 303.4, CR 510.2).
+ *
+ * Split out only so the dispatch stays inside detekt's complexity budget — the same shape and the same
+ * warning as this file's other split: the two halves are one `when`, and neither carries an `else`
+ * where the compiler can still enforce exhaustiveness, so a new condition breaks compilation twice.
+ */
+private fun describeAttachedOrCombatCondition(condition: TriggerCondition): String =
+    when (condition) {
+        TriggerCondition.EnchantedCreatureDealsDamage -> "enchanted-creature-deals-damage"
+        TriggerCondition.EnchantedPermanentBecomesTapped -> "enchanted-permanent-becomes-tapped"
+        TriggerCondition.EnchantedPermanentIsDealtDamage -> "enchanted-permanent-is-dealt-damage"
+        TriggerCondition.DealtCombatDamageToPlayerSelf -> "deals-combat-damage-to-a-player"
+        else -> error("CR 303.4: $condition is not an attached-permanent or combat-damage condition")
     }
 
 /**
@@ -68,6 +89,7 @@ private fun describeCastCondition(condition: TriggerCondition): String =
         TriggerCondition.ReboundCast -> "rebound-may-cast"
         TriggerCondition.CascadeCast -> "cascade"
         TriggerCondition.StormCast -> "storm"
+        TriggerCondition.CastSelf -> "cast-this-spell"
         // Reachable only by calling this directly with a zone-shaped condition, which the one caller
         // above never does; listed rather than `else`d so the exhaustiveness check still bites.
         TriggerCondition.EnteredBattlefieldSelf,
@@ -82,6 +104,7 @@ private fun describeCastCondition(condition: TriggerCondition): String =
         TriggerCondition.VentureIntoDungeon,
         TriggerCondition.EnteredDungeonRoom,
         is TriggerCondition.DrewNthCardThisTurn,
+        is TriggerCondition.YouSacrificedAnother,
         is TriggerCondition.AnyOf,
         -> error("CR 603.2: $condition is not a cast-shaped condition; describeCondition names it")
     }

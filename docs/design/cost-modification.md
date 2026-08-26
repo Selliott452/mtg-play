@@ -214,6 +214,15 @@ a narrow implementation behind an `error(...)` for anything else, in the CONVENT
 **Decision — implement the increase slot in the formula, populate it with nothing, gate it loudly.** No named
 card increases a cost. Ward is a triggered ability (CR 702.21a), not an increase.
 
+> **`W10-D` populated it.** `StackTargetTax` is the one shape: a static ability of an object **on the
+> stack** taxing spells that target it, keyed on the casting spell's chosen targets (Kaervek's Torch).
+> Ward is still not an increase and Tolarian Terror is still not encodable here. Two things this section
+> did not anticipate. The increase does **not** commute with the reductions — the `{0}` clamp makes
+> CR 601.2f's printed order (increases, then reductions) a rule rather than a convention, so the
+> order-independence argument below now covers the reductions only. And the *arithmetic* was the small
+> half: the work was the **enumeration gate**, because a spell that cannot pay the tax must never be
+> offered the taxing spell as a target (ADR-005). See `mtg-rules/.../engine/StackTargetTax.kt`.
+
 **"If multiple cost reductions apply, the player may apply them in any order" surfaces no decision, and that is
 provable rather than assumed.** With only generic reductions, the result is `max(0, generic − Σ reductions)`:
 integer subtraction commutes and the floor is a single clamp applied once at the end, so every application

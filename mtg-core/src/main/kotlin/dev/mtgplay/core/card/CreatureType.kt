@@ -48,6 +48,7 @@ object CreatureType {
             Cat
             Dragon
             Drake
+            Drone
             Druid
             Dryad
             Eldrazi
@@ -126,6 +127,7 @@ object CreatureType {
             Forest
             Gate
             Island
+            Map
             Mountain
             Omen
             Plains

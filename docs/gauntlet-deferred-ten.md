@@ -91,6 +91,14 @@ Rebound) is uniformly a permission to cast *for some cost*, never for none.~~
 
 ## Kaervek's Torch — the one that is blocked on purpose
 
+> **Built by `W10-D`.** The section below is preserved as the analysis of the day. Its two claims were
+> half right. Target enumeration *did* have to consult affordability, and `FW-TGTCOND` had already made it
+> do so by the time this was written. And `FW-COST` really did leave the increase slot empty on purpose —
+> `StackTargetTax` fills it. What neither this note nor its successors saw is that the expensive gate can
+> be entered conditionally: only a spell that can name a spell, in a position where something on the stack
+> taxes that, is priced at the minimum over its target choices. Everything else is priced exactly as it
+> was.
+
 ```
 {X}{R} Sorcery
 As long as Kaervek's Torch is on the stack, spells that target it cost {2} more to cast.

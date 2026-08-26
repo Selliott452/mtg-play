@@ -238,6 +238,8 @@ private fun resolutionClauseOptionCount(request: DecisionRequestDto.SingleOption
             request.options.size + if (request.optionalExile) 1 else 0
         // CR 401.1: the two library depths a permanent's owner may name.
         is DecisionRequestDto.ChooseLibraryPosition -> request.options.size
+        // CR 701.40a: the two destinations an explorer may name for the revealed card.
+        is DecisionRequestDto.ChooseExploreDestination -> request.options.size
         // CR 609.4: one index per offered card type, chosen before anything is revealed.
         is DecisionRequestDto.ChooseRevealedCardType -> request.options.size
         // CR 309.4: one index per room the venturing player's marker may move to.

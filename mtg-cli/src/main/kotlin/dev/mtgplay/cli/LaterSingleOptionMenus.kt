@@ -110,6 +110,7 @@ internal fun resolutionClauseMenu(
         is DecisionRequest.ChooseOptionalManaPayment -> optionalManaPaymentMenu(request)
         is DecisionRequest.ChooseGraveyardCardToExile -> graveyardExileMenu(request)
         is DecisionRequest.ChooseLibraryPosition -> libraryPositionMenu(request)
+        is DecisionRequest.ChooseExploreDestination -> exploreDestinationMenu(request)
         is DecisionRequest.ChooseRevealedCardType -> revealedCardTypeMenu(request)
         is DecisionRequest.ChooseDungeonRoom -> dungeonRoomMenu(request)
         else -> error("no menu for ${request::class.simpleName}; every request must render one")

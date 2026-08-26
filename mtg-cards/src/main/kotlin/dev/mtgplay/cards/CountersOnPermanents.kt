@@ -44,8 +44,10 @@ import kotlinx.collections.immutable.persistentSetOf
  *   this entry used to fold into the second: placing counters is not the same mechanism as entering
  *   with them. `FW-X` since supplied the `{X}` cost, so the card is now two frameworks away rather
  *   than three.
- * - **Writhing Chrysalis** needs a "when you cast this spell" trigger and a "whenever you sacrifice
- *   another Eldrazi" trigger; its `+1/+1` counter half and its [Keyword.REACH] half are both ready.
+ * - **Writhing Chrysalis** shipped in `W10-D` (`CastTriggers.kt`): the two trigger conditions it was
+ *   waiting on — a stack-scoped "when you cast this spell" and a CR 701.17a "whenever you sacrifice
+ *   another Eldrazi" — were built there, and its `+1/+1` counter half and its [Keyword.REACH] half were
+ *   already ready when this note was written.
  */
 
 /**

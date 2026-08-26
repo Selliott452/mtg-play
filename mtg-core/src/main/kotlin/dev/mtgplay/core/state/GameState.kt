@@ -157,6 +157,12 @@ import kotlinx.collections.immutable.persistentMapOf
  *   where the resolving spell is on top of the stack and the permanent is still on the battlefield. The
  *   third pending record whose decider is not the resolving object's controller, and the first whose
  *   decider is a permanent's **owner** rather than anybody's controller — see [PendingLibraryPlacement].
+ * @property pendingExplore an explore paused on its last sentence (CR 701.40a), or `null`. Additive,
+ *   flagged core (`W10-D`) — the Map token. Non-null only at that mid-resolution pause, where the
+ *   resolving object is on top of the stack, the `+1/+1` counter is already placed, and the revealed card
+ *   is still the top of the deciding seat's library. **The second record whose contents a seat view
+ *   discloses out of a library**, after [pendingRevealSelection], and for the same CR reason: the card was
+ *   *revealed* — see [PendingExplore].
  * @property pendingTypeChoice a "choose a card type, then reveal the top N and partition them" clause
  *   awaiting the type (CR 609.4, CR 701.16), or `null`. Additive, flagged core (`W8-D`) — Winding Way.
  *   Non-null only at that mid-resolution pause, where the resolving spell is on top of the stack and
@@ -251,6 +257,7 @@ data class GameState(
     val pendingOptionalManaPayment: PendingOptionalManaPayment? = null,
     val pendingGraveyardExile: PendingGraveyardExile? = null,
     val pendingLibraryPlacement: PendingLibraryPlacement? = null,
+    val pendingExplore: PendingExplore? = null,
     val pendingTypeChoice: PendingTypeChoice? = null,
     val timedEffects: PersistentList<TimedContinuousEffect> = persistentListOf(),
     val preventionEffects: PersistentList<TimedPreventionEffect> = persistentListOf(),

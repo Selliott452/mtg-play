@@ -240,6 +240,7 @@ class MvpCardsSpec :
                     CardRef("Rally at the Hornburg"),
                     CardRef("Troll of Khazad-dûm"),
                     CardRef("Goblin Bushwhacker"),
+                    CardRef("Kaervek's Torch"),
                     CardRef("Land Grant"),
                     CardRef("Prohibit"),
                     CardRef("Ancestral Mask"),
@@ -296,6 +297,7 @@ class MvpCardsSpec :
                     CardRef("Faerie Macabre"),
                     CardRef("Faerie Seer"),
                     CardRef("Faithless Looting"),
+                    CardRef("Fanatical Offering"),
                     CardRef("Fiery Temper"),
                     CardRef("Fireblast"),
                     CardRef("Flaring Pain"),
@@ -437,6 +439,7 @@ class MvpCardsSpec :
                     // W8-D: card advantage and graveyard artifacts.
                     CardRef("Mulldrifter"),
                     CardRef("Winding Way"),
+                    CardRef("Writhing Chrysalis"),
                     CardRef("Dread Return"),
                     CardRef("Nihil Spellbomb"),
                     CardRef("Relic of Progenitus"),

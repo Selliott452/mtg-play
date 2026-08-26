@@ -437,11 +437,12 @@ private fun completeCast(
         state
             .copy(turn = state.turn.copy(spellsCastThisTurn = castBefore + 1))
             .emit(GameEvent.SpellCast(entry.controller, entry.obj.id, entry.obj.card))
-    // Both stack-scoped cast abilities are synthesized here rather than detected, for the reason
-    // `TriggerZoneScope.Stack` records: nothing scans the stack. Cascade first, then storm — the order
-    // is the order they are put on the stack, and CR 603.3b hands the controller the ordering decision
-    // whenever both fire, so neither is privileged by arriving first here.
-    val triggered = detectCascadeTrigger(detectCastTriggers(announced, entry), entry)
+    // Every stack-scoped cast ability is synthesized here rather than detected, for the reason
+    // `TriggerZoneScope.Stack` records: nothing scans the stack. Cascade, then the card's own printed
+    // "when you cast this spell" (`SelfCastTrigger.kt`), then storm — the order is the order they are put
+    // on the stack, and CR 603.3b hands the controller the ordering decision whenever more than one
+    // fires, so none is privileged by arriving first here.
+    val triggered = detectSelfCastTriggers(detectCascadeTrigger(detectCastTriggers(announced, entry), entry), entry)
     val storm = stormTriggerFor(entry, castBefore) ?: return triggered
     return enqueuePendingTrigger(triggered, storm)
 }

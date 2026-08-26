@@ -4,6 +4,7 @@ import dev.mtgplay.core.card.Subtype
 import dev.mtgplay.core.definition.AbilityZoneScope
 import dev.mtgplay.core.definition.CastSource
 import dev.mtgplay.core.definition.CastingPermission
+import dev.mtgplay.core.definition.ExploreDestination
 import dev.mtgplay.core.definition.LibraryPosition
 import dev.mtgplay.core.definition.ManaAbilityCost
 import dev.mtgplay.core.definition.ManaAbilityRider
@@ -603,6 +604,17 @@ private val allRequests: List<DecisionRequest> =
             permanent = ObjectId(7),
             permanentCard = CardRef("Grizzly Bears"),
             options = listOf(LibraryPosition.SECOND_FROM_TOP, LibraryPosition.BOTTOM),
+        ),
+        // CR 701.40a: the last sentence of an explore, decided by the exploring permanent's controller
+        // over a closed two-member vocabulary — and carrying the revealed card's name, which is public.
+        DecisionRequest.ChooseExploreDestination(
+            ID,
+            controller = PlayerId(1),
+            sourceCard = CardRef("Map"),
+            exploring = ObjectId(9),
+            exploringCard = CardRef("Grizzly Bears"),
+            revealedCard = CardRef("Lightning Bolt"),
+            options = listOf(ExploreDestination.LIBRARY_TOP, ExploreDestination.GRAVEYARD),
         ),
         // CR 609.4: Winding Way's "choose creature or land", answered before anything is revealed.
         DecisionRequest.ChooseRevealedCardType(

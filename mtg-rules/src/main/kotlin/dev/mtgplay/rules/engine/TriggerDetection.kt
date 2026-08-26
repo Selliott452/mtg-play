@@ -71,33 +71,38 @@ internal fun battlefieldTriggersOf(
     state: GameState,
     card: dev.mtgplay.core.identity.CardRef,
     condition: TriggerCondition,
-): List<TriggeredAbility> =
-    state.definitions[card]
-        ?.triggeredAbilities
-        ?.filter { it.zoneScope == TriggerZoneScope.Battlefield && matchesEvent(it.condition, condition) }
-        .orEmpty()
+): List<TriggeredAbility> = battlefieldTriggersMatching(state, card) { it == condition }
 
 /**
- * Whether the [declared] trigger condition of an ability is satisfied by the [event] pattern a detector
- * has just observed (CR 603.2).
+ * The battlefield-scoped triggered abilities of [card]'s definition whose declared condition [satisfied]
+ * accepts — [battlefieldTriggersOf]'s general form, for a detector whose event is not one condition value
+ * (`W10-D`).
  *
- * Equality for every ordinary condition — a detector names the pattern it saw and an ability declaring
- * that pattern fires. The one non-trivial case is [TriggerCondition.AnyOf], the "When X **or** Y" shape
- * (`W8-C`): one ability, several patterns, satisfied by any of them. Written here rather than at each
- * detector so that a detector added later cannot forget the disjunction — the same argument
- * [enqueuePendingTrigger] makes for the CR 603.4 intervening-if check.
+ * The pool's first client is the sacrifice detector: "whenever you sacrifice another Eldrazi" matches when
+ * the *sacrificed permanent* has the declared subtype, which is a question about another object and a
+ * CR 613 layer-4 read, so no [TriggerCondition] value the detector could construct is equal to the
+ * declared one. Every earlier detector names the pattern it saw and compares, which is what
+ * [battlefieldTriggersOf] still does through this.
  *
+ * **The CR 603.2 disjunction lives here and nowhere else.** [TriggerCondition.AnyOf] is one ability
+ * watching several patterns, so it fires once when any of them is satisfied — never twice, even when two
+ * of its patterns are. Written at the funnel rather than at each detector so a detector added later
+ * cannot forget it, the same argument [enqueuePendingTrigger] makes for the CR 603.4 intervening-if check.
  * The disjunction is never nested ([TriggerCondition.AnyOf]'s `init` refuses it), so this is one level
  * deep by construction and needs no recursion.
  */
-private fun matchesEvent(
-    declared: TriggerCondition,
-    event: TriggerCondition,
-): Boolean =
-    when (declared) {
-        is TriggerCondition.AnyOf -> event in declared.conditions
-        else -> declared == event
-    }
+internal fun battlefieldTriggersMatching(
+    state: GameState,
+    card: dev.mtgplay.core.identity.CardRef,
+    satisfied: (TriggerCondition) -> Boolean,
+): List<TriggeredAbility> =
+    state.definitions[card]
+        ?.triggeredAbilities
+        ?.filter { ability ->
+            val declared = ability.condition
+            ability.zoneScope == TriggerZoneScope.Battlefield &&
+                if (declared is TriggerCondition.AnyOf) declared.conditions.any(satisfied) else satisfied(declared)
+        }.orEmpty()
 
 /**
  * Detects "when you draw your Nth card in a turn" triggers (CR 603.2) for [player], who has just

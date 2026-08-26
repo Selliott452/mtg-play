@@ -133,6 +133,10 @@ import dev.mtgplay.core.state.Turn
  * @property pendingReveal a "reveal top N, keep one" selection (CR 701.16), or `null`; the revealed
  *   cards are public to **both** seats (CR: they are revealed), so their identities are resolved
  *   here (see [PendingRevealView]) even though library contents are otherwise secret.
+ * @property pendingExplore an explore paused on its last sentence (CR 701.40a), or `null`; the revealed
+ *   card is public to **both** seats for the same reason [pendingReveal]'s are, and is resolved here out
+ *   of a library the view otherwise never discloses (see [PendingExploreView]). The disclosure ends when
+ *   the answer arrives: a card put back on top is secret again.
  * @property pendingOptionalDiscardDraw an optional discard-then-draw pause (CR 601.3b), or `null`;
  *   public — it carries only the deciding seat, a draw count, and a stage flag.
  * @property pendingOptionalCostDraw an optional cost-then-draw pause (CR 601.3b), or `null`; public
@@ -258,6 +262,7 @@ data class SeatView(
     val pendingColorChoice: PendingColorChoice? = null,
     val pendingActivation: PendingActivation? = null,
     val pendingReveal: PendingRevealView? = null,
+    val pendingExplore: PendingExploreView? = null,
     val pendingOptionalDiscardDraw: PendingOptionalDiscardDraw? = null,
     val pendingOptionalCostDraw: PendingOptionalCostDraw? = null,
     val pendingResolutionDiscard: PendingResolutionDiscard? = null,

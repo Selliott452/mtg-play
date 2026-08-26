@@ -97,6 +97,9 @@ private fun applyResolutionClauseSelection(
         // CR 401.1: the owner's chosen depth for a permanent going into their library.
         is DecisionRequest.ChooseLibraryPosition ->
             applyLibraryPlacement(state, request.options[decision.index])
+        // CR 701.40a: the explorer's destination for the revealed card, top of library or graveyard.
+        is DecisionRequest.ChooseExploreDestination ->
+            applyExplore(state, request.options[decision.index])
         // CR 609.4: the named card type, which then drives the reveal and its partition.
         is DecisionRequest.ChooseRevealedCardType ->
             applyChosenRevealType(state, request.options[decision.index])

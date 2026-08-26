@@ -600,6 +600,25 @@ sealed interface DecisionRequestDto {
     ) : SingleOptionSelectionDto
 
     /**
+     * Wire form of [DecisionRequest.ChooseExploreDestination] (CR 701.40a) — the last sentence of an
+     * explore, answered by the exploring permanent's controller. [revealedCard] is on the wire to both
+     * seats deliberately: CR 701.40a revealed it. The options are
+     * [dev.mtgplay.core.definition.ExploreDestination] names, read through the shared vocabulary reader
+     * so an unknown name is a loud decode failure. Added by `W10-D`.
+     */
+    @Serializable
+    @SerialName("choose_explore_destination")
+    data class ChooseExploreDestination(
+        override val id: DecisionRequestIdDto,
+        val controller: Int,
+        val sourceCard: String,
+        val exploring: Long,
+        val exploringCard: String,
+        val revealedCard: String,
+        val options: List<String>,
+    ) : SingleOptionSelectionDto
+
+    /**
      * Wire form of [DecisionRequest.ChooseRevealedCardType] (CR 609.4) — Winding Way's resolution-time
      * "choose creature or land", answered before anything is revealed. The options ride as
      * [dev.mtgplay.core.definition.RevealedCardFilter] names. Added by `W8-D`.

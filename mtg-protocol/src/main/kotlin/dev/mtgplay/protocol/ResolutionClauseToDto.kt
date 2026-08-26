@@ -34,6 +34,16 @@ internal fun resolutionClauseToDto(request: DecisionRequest.SingleOptionSelectio
                 request.permanentCard.name,
                 request.options.map { it.name },
             )
+        is DecisionRequest.ChooseExploreDestination ->
+            DecisionRequestDto.ChooseExploreDestination(
+                request.id.toDto(),
+                request.controller.seat,
+                request.sourceCard.name,
+                request.exploring.value,
+                request.exploringCard.name,
+                request.revealedCard.name,
+                request.options.map { it.name },
+            )
         is DecisionRequest.ChooseRevealedCardType ->
             DecisionRequestDto.ChooseRevealedCardType(
                 request.id.toDto(),

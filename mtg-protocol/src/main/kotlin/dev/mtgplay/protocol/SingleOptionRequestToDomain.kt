@@ -1,6 +1,5 @@
 package dev.mtgplay.protocol
 
-import dev.mtgplay.core.definition.LibraryPosition
 import dev.mtgplay.core.definition.RevealedCardFilter
 import dev.mtgplay.core.identity.CardRef
 import dev.mtgplay.core.identity.ObjectId
@@ -88,6 +87,7 @@ private fun resolutionClauseToDomain(dto: DecisionRequestDto.SingleOptionSelecti
         is DecisionRequestDto.ChooseOptionalManaPayment -> optionalManaPaymentToDomain(dto)
         is DecisionRequestDto.ChooseGraveyardCardToExile -> graveyardExileToDomain(dto)
         is DecisionRequestDto.ChooseLibraryPosition -> libraryPositionToDomain(dto)
+        is DecisionRequestDto.ChooseExploreDestination -> exploreDestinationToDomain(dto)
         is DecisionRequestDto.ChooseRevealedCardType -> revealedCardTypeToDomain(dto)
         // CR 309.4: a venturing player's dungeon branch. Constructed inline rather than in a named
         // helper like its neighbours: the file sits at detekt's function budget, and this conversion
@@ -143,40 +143,6 @@ private fun graveyardExileToDomain(
     )
 
 /**
- * An owner's library-position choice (CR 401.1) back to the engine value. The depths travel as
- * [LibraryPosition] names; an unknown one fails loudly rather than silently becoming a different depth.
- */
-private fun libraryPositionToDomain(
-    dto: DecisionRequestDto.ChooseLibraryPosition,
-): DecisionRequest.ChooseLibraryPosition =
-    DecisionRequest.ChooseLibraryPosition(
-        dto.id.toDomain(),
-        PlayerId(dto.controller),
-        CardRef(dto.sourceCard),
-        ObjectId(dto.permanent),
-        CardRef(dto.permanentCard),
-        dto.options.map { name ->
-            LibraryPosition.entries.firstOrNull { it.name == name }
-                ?: error("CR 401.1: unknown library position $name")
-        },
-    )
-
-/**
- * A resolution-time card-type choice (CR 609.4) back to the engine value. The types travel as
- * [RevealedCardFilter] names and are parsed through the shared vocabulary reader, so an unknown name is
- * a loud wire error rather than a silently dropped option.
- */
-private fun revealedCardTypeToDomain(
-    dto: DecisionRequestDto.ChooseRevealedCardType,
-): DecisionRequest.ChooseRevealedCardType =
-    DecisionRequest.ChooseRevealedCardType(
-        dto.id.toDomain(),
-        CardRef(dto.sourceCard),
-        dto.revealCount,
-        dto.options.map { parseVocabulary<RevealedCardFilter>(it, "revealed card filter") },
-    )
-
-/**
  * A cast's payment choice (CR 601.2g) back to the engine value. Its own function for the reason
  * [libraryArrangementToDomain] is: the family is at detekt's length budget, and the two cost-shaped
  * branches are the ones that grow.
@@ -218,4 +184,19 @@ private fun libraryArrangementToDomain(
         dto.options.map {
             DecisionRequest.ChooseLibraryArrangement.Option(it.toHand, it.toTop, it.toBottom)
         },
+    )
+
+/**
+ * A resolution-time card-type choice (CR 609.4) back to the engine value. The types travel as
+ * [RevealedCardFilter] names and are parsed through the shared vocabulary reader, so an unknown name is
+ * a loud wire error rather than a silently dropped option.
+ */
+private fun revealedCardTypeToDomain(
+    dto: DecisionRequestDto.ChooseRevealedCardType,
+): DecisionRequest.ChooseRevealedCardType =
+    DecisionRequest.ChooseRevealedCardType(
+        dto.id.toDomain(),
+        CardRef(dto.sourceCard),
+        dto.revealCount,
+        dto.options.map { parseVocabulary<RevealedCardFilter>(it, "revealed card filter") },
     )

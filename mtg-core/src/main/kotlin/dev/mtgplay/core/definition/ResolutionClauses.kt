@@ -230,6 +230,16 @@ interface ResolutionClauses {
      * permanent's **owner** (CR 108.3). See [OwnerLibraryPlacement].
      */
     val ownerLibraryPlacement: OwnerLibraryPlacement? get() = null
+
+    /**
+     * An "explore" clause (CR 701.40a), or `null` for a definition with none. The Map token's *"Target
+     * creature you control explores"*. Additive, flagged core (`W10-D`).
+     *
+     * The **first clause carried by an activated ability of a token**, and the first whose pause is
+     * conditional on what a reveal turned up rather than on anything the definition or the board says in
+     * advance — a land card opens no pause at all. See [Explore].
+     */
+    val explore: Explore? get() = null
 }
 
 /**
@@ -258,6 +268,7 @@ val ResolutionClauses.declaredClauses: List<Any>
             chosenColorEffect,
             optionalGraveyardExileGate,
             ownerLibraryPlacement,
+            explore,
         )
 
 /**
