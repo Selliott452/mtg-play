@@ -107,6 +107,8 @@ internal val BURN_OPPONENT: Responder =
                 error("the burn policy activates no graveyard-exile abilities, but one surfaced: $request")
             is DecisionRequest.ChooseLibraryPosition ->
                 error("the burn policy casts no library-placement spells, but one surfaced: $request")
+            is DecisionRequest.ChooseExploreDestination ->
+                error("the burn policy activates no exploring abilities, but one surfaced: $request")
             is DecisionRequest.ChooseRevealedCardType ->
                 error("the burn policy casts no type-choosing reveal spells, but one surfaced: $request")
             is DecisionRequest.MulliganRequest ->
@@ -293,6 +295,8 @@ internal val GRIND_TO_BOLT_RANGE: Responder =
                 error("the grind policy activates no graveyard-exile abilities, but one surfaced: $request")
             is DecisionRequest.ChooseLibraryPosition ->
                 error("the grind policy casts no library-placement spells, but one surfaced: $request")
+            is DecisionRequest.ChooseExploreDestination ->
+                error("the grind policy activates no exploring abilities, but one surfaced: $request")
             is DecisionRequest.ChooseRevealedCardType ->
                 error("the grind policy casts no type-choosing reveal spells, but one surfaced: $request")
             is DecisionRequest.MulliganRequest ->

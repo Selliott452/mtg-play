@@ -55,6 +55,7 @@ fun viewFor(
             pendingColorChoice = state.pendingColorChoice,
             pendingActivation = state.pendingActivation,
             pendingReveal = state.pendingRevealSelection?.let { revealViewOf(state, it) },
+            pendingExplore = state.pendingExplore?.let { exploreViewOf(state, it) },
             pendingOptionalDiscardDraw = state.pendingOptionalDiscardDraw,
             pendingOptionalCostDraw = state.pendingOptionalCostDraw,
             pendingResolutionDiscard = state.pendingResolutionDiscard,
@@ -198,6 +199,30 @@ private fun revealViewOf(
         decider = reveal.decider,
         revealed = reveal.revealedIds.map(::resolve),
         kept = reveal.keptIds.map(::resolve),
+    )
+}
+
+/**
+ * Resolves a [dev.mtgplay.core.state.PendingExplore] into a [PendingExploreView], exposing the revealed
+ * card to all seats (CR 701.40a: it is revealed, so public to both). The card has not moved — it is still
+ * the top of the [dev.mtgplay.core.state.PendingExplore.decider]'s library — and the exploring permanent
+ * is read live off the battlefield, where the counter the clause already placed is on it.
+ */
+private fun exploreViewOf(
+    state: GameState,
+    explore: dev.mtgplay.core.state.PendingExplore,
+): PendingExploreView {
+    val library =
+        state.players[explore.decider]?.library
+            ?: error("CR 701.40a: an explore names unseated decider ${explore.decider}")
+    return PendingExploreView(
+        decider = explore.decider,
+        exploring =
+            state.sharedZones.battlefield.firstOrNull { it.id == explore.exploring }
+                ?: error("CR 701.40a: the exploring permanent ${explore.exploring} is not on the battlefield"),
+        revealed =
+            library.firstOrNull { it.id == explore.revealed }
+                ?: error("CR 701.40a: revealed id ${explore.revealed} is not in ${explore.decider}'s library"),
     )
 }
 

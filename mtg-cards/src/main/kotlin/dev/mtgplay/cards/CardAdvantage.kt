@@ -5,20 +5,26 @@ import dev.mtgplay.core.card.Keyword
 import dev.mtgplay.core.card.PrintedCharacteristics
 import dev.mtgplay.core.card.PrintedPowerToughness
 import dev.mtgplay.core.card.Subtype
+import dev.mtgplay.core.definition.AbilityCost
+import dev.mtgplay.core.definition.ActivatedAbility
 import dev.mtgplay.core.definition.AdditionalCost
 import dev.mtgplay.core.definition.CastingPermission
 import dev.mtgplay.core.definition.ChosenTypeReveal
+import dev.mtgplay.core.definition.Explore
 import dev.mtgplay.core.definition.InterveningIf
 import dev.mtgplay.core.definition.PermanentRestriction
 import dev.mtgplay.core.definition.ResolutionEffect
 import dev.mtgplay.core.definition.RevealedCardFilter
+import dev.mtgplay.core.definition.SacrificeFilter
 import dev.mtgplay.core.definition.SpellDefinition
 import dev.mtgplay.core.definition.TargetSpec
 import dev.mtgplay.core.definition.TimingClass
+import dev.mtgplay.core.definition.TokenDefinition
 import dev.mtgplay.core.definition.TriggerCondition
 import dev.mtgplay.core.definition.TriggeredAbility
 import dev.mtgplay.core.mana.ManaCost
 import dev.mtgplay.core.state.Target
+import dev.mtgplay.rules.effect.createToken
 import dev.mtgplay.rules.effect.dealDamage
 import dev.mtgplay.rules.effect.drawCards
 import dev.mtgplay.rules.effect.exileTopCardsPlayableUntilEndOfYourNextTurn
@@ -386,5 +392,103 @@ val monstrousEmergence: SpellDefinition =
                     // event — none at all.
                     powerOfChosenSource(state, named).coerceAtLeast(0),
                 )
+            }
+    }
+
+/** How many cards Fanatical Offering draws (CR 120.1). */
+const val FANATICAL_OFFERING_DRAW: Int = 2
+
+/** "Sacrifice an artifact or creature" (CR 601.2b) — Fanatical Offering's additional cost. */
+private val ARTIFACT_OR_CREATURE_SACRIFICE: SacrificeFilter =
+    SacrificeFilter(persistentSetOf(CardType.ARTIFACT, CardType.CREATURE))
+
+/**
+ * The **Map** token (CR 111.1): an artifact with *"{1}, {T}, Sacrifice this token: Target creature you
+ * control explores. Activate only as a sorcery."*
+ *
+ * **Every part of it but the explore was already expressible**, which is why the recorded blocker on
+ * Fanatical Offering named CR 701.40a and not the token: [AbilityCost] carries the `{1}`, the `{T}` and
+ * the sacrifice-self, [ActivatedAbility.targetSpec] carries "target creature you control", and
+ * [TimingClass.SORCERY_SPEED] is "activate only as a sorcery". Explore is
+ * [dev.mtgplay.core.definition.Explore], added by `W10-D`.
+ *
+ * **The ability's ordinary effect is empty and the clause is the whole of it** (CR 608.2c), for the
+ * reason the clause family exists: explore's last sentence is a decision, and ADR-004 keeps decisions out
+ * of a [ResolutionEffect]. The engine runs the branch, the counter and the pause.
+ *
+ * **It may be used the turn it arrives.** The token is an artifact, not a creature, so CR 302.6's
+ * summoning-sickness bar on `{T}` does not apply — the same ruling the Blood token's KDoc records. What
+ * *does* delay it is the sorcery-speed clause, so a Fanatical Offering cast on an opponent's end step
+ * leaves a Map that explores on your own main phase.
+ */
+val mapToken: TokenDefinition =
+    TokenDefinition(
+        characteristics =
+            PrintedCharacteristics(
+                name = "Map",
+                manaCost = null,
+                supertypes = persistentSetOf(),
+                cardTypes = persistentSetOf(CardType.ARTIFACT),
+                subtypes = persistentSetOf(Subtype("Map")),
+                powerToughness = null,
+            ),
+        activatedAbilities =
+            persistentListOf(
+                ActivatedAbility(
+                    cost =
+                        persistentListOf(
+                            AbilityCost.Mana(ManaCost.parse("{1}")),
+                            AbilityCost.TapSelf,
+                            AbilityCost.SacrificeSelf,
+                        ),
+                    // CR 602.5d: "Activate only as a sorcery."
+                    timing = TimingClass.SORCERY_SPEED,
+                    targetSpec = TargetSpec.TargetPermanent(PermanentRestriction.CREATURE_YOU_CONTROL),
+                    // CR 608.2c: the clause is the effect; see [Explore].
+                    effect = ResolutionEffect { state, _ -> state },
+                    explore = Explore,
+                ),
+            ),
+    )
+
+/**
+ * Fanatical Offering — `{1}{B}` Instant. "As an additional cost to cast this spell, sacrifice an artifact
+ * or creature. Draw two cards and create a Map token."
+ *
+ * **Two mana, two cards, and a permanent that turns a dead body into a third card later.** Grixis Affinity
+ * and Jund Wildfire both play it for the same reason: they are already sacrificing artifacts on purpose,
+ * so the additional cost is upside — a Blood Fountain that has done its job, a token, a creature about to
+ * die anyway — and the Map converts the leftover mana of a later turn into a `+1/+1` counter and a card
+ * seen or binned.
+ *
+ * **The cost is paid at CR 601.2h, before the spell is on the stack**, which is what makes the card an
+ * *answer* as well as a draw spell: sacrificing in response to targeted removal keeps the value and denies
+ * the kill. [AdditionalCost.Sacrifice] carries the whole line and the engine enumerates the legal
+ * sacrifices; a board with no artifact and no creature makes the spell uncastable rather than castable and
+ * unpayable (ADR-005).
+ *
+ * **The token is half the card**, which is why an approximation without it would have been the wrong card:
+ * a `{1}{B}` sacrifice-an-artifact draw-two is strictly worse than the pool's other draw spells, and
+ * nobody would play it. See [mapToken] and [dev.mtgplay.core.definition.Explore].
+ */
+val fanaticalOffering: SpellDefinition =
+    object : SpellDefinition {
+        override val characteristics =
+            PrintedCharacteristics(
+                name = "Fanatical Offering",
+                manaCost = ManaCost.parse("{1}{B}"),
+                supertypes = persistentSetOf(),
+                cardTypes = persistentSetOf(CardType.INSTANT),
+                subtypes = persistentSetOf(),
+                powerToughness = null,
+            )
+        override val timing = TimingClass.INSTANT_SPEED
+        override val targetSpec = TargetSpec.None
+        override val additionalCost = AdditionalCost.Sacrifice(count = 1, filter = ARTIFACT_OR_CREATURE_SACRIFICE)
+        override val resolution =
+            ResolutionEffect { state, context ->
+                // CR 608.2c: printed order — the draw first, then the token.
+                val drawn = drawCards(state, context.controller, FANATICAL_OFFERING_DRAW)
+                createToken(drawn, context.controller, mapToken)
             }
     }

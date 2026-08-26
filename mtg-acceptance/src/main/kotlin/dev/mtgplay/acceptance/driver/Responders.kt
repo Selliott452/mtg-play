@@ -123,6 +123,10 @@ object Responders {
                 // exactly why it is spelled out rather than left to a catch-all.
                 is DecisionRequest.ChooseLibraryPosition ->
                     error("the pass-everything responder never casts a library-placement spell: $request")
+                // CR 701.40a: an explore's destination choice only exists while a Map token this policy
+                // never activates is resolving.
+                is DecisionRequest.ChooseExploreDestination ->
+                    error("the pass-everything responder never activates an exploring ability: $request")
                 // CR 609.4: a resolution-time card-type choice only exists while a Winding Way this
                 // policy never cast is resolving.
                 is DecisionRequest.ChooseRevealedCardType ->

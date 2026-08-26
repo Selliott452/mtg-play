@@ -120,6 +120,7 @@ object CreatureType {
             Forest
             Gate
             Island
+            Map
             Mountain
             Plains
             Swamp

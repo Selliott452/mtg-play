@@ -245,6 +245,9 @@ private fun namedDeciderPauseRequest(state: GameState): DecisionRequest? =
         state.pendingGraveyardExile != null -> pendingGraveyardExileRequest(state)
         // CR 401.1/108.3: the targeted permanent's *owner* names a depth in their own library.
         state.pendingLibraryPlacement != null -> pendingLibraryPlacementRequest(state)
+        // CR 701.40a: the exploring *permanent's controller* places the revealed card, which is why
+        // this sits with the pauses whose decider is named by something other than priority.
+        state.pendingExplore != null -> pendingExploreRequest(state)
         // CR 609.4: the resolution-time card-type choice, answered before anything is revealed.
         state.pendingTypeChoice != null -> pendingTypeChoiceRequest(state)
         else -> null

@@ -6,7 +6,6 @@ import dev.mtgplay.core.identity.PlayerId
 import dev.mtgplay.rules.DecisionRequestKind
 import dev.mtgplay.rules.DecisionView
 import dev.mtgplay.rules.PendingHandRevealView
-import dev.mtgplay.rules.PendingRevealView
 import dev.mtgplay.rules.PendingTriggerView
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
@@ -35,26 +34,6 @@ fun PendingTriggerView.toDto(): PendingTriggerViewDto =
 /** [PendingTriggerViewDto] back to the engine value. */
 fun PendingTriggerViewDto.toDomain(): PendingTriggerView =
     PendingTriggerView(ObjectId(sourceId), CardRef(sourceCard), PlayerId(controller), amount, subject?.let(::ObjectId))
-
-/**
- * Wire form of a [PendingRevealView] — the revealed cards and the keeps gathered so far, both public
- * to both seats (CR 701.16). [kept] is non-empty only part-way through a multi-keep clause
- * (Kruphix's Insight's "up to three"), so it defaults to empty on the wire.
- */
-@Serializable
-data class PendingRevealViewDto(
-    val decider: Int,
-    val revealed: List<GameObjectDto>,
-    val kept: List<GameObjectDto> = emptyList(),
-)
-
-/** [PendingRevealView] to its wire form. */
-fun PendingRevealView.toDto(): PendingRevealViewDto =
-    PendingRevealViewDto(decider.seat, revealed.map { it.toDto() }, kept.map { it.toDto() })
-
-/** [PendingRevealViewDto] back to the engine value. */
-fun PendingRevealViewDto.toDomain(): PendingRevealView =
-    PendingRevealView(PlayerId(decider), revealed.map { it.toDomain() }, kept.map { it.toDomain() })
 
 /**
  * Wire form of a [PendingHandRevealView] (CR 701.16a) — an open "target opponent reveals their hand and
@@ -194,6 +173,13 @@ enum class DecisionRequestKindDto {
      * depths are a closed vocabulary, so nothing here is hidden.
      */
     CHOOSE_LIBRARY_POSITION,
+
+    /**
+     * A "back on top or into the graveyard" choice (CR 701.40a) — the last sentence of an explore, made
+     * by the exploring permanent's controller. Public in both directions, revealed card included: the
+     * card was *revealed*, which is the same reason [PendingExploreViewDto] exists.
+     */
+    CHOOSE_EXPLORE_DESTINATION,
 
     /** A resolution-time "choose creature or land" (CR 609.4) — Winding Way. */
     CHOOSE_REVEALED_CARD_TYPE,

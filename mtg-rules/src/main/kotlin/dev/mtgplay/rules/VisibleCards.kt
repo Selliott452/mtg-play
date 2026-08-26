@@ -45,6 +45,11 @@ internal fun visibleCardRefs(view: SeatView): Set<CardRef> =
         view.stack.forEach { add(stackEntryCard(it)) }
         view.pendingTriggers.forEach { add(it.sourceCard) }
         view.pendingReveal?.revealed?.forEach { add(it.card) }
+        // CR 701.40a: an explore *reveals* the top card of a library, so both seats may name it for as
+        // long as the placement decision is open. The second clause here that contributes an identity
+        // from a **library**, and it argues itself the same way the reveal above does: the alternative is
+        // an opposing seat that cannot see a card the card just showed it (`W10-D`).
+        view.pendingExplore?.let { add(it.revealed.card) }
         // CR 701.16a: a revealed hand is public to every seat for as long as the reveal is open, so
         // both seats must be able to name its cards. This is the one clause that contributes identities
         // from a *hand* other than the viewer's own, and it is legitimate for the same reason the

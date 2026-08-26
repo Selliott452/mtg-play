@@ -1,5 +1,6 @@
 package dev.mtgplay.cli
 
+import dev.mtgplay.core.definition.ExploreDestination
 import dev.mtgplay.core.definition.LibraryPosition
 import dev.mtgplay.core.definition.RevealedCardFilter
 import dev.mtgplay.rules.decision.DecisionRequest
@@ -83,6 +84,24 @@ internal fun libraryPositionMenu(request: DecisionRequest.ChooseLibraryPosition)
             "${request.sourceCard.name} (CR 401.1):",
     ) + numbered(request.options.map { position -> libraryPositionLabel(position) }) + SINGLE_HINT
 
+/**
+ * The menu for the last sentence of an explore (CR 701.40a). The revealed card is named in the prompt
+ * because CR 701.40a revealed it — a menu that hid it would be asking the player to place a card they had
+ * not been shown.
+ */
+internal fun exploreDestinationMenu(request: DecisionRequest.ChooseExploreDestination): List<String> =
+    listOf(
+        "${request.exploringCard.name} explored for ${request.sourceCard.name} and revealed " +
+            "${request.revealedCard.name} (CR 701.40a):",
+    ) + numbered(request.options.map { destination -> exploreDestinationLabel(destination) }) + SINGLE_HINT
+
+/** The printed wording of one explore destination (CR 701.40a). */
+private fun exploreDestinationLabel(destination: ExploreDestination): String =
+    when (destination) {
+        ExploreDestination.LIBRARY_TOP -> "Back on top of your library"
+        ExploreDestination.GRAVEYARD -> "Into your graveyard"
+    }
+
 /** The printed wording of one library depth (CR 401.1). */
 private fun libraryPositionLabel(position: LibraryPosition): String =
     when (position) {
@@ -110,6 +129,7 @@ internal fun resolutionClauseMenu(
         is DecisionRequest.ChooseOptionalManaPayment -> optionalManaPaymentMenu(request)
         is DecisionRequest.ChooseGraveyardCardToExile -> graveyardExileMenu(request)
         is DecisionRequest.ChooseLibraryPosition -> libraryPositionMenu(request)
+        is DecisionRequest.ChooseExploreDestination -> exploreDestinationMenu(request)
         is DecisionRequest.ChooseRevealedCardType -> revealedCardTypeMenu(request)
         else -> error("no menu for ${request::class.simpleName}; every request must render one")
     }

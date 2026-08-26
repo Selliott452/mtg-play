@@ -105,7 +105,12 @@ class CounterDtoSpec :
             // adding a capability, since ContinuousModification has carried granted evasions since the
             // keyword-tail packet and this mirror silently dropped them. The `duration` word gains
             // INDEFINITE (CR 611.2b), which an older peer already fails loudly on by design.
+            // `W10-D` takes it to 11.0.0 on explore (CR 701.40a), which breaks the wire both ways:
+            // SeatViewDto gains a required `pendingExplore` — the second payload on this wire that names
+            // a card sitting in a *library*, and there because the printed card said "reveal" — and
+            // DecisionRequestKindDto gains CHOOSE_EXPLORE_DESTINATION, whose `valueOf` fails at runtime
+            // on an old peer rather than at compile time.
             // Pinned here so no bump in the chain can be quietly reverted.
-            PROTOCOL_VERSION shouldBe "10.0.0"
+            PROTOCOL_VERSION shouldBe "11.0.0"
         }
     })

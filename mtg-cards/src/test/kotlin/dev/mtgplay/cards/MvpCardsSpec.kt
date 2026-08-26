@@ -295,6 +295,7 @@ class MvpCardsSpec :
                     CardRef("Faerie Macabre"),
                     CardRef("Faerie Seer"),
                     CardRef("Faithless Looting"),
+                    CardRef("Fanatical Offering"),
                     CardRef("Fiery Temper"),
                     CardRef("Fireblast"),
                     CardRef("Flaring Pain"),

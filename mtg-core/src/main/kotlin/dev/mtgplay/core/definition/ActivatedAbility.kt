@@ -89,6 +89,7 @@ data class ActivatedAbility(
     override val optionalManaThenDraw: OptionalManaThenDraw? = null,
     override val targetPlayerExilesFromGraveyard: TargetPlayerExilesFromGraveyard? = null,
     override val chosenTypeReveal: ChosenTypeReveal? = null,
+    override val explore: Explore? = null,
 ) : ResolutionClauses {
     init {
         require(cost.isNotEmpty()) { "CR 602.1: an activated ability has a cost" }

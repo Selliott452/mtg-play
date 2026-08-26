@@ -980,5 +980,21 @@ package dev.mtgplay.protocol
  *    it. It is required for a token whose colours the creating effect defined rather than derived —
  *    Sacred Cat's embalm token is white with **no mana cost**, and a peer that derived its colours would
  *    call it colourless and then disagree with the engine about whether protection from white stops it.
+ *
+ * **11.0.0 — `W10-D`: explore, and the first disclosure out of a library.** Explore (CR 701.40a) breaks
+ * the wire in **both** directions, and the server→client half is the one that had never happened before.
+ *
+ * 1. **[SeatViewDto] gains a required `pendingExplore`** ([PendingExploreViewDto]), which a `10.0.0`
+ *    peer's strict codec rejects outright. It is the **second** payload on this wire that names a card
+ *    sitting in a *library* — [PendingRevealViewDto] was the first — and it is there because CR 701.40a
+ *    says *reveal*: the card is public to both seats while the placement decision is open, and a peer
+ *    that could not see it would be watching its opponent answer a question about an invisible card.
+ * 2. **[DecisionRequestDto] gains [DecisionRequestDto.ChooseExploreDestination] and
+ *    [DecisionRequestKindDto] gains `CHOOSE_EXPLORE_DESTINATION`**, whose `valueOf` mapping fails at
+ *    **runtime** on an old peer — the sharper break mode `4.0.0` recorded, for the same reason.
+ *
+ * The request carries the revealed card's name deliberately. It is not a leak and the two independent
+ * `ViewLeakPropertySpec` oracles were both widened to say so: the card was revealed, so it is public
+ * until the answer arrives and it goes back on top (secret again) or into a graveyard (public forever).
  */
-const val PROTOCOL_VERSION: String = "10.0.0"
+const val PROTOCOL_VERSION: String = "11.0.0"

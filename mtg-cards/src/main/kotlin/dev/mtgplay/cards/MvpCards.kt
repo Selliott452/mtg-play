@@ -529,6 +529,7 @@ object MvpCards {
             faerieMiscreant,
             faerieSeer,
             faithlessLooting,
+            fanaticalOffering,
             fieryTemper,
             fireblast,
             flaringPain,

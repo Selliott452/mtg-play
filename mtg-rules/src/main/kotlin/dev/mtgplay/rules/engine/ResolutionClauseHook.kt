@@ -176,6 +176,9 @@ private fun lateClauseOrCompletion(
         // clause that *gates* an effect rather than following one (Masked Vandal).
         exileGate != null -> orchestrateOptionalGraveyardExile(state, entry, exileGate)
         tapOrUntap != null -> orchestrateTapOrUntap(state, entry, tapOrUntap)
+        // CR 701.40a: the Map token's explore — the one clause whose *pause* is conditional on what the
+        // reveal turned up, so two of its three outcomes finish without asking anything (ADR-005).
+        clauses.explore != null -> orchestrateExplore(state, entry)
         // CR 701.17a: "each opponent sacrifices a creature of their choice" (Extract a Confession) —
         // the second clause whose decider is not the resolving object's controller.
         opponentSacrifice != null -> orchestrateEachOpponentSacrifices(state, entry, opponentSacrifice)

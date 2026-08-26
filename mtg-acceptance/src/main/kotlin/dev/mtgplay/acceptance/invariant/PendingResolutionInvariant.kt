@@ -58,6 +58,9 @@ internal fun checkPendingResolutionSanity(state: GameState): List<Violation> =
         checkPause("library search", state.pendingLibrarySearch?.decider)
         checkPause("library reveal", state.pendingRevealSelection?.decider)
         checkPause("library look", state.pendingLibraryLook?.decider)
+        // CR 701.40a: an explore paused on its last sentence, decided by the exploring permanent's
+        // controller while the resolving object is still on top of the stack.
+        checkPause("explore", state.pendingExplore?.decider)
         // CR 601.3b: the bare optional-draw clause (`FW-OPTDRAW`) pauses while its object is still resolving.
         checkPause("optional draw", state.pendingOptionalDraw?.decider)
         // CR 603.2: the "you may" that wraps a whole triggered ability (`W8-A`, Mortuary Mire).

@@ -1,5 +1,6 @@
 package dev.mtgplay.rules.decision
 
+import dev.mtgplay.core.definition.ExploreDestination
 import dev.mtgplay.core.definition.LibraryPosition
 import dev.mtgplay.core.definition.OptionalCostMode
 import dev.mtgplay.core.definition.RevealedCardFilter
@@ -2252,6 +2253,48 @@ sealed interface DecisionRequest {
             require(options.isNotEmpty()) { "CR 401.1: a library-position choice offers at least one depth" }
             require(options.distinct().size == options.size) {
                 "CR 401.1: a library-position choice offers each depth at most once, got $options"
+            }
+        }
+    }
+
+    /**
+     * A "put the revealed card back on top of your library or into your graveyard" choice (CR 701.40a) —
+     * the last sentence of an explore. Additive, flagged (`W10-D`).
+     *
+     * **The revealed card is named in the request**, and that is not a leak: CR 701.40a *revealed* it, so
+     * its identity is public to every player. It is disclosed to the non-deciding seat too, through
+     * [dev.mtgplay.rules.PendingExploreView] — the one thing about this request that needed engine beyond
+     * the request itself, because the card is public **while still in a library** and no seat view had
+     * ever shown one.
+     *
+     * **Both options are always legal and the list never varies**, like [ChooseLibraryPosition]'s: a
+     * library takes its own top card back and a graveyard takes anything, so there is no "cannot be done"
+     * branch. The request is only ever surfaced on the nonland arm — a revealed *land* card goes to the
+     * hand with nothing left to decide, and an empty library reveals nothing at all, so neither reaches
+     * here (ADR-005).
+     *
+     * @property controller the resolving object's controller, carried for display.
+     * @property sourceCard the printed identity of the object that issued the instruction, for display.
+     * @property exploring the permanent that explored - the +1/+1 counter is already on it.
+     * @property exploringCard its printed identity, for display.
+     * @property revealedCard the printed identity of the revealed card being placed. Public (CR 701.40a).
+     * @property options the destinations offered, in printed order; exactly [ExploreDestination]'s two.
+     */
+    data class ChooseExploreDestination(
+        override val id: DecisionRequestId,
+        val controller: PlayerId,
+        val sourceCard: CardRef,
+        val exploring: ObjectId,
+        val exploringCard: CardRef,
+        val revealedCard: CardRef,
+        val options: List<ExploreDestination>,
+    ) : SingleOptionSelection {
+        override val optionCount: Int get() = options.size
+
+        init {
+            require(options.isNotEmpty()) { "CR 701.40a: an explore choice offers at least one destination" }
+            require(options.distinct().size == options.size) {
+                "CR 701.40a: an explore choice offers each destination at most once, got $options"
             }
         }
     }
