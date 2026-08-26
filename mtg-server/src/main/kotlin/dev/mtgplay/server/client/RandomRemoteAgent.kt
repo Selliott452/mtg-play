@@ -38,6 +38,10 @@ class RandomRemoteAgent(
                 rng = next
                 DecisionDto.MultiSelect(request.id, subset(optionCount, minimum + offset))
             }
+            // A summed-weight selection (CR 601.2b, CR 701.60a) — collect evidence: options taken in a
+            // random order until their weights reach the threshold. This is the one family a client
+            // cannot answer from the index range alone, which is why the weights are on the wire.
+            is DecisionRequestDto.SummedSelectionDto -> summedSelection(request)
             is DecisionRequestDto.PermutationSelectionDto -> permutationSelection(request)
             is DecisionRequestDto.ChoiceCountSelectionDto -> singleSelect(request.id, choiceCount(request))
             is DecisionRequestDto.MulliganRequestDto -> mulligan(request)
@@ -67,6 +71,27 @@ class RandomRemoteAgent(
         return DecisionDto.MultiSelect(request.id, subset(optionCount, requiredCount))
     }
 
+    /**
+     * A summed-weight subset selection (CR 601.2b, CR 701.60a): the options in a uniformly random order,
+     * taken until their weights reach the request's threshold. Terminates because the request is
+     * surfaced only when the whole option list can reach it (ADR-005).
+     */
+    private fun summedSelection(request: DecisionRequestDto.SummedSelectionDto): DecisionDto {
+        val (weights, requiredTotal) =
+            when (request) {
+                is DecisionRequestDto.ChooseEvidence -> request.options.map { it.weight } to request.requiredTotal
+            }
+        val order = subset(weights.size, weights.size)
+        var total = 0
+        val chosen =
+            order.takeWhile { index ->
+                val short = total < requiredTotal
+                total += weights[index]
+                short
+            }
+        return DecisionDto.MultiSelect(request.id, chosen)
+    }
+
     // A full ordering (CR 509.2 / 603.3b): a uniformly random permutation of all options.
     private fun permutationSelection(request: DecisionRequestDto.PermutationSelectionDto): DecisionDto {
         val size =
@@ -80,7 +105,6 @@ class RandomRemoteAgent(
     // The number of options a "pick exactly one of these" request offers (no opt-out index).
     private fun singleOptionCount(request: DecisionRequestDto.SingleOptionSelectionDto): Int =
         when (request) {
-            is DecisionRequestDto.ChooseModes -> request.options.size
             is DecisionRequestDto.ChooseTargets -> request.options.size
             is DecisionRequestDto.ChoosePaymentPlan -> request.options.size
             // CR 601.2b: one index per announceable value of X, not per unit of X.
@@ -93,14 +117,6 @@ class RandomRemoteAgent(
             // CR 701.16a: the controller's pick from an opponent's revealed hand.
             is DecisionRequestDto.ChooseRevealedHandCard -> request.options.size
             else -> resolutionClauseOptionCount(request)
-        }
-
-    // The number of selectable indices of a "choose one, or opt out" request (real options + one opt-out).
-    private fun choiceCount(request: DecisionRequestDto.ChoiceCountSelectionDto): Int =
-        when (request) {
-            is DecisionRequestDto.ChooseFromRevealed -> request.options.size + 1
-            is DecisionRequestDto.ChooseCostMode -> request.options.size + 1
-            is DecisionRequestDto.ChooseFromLibrary -> request.options.size + 1
         }
 
     private fun mulligan(request: DecisionRequestDto.MulliganRequestDto): DecisionDto =
@@ -180,9 +196,26 @@ class RandomRemoteAgent(
     }
 }
 
+/**
+ * The number of selectable indices of a "choose one, or opt out" request (real options + one opt-out).
+ *
+ * A top-level function rather than a member, like [rangedBounds] below it, because it needs no
+ * randomness at all — and because `W9-B`'s summed-selection arm pushed the class itself past detekt's
+ * member budget, which is a real signal that the pure request-shape readers belong outside it.
+ */
+private fun choiceCount(request: DecisionRequestDto.ChoiceCountSelectionDto): Int =
+    when (request) {
+        is DecisionRequestDto.ChooseFromRevealed -> request.options.size + 1
+        is DecisionRequestDto.ChooseCostMode -> request.options.size + 1
+        is DecisionRequestDto.ChooseFromLibrary -> request.options.size + 1
+    }
+
 /** The option count and inclusive answer-size bounds of a ranged selection (CR 601.2c, CR 609.4). */
 private fun rangedBounds(request: DecisionRequestDto.RangedSelectionDto): Triple<Int, Int, Int> =
     when (request) {
+        // CR 601.2b: a mode choice is ranged too — "choose one" is the `1..1` case (`W9-B`).
+        is DecisionRequestDto.ChooseModes ->
+            Triple(request.options.size, request.minimumCount, request.maximumCount)
         is DecisionRequestDto.ChooseMultipleTargets ->
             Triple(request.options.size, request.minimumCount, request.maximumCount)
         is DecisionRequestDto.ChoosePermanentsToAffect ->
@@ -226,6 +259,8 @@ private fun abilityOrResolutionBounds(request: DecisionRequestDto.SizedSelection
         is DecisionRequestDto.ChooseOptionalCostObject -> request.options.size to 1
         // CR 701.7a: an each-opponent discard, answered by an opponent over their own hand.
         is DecisionRequestDto.ChooseOpponentDiscards -> request.options.size to request.count
+        // CR 701.17a: an each-opponent sacrifice, answered by an opponent over their own battlefield.
+        is DecisionRequestDto.ChooseOpponentSacrifice -> request.options.size to 1
         // Every cast-side cost is handled by the caller; reaching here would mean a leaf fell out of both
         // `when`s, which the compiler cannot catch once one of them carries an `else`.
         else -> error("no bounds for the sized selection ${request::class.simpleName}")

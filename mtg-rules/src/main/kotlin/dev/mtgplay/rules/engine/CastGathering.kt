@@ -46,16 +46,13 @@ internal fun beginCastGathering(
     // The `when` this replaced asked seven members the same question; `targetChoiceIsVacuous` asks it
     // once, in the file that owns target legality, so the cast, activation, and trigger paths cannot
     // disagree about when a target choice exists (`FW-MULTITGT`).
-    // CR 601.2b: a modal card needs its mode before anything else; every other card settles empty.
-    val chosenModes: PersistentList<Int>? = if (definition.modes.isEmpty()) persistentListOf() else null
-    // CR 601.2c: a modal card's targeting line is unknown until its mode is chosen, so the targets stay
-    // unsettled here and are settled by [applyChosenModes] once the spec is known.
-    val chosenTargets: PersistentList<Target>? =
-        if (chosenModes == null) {
-            null
-        } else {
-            initialCastTargets(state, definition, chosenModes, caster, cardObjectId)
-        }
+    // CR 601.2b: a modal card needs its modes before anything else; every other card settles empty.
+    // A modal card with *no* choosable mode settles empty too, and only an "up to N" card can reach
+    // that (`someModeIsCastable` refuses the cast otherwise): choosing none is its legal answer, and a
+    // request over an empty option list is not a decision.
+    val chosenModes: PersistentList<Int>? = initialChosenModes(state, definition, caster, cardObjectId)
+    // CR 601.2c: a modal card's targeting lines are unknown until its modes are chosen, so the targets
+    // stay unsettled here and are settled by [applyChosenModes] once the specs are known.
     // An additional "exile N others" cost (escape) needs a selection; every other cast settles it empty.
     val additionalExileCost: PersistentList<ObjectId>? =
         if ((permission?.additionalExileCount ?: 0) > 0) null else persistentListOf()
@@ -75,10 +72,6 @@ internal fun beginCastGathering(
     // costs"), so it is read off the definition rather than off the permission.
     val additionalSacrifice: PersistentList<ObjectId>? =
         if (definition.additionalCost is AdditionalCost.Sacrifice) null else persistentListOf()
-    // A non-consuming additional cost (Monstrous Emergence) needs something named; every other cast
-    // settles empty. Like the sacrifice above it is read off the definition rather than the permission,
-    // because CR 702.34a's "and any additional costs" applies to a permission cast too.
-    val costPowerSource = initialPowerSourceSettlement(definition)
     // CR 601.2b/702.33a: a kicker announcement is due only for a card printing the keyword *and* only
     // when the kicked cost is affordable — a seat that cannot pay it has nothing to announce, and
     // offering a yes/no whose "yes" dead-ends is the ADR-005 defect. Every other cast settles `false`.
@@ -98,62 +91,33 @@ internal fun beginCastGathering(
     // variable; every other cast settles zero. The option set is derived when the request is surfaced,
     // by which point the sibling cost selections that reserve mana sources are settled (`FW-X`).
     val chosenX: Int? = if (announcesX(subject)) null else 0
-    val gathering =
-        state.copy(
-            pendingCast =
-                PendingCast(
-                    caster = caster,
-                    cardObjectId = cardObjectId,
-                    chosenModes = chosenModes,
-                    chosenTargets = chosenTargets,
-                    source = source,
-                    castingPermission = permission,
-                    additionalExileCost = additionalExileCost,
-                    sacrificeCost = sacrificeCost,
-                    tapCost = tapCost,
-                    additionalDiscard = additionalDiscard,
-                    additionalSacrifice = additionalSacrifice,
-                    costPowerSource = costPowerSource,
-                    kicked = kicked,
-                    optionalCostTaken = optionalCostTaken,
-                    optionalCostObjects = optionalCostObjects,
-                    chosenX = chosenX,
-                ),
+    // A non-consuming additional cost (Monstrous Emergence) needs something named; every other cast
+    // settles empty. Like the sacrifice above it is read off the definition rather than the permission,
+    // because CR 702.34a's "and any additional costs" applies to a permission cast too.
+    val costPowerSource = initialPowerSourceSettlement(definition)
+    val opened =
+        PendingCast(
+            caster = caster,
+            cardObjectId = cardObjectId,
+            chosenModes = chosenModes,
+            chosenTargets = null,
+            source = source,
+            castingPermission = permission,
+            additionalExileCost = additionalExileCost,
+            sacrificeCost = sacrificeCost,
+            tapCost = tapCost,
+            additionalDiscard = additionalDiscard,
+            additionalSacrifice = additionalSacrifice,
+            costPowerSource = costPowerSource,
+            kicked = kicked,
+            optionalCostTaken = optionalCostTaken,
+            optionalCostObjects = optionalCostObjects,
+            chosenX = chosenX,
         )
-    return pauseForNextCastDecision(gathering)
-}
-
-/**
- * Records the chosen mode on the open [PendingCast] (CR 601.2b, CR 700.2) and suspends for whatever the
- * cast needs next — which for every modal card in the pool is that mode's target choice (CR 601.2c).
- *
- * [modeIndex] is the mode's **printed** index, translated from the option index by the caller, because
- * the printed index is what the cast record and the replay log carry.
- *
- * The targets are settled here too, and only here: a mode that targets nothing settles them empty so no
- * empty `ChooseTargets` is ever surfaced, and a mode that targets leaves them `null` so the next request
- * enumerates against *that mode's* spec. This is the single point at which the CR 601.2b answer
- * determines the CR 601.2c question.
- */
-internal fun applyChosenModes(
-    state: GameState,
-    modeIndex: Int,
-): AdvanceResult {
-    val cast = state.pendingCast ?: error("no cast is gathering decisions")
-    require(cast.chosenModes == null) { "CR 601.2b: this cast's modes are already chosen" }
-    val card =
-        objectInZone(state, cast.caster, cast.source, cast.cardObjectId)
-            ?: error("CR 601.2b: pending cast's card ${cast.cardObjectId} is not in ${cast.caster}'s ${cast.source}")
-    val definition = spellDefinitionOf(state, card.card)
-    val modes = persistentListOf(modeIndex)
+    // CR 601.2c: settle every targeting line that has nothing to choose from, which for a non-modal
+    // card is the one question it has. A card whose modes are still unchosen has no lines yet.
     return pauseForNextCastDecision(
-        state.copy(
-            pendingCast =
-                cast.copy(
-                    chosenModes = modes,
-                    chosenTargets = initialCastTargets(state, definition, modes, cast.caster, cast.cardObjectId),
-                ),
-        ),
+        state.copy(pendingCast = advanceTargetingLines(state, opened, definition)),
     )
 }
 
@@ -174,16 +138,34 @@ internal fun applyChosenTarget(
     targets: List<Target>,
 ): AdvanceResult {
     val cast = state.pendingCast ?: error("no cast is gathering decisions")
-    val definition = spellDefinitionOf(state, castCardRef(state, cast))
-    val lines = targetLinesOf(definition, cast.chosenModes.orEmpty())
-    require(!targetLinesSettled(lines, cast.chosenTargets)) {
-        "CR 601.2c: this cast's targets are already chosen"
-    }
-    // **Appended, not replaced** (`W9-C`): each answer settles one instance of the word "target", and a
-    // card printing two is asked twice. For a one-line card the record was null and this is the plain
-    // assignment it always was.
-    val recorded = (cast.chosenTargets.orEmpty() + targets).toPersistentList()
-    return pauseForNextCastDecision(state.copy(pendingCast = cast.copy(chosenTargets = recorded)))
+    val card =
+        objectInZone(state, cast.caster, cast.source, cast.cardObjectId)
+            ?: error("CR 601.2c: pending cast's card ${cast.cardObjectId} is not in ${cast.caster}'s ${cast.source}")
+    val definition = spellDefinitionOf(state, card.card)
+    // The answer belongs to the line the cursor is on, so it is *appended* rather than assigned. The two
+    // shapes append to different places, which is the only way they differ: a modal card keeps one list
+    // per chosen mode (`W9-B`, "choose up to two"), while an ordinary card printing the word "target"
+    // more than once appends to a single flat list that is later sliced back into lines by their fixed
+    // widths (`W9-C`, Searing Blaze).
+    val answered =
+        if (definition.modes.isEmpty()) {
+            require(!castTargetLinesSettled(definition, cast)) {
+                "CR 601.2c: this cast's targets are already chosen"
+            }
+            cast.copy(
+                chosenTargets =
+                    cast.chosenTargets
+                        .orEmpty()
+                        .toPersistentList()
+                        .addingAll(targets),
+            )
+        } else {
+            require(cast.modeTargets.size < effectiveTargetSpecs(definition, cast.chosenModes.orEmpty()).size) {
+                "CR 601.2c: this cast's targets are already chosen"
+            }
+            cast.copy(modeTargets = cast.modeTargets.adding(targets.toPersistentList()))
+        }
+    return pauseForNextCastDecision(state.copy(pendingCast = advanceTargetingLines(state, answered, definition)))
 }
 
 /**

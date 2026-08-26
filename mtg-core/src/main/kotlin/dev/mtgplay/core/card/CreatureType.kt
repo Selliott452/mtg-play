@@ -40,6 +40,7 @@ object CreatureType {
             Bear
             Beast
             Bird
+            Detective
             Dragon
             Drake
             Druid

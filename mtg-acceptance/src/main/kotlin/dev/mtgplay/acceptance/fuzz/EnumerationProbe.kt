@@ -115,6 +115,12 @@ object EnumerationProbe {
             // legal, and the probe covers the three edges that actually break: the smallest allowed
             // selection, the largest, and each option carried inside a smallest-viable one.
             is DecisionRequest.RangedSelection -> rangedSelectionCandidates(request)
+            // CR 601.2b/701.60a: a summed-weight selection (collect evidence). Legality is a *sum*, not
+            // a size, so the probe cannot walk options one at a time: it probes taking everything, which
+            // is always legal when the request was surfaced at all, plus one greedy minimal payment
+            // seeded from each option in turn — the answers most likely to be built by a real agent, and
+            // the ones a mis-stated threshold would break.
+            is DecisionRequest.SummedSelection -> summedSelectionCandidates(request)
             is DecisionRequest.DeclareAttackers ->
                 // Declaring nothing is always legal (CR 508.8); each eligible attacker is legal as a
                 // singleton (any subset is a legal declaration, CR 508.1a).
@@ -207,6 +213,37 @@ object EnumerationProbe {
                 ProbeCandidate("target-size[$size]", Decision.MultiSelect(id, (0 until size).toList()))
             }
         return edges + includingEach
+    }
+
+    /**
+     * The probe candidates for a summed-weight subset selection (CR 601.2b, CR 701.60a): taking every
+     * option, plus one greedy minimal payment seeded from each option in turn.
+     *
+     * **Why not one candidate per option, as the sized and ranged families get.** A single option is not
+     * an answer here — one card rarely reaches the threshold on its own — so "each option as a singleton"
+     * would probe *illegal* decisions and assert the engine accepts them, which is precisely backwards.
+     * The greedy seeded payment is the smallest legal answer that contains a given option, so every
+     * option is still exercised; taking everything covers the other edge and is legal by construction
+     * whenever the request exists at all.
+     *
+     * A seed that cannot be completed to the threshold is impossible: the whole list reaches it, so
+     * adding the remaining options in order always gets there.
+     */
+    private fun summedSelectionCandidates(request: DecisionRequest.SummedSelection): List<ProbeCandidate> {
+        val all = (0 until request.optionCount).toList()
+        val everything = ProbeCandidate("evidence-all", Decision.MultiSelect(request.id, all))
+        val seeded =
+            all.map { seed ->
+                var total = request.optionWeights[seed]
+                val filler =
+                    all.filter { it != seed }.takeWhile { index ->
+                        val short = total < request.requiredTotal
+                        if (short) total += request.optionWeights[index]
+                        short
+                    }
+                ProbeCandidate("evidence-from[$seed]", Decision.MultiSelect(request.id, listOf(seed) + filler))
+            }
+        return listOf(everything) + seeded
     }
 
     /** One single-select probe per option index, labelled `[prefix][i]`. */

@@ -49,6 +49,25 @@ data class PowerSourceOptionDto(
 )
 
 /**
+ * One weighted option of a summed-weight selection (CR 601.2b, CR 701.60a), for
+ * [DecisionRequestDto.ChooseEvidence]: a graveyard card and the mana value it contributes.
+ *
+ * The weight is on the **wire** rather than derived client-side, and that is the point of the family: a
+ * client cannot tell a paying subset from a failing one without it, and re-deriving mana values from
+ * card names would need a card database the protocol deliberately does not assume (ADR-008).
+ *
+ * @property objectId the object the option refers to.
+ * @property card the printed card name, for display.
+ * @property weight the option's contribution to the required total — its mana value (CR 202.3).
+ */
+@Serializable
+data class WeightedCardOptionDto(
+    val objectId: Long,
+    val card: String,
+    val weight: Int,
+)
+
+/**
  * One choosable mode of a modal spell (CR 700.2), for [DecisionRequestDto.ChooseModes].
  *
  * [modeIndex] is the mode's **printed** index on the card, which is not in general its index in the

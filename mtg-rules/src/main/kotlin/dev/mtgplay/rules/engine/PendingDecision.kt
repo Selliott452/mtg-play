@@ -216,7 +216,25 @@ private fun libraryLookOrLatePauseRequest(state: GameState): DecisionRequest? =
         // CR 701.7a: an *opponent* of the resolving object's controller chooses from their own hand —
         // the one pause answered by a seat that is neither the controller nor the priority holder.
         state.pendingOpponentDiscard != null -> pendingOpponentDiscardRequest(state)
+        // CR 701.17a: its sibling with a public option list — an *opponent* chooses which of their own
+        // permanents to sacrifice (Extract a Confession).
+        state.pendingOpponentSacrifice != null -> pendingOpponentSacrificeRequest(state)
         state.pendingRebound != null -> pendingReboundRequest(state)
+        else -> namedDeciderPauseRequest(state)
+    }
+
+/**
+ * The last stretch of [libraryLookOrLatePauseRequest]: the pauses whose deciding seat is **named by
+ * something other than priority** — cascade's controller, a targeted player, a permanent's owner — plus
+ * the resolution-time type choice.
+ *
+ * Split out only so the chain stays inside detekt's complexity budget, the same shape and the same
+ * warning as every other split in this file: the order is a **continuation** of the chain above and must
+ * not be reasoned about separately. At most one of these records is open at a time, so the order is
+ * documentation rather than precedence.
+ */
+private fun namedDeciderPauseRequest(state: GameState): DecisionRequest? =
+    when {
         // CR 702.85a: cascade's free cast, offered only while the candidate is still set — once the
         // controller says yes it is cleared, so the nested cast's own pauses are what this derives next.
         state.pendingCascade?.candidateObjectId != null -> pendingCascadeRequest(state)

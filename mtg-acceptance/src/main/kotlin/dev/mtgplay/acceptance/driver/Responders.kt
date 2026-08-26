@@ -82,6 +82,9 @@ object Responders {
                 // policy never reaches (it never casts or activates).
                 is DecisionRequest.SizedSelection ->
                     error("the pass-everything responder never pays cost selections, but one surfaced: $request")
+                // CR 601.2b/701.60a: collect evidence is a cast-time cost, and this policy never casts.
+                is DecisionRequest.SummedSelection ->
+                    error("the pass-everything responder never collects evidence, but one surfaced: $request")
                 is DecisionRequest.ChooseReplacement ->
                     error("the pass-everything responder never orders replacements: $request")
                 is DecisionRequest.ChooseColor ->

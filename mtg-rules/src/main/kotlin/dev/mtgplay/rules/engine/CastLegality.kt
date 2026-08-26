@@ -43,6 +43,19 @@ internal fun targetsAndCostAvailable(
     // The card is always a real object here — every caller names one — so it is a [Chooser.Spell] and
     // CR 702.16b has a source to test (CR 113.7c: a spell is its own source).
     someModeIsCastable(state, definition, seat, Chooser.Spell(self)) &&
+        // CR 601.2c for a card printing the word "target" more than once (`W9-C`, Searing Blaze): a
+        // **search for a satisfying assignment**, not a per-line conjunction. Asking each line
+        // independently says yes on a board whose only creature belongs to a seat the first line could
+        // not name, offering a cast that dead-ends at an empty option list (ADR-005).
+        //
+        // Only for a non-modal card: a modal one has no lines until CR 601.2b settles its modes, and
+        // `someModeIsCastable` above is that card's whole gate. `targetLinesOf` refuses to hold both
+        // shapes at once, so this guard is the same mutual exclusion stated at the call site.
+        (
+            definition.modes.isNotEmpty() ||
+                targetLinesSatisfiable(state, targetLinesOf(definition, emptyList()), seat, Chooser.Spell(self))
+        ) &&
+
         additionalSacrificeSatisfiable(state, seat, definition) &&
         enumeratePaymentPlans(
             state,

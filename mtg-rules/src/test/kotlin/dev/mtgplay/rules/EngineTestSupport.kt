@@ -75,6 +75,7 @@ internal fun respondTo(request: DecisionRequest): Decision =
         is DecisionRequest.OrderBlockers,
         is DecisionRequest.AssignTrampleDamage,
         is DecisionRequest.SizedSelection,
+        is DecisionRequest.SummedSelection,
         is DecisionRequest.ChooseReplacement,
         is DecisionRequest.ChooseColor,
         is DecisionRequest.ChooseTapOrUntap,

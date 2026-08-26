@@ -36,6 +36,14 @@ internal fun rangedHint(
         "  Enter $minimum to $maximum number(s), comma-separated (e.g. 1,2). [Enter] = the first $minimum."
     }
 
+/**
+ * The input hint for a summed-weight selection (CR 601.2b, CR 701.60a). Its own hint rather than a
+ * variation on [sizedHint] or [rangedHint] because it is the only family whose answer is not bounded by
+ * a *count* at all: the player is told the total to reach, and every option line carries its own weight.
+ */
+internal fun summedHint(total: Int): String =
+    "  Enter number(s), comma-separated, totalling at least $total. [Enter] = the cheapest payment."
+
 /** The input hint for an any-size subset selection (attackers, blockers). */
 internal const val SUBSET_HINT: String = "  Enter numbers comma-separated, or [Enter] for none."
 

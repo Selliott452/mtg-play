@@ -71,14 +71,16 @@ internal fun targetLinesOf(
     definition: SpellDefinition,
     chosenModes: List<Int>,
 ): List<TargetSpec> {
-    val first = effectiveTargetSpec(definition, chosenModes)
-    if (definition.additionalTargetSpecs.isEmpty()) return listOf(first)
+    // `W9-B` made this plural: "choose up to two" yields one targeting line per *chosen mode*, so a
+    // modal card's line count is a property of the answer rather than of the card.
+    val modal = effectiveTargetSpecs(definition, chosenModes)
+    if (definition.additionalTargetSpecs.isEmpty()) return modal
     require(definition.modes.isEmpty()) {
         "CR 601.2b/c: ${definition.characteristics.name} prints both modes and additional targeting " +
             "lines; a mode carries its own line, so the two together need a list of lines *per mode* " +
             "(`W9-C`, docs/design/dependent-targets.md §5)"
     }
-    val lines = listOf(first) + definition.additionalTargetSpecs
+    val lines = modal + definition.additionalTargetSpecs
     requireSliceableTargetLines(definition.characteristics.name, lines)
     return lines
 }

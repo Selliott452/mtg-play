@@ -875,5 +875,65 @@ package dev.mtgplay.protocol
  * controller. That is the one thing about this wave worth stating on the wire: nothing in the request
  * envelope ever assumed the deciding seat was the controller, so a search decided by an opponent needed
  * no schema change at all.
+ * ### Held at `9.0.0` — `W9-B`: collect evidence and the each-opponent sacrifice
+ *
+ * **Call: no bump**, on this file's repeatedly-applied standard: `9.0.0` is **unreleased**. The only tag
+ * is `v0.1.0`, which shipped protocol `1.0.0`, so `1.0.0` remains the last version any consumer can have
+ * seen and the break below is invisible from outside the repo. The breaks, in descending order of
+ * sharpness:
+ *
+ * 1. **Two new `DecisionRequest` kinds**, the harsher of the two modes — a `valueOf` on
+ *    [DecisionRequestKindDto] fails at *runtime* mid-match rather than at decode time.
+ *    [DecisionRequestDto] gains [DecisionRequestDto.ChooseEvidence] (`choose_evidence`) and
+ *    [DecisionRequestDto.ChooseOpponentSacrifice] (`choose_opponent_sacrifice`), with the matching
+ *    `CHOOSE_EVIDENCE` and `CHOOSE_OPPONENT_SACRIFICE` kinds. Both are answerable client→server.
+ *
+ *    The collect-evidence *announcement* deliberately adds **no** kind: like kicker's and bargain's it
+ *    is a `ChooseYesNo`, because "you may pay an additional cost" is exactly that request's two-answer
+ *    shape. And the selection is deliberately **not** folded into `choose_optional_cost_sacrifice`,
+ *    which is the same CR 601.2b stage of the same cost family: that one's answer is bounded by a
+ *    *count* and this one's by a *summed mana value*, so one shared payload could not state its own
+ *    legality rule.
+ * 2. **A new request family with a new option payload.** [DecisionRequestDto.SummedSelectionDto] joins
+ *    the six existing families, and its options are [WeightedCardOptionDto] — the first option type in
+ *    the schema to carry a **weight** beside the object id and card name. That is load-bearing rather
+ *    than decorative: a summed selection is the one family whose legal answers cannot be derived from
+ *    the index range, so a client that could not see the per-option mana values could not construct a
+ *    legal answer at all. Re-deriving them client-side would need a card database the protocol
+ *    deliberately does not assume.
+ * 3. **No seat-view change whatsoever**, which is worth stating because the sibling framework needed
+ *    one. `FW-NONCTRLDEC` gave [SeatViewDto] a count-only `pendingOpponentDiscard` because a discard's
+ *    options are the deciding opponent's hidden hand (CR 402.1) and the controller must learn *that* a
+ *    pause exists without learning *what* is in it. An each-opponent **sacrifice** chooses among
+ *    battlefield permanents, which are public (CR 400.2) — every seat can already see the whole option
+ *    list — so `PendingOpponentSacrifice` gets no projection and [SeatViewDto] is untouched. Adding one
+ *    would publish nothing new and would imply an asymmetry that does not exist.
+ *
+ * ### Held at `9.0.0` — `W9-B`: modal arity above one
+ *
+ * **Call: no bump**, on the same standard. This one is the sharper of the packet's two breaks and is
+ * worth spelling out, because it changes a payload that has been on the wire since `FW-MODAL` rather
+ * than adding a new one:
+ *
+ * 1. **`choose_modes` changes family and shape.** [DecisionRequestDto.ChooseModes] moves from
+ *    [DecisionRequestDto.SingleOptionSelectionDto] to [DecisionRequestDto.RangedSelectionDto] and gains
+ *    required `minimumCount` and `maximumCount` fields — so a peer's strict codec rejects the payload
+ *    outright, and, worse for one that ignored unknown fields, the **answer shape changes**: a mode
+ *    choice is now a `MultiSelect` of distinct indices where it was a `SingleSelect`. A client that kept
+ *    sending one index would be rejected by the engine's own validation rather than misread.
+ *
+ *    The family move covers "Choose one —" too, where the range is `1..1`, and that uniformity is
+ *    deliberate: a mode choice's arity is printed on the card and known before any board is looked at,
+ *    unlike a target choice's, which is a property of the board — which is why targets kept their two
+ *    shapes ([DecisionRequestDto.ChooseTargets]/[DecisionRequestDto.ChooseMultipleTargets]) and modes
+ *    did not.
+ * 2. **A required field inside [SeatViewDto].** [PendingCastDto] gains `modeTargets`, the per-chosen-mode
+ *    split of `chosenTargets` (CR 115.3: each bullet is its own instance of the word "target"). It
+ *    defaults to an empty list, so the field is cheap for every non-modal cast — but it is *not*
+ *    redundant: the flattening is lossy the moment any mode prints an "up to" count, and the CR 608.2b
+ *    re-check and the resolution both read the split rather than the flat list.
+ * 3. **No new request kind.** A client learns that a card chose two modes by receiving **two**
+ *    `choose_targets` requests in succession, which is the CR 601.2c ordering made observable rather
+ *    than a new message. Nothing in [DecisionRequestKindDto] moves.
  */
 const val PROTOCOL_VERSION: String = "10.0.0"

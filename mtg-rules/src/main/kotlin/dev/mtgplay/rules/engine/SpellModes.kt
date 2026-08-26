@@ -19,10 +19,19 @@ import dev.mtgplay.core.state.GameState
  * is enforced by the type system rather than by review: a call site that has no mode yet has nothing to
  * pass, and one that forgets to thread the mode fails loudly on the first modal card it meets.
  *
- * **Arity.** The pool prints only "Choose one —", so exactly one mode is chosen and every accessor here
- * demands exactly one. "Choose up to two" and "Choose two" need a count on the declaration, a
- * multi-select mode decision, and a target per chosen mode — the multi-target framework this packet does
- * not own — and until they arrive an arity other than one is an engine defect, not a rules case.
+ * **Arity.** [dev.mtgplay.core.definition.ModeChoice] carries it, and every accessor below is written
+ * over a *list* of chosen modes because "Choose up to two" is a different shape of decision and not
+ * merely a wider bound (`W9-B`). Two consequences are worth stating out loud:
+ *
+ * - **Each chosen mode is its own targeting line.** CR 115.3 is explicit that "if the spell or ability
+ *   uses the word 'target' in multiple places, the same object or player can be chosen once for each
+ *   instance of the word 'target'", so two chosen modes are two independent target choices — and
+ *   naming one graveyard card for two different bullets is *legal*. That is what keeps the mode decision
+ *   a plain subset choice: no combination of modes can be jointly unsatisfiable, so none has to be
+ *   filtered out, and [castableModes] asking each mode about itself is exactly the right gate.
+ * - **Choosing zero modes is legal for an "up to N" card**, and the spell still resolves, doing nothing
+ *   (CR 700.2). So a modal card whose every mode is dead is still castable when its minimum is zero —
+ *   see [someModeIsCastable], which is the one place that asymmetry lives.
  */
 
 /**
@@ -75,58 +84,103 @@ internal fun someModeIsCastable(
     seat: PlayerId,
     chooser: Chooser,
 ): Boolean =
-    if (definition.modes.isEmpty()) {
-        // CR 601.2c (`W9-C`): every printed instance of the word "target" must have a legal choice, and
-        // for a card whose later line depends on an earlier one that is a search rather than a
-        // conjunction — see `TargetLines.kt`. A one-line card takes the same single test it always did.
-        targetLinesSatisfiable(state, targetLinesOf(definition, emptyList()), seat, chooser)
-    } else {
-        castableModes(state, definition, seat, chooser).isNotEmpty()
+    when {
+        definition.modes.isEmpty() -> targetsAvailable(state, definition.targetSpec, seat, chooser)
+        // CR 700.2: an "up to N" card may choose *no* modes, so it is castable whatever the board looks
+        // like — Call Damage Control with an empty graveyard is a legal cast that resolves doing
+        // nothing, and binning it to bait a counter is a real line the engine must not delete (ADR-005).
+        definition.modeChoice.minimum == 0 -> true
+        // CR 700.2b: a card that must choose N modes needs N modes it could legally choose.
+        else -> castableModes(state, definition, seat, chooser).size >= definition.modeChoice.minimum
     }
 
 /**
- * The target spec in force for [definition] given the settled [chosenModes] (CR 115, CR 601.2c): the
- * card's own spec for an ordinary card, the chosen mode's for a modal one. Every enumeration, every
- * CR 601.2c re-validation, and every CR 608.2b re-check reads its spec through here, so the set a caster
- * picked from and the set the engine later re-checks against are the same set by construction.
+ * The **targeting lines** in force for [definition] given the settled [chosenModes] (CR 115, CR 601.2c):
+ * one spec per chosen mode for a modal card, in chosen order; the card's own single spec for an ordinary
+ * one. Every enumeration, every CR 601.2c re-validation and every CR 608.2b re-check reads specs through
+ * here, so the set a caster picked from and the set the engine later re-checks against are the same set
+ * by construction.
  *
- * Fails loudly on a mode arity other than one, and on a printed index that names no mode: both are
- * engine defects (ADR-005), never rules cases.
+ * A **list** because each bullet is its own instance of the word "target" (CR 115.3): "choose up to two"
+ * with both modes chosen asks two questions with two option lists, and collapsing them to one spec would
+ * be a different card. An ordinary card is the one-element case, which is why the two are not separate
+ * functions.
+ *
+ * Fails loudly on a printed index that names no mode — an engine defect, never a rules case (ADR-005).
+ */
+internal fun effectiveTargetSpecs(
+    definition: SpellDefinition,
+    chosenModes: List<Int>,
+): List<TargetSpec> =
+    if (definition.modes.isEmpty()) {
+        listOf(definition.targetSpec)
+    } else {
+        chosenSpellModes(definition, chosenModes).map { it.targetSpec }
+    }
+
+/**
+ * The single targeting line in force for [definition] (CR 115), for the call sites that structurally
+ * cannot have more than one: the Aura attachment read (CR 303.4f), which only a permanent spell reaches.
+ *
+ * Fails loudly on anything but exactly one line. That is deliberate rather than defensive: no modal
+ * *permanent* spell exists in the pool, and one arriving with two chosen modes would need an answer to
+ * "which of the two targets does the Aura attach to?" that this engine does not have. Failing is the
+ * honest response; answering "the first" would be a silent guess.
  */
 internal fun effectiveTargetSpec(
     definition: SpellDefinition,
     chosenModes: List<Int>,
-): TargetSpec =
-    if (definition.modes.isEmpty()) definition.targetSpec else chosenMode(definition, chosenModes).targetSpec
+): TargetSpec {
+    val specs = effectiveTargetSpecs(definition, chosenModes)
+    return specs.singleOrNull()
+        ?: error(
+            "CR 115: ${definition.characteristics.name} has ${specs.size} targeting lines, but this " +
+                "call site can only read one",
+        )
+}
 
 /**
- * The resolution in force for [definition] given the settled [chosenModes] (CR 608.2c): the card's own
- * effect for an ordinary card, the chosen mode's for a modal one. The sibling of [effectiveTargetSpec],
- * and read at exactly one site — a resolving spell — for the same reason.
+ * The resolutions in force for [definition] given the settled [chosenModes] (CR 608.2c): the chosen
+ * modes' instructions in chosen order for a modal card, the card's own single effect for an ordinary
+ * one. The sibling of [effectiveTargetSpecs], and read at exactly one site — a resolving spell — for
+ * the same reason.
+ *
+ * **The list may be empty**, and that is a rules case rather than a defect: an "up to N" card whose
+ * controller chose no modes resolves and does nothing (CR 700.2).
  */
-internal fun effectiveResolution(
+internal fun effectiveResolutions(
     definition: SpellDefinition,
     chosenModes: List<Int>,
-): ResolutionEffect =
-    if (definition.modes.isEmpty()) definition.resolution else chosenMode(definition, chosenModes).resolution
+): List<ResolutionEffect> =
+    if (definition.modes.isEmpty()) {
+        listOf(definition.resolution)
+    } else {
+        chosenSpellModes(definition, chosenModes).map { it.resolution }
+    }
 
 /**
- * The single chosen [SpellMode] of the modal card [definition] (CR 700.2). Fails loudly unless exactly
- * one mode was chosen and its printed index names a real mode — the pool prints only "Choose one —", and
- * anything else reaching here means a gathering stage settled the wrong shape.
+ * The chosen [SpellMode]s of the modal card [definition], in chosen order (CR 700.2). Fails loudly
+ * unless every printed index names a real mode, no mode is chosen twice, and the count lies within the
+ * card's own [dev.mtgplay.core.definition.ModeChoice] — all three are enumeration invariants (ADR-005),
+ * so a violation reaching here means a gathering stage settled the wrong shape.
  */
-internal fun chosenMode(
+internal fun chosenSpellModes(
     definition: SpellDefinition,
     chosenModes: List<Int>,
-): SpellMode {
-    require(chosenModes.size == 1) {
-        "CR 700.2: ${definition.characteristics.name} prints \"choose one\", " +
-            "so exactly one mode must be chosen, got $chosenModes"
+): List<SpellMode> {
+    val choice = definition.modeChoice
+    require(chosenModes.size in choice.minimum..choice.maximum) {
+        "CR 700.2: ${definition.characteristics.name} chooses ${choice.minimum}..${choice.maximum} " +
+            "mode(s), got ${chosenModes.size}: $chosenModes"
     }
-    val index = chosenModes.single()
-    require(index in definition.modes.indices) {
-        "CR 700.2: mode $index does not exist on ${definition.characteristics.name}, " +
-            "which prints ${definition.modes.size}"
+    require(chosenModes.distinct().size == chosenModes.size) {
+        "CR 700.2: ${definition.characteristics.name} cannot choose the same mode twice, got $chosenModes"
     }
-    return definition.modes[index]
+    return chosenModes.map { index ->
+        require(index in definition.modes.indices) {
+            "CR 700.2: mode $index does not exist on ${definition.characteristics.name}, " +
+                "which prints ${definition.modes.size}"
+        }
+        definition.modes[index]
+    }
 }

@@ -1,9 +1,9 @@
 package dev.mtgplay.rules.engine
 
 import dev.mtgplay.core.definition.AdditionalCost
+import dev.mtgplay.core.definition.OptionalAdditionalCost
 import dev.mtgplay.core.definition.SpellDefinition
 import dev.mtgplay.core.identity.CardRef
-import dev.mtgplay.core.state.GameObject
 import dev.mtgplay.core.state.GameState
 import dev.mtgplay.core.state.PendingCast
 import dev.mtgplay.rules.decision.DecisionRequest
@@ -69,22 +69,14 @@ internal fun pendingCastRequest(
         // card's modes may target different *kinds* of object (Blue Elemental Blast counters a spell or
         // destroys a permanent), so the targets branch below has no enumeration to run until the mode is
         // settled. Only choosable modes are offered (ADR-005).
-        cast.chosenModes == null ->
-            DecisionRequest.ChooseModes(
-                id = id,
-                cardObjectId = cast.cardObjectId,
-                card = card.card,
-                options =
-                    castableModes(state, definition, cast.caster, Chooser.Spell(cast.cardObjectId))
-                        .map { DecisionRequest.ChooseModes.Option(it, definition.modes[it].text) },
-            )
+        cast.chosenModes == null -> modesRequestFor(state, cast, definition, card.card, id)
         // CR 601.2c: then targets, enumerated against the spec the settled mode put in force. The modes
         // are non-null in this branch, but they are a cross-module property so the compiler will not
         // smart-cast them; `orEmpty()` is the same value, and a non-modal card's is empty anyway.
-        // CR 601.2c: then targets — one request per printed instance of the word "target", in printed
-        // order, because a later line may read the answer to an earlier one (`W9-C`, Searing Blaze).
-        !targetLinesSettled(targetLinesOf(definition, cast.chosenModes.orEmpty()), cast.chosenTargets) ->
-            targetsRequestFor(state, cast, definition, card.card, id)
+        // CR 601.2c: one request per printed instance of the word "target", in printed order, because a
+        // later line may read the answer to an earlier one (`W9-C`, Searing Blaze). For a modal card the
+        // lines are the chosen modes' (`W9-B`), and the same gate serves both.
+        !castTargetLinesSettled(definition, cast) -> targetsRequestFor(state, cast, definition, card.card, id)
         // CR 601.2b: then any additional "exile N other cards" cost selection (escape).
         cast.additionalExileCost == null -> chooseCardsToExileRequest(state, cast, card.card, id)
         // CR 601.2h: then any non-mana sacrifice cost selection (Fireblast, Lava Dart).
@@ -95,70 +87,9 @@ internal fun pendingCastRequest(
         cast.additionalDiscard == null -> chooseDiscardForCostRequest(state, cast, definition, card.card, id)
         // CR 601.2b: then any intrinsic sacrifice additional cost selection (Eviscerator's Insight).
         cast.additionalSacrifice == null -> chooseSacrificeForCostRequest(state, cast, definition, card.card, id)
-        // CR 601.2b: then any **non-consuming** additional cost's naming (Monstrous Emergence). It sits
-        // beside the mandatory costs above because it is one, and after them because it reserves nothing
-        // and so constrains nothing that follows.
-        cast.costPowerSource == null -> choosePowerSourceRequest(state, cast, definition, card.card, id)
-        else -> announcementsOrPaymentRequest(state, cast, definition, card, id)
+        else -> optionalCostsOrPaymentRequest(state, cast, definition, card, id)
     }
 }
-
-/**
- * The tail of [pendingCastRequest]: the two CR 601.2b announcements that sit *after* every selection, and
- * the CR 601.2g payment plan when both are settled.
- *
- * Split out only so the chain above stays inside detekt's complexity budget — the shape the splits in
- * `ResolutionClauseHook.kt`, `DecisionView.kt` and the protocol codec already use. The order here is a
- * **continuation** of the chain and must not be reasoned about separately; the header comment on this
- * file owns the whole ordering argument, including why these two sit last.
- */
-private fun announcementsOrPaymentRequest(
-    state: GameState,
-    cast: PendingCast,
-    definition: SpellDefinition,
-    card: GameObject,
-    id: DecisionRequestId,
-): DecisionRequest =
-    when {
-        // CR 601.2b/702.166a: the optional additional cost's announcement and, if taken, its object
-        // selection. Both sit here rather than beside the mandatory costs above because a declined
-        // announcement must settle the selection too, and the pair reads as a pair.
-        cast.optionalCostTaken == null -> optionalCostAnnouncementRequest(state, cast, definition, card.card, id)
-        cast.optionalCostObjects == null -> chooseOptionalCostObjectsRequest(state, cast, definition, card.card, id)
-        // CR 601.2b/702.33a: then the optional kicker announcement, surfaced only when the kicked cost
-        // is affordable — so both answers are legal, which is what a yes/no requires (ADR-005).
-        cast.kicked == null -> kickerAnnouncementRequest(cast, definition, card.card, id)
-        // CR 601.2b/107.3b: then the value of X, bounded by what this seat can actually pay (`FW-X`).
-        cast.chosenX == null -> xAnnouncementRequest(state, cast, definition, card.card, id)
-        // CR 601.2g: finally the payment plan for the (possibly alternative) mana cost.
-        else -> {
-            // CR 601.2f: the same shared function legality and the pipeline use, with the card still
-            // in its source zone and therefore excluded from its own zone counts (CR 601.2a) — which
-            // is what makes this cost equal the one `determineTotalCost` recomputes at execution.
-            // CR 601.2b: both announcements are settled by now, so this is the cost the cast will
-            // actually charge — and the identical expression `determineTotalCost` recomputes at
-            // execution.
-            val cost = totalCost(state, cast.caster, cast.subject(definition), cast.announcements())
-            DecisionRequest.ChoosePaymentPlan(
-                id = id,
-                cardObjectId = cast.cardObjectId,
-                card = card.card,
-                cost = cost,
-                // A permanent already chosen for the sacrifice additional cost is excluded from
-                // funding the mana **only** when it produces mana by being sacrificed — spending it
-                // would consume it before the cost's own sacrifice. Tapping a chosen land for mana
-                // and then sacrificing it is legal and stays enumerated
-                // (docs/design/mana-payment.md §2.2).
-                options =
-                    enumeratePaymentPlans(
-                        state,
-                        cast.caster,
-                        cost,
-                        sacrificeSourcesAmong(state, cast.sacrificedThisCast()),
-                    ),
-            )
-        }
-    }
 
 /**
  * The CR 601.2c target request for the open [cast], enumerated against the spec the settled mode put in
@@ -181,20 +112,24 @@ private fun targetsRequestFor(
     card: CardRef,
     id: DecisionRequestId,
 ): DecisionRequest {
+    // CR 115.3: each printed instance of the word "target" is its own question — one per chosen mode
+    // for a modal card (`W9-B`), one per printed line for an ordinary one (`W9-C`). Both shapes read
+    // the same line list, and the cursor differs only in where the answers are recorded: a modal card
+    // keeps them per mode, an ordinary one appends to a flat list.
     val lines = targetLinesOf(definition, cast.chosenModes.orEmpty())
-    val chosen = cast.chosenTargets.orEmpty()
-    // CR 601.2c (`W9-C`): the first instance of the word "target" still owed a choice. For a one-line
-    // card that is always line zero and the record is always empty here, so this is the same request the
-    // framework built before.
-    val lineIndex = firstUnsettledLine(lines, chosen) ?: 0
-    val spec = lines[lineIndex]
-    // The earlier lines' answers travel to the enumerator as a [TargetContext], which is what lets
-    // Searing Blaze's second line say "that player" (`W9-C`).
-    val context = contextForLine(lines, chosen, lineIndex)
+    val cursor =
+        if (definition.modes.isEmpty()) {
+            firstUnsettledLine(lines, cast.chosenTargets.orEmpty()) ?: 0
+        } else {
+            cast.modeTargets.size
+        }
+    val spec = lines[cursor]
     // Two independent narrowings, and neither subsumes the other: `announceableTargets`
     // applies board-derived targeting *requirements* (CR 601.2c — a Flagbearer must be chosen
     // if able), and `affordableTargetOptions` drops choices the caster could not then pay for
     // (`FW-TGTCOND`). Offering a target that fails either is an enumerated-but-illegal action.
+    // The context carries the earlier lines' answers, which a dependent line reads (`W9-C`).
+    val context = contextForLine(lines, cast.chosenTargets.orEmpty(), cursor, cast.chosenX ?: 0)
     val legal = announceableTargets(state, spec, cast.caster, Chooser.Spell(cast.cardObjectId), context)
     return targetRequest(
         id = id,
@@ -202,6 +137,35 @@ private fun targetsRequestFor(
         card = card,
         spec = spec,
         options = affordableTargetOptions(state, cast.caster, cast.subject(definition), spec, legal),
+    )
+}
+
+/**
+ * The CR 601.2b mode request for the open [cast]: the modes this seat could legally choose right now,
+ * with the card's printed [dev.mtgplay.core.definition.ModeChoice] as the answer's bounds, clamped to
+ * what is actually on offer.
+ *
+ * The clamp is the same one a target choice gets: "choose up to two" with one choosable mode is a real
+ * choice between none and that mode, never a demand for a second that does not exist. It cannot clamp
+ * the *minimum* below what the card demands — a card that must choose two and cannot is refused at
+ * enumeration by [someModeIsCastable], so this request is never built for one.
+ */
+private fun modesRequestFor(
+    state: GameState,
+    cast: PendingCast,
+    definition: SpellDefinition,
+    card: CardRef,
+    id: DecisionRequestId,
+): DecisionRequest.ChooseModes {
+    val choosable = castableModes(state, definition, cast.caster, Chooser.Spell(cast.cardObjectId))
+    val choice = definition.modeChoice
+    return DecisionRequest.ChooseModes(
+        id = id,
+        cardObjectId = cast.cardObjectId,
+        card = card,
+        options = choosable.map { DecisionRequest.ChooseModes.Option(it, definition.modes[it].text) },
+        minimumCount = choice.minimum,
+        maximumCount = minOf(choice.maximum, choosable.size),
     )
 }
 
@@ -253,7 +217,7 @@ private fun chooseSacrificesRequest(
  *
  * The prompt names the cost, because "pay it?" is not answerable without knowing what it costs.
  */
-private fun optionalCostAnnouncementRequest(
+internal fun optionalCostAnnouncementRequest(
     state: GameState,
     cast: PendingCast,
     definition: SpellDefinition,
@@ -265,37 +229,66 @@ private fun optionalCostAnnouncementRequest(
             ?: error("CR 601.2b: an optional-cost announcement requires a card printing one")
     // Named so the prompt is readable without the seat holding the card; the option set is the same
     // two indices every yes/no has.
-    val payable = optionalCostPayableWith(state, cast.caster, cost).size
+    val payable = optionalCostPayableWith(state, cast.caster, cost)
+    val price =
+        when (cost) {
+            OptionalAdditionalCost.Bargain -> "bargain, sacrificing 1 of ${payable.size} permanent(s)"
+            is OptionalAdditionalCost.CollectEvidence ->
+                "collect evidence ${cost.amount}, exiling from ${payable.size} graveyard card(s) " +
+                    "totalling ${payable.sumOf { evidenceManaValue(state, it) }} mana value"
+        }
     return DecisionRequest.ChooseYesNo(
         id = id,
-        prompt = "Pay ${card.name}'s optional additional cost (bargain) by sacrificing 1 of $payable permanent(s)?",
+        prompt = "Pay ${card.name}'s optional additional cost ($price)?",
         cardObjectId = cast.cardObjectId,
         card = card,
     )
 }
 
-// CR 601.2b/702.166a: every artifact, enchantment, or token the caster controls pays an announced
-// bargain. Reached only after a "yes", so the option list is never empty.
-private fun chooseOptionalCostObjectsRequest(
+/**
+ * The CR 601.2b selection stage of an *announced* optional additional cost — reached only after a "yes",
+ * so its option list is never empty and always holds a legal answer.
+ *
+ * The two members produce **different request shapes**, which is the whole reason this is a `when` and
+ * not one constructor: bargain's answer is bounded by a count (a `SizedSelection`), collect evidence's by
+ * a summed mana value (the `SummedSelection` this packet added). See
+ * [DecisionRequest.SummedSelection] for why the graveyard is offered flat rather than as paying subsets.
+ */
+internal fun chooseOptionalCostObjectsRequest(
     state: GameState,
     cast: PendingCast,
     definition: SpellDefinition,
     card: CardRef,
     id: DecisionRequestId,
-): DecisionRequest.ChooseOptionalCostSacrifice {
+): DecisionRequest {
     val cost =
         definition.optionalAdditionalCost
             ?: error("CR 601.2b: an optional-cost selection requires a card printing one")
-    return DecisionRequest.ChooseOptionalCostSacrifice(
-        id = id,
-        cardObjectId = cast.cardObjectId,
-        card = card,
-        options =
-            optionalCostPayableWith(state, cast.caster, cost)
-                .map { DecisionRequest.ChooseOptionalCostSacrifice.Option(it.id, it.card) },
-        // CR 702.166a: bargain sacrifices exactly one permanent.
-        count = 1,
-    )
+    val payable = optionalCostPayableWith(state, cast.caster, cost)
+    return when (cost) {
+        // CR 601.2b/702.166a: every artifact, enchantment, or token the caster controls pays a bargain.
+        OptionalAdditionalCost.Bargain ->
+            DecisionRequest.ChooseOptionalCostSacrifice(
+                id = id,
+                cardObjectId = cast.cardObjectId,
+                card = card,
+                options = payable.map { DecisionRequest.ChooseOptionalCostSacrifice.Option(it.id, it.card) },
+                // CR 702.166a: bargain sacrifices exactly one permanent.
+                count = 1,
+            )
+        // CR 601.2b/701.60a: every card in the caster's graveyard may go toward the evidence total.
+        is OptionalAdditionalCost.CollectEvidence ->
+            DecisionRequest.ChooseEvidence(
+                id = id,
+                cardObjectId = cast.cardObjectId,
+                card = card,
+                options =
+                    payable.map {
+                        DecisionRequest.ChooseEvidence.Option(it.id, it.card, evidenceManaValue(state, it))
+                    },
+                requiredTotal = cost.amount,
+            )
+    }
 }
 
 // CR 601.2h: every untapped matching permanent the caster controls is a tap-cost option (Prismatic

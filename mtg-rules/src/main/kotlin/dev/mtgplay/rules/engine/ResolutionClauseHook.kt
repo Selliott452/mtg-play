@@ -164,6 +164,7 @@ private fun lateClauseOrCompletion(
     val chosenColor = clauses.chosenColorEffect
     val drawThenMaybeDiscard = clauses.optionalDrawThenDiscard
     val exileGate = clauses.optionalGraveyardExileGate
+    val opponentSacrifice = clauses.eachOpponentSacrifices
     return when {
         // CR 601.3b / CR 701.8: "you may draw a card. If you do, discard a card unless …" (Moon-Circuit
         // Hacker) — the one clause that chains two pauses, the second conditional on the first's answer.
@@ -175,6 +176,9 @@ private fun lateClauseOrCompletion(
         // clause that *gates* an effect rather than following one (Masked Vandal).
         exileGate != null -> orchestrateOptionalGraveyardExile(state, entry, exileGate)
         tapOrUntap != null -> orchestrateTapOrUntap(state, entry, tapOrUntap)
+        // CR 701.17a: "each opponent sacrifices a creature of their choice" (Extract a Confession) —
+        // the second clause whose decider is not the resolving object's controller.
+        opponentSacrifice != null -> orchestrateEachOpponentSacrifices(state, entry, opponentSacrifice)
         // CR 700.2 / CR 615.1: "sources of the color of your choice" (Prismatic Strands) — the colour
         // is named on resolution, so the clause pauses here rather than at CR 601.2b.
         chosenColor != null -> orchestrateChosenColor(state, entry)

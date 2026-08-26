@@ -323,7 +323,8 @@ private fun ScriptedGame.chooseMode(printedMode: Int): ScriptedGame {
             ?: error("CR 601.2b: expected the mode request, was $pendingRequest")
     val index = modes.options.indexOfFirst { it.modeIndex == printedMode }
     check(index >= 0) { "mode $printedMode is not offered; options were ${modes.options}" }
-    return apply(Decision.SingleSelect(modes.id, index))
+    // CR 601.2b: a mode choice is a subset since `W9-B`; "choose one" answers with a one-element one.
+    return apply(Decision.MultiSelect(modes.id, listOf(index)))
 }
 
 /** Settles a pending CR 601.2g payment plan by taking the first one offered; a no-op if none is pending. */

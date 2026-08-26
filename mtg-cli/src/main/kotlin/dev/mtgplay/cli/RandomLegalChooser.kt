@@ -37,6 +37,9 @@ class RandomLegalChooser(
             // indices — distinctness being the same-object rule, guaranteed by `subset`.
             is DecisionRequest.RangedSelection ->
                 multi(request.id, subset(request.optionCount, rangedSize(request)))
+            // CR 601.2b/701.60a: options taken in a random order until their weights reach the
+            // threshold, so a run explores different payments of the same cost.
+            is DecisionRequest.SummedSelection -> multi(request.id, summedPayment(request))
             is DecisionRequest.PermutationSelection -> multi(request.id, permutation(request.permutationSize))
             is DecisionRequest.DeclareAttackers -> multi(request.id, anySizeSubset(request.options.size))
             is DecisionRequest.DeclareBlockers -> multi(request.id, blockAssignment(request.options))
@@ -48,6 +51,21 @@ class RandomLegalChooser(
             is DecisionRequest.ChooseMulligan -> single(request.id, DecisionRequest.ChooseMulligan.OPTION_COUNT)
             is DecisionRequest.ChooseCardsToBottom -> multi(request.id, subset(request.options.size, request.count))
         }
+
+    /**
+     * A random legal payment of a summed selection (CR 601.2b, CR 701.60a): the options in a uniformly
+     * random order, taken until their weights reach the threshold. Terminates because the request is
+     * surfaced only when the whole option list can pay it.
+     */
+    private fun summedPayment(request: DecisionRequest.SummedSelection): List<Int> {
+        val order = permutation(request.optionCount)
+        var total = 0
+        return order.takeWhile { index ->
+            val short = total < request.requiredTotal
+            total += request.optionWeights[index]
+            short
+        }
+    }
 
     /** A uniformly random legal answer size for a ranged selection (CR 601.2c). */
     private fun rangedSize(request: DecisionRequest.RangedSelection): Int {

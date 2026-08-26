@@ -48,12 +48,22 @@ interface SpellDefinition :
      * then forgetting to route a call site through them fails loudly rather than silently answering as
      * if the card were untargeted.
      *
-     * The pool prints only "Choose one —". "Choose up to two" (Call Damage Control) and "Choose two"
-     * additionally need a *count* on the declaration and a multi-select mode decision, and — since each
-     * chosen mode brings its own targets — the multi-target framework this packet does not own; the
-     * engine therefore requires exactly one chosen mode and fails loudly on any other arity.
+     * How *many* of them are chosen is [modeChoice], which every reader must consult: "choose one" and
+     * "choose up to two" differ in the shape of the decision, not only in a bound.
      */
     val modes: PersistentList<SpellMode> get() = persistentListOf()
+
+    /**
+     * How many of [modes] are chosen (CR 700.2a, CR 601.2b) — "Choose one", "Choose up to two". Additive,
+     * flagged core (`W9-B`). Meaningless for a card with no modes, and defaulted to
+     * [ModeChoice.EXACTLY_ONE] so every card that predates the count keeps the shape it was written with.
+     *
+     * A separate property rather than a field on each [SpellMode], because the count is a property of the
+     * *header* line ("Choose up to two.") and not of any bullet under it — the same reason
+     * [dev.mtgplay.core.definition.TargetCount] hangs off a [TargetSpec] and not off a [TargetSpec]'s
+     * restriction.
+     */
+    val modeChoice: ModeChoice get() = ModeChoice.EXACTLY_ONE
 
     /**
      * The printed mana cost (CR 202). Non-null by contract in P2.1: every castable fixture has

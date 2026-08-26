@@ -218,6 +218,19 @@ private fun castIsLegal(
         // do — it has none of its own (`FW-MODAL`, SpellModes.kt). For a non-modal card this is
         // exactly `targetsAvailable`, so there is one question here rather than two.
         someModeIsCastable(state, definition, seat, Chooser.Spell(castObjectId)) &&
+        // CR 601.2c for a card printing the word "target" more than once (`W9-C`, Searing Blaze): a
+        // **search for a satisfying assignment**, not a per-line conjunction. Asking each line
+        // independently says yes on a board whose only creature belongs to a seat the first line could
+        // not name, offering a cast that dead-ends at an empty option list (ADR-005).
+        //
+        // Only for a non-modal card: a modal one has no lines until CR 601.2b settles its modes, and
+        // `someModeIsCastable` above is that card's whole gate. `targetLinesOf` refuses to hold both
+        // shapes at once, so this guard is the same mutual exclusion stated at the call site.
+        (
+            definition.modes.isNotEmpty() ||
+                targetLinesSatisfiable(state, targetLinesOf(definition, emptyList()), seat, Chooser.Spell(castObjectId))
+        ) &&
+
         additionalDiscardSatisfiable(state, seat, definition, castObjectId, source) &&
         additionalSacrificeSatisfiable(state, seat, definition) &&
         // CR 601.2b (`W9-D`): a non-consuming additional cost needs something to name; with an empty

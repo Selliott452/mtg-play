@@ -33,6 +33,7 @@ fun DecisionRequest.toDto(): DecisionRequestDto =
         is DecisionRequest.SingleOptionSelection -> singleOptionSelectionToDto(this)
         is DecisionRequest.SizedSelection -> sizedSelectionToDto(this)
         is DecisionRequest.RangedSelection -> rangedSelectionToDto(this)
+        is DecisionRequest.SummedSelection -> summedSelectionToDto(this)
         is DecisionRequest.PermutationSelection -> permutationSelectionToDto(this)
         is DecisionRequest.ChoiceCountSelection -> choiceCountSelectionToDto(this)
         is DecisionRequest.MulliganRequest -> mulliganRequestToDto(this)
@@ -44,6 +45,15 @@ fun DecisionRequest.toDto(): DecisionRequestDto =
  */
 private fun rangedSelectionToDto(request: DecisionRequest.RangedSelection): DecisionRequestDto =
     when (request) {
+        is DecisionRequest.ChooseModes ->
+            DecisionRequestDto.ChooseModes(
+                request.id.toDto(),
+                request.cardObjectId.value,
+                request.card.name,
+                request.options.map { ModeOptionDto(it.modeIndex, it.text) },
+                request.minimumCount,
+                request.maximumCount,
+            )
         is DecisionRequest.ChooseMultipleTargets ->
             DecisionRequestDto.ChooseMultipleTargets(
                 request.id.toDto(),
@@ -67,13 +77,6 @@ private fun rangedSelectionToDto(request: DecisionRequest.RangedSelection): Deci
 /** The "pick exactly one of these options" family (CR 601.2c/601.2g/702.19e/614.12/616.1/701.17a). */
 private fun singleOptionSelectionToDto(request: DecisionRequest.SingleOptionSelection): DecisionRequestDto =
     when (request) {
-        is DecisionRequest.ChooseModes ->
-            DecisionRequestDto.ChooseModes(
-                request.id.toDto(),
-                request.cardObjectId.value,
-                request.card.name,
-                request.options.map { ModeOptionDto(it.modeIndex, it.text) },
-            )
         is DecisionRequest.ChooseTargets ->
             DecisionRequestDto.ChooseTargets(
                 request.id.toDto(),
@@ -203,6 +206,14 @@ private fun sizedSelectionToDto(request: DecisionRequest.SizedSelection): Decisi
                 request.options.map { cardOption(it.objectId, it.card) },
                 request.count,
             )
+        is DecisionRequest.ChooseOpponentSacrifice ->
+            DecisionRequestDto.ChooseOpponentSacrifice(
+                request.id.toDto(),
+                request.controller.seat,
+                request.sourceCard.name,
+                request.greatestPowerOnly,
+                request.options.map { cardOption(it.objectId, it.card) },
+            )
         is DecisionRequest.ChooseCardsToExile,
         is DecisionRequest.ChooseSacrifices,
         is DecisionRequest.ChooseTapsForCost,
@@ -274,6 +285,7 @@ private fun costSizedSelectionToDto(request: DecisionRequest.SizedSelection): De
         is DecisionRequest.ChooseOptionalCostObject,
         is DecisionRequest.ChooseResolutionDiscards,
         is DecisionRequest.ChooseOpponentDiscards,
+        is DecisionRequest.ChooseOpponentSacrifice,
         -> error("CR 601.2: non-cost sized selection routed to the cost helper: $request")
     }
 

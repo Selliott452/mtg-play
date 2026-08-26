@@ -31,14 +31,6 @@ internal fun singleOptionSelectionToDomain(dto: DecisionRequestDto.SingleOptionS
                 ManaCost.parse(dto.cost),
                 dto.options.map { it.toDomain() },
             )
-        // CR 601.2b: the printed mode index travels as-is; it is not the option index (`FW-MODAL`).
-        is DecisionRequestDto.ChooseModes ->
-            DecisionRequest.ChooseModes(
-                dto.id.toDomain(),
-                ObjectId(dto.cardObjectId),
-                CardRef(dto.card),
-                dto.options.map { DecisionRequest.ChooseModes.Option(it.modeIndex, it.text) },
-            )
         is DecisionRequestDto.ChooseTargets ->
             DecisionRequest.ChooseTargets(
                 dto.id.toDomain(),

@@ -451,6 +451,19 @@ import dev.mtgplay.core.identity.CardRef
  * which is exactly what its tax needs — but only the *filter* half runs that way. The castability *gate*
  * prices at "no targets", which is the safe direction for a cost reduction and the unsafe one for a cost
  * increase. BurnAndRemoval.kt carries the full re-examination.
+ *
+ * `W9-B` adds three cards and the two frameworks under them. **Collect evidence** (CR 701.60a) gives
+ * [vituGhaziInspector] and [extractAConfession] (AdditionalCostCards.kt) an optional additional cost
+ * whose answer is bounded by a *summed mana value* rather than a count — the sixth `DecisionRequest`
+ * family, `SummedSelection`, and the first whose legal answers a driver cannot derive from the index
+ * range alone. Extract a Confession additionally brings an **each-opponent-sacrifices** clause, the
+ * second `FW-NONCTRLDEC` member and the first narrowed by a cost paid a whole CR 601 stage earlier
+ * ("if evidence was collected, instead … the greatest power"). **Modal arity above one** gives
+ * [callDamageControl] (ModalInstants.kt) the pool's first card that does not print "Choose one —": a
+ * count on the declaration, a mode decision that is a subset, and — the real work — one targeting line
+ * per chosen mode, carried through gathering, the CR 601.2c re-validation, the CR 608.2b fizzle and the
+ * resolution. Its brief's claim that CR 601.2c forbids naming one object for two modes was **wrong**;
+ * CR 115.3 permits it explicitly, and ModalInstants.kt records what that changed.
  */
 object MvpCards {
     /** Every defined card, keyed by its printed-name [CardRef] (CR 201). */
@@ -480,6 +493,7 @@ object MvpCards {
             breathWeapon,
             brinebarrowIntruder,
             cartoucheOfSolidarity,
+            callDamageControl,
             castIntoTheFire,
             bendersWaterskin,
             castDown,
@@ -507,6 +521,7 @@ object MvpCards {
             etherealArmor,
             evisceratorsInsight,
             expeditionMap,
+            extractAConfession,
             goblinBushwhacker,
             landGrant,
             prohibit,
@@ -658,6 +673,7 @@ object MvpCards {
             utopiaSprawl,
             utromMonitor,
             vaultOfWhispers,
+            vituGhaziInspector,
             volatileFjord,
             voldarenEpicure,
             wallOfRoots,

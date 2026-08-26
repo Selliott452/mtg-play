@@ -75,8 +75,9 @@ internal fun executeCastPipeline(
     // tapped by the plan may be the one sacrificed (docs/design/mana-payment.md §2.2).
     val sacrificed = payAdditionalSacrificeCost(paid, cast)
     // CR 601.2h: the optional additional cost is paid beside the intrinsic one, after the mana, so a
-    // permanent tapped for mana by the plan may be the one sacrificed.
-    val bargained = payOptionalAdditionalCost(sacrificed, cast)
+    // permanent tapped for mana by the plan may be the one sacrificed. The definition is passed because
+    // *how* the cost is paid is the cost's own — bargain sacrifices, collect evidence exiles.
+    val bargained = payOptionalAdditionalCost(sacrificed, cast, entry.definition)
     val complete = completeCast(bargained, entry)
     return priorityAfterCast(complete, cast)
 }
@@ -170,6 +171,9 @@ private fun proposeSpell(
             // change; the target stage below and every later CR 608.2b re-check read the spell's
             // targeting line through them.
             chosenModes = modes,
+            // CR 115.3: and with them the per-mode split of the targets, because each bullet is its own
+            // instance of the word "target" and the flat [targets] list cannot say which came from where.
+            modeTargets = cast.modeTargets,
             // CR 702.33f: the linked information "this spell was kicked", fixed here for the same reason
             // the modes are — it is settled while casting and everything downstream depends on it.
             kicked = cast.kicked ?: false,
@@ -243,10 +247,11 @@ private fun chooseModes(
         }
         return state
     }
-    // Fails loudly on a wrong arity or an out-of-range printed index (ADR-005: the mode was enumerated).
-    val mode = chosenMode(entry.definition, entry.chosenModes)
+    // Fails loudly on a wrong arity, a repeat, or an out-of-range printed index (ADR-005: the modes
+    // were enumerated).
+    val modes = chosenSpellModes(entry.definition, entry.chosenModes)
     return state.emit(
-        GameEvent.ModesChosen(entry.controller, entry.obj.id, entry.chosenModes, listOf(mode.text)),
+        GameEvent.ModesChosen(entry.controller, entry.obj.id, entry.chosenModes, modes.map { it.text }),
     )
 }
 
@@ -268,12 +273,17 @@ private fun establishTargets(
     state: GameState,
     entry: StackEntry.Spell,
 ): GameState {
-    // For a modal spell this is the *chosen mode's* spec: the CR 601.2b answer settled one stage above
-    // determines the CR 601.2c question asked here (`FW-MODAL`). Since `W9-C` it is a *list*: a card may
-    // print the word "target" more than once, and each instance is re-validated separately, against the
-    // same context its own gathering used.
+    // For a modal spell these are the *chosen modes'* specs, one per mode (`FW-MODAL`, `W9-B`); for a
+    // non-modal one it is the card's own line plus any additional lines it prints (`W9-C`). One helper
+    // answers both, so the re-validation cannot disagree with the gathering about what a "line" is.
     val lines = targetLinesOf(entry.definition, entry.chosenModes)
-    val byLine = targetsByLine(lines, entry.targets)
+    val byLine = targetLinesOf(entry)
+    require(lines.size == byLine.size) {
+        "CR 601.2c: ${entry.obj.card.name} has ${lines.size} targeting line(s) but recorded ${byLine.size}"
+    }
+    // Each line is re-validated against **its own** spec and its own enumeration. Validating the
+    // flattened list against one spec would be a different, weaker check: it would accept a creature
+    // card answered to the artifact bullet as long as some bullet admitted it (CR 115.3).
     lines.forEachIndexed { index, spec ->
         // CR 601.2a ran before this stage, so the spell is already on the stack under `entry.obj.id`;
         // naming it here keeps this re-validation's enumeration equal to the gathering-time one, in which

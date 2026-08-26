@@ -77,6 +77,9 @@ internal val BURN_OPPONENT: Responder =
             // policy never reaches.
             is DecisionRequest.SizedSelection ->
                 error("the burn policy pays no cost selections, but a sized-selection request surfaced: $request")
+            // CR 601.2b/701.60a: collect evidence is a cast cost the burn pool does not print.
+            is DecisionRequest.SummedSelection ->
+                error("the burn policy collects no evidence, but a summed-selection request surfaced: $request")
             // CR 601.2c: the burn pool prints no multi-target line, so one surfacing is a defect.
             is DecisionRequest.RangedSelection ->
                 error("the burn policy casts no multi-target spell, but one surfaced: $request")
@@ -260,6 +263,9 @@ internal val GRIND_TO_BOLT_RANGE: Responder =
             // policy never reaches.
             is DecisionRequest.SizedSelection ->
                 error("the grind policy pays no cost selections, but a sized-selection request surfaced: $request")
+            // CR 601.2b/701.60a: collect evidence is a cast cost the grind pool does not print.
+            is DecisionRequest.SummedSelection ->
+                error("the grind policy collects no evidence, but a summed-selection request surfaced: $request")
             // CR 601.2c: the grind pool prints no multi-target line, so one surfacing is a defect.
             is DecisionRequest.RangedSelection ->
                 error("the grind policy casts no multi-target spell, but one surfaced: $request")

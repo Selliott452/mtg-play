@@ -5,7 +5,7 @@ import dev.mtgplay.core.identity.CardRef
 import dev.mtgplay.core.state.GameState
 import dev.mtgplay.rules.decision.Decision
 import dev.mtgplay.rules.decision.DecisionRequest
-import dev.mtgplay.rules.engine.chosenMode
+import dev.mtgplay.rules.engine.chosenSpellModes
 import io.kotest.assertions.throwables.shouldThrowAny
 import io.kotest.core.spec.style.StringSpec
 import io.kotest.matchers.collections.shouldBeEmpty
@@ -45,7 +45,7 @@ class ModalCastingSpec :
             modeRequest.card shouldBe CardRef("Fixture Sabotage")
 
             // Only after the mode is answered does a target decision appear.
-            val afterMode = engine.advance(afterCast.pausedState, Decision.SingleSelect(modeRequest.id, 0))
+            val afterMode = engine.advance(afterCast.pausedState, Decision.MultiSelect(modeRequest.id, listOf(0)))
             afterMode.pending<DecisionRequest.ChooseTargets>()
         }
 
@@ -176,7 +176,7 @@ class ModalCastingSpec :
             val afterCast = engine.advance(state, castDecision(window, "Fixture Restricted Blast"))
             val request = afterCast.pending<DecisionRequest.ChooseModes>()
 
-            val afterMode = engine.advance(afterCast.pausedState, Decision.SingleSelect(request.id, 0))
+            val afterMode = engine.advance(afterCast.pausedState, Decision.MultiSelect(request.id, listOf(0)))
             afterMode.pausedState.pendingCast
                 .shouldNotBeNull()
                 .chosenModes shouldContainExactly listOf(1)
@@ -196,7 +196,7 @@ class ModalCastingSpec :
             val afterMode =
                 engine.advance(
                     afterCast.pausedState,
-                    Decision.SingleSelect(request.id, request.options.indexOf(nothingHappens)),
+                    Decision.MultiSelect(request.id, listOf(request.options.indexOf(nothingHappens))),
                 )
             // Straight past the targets stage to the payment plan (CR 601.2g).
             afterMode.pending<DecisionRequest.ChoosePaymentPlan>()
@@ -217,9 +217,11 @@ class ModalCastingSpec :
 
         "CR 700.2: a cast record naming a mode the card does not print fails loudly" {
             // An arity or index the gathering could never produce is an engine defect, not a rules case.
-            shouldThrowAny { chosenMode(fixtureRestrictedBlast, listOf(7)) }
-            shouldThrowAny { chosenMode(fixtureRestrictedBlast, listOf()) }
-            shouldThrowAny { chosenMode(fixtureRestrictedBlast, listOf(0, 1)) }
+            // The fixture prints "Choose one —", so a missing mode, a second mode, and an index past
+            // the printed list are all outside its own ModeChoice.
+            shouldThrowAny { chosenSpellModes(fixtureRestrictedBlast, listOf(7)) }
+            shouldThrowAny { chosenSpellModes(fixtureRestrictedBlast, listOf()) }
+            shouldThrowAny { chosenSpellModes(fixtureRestrictedBlast, listOf(0, 1)) }
         }
     })
 

@@ -124,6 +124,10 @@ enum class DecisionRequestKindDto {
      */
     @SerialName("choose_cost_power_source")
     CHOOSE_COST_POWER_SOURCE,
+
+    /** [dev.mtgplay.rules.DecisionRequestKind.CHOOSE_EVIDENCE] — an announced collect evidence (CR 701.60a). */
+    @SerialName("choose_evidence")
+    CHOOSE_EVIDENCE,
     CHOOSE_CARDS_TO_DISCARD_FOR_COST,
     CHOOSE_SACRIFICES_FOR_COST,
     CHOOSE_ABILITY_SACRIFICE,
@@ -155,6 +159,15 @@ enum class DecisionRequestKindDto {
      * the deciding seat (ADR-007).
      */
     CHOOSE_OPPONENT_DISCARDS,
+
+    /**
+     * [dev.mtgplay.rules.DecisionRequestKind.CHOOSE_OPPONENT_SACRIFICE] — an "each opponent sacrifices a
+     * permanent of their choice" selection (CR 701.17a). Like [CHOOSE_OPPONENT_DISCARDS] it is decided by
+     * an opponent of the resolving object's controller, and unlike it nothing is hidden: the options are
+     * battlefield permanents (CR 400.2).
+     */
+    @SerialName("choose_opponent_sacrifice")
+    CHOOSE_OPPONENT_SACRIFICE,
 
     /** An activated ability's "return a permanent you control" cost (CR 602.1, CR 701.4a). */
     CHOOSE_ABILITY_RETURN,

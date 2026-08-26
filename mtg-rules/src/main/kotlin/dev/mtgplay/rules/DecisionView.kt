@@ -48,7 +48,7 @@ sealed interface DecisionView {
  * non-deciding seat in [DecisionView.Elsewhere] so it knows *what* choice is pending without seeing
  * the private options.
  *
- * Exhaustive with [DecisionRequest]'s 25 leaves: [kindOf] `when`s over every leaf, so a new request
+ * Exhaustive with every [DecisionRequest] leaf: [kindOf] `when`s over every leaf, so a new request
  * kind breaks compilation here until it is classified.
  */
 enum class DecisionRequestKind {
@@ -111,6 +111,9 @@ enum class DecisionRequestKind {
 
     /** [DecisionRequest.ChooseOptionalCostSacrifice] — an announced bargain (CR 601.2b, CR 702.166a). */
     CHOOSE_OPTIONAL_COST_SACRIFICE,
+
+    /** [DecisionRequest.ChooseEvidence] — an announced collect evidence (CR 601.2b, CR 701.60a). */
+    CHOOSE_EVIDENCE,
 
     /** [DecisionRequest.ChooseCardsToDiscardForCost] — an additional discard cost (CR 601.2b). */
     CHOOSE_CARDS_TO_DISCARD_FOR_COST,
@@ -188,6 +191,14 @@ enum class DecisionRequestKind {
     CHOOSE_OPPONENT_DISCARDS,
 
     /**
+     * [DecisionRequest.ChooseOpponentSacrifice] — an "each opponent sacrifices a permanent of their
+     * choice" selection (CR 701.17a), made by an **opponent** of the resolving object's controller.
+     * Its sibling's public counterpart: the options are battlefield permanents (CR 400.2), so nothing
+     * here is hidden from anyone.
+     */
+    CHOOSE_OPPONENT_SACRIFICE,
+
+    /**
      * [DecisionRequest.ChooseOptionalManaPayment] — an optional "you may pay {cost}; if you do, draw"
      * clause (CR 601.3b), answered by the resolving object's controller.
      */
@@ -219,11 +230,11 @@ enum class DecisionRequestKind {
  * new [DecisionRequest] kind forces a classification here or in one of the family helpers below.
  *
  * Dispatch is grouped by [DecisionRequest]'s sealed sub-interfaces (mirroring the engine's own
- * decision-application idiom), keeping this top-level `when` flat: the six families
+ * decision-application idiom), keeping this top-level `when` flat: the seven families
  * ([DecisionRequest.SizedSelection], [DecisionRequest.RangedSelection],
- * [DecisionRequest.PermutationSelection], [DecisionRequest.ChoiceCountSelection],
- * [DecisionRequest.SingleOptionSelection], [DecisionRequest.MulliganRequest]) delegate to a helper, and
- * the standalone leaves map directly.
+ * [DecisionRequest.SummedSelection], [DecisionRequest.PermutationSelection],
+ * [DecisionRequest.ChoiceCountSelection], [DecisionRequest.SingleOptionSelection],
+ * [DecisionRequest.MulliganRequest]) delegate to a helper, and the standalone leaves map directly.
  */
 fun kindOf(request: DecisionRequest): DecisionRequestKind =
     when (request) {
@@ -234,6 +245,7 @@ fun kindOf(request: DecisionRequest): DecisionRequestKind =
         is DecisionRequest.SingleOptionSelection -> singleOptionSelectionKind(request)
         is DecisionRequest.SizedSelection -> sizedSelectionKind(request)
         is DecisionRequest.RangedSelection -> rangedSelectionKind(request)
+        is DecisionRequest.SummedSelection -> summedSelectionKind(request)
         is DecisionRequest.PermutationSelection -> permutationSelectionKind(request)
         is DecisionRequest.ChoiceCountSelection -> choiceCountSelectionKind(request)
         is DecisionRequest.MulliganRequest -> mulliganRequestKind(request)
@@ -242,7 +254,6 @@ fun kindOf(request: DecisionRequest): DecisionRequestKind =
 /** The kind of one "pick exactly one option" request (CR 601.2c / 601.2g / 702.19e / 614.12 / 616.1 / 701.17a). */
 private fun singleOptionSelectionKind(request: DecisionRequest.SingleOptionSelection): DecisionRequestKind =
     when (request) {
-        is DecisionRequest.ChooseModes -> DecisionRequestKind.CHOOSE_MODES
         is DecisionRequest.ChooseTargets -> DecisionRequestKind.CHOOSE_TARGETS
         is DecisionRequest.ChoosePaymentPlan -> DecisionRequestKind.CHOOSE_PAYMENT_PLAN
         is DecisionRequest.ChooseXValue -> DecisionRequestKind.CHOOSE_X_VALUE
@@ -304,6 +315,7 @@ private fun abilityOrResolutionSelectionKind(request: DecisionRequest.SizedSelec
         is DecisionRequest.ChooseOptionalCostObject -> DecisionRequestKind.CHOOSE_OPTIONAL_COST_OBJECT
         is DecisionRequest.ChooseResolutionDiscards -> DecisionRequestKind.CHOOSE_RESOLUTION_DISCARDS
         is DecisionRequest.ChooseOpponentDiscards -> DecisionRequestKind.CHOOSE_OPPONENT_DISCARDS
+        is DecisionRequest.ChooseOpponentSacrifice -> DecisionRequestKind.CHOOSE_OPPONENT_SACRIFICE
         // Every cast-side cost is handled by [sizedSelectionKind]; reaching here would mean a leaf fell
         // out of both `when`s, which the compiler cannot catch once one of them carries an `else`.
         else -> error("CR 601.2: no view kind for the sized selection ${request::class.simpleName}")
@@ -315,8 +327,15 @@ private fun abilityOrResolutionSelectionKind(request: DecisionRequest.SizedSelec
  */
 private fun rangedSelectionKind(request: DecisionRequest.RangedSelection): DecisionRequestKind =
     when (request) {
+        is DecisionRequest.ChooseModes -> DecisionRequestKind.CHOOSE_MODES
         is DecisionRequest.ChooseMultipleTargets -> DecisionRequestKind.CHOOSE_MULTIPLE_TARGETS
         is DecisionRequest.ChoosePermanentsToAffect -> DecisionRequestKind.CHOOSE_PERMANENTS_TO_AFFECT
+    }
+
+/** The kind of one summed-weight subset selection (CR 601.2b / 701.60a). */
+private fun summedSelectionKind(request: DecisionRequest.SummedSelection): DecisionRequestKind =
+    when (request) {
+        is DecisionRequest.ChooseEvidence -> DecisionRequestKind.CHOOSE_EVIDENCE
     }
 
 /** The kind of one full-ordering selection (CR 509.2 / 603.3b). */

@@ -77,6 +77,12 @@ private fun abilityAndResolutionHeaderAndNames(request: DecisionRequest.SizedSel
         is DecisionRequest.ChooseOpponentDiscards ->
             "Discard exactly ${request.count} card(s) to ${request.sourceCard.name} (CR 701.7a):" to
                 request.options.map { it.card.name }
+        // CR 701.17a: likewise an *opponent* of the controller, over their own battlefield. The header
+        // says when the list has been narrowed, so a short list does not read as a missing option.
+        is DecisionRequest.ChooseOpponentSacrifice ->
+            "Sacrifice 1 permanent to ${request.sourceCard.name}" +
+                (if (request.greatestPowerOnly) " (greatest power among yours, CR 701.17a):" else " (CR 701.17a):") to
+                request.options.map { it.card.name }
         // Every cast-side cost is handled by [sizedHeaderAndNames]; reaching here would mean a leaf fell
         // out of both `when`s, which the compiler cannot catch once one of them carries an `else`.
         else -> error("CR 601.2b: no menu for the sized selection ${request::class.simpleName}")
@@ -94,6 +100,8 @@ internal fun rangedSelectionMenu(
     request: DecisionRequest.RangedSelection,
 ): List<String> =
     when (request) {
+        // CR 601.2b: a mode choice is ranged too — "choose one" is the `1..1` case (`W9-B`).
+        is DecisionRequest.ChooseModes -> modeMenu(request)
         is DecisionRequest.ChooseMultipleTargets ->
             listOf("Choose ${targetCountPhrase(request)} for ${request.card.name} (CR 601.2c):") +
                 numbered(request.options.map { targetLabel(view, it) }) +
@@ -104,6 +112,24 @@ internal fun rangedSelectionMenu(
             listOf("${request.prompt} for ${request.sourceCard.name} (CR 609.4):") +
                 numbered(request.options.map { it.card.name }) +
                 rangedHint(request.minimumCount, request.maximumCount)
+    }
+
+/**
+ * A summed-weight subset selection (CR 601.2b, CR 701.60a): collect evidence.
+ *
+ * Each option line carries its own mana value, because unlike every other selection menu the legality of
+ * an answer here cannot be read off the numbers alone — a player who cannot see the weights cannot tell a
+ * paying set from a failing one.
+ */
+internal fun summedSelectionMenu(request: DecisionRequest.SummedSelection): List<String> =
+    when (request) {
+        is DecisionRequest.ChooseEvidence ->
+            listOf(
+                "Exile cards totalling at least ${request.requiredTotal} mana value from your graveyard " +
+                    "to collect evidence for ${request.card.name} (CR 701.60a):",
+            ) +
+                numbered(request.options.map { "${it.card.name} (mana value ${it.manaValue})" }) +
+                summedHint(request.requiredTotal)
     }
 
 /** How a multi-target request's cardinality reads in its header ("up to 2 target(s)"). */

@@ -2,7 +2,10 @@ package dev.mtgplay.cards
 
 import dev.mtgplay.core.card.CardType
 import dev.mtgplay.core.card.PrintedCharacteristics
+import dev.mtgplay.core.definition.GraveyardCardRestriction
+import dev.mtgplay.core.definition.GraveyardScope
 import dev.mtgplay.core.definition.ModalSpell
+import dev.mtgplay.core.definition.ModeChoice
 import dev.mtgplay.core.definition.PermanentFilter
 import dev.mtgplay.core.definition.PermanentRestriction
 import dev.mtgplay.core.definition.ResolutionEffect
@@ -18,6 +21,7 @@ import dev.mtgplay.rules.effect.dealDamage
 import dev.mtgplay.rules.effect.destroy
 import dev.mtgplay.rules.effect.exileGraveyard
 import dev.mtgplay.rules.effect.exilePermanent
+import dev.mtgplay.rules.effect.returnToOwnersHand
 import dev.mtgplay.rules.engine.countMatchingPermanents
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.persistentSetOf
@@ -45,6 +49,32 @@ import kotlinx.collections.immutable.persistentSetOf
  * board-counting damage effect, a plain destroy, and a whole-zone exile.
  *
  * Oracle text below is Scryfall's, fetched for this packet (`POST /cards/collection`, both found).
+ *
+ * ## `W9-B` — modal arity above one, and Call Damage Control
+ *
+ * [callDamageControl] is the pool's first card that does **not** print "Choose one —", and raising the
+ * arity was the last thing standing between this engine and every "choose two" charm. Three pieces
+ * landed for it: a count on the declaration ([dev.mtgplay.core.definition.ModeChoice]), a mode decision
+ * that is a subset rather than a pick (`DecisionRequest.ChooseModes` is a `RangedSelection` now, `1..1`
+ * for the four Blasts), and — the real work — **one targeting line per chosen mode**, carried through
+ * gathering, the CR 601.2c re-validation, the CR 608.2b fizzle and the resolution as a per-mode split
+ * rather than a flat list.
+ *
+ * **A correction to the brief, because it is what made the design tractable.** The packet was told to
+ * apply "the CR 601.2c same-object rule **across** modes — you may not choose the same object as the
+ * target of two different modes." The repo's own CR text says the opposite, and the rule is **CR 115.3**:
+ *
+ * > The same target can't be chosen multiple times for any one instance of the word "target" on a spell
+ * > or ability. **If the spell or ability uses the word "target" in multiple places, the same object or
+ * > player can be chosen once for each instance of the word "target"** (as long as it fits the targeting
+ * > criteria).
+ *
+ * Each bullet is its own instance, so cross-mode duplication is *permitted*. Had the brief been right,
+ * a set of modes would only be legal when a **system of distinct representatives** existed across the
+ * modes' option lists — a bipartite matching evaluated at CR 601.2b, before any target is chosen — and
+ * the mode decision would have had to enumerate whole *combinations* rather than modes. As the rule
+ * actually reads, each mode is choosable on its own and no combination can be jointly unsatisfiable,
+ * which is exactly why `castableModes` asking each mode about itself remains the right gate.
  */
 
 /** The damage Cast into the Fire's first mode deals to each creature it names (CR 120). */
@@ -244,3 +274,106 @@ private fun targetedPlayers(targets: List<Target>): List<PlayerId> =
         (target as? Target.Player)?.id
             ?: error("CR 115.1a: Thraben Charm's third mode targets only players, got $target")
     }
+
+/** The modes Call Damage Control chooses from (CR 700.2a) — "Choose up to two." */
+private const val CALL_DAMAGE_CONTROL_MODES: Int = 2
+
+/**
+ * Call Damage Control — `{1}{G}` Sorcery. "Choose up to two. Return those cards from your graveyard to
+ * your hand. • Target artifact card. • Target creature card. • Target enchantment card. • Target land
+ * card."
+ *
+ * **The pool's first card whose mode arity is not one**, and the card the `W9-B` framework exists for.
+ * Its four bullets share a verb and differ only in the card type they name, which makes it the cleanest
+ * possible demonstration of what modality above arity one actually costs: the *return* is trivial and
+ * the *targeting* is the whole framework.
+ *
+ * **Choosing zero modes is legal, and the spell still resolves.** [ModeChoice.upTo] has minimum zero, so
+ * Call Damage Control is castable with an empty graveyard — it resolves, does nothing, and goes to the
+ * graveyard. That is a real line (binning a dead card to bait a counter or to fuel a later graveyard
+ * effect), and the engine keeps it enumerable rather than declaring the cast illegal (ADR-005). It is
+ * also why [someModeIsCastable] has an "up to" arm at all.
+ *
+ * **Two chosen modes are two independent target choices** (CR 115.3), not one choice of two cards, and
+ * the difference is observable. An **artifact creature card** in the graveyard — Grixis Affinity fills a
+ * graveyard with them — satisfies both the artifact bullet and the creature bullet, and CR 115.3
+ * explicitly permits naming it for *each* instance of the word "target". Naming it twice returns it once
+ * and wastes the second mode, which is legal and occasionally the only thing on offer. The flattening
+ * this card invites — "return up to two target cards of different types" — cannot express that at all,
+ * which is why the card waited for the framework instead of being approximated.
+ *
+ * **A dead bullet does not fizzle the spell** (CR 608.2b): with an artifact and no enchantment in the
+ * graveyard, choosing both those modes is legal, and if the enchantment leaves in response the spell
+ * still resolves and returns the artifact. Only *every* line being dead removes it from the stack — the
+ * `all` in `fizzleSpell`, and the difference between returning one card and returning none.
+ *
+ * The scope is [GraveyardScope.YOURS] on every bullet: the printed line is "from **your** graveyard", so
+ * an opponent's graveyard is never enumerated and this is not graveyard hate wearing a green coat.
+ */
+val callDamageControl: ModalSpell =
+    object : ModalSpell {
+        override val characteristics =
+            PrintedCharacteristics(
+                name = "Call Damage Control",
+                manaCost = ManaCost.parse("{1}{G}"),
+                supertypes = persistentSetOf(),
+                cardTypes = persistentSetOf(CardType.SORCERY),
+                subtypes = persistentSetOf(),
+                powerToughness = null,
+            )
+
+        override val timing = TimingClass.SORCERY_SPEED
+
+        // CR 700.2a: "Choose up to two." Zero, one and two are all legal answers.
+        override val modeChoice = ModeChoice.upTo(CALL_DAMAGE_CONTROL_MODES)
+        override val modes =
+            persistentListOf(
+                graveyardReturnMode("artifact", GraveyardCardRestriction.ARTIFACT),
+                graveyardReturnMode("creature", GraveyardCardRestriction.CREATURE),
+                graveyardReturnMode("enchantment", GraveyardCardRestriction.ENCHANTMENT),
+                graveyardReturnMode("land", GraveyardCardRestriction.LAND),
+            )
+    }
+
+/**
+ * One of Call Damage Control's four bullets: "Target [noun] card", returned to its owner's hand
+ * (CR 400.7). Built by a helper rather than written out four times because the four differ in exactly
+ * one value — and writing them out would invite the four to drift apart, which is the failure a card
+ * with four near-identical modes is most exposed to.
+ */
+private fun graveyardReturnMode(
+    noun: String,
+    restriction: GraveyardCardRestriction,
+): SpellMode =
+    SpellMode(
+        text = "Target $noun card.",
+        targetSpec =
+            TargetSpec.CardInGraveyard(
+                restriction = restriction,
+                // CR 404: "from **your** graveyard" — an opponent's is never offered.
+                scope = GraveyardScope.YOURS,
+            ),
+        resolution =
+            ResolutionEffect { state, context ->
+                // CR 608.2b: a mode whose target has since left the graveyard simply does nothing; the
+                // primitive is honest about a missing object rather than failing (see ReturnToHand.kt).
+                returnToOwnersHand(state, targetedGraveyardCardId(context.targets))
+            },
+    )
+
+/**
+ * The one graveyard card a Call Damage Control bullet named (CR 115.1b), or `null` when the bullet named
+ * nothing.
+ *
+ * **`null` is unreachable for this card and the signature admits it anyway**, because every mode here
+ * carries [dev.mtgplay.core.definition.TargetCount.ONE] and a mode with no legal target is never offered
+ * — so a chosen mode always holds exactly one target. What is *not* unreachable is the target having
+ * left the graveyard since (CR 400.7), and that is handled downstream by the primitive rather than here.
+ */
+private fun targetedGraveyardCardId(targets: List<Target>): ObjectId {
+    val target = targets.singleOrNull()
+    require(target is Target.CardInGraveyard) {
+        "CR 115.1b: Call Damage Control's mode targets exactly one graveyard card, got $targets"
+    }
+    return target.id
+}

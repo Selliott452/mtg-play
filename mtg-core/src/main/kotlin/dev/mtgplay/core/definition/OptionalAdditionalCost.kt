@@ -58,4 +58,42 @@ sealed interface OptionalAdditionalCost {
      * case — is not offered at all.
      */
     data object Bargain : OptionalAdditionalCost
+
+    /**
+     * **Collect evidence [amount]** (CR 701.60a): "Exile cards with total mana value [amount] or greater
+     * from your graveyard." Extract a Confession, Vitu-Ghazi Inspector. Additive, flagged core (`W9-B`).
+     *
+     * The **second** optional additional cost with a chosen object, and it is not a variation on
+     * [Bargain]: bargain consumes exactly one permanent chosen from an enumerated set, while this
+     * consumes *any subset of a graveyard whose mana values sum to at least [amount]*. The number of
+     * cards is unbounded in both directions — six one-drops or one six-drop pay the same evidence 6 —
+     * so the answer's shape is a summed weight rather than a size, which is what `mtg-rules`'
+     * `DecisionRequest.SummedSelection` exists for.
+     *
+     * **The bounding rule, recorded because the question is the interesting one.** Subsets of a
+     * graveyard are exponential, so the instinct is to enumerate the *minimal sufficient* ones — those
+     * that reach [amount] and fall below it if any card is removed. That rule is defensible and still
+     * exponential: a graveyard of twenty one-drops has C(20, 6) = 38,760 of them, and deduplicating by
+     * printed identity still leaves hundreds. It is also **wrong on the merits**, not merely expensive:
+     * exiling above the minimum is a real line, because *which* cards leave matters when a player is
+     * holding back a flashback or escape card, and the engine must never assume a larger graveyard is
+     * always better for its owner. So the engine does not enumerate subsets at all. The graveyard is
+     * offered as a flat, O(n) option list — exactly as escape's "exile N other cards" does — and the
+     * constraint travels *in the request*, as a per-option mana value plus a threshold whose sum the
+     * answer is validated against. That is complete (every legal payment is expressible), sound (no
+     * illegal one is offered), and linear.
+     *
+     * **Mana value is read from the printed cost**, not from anything on the stack: these cards are in a
+     * graveyard, where CR 202.3b's "X is the announced value while on the stack" does not apply and an
+     * unvalued X counts as zero (CR 107.3e).
+     *
+     * @property amount the total mana value the exiled cards must reach — CR 701.60a's N; at least 1.
+     */
+    data class CollectEvidence(
+        val amount: Int,
+    ) : OptionalAdditionalCost {
+        init {
+            require(amount >= 1) { "CR 701.60a: collect evidence N exiles at least 1 mana value, was $amount" }
+        }
+    }
 }

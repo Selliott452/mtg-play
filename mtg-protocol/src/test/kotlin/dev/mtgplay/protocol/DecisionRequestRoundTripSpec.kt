@@ -47,7 +47,12 @@ import kotlinx.serialization.encodeToString
 class DecisionRequestRoundTripSpec :
     StringSpec({
         "ADR-008: every DecisionRequest kind is represented in the round-trip fixture" {
-            allRequests.map { kindOf(it) } shouldContainExactlyInAnyOrder DecisionRequestKind.entries.toList()
+            // `distinct()` since `W9-B`: a kind may legitimately appear twice when one request shape
+            // covers two printed cases whose wire payloads differ — `choose_modes` now carries both
+            // "Choose one —" (`1..1`) and "Choose up to two" (`0..2`), and both must round-trip. What
+            // this still pins is the property that matters: no kind is missing from the fixture.
+            allRequests.map { kindOf(it) }.distinct() shouldContainExactlyInAnyOrder
+                DecisionRequestKind.entries.toList()
         }
 
         "ADR-008: every DecisionRequest kind round-trips engine -> DTO -> JSON -> DTO -> engine" {
@@ -250,6 +255,22 @@ private val allRequests: List<DecisionRequest> =
             ObjectId(1),
             CardRef("Red Elemental Blast"),
             listOf(DecisionRequest.ChooseModes.Option(1, "Destroy target blue permanent.")),
+            // CR 700.2a: "Choose one —" is the `1..1` case of the ranged shape `W9-B` gave the request.
+            minimumCount = 1,
+            maximumCount = 1,
+        ),
+        // CR 700.2a: "Choose up to two" — the arity `W9-B` was built for, whose zero-minimum is a legal
+        // answer on the wire as much as in the engine (Call Damage Control).
+        DecisionRequest.ChooseModes(
+            ID,
+            ObjectId(2),
+            CardRef("Call Damage Control"),
+            listOf(
+                DecisionRequest.ChooseModes.Option(0, "Target artifact card."),
+                DecisionRequest.ChooseModes.Option(2, "Target enchantment card."),
+            ),
+            minimumCount = 0,
+            maximumCount = 2,
         ),
         DecisionRequest.ChooseTargets(
             ID,
@@ -491,6 +512,32 @@ private val allRequests: List<DecisionRequest> =
                     DecisionRequest.ChooseOpponentDiscards.Option(ObjectId(4), CardRef("Bog")),
                 ),
             count = 1,
+        ),
+        // CR 701.17a: the public-option sibling — an opponent picks which of their own creatures dies,
+        // narrowed here to the greatest-power ones (Extract a Confession with evidence collected).
+        DecisionRequest.ChooseOpponentSacrifice(
+            ID,
+            controller = PlayerId(1),
+            sourceCard = CardRef("Extract a Confession"),
+            greatestPowerOnly = true,
+            options =
+                listOf(
+                    DecisionRequest.ChooseOpponentSacrifice.Option(ObjectId(5), CardRef("Slippery Bogle")),
+                    DecisionRequest.ChooseOpponentSacrifice.Option(ObjectId(6), CardRef("Gladecover Scout")),
+                ),
+        ),
+        // CR 601.2b/701.60a: an announced collect evidence 6 — a summed-weight selection, the one
+        // request family whose legal answers cannot be read off the index range alone.
+        DecisionRequest.ChooseEvidence(
+            ID,
+            cardObjectId = ObjectId(7),
+            card = CardRef("Extract a Confession"),
+            options =
+                listOf(
+                    DecisionRequest.ChooseEvidence.Option(ObjectId(8), CardRef("Gurmag Angler"), 7),
+                    DecisionRequest.ChooseEvidence.Option(ObjectId(9), CardRef("Swamp"), 0),
+                ),
+            requiredTotal = 6,
         ),
         // CR 701.17a: a scry 2's six arrangements over a two-card pool, the framework's smallest real space.
         DecisionRequest.ChooseLibraryArrangement(
