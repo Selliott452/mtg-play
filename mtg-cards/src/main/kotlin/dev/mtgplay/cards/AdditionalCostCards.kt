@@ -79,13 +79,12 @@ import kotlinx.collections.immutable.persistentSetOf
  *    real framework additions — an event trigger plus a filtered subject — and neither is this
  *    packet's.
  *
- * ## Absent — Call Damage Control `{1}{G}`
+ * ## Elsewhere — Call Damage Control `{1}{G}`
  *
- * Still absent, and still blocked on **modal arity above one** rather than on anything this file owns.
- * The diagnosis moved to `ModalInstants.kt`, beside the two modal cards that *are* encoded, where the
- * next packet to raise the arity will actually be reading — `W9-B` worked the design out and recorded
- * it there in full, including why the tempting flattening ("up to two target cards of different types")
- * is not equivalent to the printed card.
+ * Encoded by the same packet, in `ModalInstants.kt` beside the other modal cards. It shared nothing
+ * with this file but the wave: it needed **modal arity above one** rather than an additional cost, and
+ * that file carries the design — including the CR 115.3 correction that made it tractable, and why the
+ * tempting flattening ("up to two target cards of different types") is not the printed card.
  */
 
 /**

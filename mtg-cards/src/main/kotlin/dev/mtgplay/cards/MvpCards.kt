@@ -402,6 +402,19 @@ import dev.mtgplay.core.identity.CardRef
  * whose **bargain** opens the one cost cell the engine lacked — optional *and* object-choosing — and
  * whose enters trigger reads the answer back through a second [InterveningIf] member. That packet's
  * four remaining cards are absent, with their diagnoses recorded in AdditionalCostCards.kt.
+ *
+ * `W9-B` adds three cards and the two frameworks under them. **Collect evidence** (CR 701.60a) gives
+ * [vituGhaziInspector] and [extractAConfession] (AdditionalCostCards.kt) an optional additional cost
+ * whose answer is bounded by a *summed mana value* rather than a count — the sixth `DecisionRequest`
+ * family, `SummedSelection`, and the first whose legal answers a driver cannot derive from the index
+ * range alone. Extract a Confession additionally brings an **each-opponent-sacrifices** clause, the
+ * second `FW-NONCTRLDEC` member and the first narrowed by a cost paid a whole CR 601 stage earlier
+ * ("if evidence was collected, instead … the greatest power"). **Modal arity above one** gives
+ * [callDamageControl] (ModalInstants.kt) the pool's first card that does not print "Choose one —": a
+ * count on the declaration, a mode decision that is a subset, and — the real work — one targeting line
+ * per chosen mode, carried through gathering, the CR 601.2c re-validation, the CR 608.2b fizzle and the
+ * resolution. Its brief's claim that CR 601.2c forbids naming one object for two modes was **wrong**;
+ * CR 115.3 permits it explicitly, and ModalInstants.kt records what that changed.
  */
 object MvpCards {
     /** Every defined card, keyed by its printed-name [CardRef] (CR 201). */
