@@ -277,6 +277,34 @@ data class SeatView(
     val timedEffects: List<TimedContinuousEffect> = emptyList(),
     val preventionEffects: List<TimedPreventionEffect> = emptyList(),
     val deathReplacements: List<TimedDeathReplacement> = emptyList(),
+    val initiative: InitiativeView? = null,
+)
+
+/**
+ * **The initiative** and every player's dungeon position, as any seat may see them (CR 701.51, CR 309.4)
+ * — the view of [dev.mtgplay.core.state.InitiativeState]. Additive (`W10-A`).
+ *
+ * **Entirely public, and carried for both seats unfiltered** (ADR-007). Who holds the initiative is
+ * announced by the effect that gave it, a dungeon card is face up in a command zone (CR 309.2), and a
+ * venture marker sits on it where everyone can see it. There is nothing here to hide, and hiding any of
+ * it would make the mechanic unplayable — an opponent who cannot see how deep into the Undercity the
+ * holder is cannot tell whether racing them is worth it.
+ *
+ * **A view type rather than the state record itself**, unlike the neighbouring public fields on
+ * [SeatView], for a mechanical reason: [dev.mtgplay.core.state.InitiativeState] carries the whole
+ * [dev.mtgplay.core.definition.Dungeon], whose rooms hold resolution lambdas that no wire format can
+ * represent. Rooms are named here instead, which is all any driver needs and all a player can read off
+ * the physical card anyway.
+ *
+ * @property holder the initiative holder (CR 701.51a).
+ * @property dungeon the dungeon a venture enters (CR 309.3) — "Undercity" for every card in the pool.
+ * @property rooms the room each player's venture marker is on, by name (CR 309.4). A seat **absent** from
+ *   the map is not in a dungeon: it has never ventured, or it completed the dungeon (CR 309.6).
+ */
+data class InitiativeView(
+    val holder: PlayerId,
+    val dungeon: String,
+    val rooms: Map<PlayerId, String>,
 )
 
 /**

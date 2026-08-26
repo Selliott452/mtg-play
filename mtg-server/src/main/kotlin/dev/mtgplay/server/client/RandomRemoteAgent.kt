@@ -240,6 +240,8 @@ private fun resolutionClauseOptionCount(request: DecisionRequestDto.SingleOption
         is DecisionRequestDto.ChooseLibraryPosition -> request.options.size
         // CR 609.4: one index per offered card type, chosen before anything is revealed.
         is DecisionRequestDto.ChooseRevealedCardType -> request.options.size
+        // CR 309.4: one index per room the venturing player's marker may move to.
+        is DecisionRequestDto.ChooseDungeonRoom -> request.options.size
         else -> error("no option count for ${request::class.simpleName}")
     }
 

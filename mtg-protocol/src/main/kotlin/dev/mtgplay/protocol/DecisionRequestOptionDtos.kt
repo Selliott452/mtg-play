@@ -175,3 +175,16 @@ data class LibraryArrangementDto(
     val toBottom: List<Int>,
     val toGraveyard: List<Int>,
 )
+
+/**
+ * Wire form of [dev.mtgplay.rules.decision.DecisionRequest.ChooseDungeonRoom.Option] (CR 309.4): one
+ * destination room of a dungeon branch. Added by `W10-A`.
+ *
+ * @property room the room's index in the dungeon's room list — the stable handle the engine answers on.
+ * @property name the room's printed name (CR 309.3), for display.
+ */
+@Serializable
+data class DungeonRoomOptionDto(
+    val room: Int,
+    val name: String,
+)

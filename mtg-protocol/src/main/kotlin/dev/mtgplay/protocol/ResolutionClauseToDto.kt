@@ -41,5 +41,12 @@ internal fun resolutionClauseToDto(request: DecisionRequest.SingleOptionSelectio
                 request.revealCount,
                 request.options.map { it.name },
             )
+        is DecisionRequest.ChooseDungeonRoom ->
+            DecisionRequestDto.ChooseDungeonRoom(
+                request.id.toDto(),
+                request.dungeon,
+                request.fromRoom,
+                request.options.map { DungeonRoomOptionDto(it.room, it.name) },
+            )
         else -> error("not a resolution-clause single-option request: $request")
     }

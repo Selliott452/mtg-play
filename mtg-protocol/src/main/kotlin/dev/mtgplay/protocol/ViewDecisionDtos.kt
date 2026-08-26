@@ -197,6 +197,13 @@ enum class DecisionRequestKindDto {
 
     /** A resolution-time "choose creature or land" (CR 609.4) — Winding Way. */
     CHOOSE_REVEALED_CARD_TYPE,
+
+    /**
+     * A venturing player's branch choice in a dungeon (CR 309.4) — which of a room's two successors to
+     * move their venture marker to. Public in both directions: a dungeon card is face up in a command
+     * zone (CR 309.2), so an opposing seat sees the fork as well as the choice.
+     */
+    CHOOSE_DUNGEON_ROOM,
 }
 
 /**

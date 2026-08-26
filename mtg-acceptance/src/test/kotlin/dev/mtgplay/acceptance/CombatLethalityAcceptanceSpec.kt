@@ -150,6 +150,8 @@ private val ALL_OUT_ATTACK: Responder =
                 error("the all-out-attack policy casts no library-placement spells, but one surfaced: $request")
             is DecisionRequest.ChooseRevealedCardType ->
                 error("the all-out-attack policy casts no type-choosing reveal spells, but one surfaced: $request")
+            is DecisionRequest.ChooseDungeonRoom ->
+                error("the all-out-attack policy takes no initiative, but a dungeon branch surfaced: $request")
             is DecisionRequest.MulliganRequest ->
                 error("the all-out-attack policy runs mulligan-free games, but a mulligan request surfaced: $request")
         }

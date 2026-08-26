@@ -980,5 +980,26 @@ package dev.mtgplay.protocol
  *    it. It is required for a token whose colours the creating effect defined rather than derived —
  *    Sacred Cat's embalm token is white with **no mana cost**, and a peer that derived its colours would
  *    call it colourless and then disagree with the engine about whether protection from white stops it.
+ *
+ * ## 11.0.0 — `W10-A`: the initiative and the Undercity
+ *
+ * CR 701.51's designation and CR 309's dungeons break the wire in **both** directions, in the two modes
+ * the versions above have already catalogued.
+ *
+ * 1. **Server→client, a strict-codec rejection.** [SeatViewDto] gains an optional `initiative`
+ *    ([InitiativeViewDto]) naming the initiative holder, the dungeon, and the room each player's venture
+ *    marker sits on. It defaults to `null` — no game has an initiative until a card creates one — but the
+ *    codec is strict about unknown fields, so a `10.0.0` peer meeting a game where one *does* exist
+ *    rejects the seat view outright. Optional on this side of the wire is not the same as tolerable on
+ *    the other.
+ * 2. **Both directions, a runtime decode failure.** [DecisionRequestDto] gains
+ *    [DecisionRequestDto.ChooseDungeonRoom] and [DecisionRequestKindDto] gains `CHOOSE_DUNGEON_ROOM`,
+ *    whose `valueOf` mapping fails at **runtime** mid-match rather than at compile time — the sharper
+ *    break mode `4.0.0` first recorded. It is answerable, so it travels client→server as well: the
+ *    CR 309.4 branch is a decision an agent sends an index for.
+ *
+ * Nothing in this bump is conditional on a card shipping. The mechanic is in the engine and the schema
+ * whether or not the gauntlet's two initiative creatures are registered, and a peer must be able to read
+ * a game that has one.
  */
-const val PROTOCOL_VERSION: String = "10.0.0"
+const val PROTOCOL_VERSION: String = "11.0.0"

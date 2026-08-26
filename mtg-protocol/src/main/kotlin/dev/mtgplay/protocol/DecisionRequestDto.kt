@@ -613,6 +613,24 @@ sealed interface DecisionRequestDto {
         val options: List<String>,
     ) : SingleOptionSelectionDto
 
+    /**
+     * Wire form of [DecisionRequest.ChooseDungeonRoom] (CR 309.4) — a venturing player's branch choice in
+     * a dungeon. Added by `W10-A`.
+     *
+     * The options carry both the room's **index** in the dungeon's room list and its printed name: the
+     * index is the engine's handle, so a driver never matches a room by name, and the name is what a
+     * player reads off the card. Both are public — a dungeon card is face up in a command zone
+     * (CR 309.2).
+     */
+    @Serializable
+    @SerialName("choose_dungeon_room")
+    data class ChooseDungeonRoom(
+        override val id: DecisionRequestIdDto,
+        val dungeon: String,
+        val fromRoom: String,
+        val options: List<DungeonRoomOptionDto>,
+    ) : SingleOptionSelectionDto
+
     /** Wire form of [DecisionRequest.ChooseMulligan] (CR 103.4). */
     @Serializable
     @SerialName("choose_mulligan")

@@ -89,6 +89,16 @@ private fun resolutionClauseToDomain(dto: DecisionRequestDto.SingleOptionSelecti
         is DecisionRequestDto.ChooseGraveyardCardToExile -> graveyardExileToDomain(dto)
         is DecisionRequestDto.ChooseLibraryPosition -> libraryPositionToDomain(dto)
         is DecisionRequestDto.ChooseRevealedCardType -> revealedCardTypeToDomain(dto)
+        // CR 309.4: a venturing player's dungeon branch. Constructed inline rather than in a named
+        // helper like its neighbours: the file sits at detekt's function budget, and this conversion
+        // needs no vocabulary parsing — a room is an index and a display name, both already typed.
+        is DecisionRequestDto.ChooseDungeonRoom ->
+            DecisionRequest.ChooseDungeonRoom(
+                dto.id.toDomain(),
+                dto.dungeon,
+                dto.fromRoom,
+                dto.options.map { DecisionRequest.ChooseDungeonRoom.Option(it.room, it.name) },
+            )
         else -> error("no domain conversion for ${dto::class.simpleName}; every request must have one")
     }
 
