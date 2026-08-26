@@ -135,7 +135,10 @@ private fun ScriptedGame.playCabin(): ScriptedGame {
 /** Activates the first ability of the battlefield permanent named [name] (CR 602.2). */
 private fun ScriptedGame.activate(name: String): ScriptedGame {
     val window = pendingRequest.shouldBeInstanceOf<DecisionRequest.ChooseAction>()
-    val index = window.options.indexOfFirst { it is PriorityOption.ActivateAbility && it.card == CardRef(name) }
+    // The *name characteristic*, not the registry key: a token's key carries the CR 111.1 marker
+    // (`FW-COPYTOKEN`), and the Food this activates is a token.
+    val index =
+        window.options.indexOfFirst { it is PriorityOption.ActivateAbility && it.card.printedName == name }
     check(index >= 0) { "no ActivateAbility option for $name in ${window.options}" }
     return apply(Decision.SingleSelect(window.id, index))
 }
@@ -173,7 +176,7 @@ private fun ScriptedGame.cabin(): GameObject =
         .maxBy { it.id.value }
 
 /** How many Food tokens are on the battlefield (CR 111.4). */
-private fun ScriptedGame.foodTokens(): Int = state.sharedZones.battlefield.count { it.card == CardRef("Food") }
+private fun ScriptedGame.foodTokens(): Int = state.sharedZones.battlefield.count { it.card == CardRef.token("Food") }
 
 /**
  * A [ScriptedGame] resumed from a handcrafted precombat-main state (ADR-004): alice holds priority

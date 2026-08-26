@@ -502,10 +502,10 @@ class GauntletTierZeroAcceptanceSpec :
             game.castTargeting("Lightning Bolt", Target.Player(bob))
             game.settle()
             game.state.sharedZones.battlefield
-                .count { it.card == CardRef("Bird Illusion") } shouldBe 1
+                .count { it.card == CardRef.token("Bird Illusion") } shouldBe 1
             val bird =
                 game.state.sharedZones.battlefield
-                    .single { it.card == CardRef("Bird Illusion") }
+                    .single { it.card == CardRef.token("Bird Illusion") }
             bird.owner shouldBe alice
 
             // A creature spell is neither an instant nor a sorcery: no second Bird.
@@ -513,7 +513,7 @@ class GauntletTierZeroAcceptanceSpec :
             game.payFirstPlan()
             game.settle()
             game.state.sharedZones.battlefield
-                .count { it.card == CardRef("Bird Illusion") } shouldBe 1
+                .count { it.card == CardRef.token("Bird Illusion") } shouldBe 1
         }
     })
 

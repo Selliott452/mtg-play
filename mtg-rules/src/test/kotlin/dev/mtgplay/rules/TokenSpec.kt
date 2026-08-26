@@ -43,22 +43,22 @@ class TokenSpec :
             val created = createToken(state, alice, fixtureToken)
 
             val token = created.sharedZones.battlefield.single()
-            token.card shouldBe CardRef("Fixture Beast")
+            token.card shouldBe CardRef.token("Fixture Beast")
             token.owner shouldBe alice
             // CR 302.6: a token enters summoning sick; CR 110.5a: untapped.
             token.summoningSick shouldBe true
             token.tapped shouldBe false
             // The token's characteristics ride in the registry, so it is a real creature the engine reads.
-            created.definitions[CardRef("Fixture Beast")].shouldBeInstanceOf<TokenDefinition>()
+            created.definitions[CardRef.token("Fixture Beast")].shouldBeInstanceOf<TokenDefinition>()
             created.events.filterIsInstance<GameEvent.TokenCreated>() shouldHaveSize 1
         }
 
         "CR 704.5d: a token in a graveyard ceases to exist as a state-based action" {
             // A token already sitting in alice's graveyard (as a token would be for one check after it
             // died) — the CR 704.5d state-based action removes it entirely.
-            val tokenInGraveyard = GameObject(ObjectId(0), CardRef("Fixture Beast"), alice)
+            val tokenInGraveyard = GameObject(ObjectId(0), CardRef.token("Fixture Beast"), alice)
             val state =
-                tokenTestState(definitions = mapOf(CardRef("Fixture Beast") to fixtureToken)).copy(
+                tokenTestState(definitions = mapOf(CardRef.token("Fixture Beast") to fixtureToken)).copy(
                     players =
                         persistentMapOf(
                             alice to

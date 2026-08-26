@@ -270,9 +270,9 @@ class CardSelectionAcceptanceSpec :
             // The token is the same Eldrazi Spawn Malevolent Rumble makes; it is on the battlefield
             // under the caster's control, and it is not a library or graveyard card.
             game.state.sharedZones.battlefield
-                .count { it.card == CardRef("Eldrazi Spawn") } shouldBe 1
+                .count { it.card == CardRef.token("Eldrazi Spawn") } shouldBe 1
             game.state.sharedZones.battlefield
-                .single { it.card == CardRef("Eldrazi Spawn") }
+                .single { it.card == CardRef.token("Eldrazi Spawn") }
                 .owner shouldBe alice
         }
 

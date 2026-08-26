@@ -2,6 +2,7 @@ package dev.mtgplay.core.state
 
 import dev.mtgplay.core.definition.CardDefinition
 import dev.mtgplay.core.definition.CastSource
+import dev.mtgplay.core.definition.TokenDefinition
 import dev.mtgplay.core.event.GameEvent
 import dev.mtgplay.core.identity.CardRef
 import dev.mtgplay.core.identity.ObjectId
@@ -213,11 +214,7 @@ data class GameState(
         require(highest == null || highest < nextObjectId) {
             "CR 400.7: object id $highest is not below the allocation counter $nextObjectId"
         }
-        definitions.forEach { (ref, definition) ->
-            require(definition.characteristics.name == ref.name) {
-                "definition registered under ${ref.name} describes \"${definition.characteristics.name}\""
-            }
-        }
+        definitions.forEach { (ref, definition) -> requireRegisteredUnderItsOwnName(ref, definition) }
         val mulligan = pendingMulligan
         require(mulligan == null || mulligan.deciding in players) {
             "CR 103.5: the mulligan-phase decider ${mulligan?.deciding} is not seated"
@@ -394,5 +391,35 @@ data class GameState(
                 sharedZones.stack.asSequence().mapNotNull(StackEntry::cardObject) +
                 sharedZones.exile.asSequence()
         return perPlayer + shared
+    }
+}
+
+/**
+ * The definition-registry invariant (`FW-COPYTOKEN`): a definition is registered under a key matching
+ * its own name characteristic, and a **token** is registered under a token key while a **card** is not.
+ *
+ * Shared by [GameState] and by `MatchConfig`, which is the point of it being a function: the two
+ * carried the same `require` written out twice, and they must agree exactly — a registry that passes
+ * one and fails the other would let a match be configured and then fail on its first state transition.
+ *
+ * The second half is what a copy token needs. "This object is a token" is
+ * `definitions[card] is TokenDefinition`, and that answer is stable only if the two key spaces cannot
+ * overlap: without it, creating an embalm token under the bare name "Sacred Cat" would find the real
+ * card already registered, register nothing, and silently hand the token the *card's* definition —
+ * castable, embalmable again, and invisible to the CR 704.5d token-ceases state-based action. Refusing
+ * the mismatch at the state boundary makes that unconstructible rather than merely discouraged.
+ */
+fun requireRegisteredUnderItsOwnName(
+    ref: CardRef,
+    definition: CardDefinition,
+) {
+    require(definition.characteristics.name == ref.printedName) {
+        "definition registered under ${ref.name} describes \"${definition.characteristics.name}\""
+    }
+    val isTokenDefinition = definition is TokenDefinition
+    require(ref.isToken == isTokenDefinition) {
+        "CR 111.1: a token is registered under a token ref and a card is not, but ${ref.name} is " +
+            "${if (ref.isToken) "a token ref" else "a card ref"} while its definition is " +
+            if (isTokenDefinition) "a TokenDefinition" else "not a TokenDefinition"
     }
 }

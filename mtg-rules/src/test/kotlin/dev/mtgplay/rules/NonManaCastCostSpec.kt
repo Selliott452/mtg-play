@@ -35,12 +35,13 @@ class NonManaCastCostSpec :
 
         // A 1/1 colourless token, registered like any other definition — "this object is a token" is
         // `definitions[card] is TokenDefinition`, so the state's registry is where tokenhood lives.
-        val tokenRef = CardRef("Spawn Token")
+        val tokenRef = CardRef.token("Spawn Token")
         val tokenDefinition =
             TokenDefinition(
                 characteristics =
                     PrintedCharacteristics(
-                        name = tokenRef.name,
+                        // CR 111.1: the *name characteristic*; the ref carries the token marker.
+                        name = tokenRef.printedName,
                         manaCost = null,
                         supertypes = persistentSetOf(),
                         cardTypes = persistentSetOf(CardType.CREATURE),

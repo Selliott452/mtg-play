@@ -77,7 +77,7 @@ class BoglesUtilitySpec :
                 LibraryReveal(MALEVOLENT_RUMBLE_REVEAL, RevealedCardFilter.PERMANENT_CARD)
             // The independent clause (create a token) is the ordinary resolution effect.
             val resolved = malevolentRumble.resolution.resolve(boardState(alice, bob), noTargets(alice))
-            resolved.sharedZones.battlefield.count { it.card == CardRef("Eldrazi Spawn") } shouldBe 1
+            resolved.sharedZones.battlefield.count { it.card == CardRef.token("Eldrazi Spawn") } shouldBe 1
         }
 
         "CR 303 / CR 605.1b: Wild Growth enchants any land and adds a printed additional {G} on tap" {

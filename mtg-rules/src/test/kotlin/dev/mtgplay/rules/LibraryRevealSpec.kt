@@ -47,7 +47,7 @@ class LibraryRevealSpec :
     StringSpec({
         val engine = DefaultGameEngine()
         val rumble = CardRef("Fixture Rumble")
-        val spawn = CardRef("Rumble Spawn")
+        val spawn = CardRef.token("Rumble Spawn")
 
         "CR 701.16: resolving the reveal effect reveals the top four and offers only permanent cards to keep" {
             val state = rumbleState(libraryTop = listOf("Bear", "Bolt Card", "Wall", "Bolt Card"))
@@ -216,7 +216,7 @@ private fun typedCard(
 private val revealRegistry: Map<CardRef, CardDefinition> =
     mapOf(
         CardRef("Fixture Rumble") to rumbleFixture,
-        CardRef("Rumble Spawn") to rumbleSpawnToken,
+        CardRef.token("Rumble Spawn") to rumbleSpawnToken,
         CardRef("Reveal Mountain") to typedCard("Reveal Mountain", CardType.LAND),
         CardRef("Bear") to typedCard("Bear", CardType.CREATURE),
         CardRef("Wall") to typedCard("Wall", CardType.CREATURE),

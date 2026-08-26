@@ -212,9 +212,10 @@ enum class PermanentRestriction {
      * board Ride's End is printed to answer, since an uncrewed Vehicle is not a creature and no ordinary
      * removal spell can point at it.
      *
-     * The subtype is read **printed** (CR 205.3), like every other subtype test in the engine; crew
-     * (CR 702.122) is a layer-4 type-changing effect the engine does not have, and when it lands this is
-     * one of the sites that must route through the layer system.
+     * The subtype is read through the one battlefield subtype seam (CR 205.3), which since
+     * `FW-TYPECHANGE` unions CR 613 layer-4 additions onto the printed set. Crew (CR 702.122) is exactly
+     * such an effect, so a crewed Vehicle would qualify here twice over the day a gauntlet deck prints
+     * one — this site no longer needs rerouting, only a card.
      */
     CREATURE_OR_VEHICLE,
 }

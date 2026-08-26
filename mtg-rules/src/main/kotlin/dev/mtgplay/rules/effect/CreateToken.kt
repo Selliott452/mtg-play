@@ -34,12 +34,23 @@ fun createToken(
     controller: PlayerId,
     token: TokenDefinition,
 ): GameState {
-    val ref = CardRef(token.characteristics.name)
+    // CR 111.1: a token is not a card, so its registry key is a *token* ref and never a card name
+    // (`FW-COPYTOKEN`). This is the line that makes a copy token possible: an embalm token named
+    // "Sacred Cat" used to key onto the entry the real card occupies, and register-if-absent then
+    // silently gave the token the card's definition — castable, embalmable again, and invisible to the
+    // CR 704.5d token-ceases state-based action.
+    val ref = CardRef.token(token.characteristics.name)
+    val existing = state.definitions[ref]
     val registered =
-        if (state.definitions.containsKey(
-                ref,
-            )
-        ) {
+        if (existing != null) {
+            // A second Sacred Cat's embalm token must find the *same* definition the first registered.
+            // Two different token definitions under one name would mean the token's characteristics
+            // depended on which card happened to create it first, which is a replay-order dependency.
+            require(existing == token) {
+                "CR 111.4: two different token definitions share the name \"${token.characteristics.name}\"; " +
+                    "a token's characteristics are defined by the effect that creates it and must not " +
+                    "depend on which effect ran first"
+            }
             state
         } else {
             state.copy(definitions = state.definitions.putting(ref, token))

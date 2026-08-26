@@ -723,5 +723,23 @@ package dev.mtgplay.protocol
  * change alters the *value* of options, never the option list's shape. No [DecisionRequestKindDto]
  * value is added — Kenku Artificer's "up to one target noncreature artifact" is an ordinary
  * `ChooseTargets` over a `TargetPermanent` restriction — so nothing fails at `valueOf` mid-match.
+ *
+ * ### Also `10.0.0` — `FW-COPYTOKEN`: token identity and defined colours
+ *
+ * Landed in the same packet, so it rides the same bump. Two changes, one of them **not a schema change
+ * at all**, which is the interesting half:
+ *
+ * 1. **A token's card ref is now its name plus a marker** (`CardRef.token`, CR 111.1 — a token is not a
+ *    card and has no card name). Every payload that carries a ref carries it as a bare string, and the
+ *    seat view's `cards` table is keyed by that string, so this changes the **values** on the wire
+ *    without changing a single type: `"Sacred Cat (token)"` where an embalm token used to be
+ *    indistinguishable from the card. That is deliberate and is why the mark rides in the string rather
+ *    than in a second field — a boolean beside the name would have collided in that JSON object (two
+ *    entries, one key) and been dropped by every one of the sixty places that send a ref as a name.
+ * 2. **[PrintedCharacteristicsDto] gains an *optional* `definedColors`** (CR 111.4), so it is the one
+ *    field in this bump an older peer could have tolerated: it defaults to `null` and every card omits
+ *    it. It is required for a token whose colours the creating effect defined rather than derived —
+ *    Sacred Cat's embalm token is white with **no mana cost**, and a peer that derived its colours would
+ *    call it colourless and then disagree with the engine about whether protection from white stops it.
  */
 const val PROTOCOL_VERSION: String = "10.0.0"

@@ -31,17 +31,14 @@ import kotlinx.collections.immutable.persistentSetOf
  *   admits exactly two cost shapes, `{T}` and sacrifice, and there is no per-turn activation limiter
  *   anywhere in the engine. The `-0/-1` counter it would pay is already expressible —
  *   [Counter.MINUS_ZERO_MINUS_ONE].
- * - **Kenku Artificer** needs CR 613 layer 4 (type change) and sublayer 7b (setting P/T), neither
- *   implemented, to make a noncreature artifact a 0/0 creature before its three `+1/+1` counters mean
- *   anything. `W8-G` picked it up and put it back down; its report carries the full diagnosis, and the
- *   short version is that "layer 4 is an unpopulated slot" understates the work by a long way. `Layer`
- *   does declare a `TYPE` member, but `LayeredCharacteristics` — the value the layer walk actually
- *   threads — carries **power, toughness, keywords, mana abilities, protections and evasions, and no
- *   card types or subtypes at all**, so there is nothing for a layer-4 effect to write to. Populating it
- *   is: two new fields on that type, two on `ActiveEffect`, an *indefinite* effect duration
- *   (`EffectDuration` is sealed with `UntilEndOfTurn` alone, and this type change has no duration), and
- *   rerouting the seven battlefield-object card-type reads that currently read printed on the stated
- *   grounds that no type-changing effect exists.
+ * - **Kenku Artificer** was this entry's longest-standing absence and is now encoded, in
+ *   AwkwardSingles.kt. It needed exactly what this note recorded: CR 613 layer 4 (type change) and
+ *   sublayer 7b (setting P/T), to make a noncreature artifact a 0/0 creature before its three `+1/+1`
+ *   counters mean anything — and `FW-TYPECHANGE` built both. The note's sharpest observation was the one
+ *   that made the work real: `Layer` did declare a `TYPE` member, but `LayeredCharacteristics`, the
+ *   value the layer walk actually threads, carried **no card types or subtypes at all**, so there was
+ *   nothing for a layer-4 effect to write to. It also needed an *indefinite* effect duration, which
+ *   CR 611.2b makes the default and the engine could not represent.
  * - **Nyxborn Hydra** ("This permanent enters with X +1/+1 counters on it") needs bestow
  *   (`FW-BESTOW`) and a CR 614.1c *enters-with-counters* replacement, which is a third absent thing
  *   this entry used to fold into the second: placing counters is not the same mechanism as entering

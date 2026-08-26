@@ -70,12 +70,18 @@ internal fun interveningIfHolds(
                 ?.kickedWhenCast == true
         // CR 201.2 with CR 109.1: a creature this player controls, named as printed, that is not the
         // ability's own source object. Control is ownership in the MVP pool.
+        //
+        // The name comes from the **definition**, not from the object's registry key. The two coincide
+        // for a card and deliberately do not for a token (`FW-COPYTOKEN`, CR 111.1): a copy token's key
+        // carries a token marker while its CR 201.2 name characteristic is the copied card's. Reading
+        // the key here would make a Sacred Cat embalm token stop counting as a permanent named Sacred
+        // Cat — the one place in the engine where that distinction is observable.
         is InterveningIf.YouControlAnotherCreatureNamed ->
             state.sharedZones.battlefield.any { obj ->
                 obj.id != sourceId &&
                     obj.owner == controller &&
                     isCreature(state, obj) &&
-                    obj.card.name == condition.name
+                    state.definitions[obj.card]?.characteristics?.name == condition.name
             }
         // CR 702.74a: "was its evoke cost paid" is carried across CR 400.7 the same way kicked-ness is.
         InterveningIf.SourceWasEvoked ->

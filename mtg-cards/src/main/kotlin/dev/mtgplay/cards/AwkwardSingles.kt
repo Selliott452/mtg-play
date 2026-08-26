@@ -33,7 +33,7 @@ import kotlinx.collections.immutable.persistentSetOf
 
 /*
  * `W8-G`: the gauntlet cards that belong to no family — each one awkward in its own way, and each one
- * the card a themed packet skipped. Three of them are here; what they have in common is only that every
+ * the card a themed packet skipped. Four of them are here; what they have in common is only that every
  * one of them had been picked up and put down at least once before.
  *
  * - **Stonehorn Dignitary** (UWX Familiar) — "target opponent skips their next combat phase". Dropped by
@@ -56,33 +56,41 @@ import kotlinx.collections.immutable.persistentSetOf
  *
  * Bonder's Ornament, `W8-G`'s fourth encoded card, landed in ColorlessArtifacts.kt beside the header
  * paragraph that had been recording it absent for a reason that stopped being true two packets ago.
+ * **Sacred Cat**, the second card `W8-G` dropped, is now in Embalm.kt: its diagnosis was exact too, and
+ * the framework it named — token identity keyed on a name a copy token shares with its card — is
+ * `FW-COPYTOKEN`. That file's header carries the argument, including the *fourth* blocker `W8-G` did not
+ * find: the token is "a white Zombie Cat with **no mana cost**", and colour was derived from the mana
+ * cost with a single CDA exception, so white-and-costless had no representation at all.
  *
- * **The two still dropped, and exactly what each would need.** Each was written far enough to know the
- * answer, and each is a framework this packet does not own; an approximation of either would be a
+ * **The one still dropped, and exactly what it would need.** It was written far enough to know the
+ * answer, and it is a framework this packet does not own; an approximation of it would be a
  * plausible-looking wrong card (PLAN.md §7).
  *
- * - **Sacred Cat** `{W}` — "Lifelink. Embalm `{W}`." The body is printed vocabulary. Embalm (CR 702.90a)
- *   needs four absent things, and the fourth is the interesting one: an `AbilityZoneScope.Graveyard` (the
- *   enum has `Battlefield` and `Hand` only), exiling the card itself from the graveyard as a cost,
- *   sorcery-timing on an activated ability, and a **token that copies a card** with altered
- *   characteristics. [dev.mtgplay.core.definition.TokenDefinition] is a hand-authored characteristics blob
- *   registered under its own name, and "this object is a token" is `definitions[card] is TokenDefinition`
- *   — so an embalm token named "Sacred Cat" would land on the registry entry the *real card* already
- *   occupies, and the create-token primitive's register-if-absent would silently give the token the card's
- *   definition: castable, embalmable again, and invisible to the CR 704.5d token-ceases state-based
- *   action. The blocker is not "tokens do not exist"; it is that this engine keys token identity on the
- *   name a copy token shares with its card.
- * - **Inventor's Axe** `{R}` — "Flash. …you get `{E}{E}`… attach it to target creature you control.
- *   Equipped creature gets +2/+0. Equip—Pay `{E}{E}`." Four absent concepts on one uncommon, in two
- *   frameworks. **Equipment** (CR 301.5, CR 702.6): the attachment *field* exists
- *   (`GameObject.attachedTo`, and the Aura buff is an ordinary layer-6/7c static), but every path that
- *   writes it is Aura-shaped — attachment happens as an Aura *spell resolves* against a
- *   `TargetSpec.Enchantable`, and equip is an activated ability with sorcery timing that **moves** an
- *   attachment between creatures on an already-resolved permanent, which nothing can express; CR 704.5n
- *   (an Equipment attached to an illegal permanent becomes unattached, rather than the Aura's CR 704.5m
- *   graveyard trip) is a second, opposite SBA. **Energy** (CR 122.1) is a counter on the *player*, and
- *   `PlayerState` has no counter storage of any kind, plus an `AbilityCost.Energy` and its payment
- *   enumeration. Of the two, Equipment is the one worth building; energy unlocks this card alone.
+ * - **Inventor's Axe** `{R}` — "Flash. When this Equipment enters, you get `{E}{E}`. When this Equipment
+ *   enters, attach it to target creature you control. Equipped creature gets +2/+0. Equip—Pay `{E}{E}`."
+ *   Two frameworks, and the packet that owns the layer system can now say precisely which half is which.
+ *
+ *   **The buff is not the problem and never was.** "Equipped creature gets +2/+0" is an ordinary
+ *   CR 613 sublayer-7c static over [dev.mtgplay.core.definition.AffectedSet.Enchanted], which is what
+ *   `attachedTo` already means; a hypothetical Equipment that entered attached and never moved would
+ *   need nothing this engine lacks.
+ *
+ *   **`FW-EQUIP` is the blocker**, and it is about *attachment as a verb* rather than as a field. Every
+ *   path that writes `attachedTo` is Aura-shaped: attachment happens as an Aura **spell resolves**
+ *   against a `TargetSpec.Enchantable`, once, at the moment the permanent enters. Equip is an activated
+ *   ability with sorcery timing that **moves** an attachment on an already-resolved permanent, and there
+ *   is no primitive that attaches or unattaches a permanent already on the battlefield — not even for the
+ *   card's own "When this Equipment enters, attach it to target creature you control", which is a
+ *   *trigger* doing what only a resolving Aura spell can do today. CR 704.5n is then a second, opposite
+ *   state-based action to the Aura's CR 704.5m: an Equipment attached to an illegal permanent becomes
+ *   **unattached** and stays on the battlefield, where an Aura is put into its owner's graveyard. The two
+ *   SBAs cannot share an implementation, and `AuraFallOff.kt` currently is the implementation.
+ *
+ *   **Energy** (CR 122.1) is the smaller half and is deliberately named second: it is a counter on the
+ *   *player*, and [dev.mtgplay.core.state.PlayerState] has no counter storage of any kind, so it needs a
+ *   store, an `AbilityCost.Energy`, and that cost's payability and payment in the activation pipeline.
+ *   That is a contained addition. **The card is dropped for equip, not for energy** — building energy
+ *   alone would leave a permanent that can never attach to anything.
  */
 
 /**

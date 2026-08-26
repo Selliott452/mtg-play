@@ -18,15 +18,16 @@ import kotlinx.collections.immutable.PersistentList
  * definition-derived state (ADR-006). A data-class predicate is also serialisable, comparable, and
  * renderable in a CLI menu; a lambda is none of those.
  *
- * **Printed characteristics, not layered ones — a named seam.** Every evaluation reads
- * `state.definitions[obj.card].characteristics`, which is the printed type line, *not* the in-game
- * one the CR 613 layer system would compute. That is correct today only because the engine has no
- * layer-4 (type-changing) effect at all and
- * [dev.mtgplay.rules.LayeredCharacteristics] does not even carry card types; it matches the
- * identical argument the enchant-restriction and sacrifice-cost readers already make
- * (docs/design/layer-system.md §6). **When the first type-changing effect arrives, evaluation must
- * route through the layer engine** — this KDoc and `mtg-rules`' `countMatching` are the one place
- * to change.
+ * **Layered on the battlefield, printed everywhere else — a named seam.** This KDoc used to say
+ * "printed characteristics, not layered ones", and promised that evaluation would route through the
+ * layer engine when the first type-changing effect arrived. It has (`FW-TYPECHANGE`), and it does:
+ * `mtg-rules`' `countMatching` reads the CR 613 type line for a battlefield object, so an affinity-style
+ * count of "artifacts you control" sees a permanent that *became* an artifact.
+ *
+ * The other half of the seam is not a deferral: a [CountScope] naming a **graveyard** still reads the
+ * printed characteristics, because CR 613 applies to permanents on the battlefield and a card in a
+ * graveyard has its printed types and nothing else. A layered read there would have no battlefield
+ * object to compute from and nothing extra to say.
  */
 sealed interface ObjectPredicate {
     /** Matches every object; the identity of [And]. */

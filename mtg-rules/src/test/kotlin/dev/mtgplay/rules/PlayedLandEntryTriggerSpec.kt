@@ -99,7 +99,7 @@ class PlayedLandEntryTriggerSpec :
             created.pendingTriggers shouldHaveSize 1
             created.pendingTriggers
                 .single()
-                .sourceCard shouldBe CardRef(TOKEN_NAME)
+                .sourceCard shouldBe CardRef.token(TOKEN_NAME)
             created.pendingTriggers
                 .single()
                 .ability.condition shouldBe TriggerCondition.EnteredBattlefieldSelf

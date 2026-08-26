@@ -88,7 +88,7 @@ internal fun mechanismsIn(game: ScriptedGame): Set<Mechanism> =
     eventMechanisms(game.state.events) + pauseMechanisms(game)
 
 private val ASH_BARRENS = CardRef("Ash Barrens")
-private val BLOOD = CardRef("Blood")
+private val BLOOD = CardRef.token("Blood")
 private val SNEAKY_SNACKER = CardRef("Sneaky Snacker")
 private val GUTTERSNIPE = CardRef("Guttersnipe")
 

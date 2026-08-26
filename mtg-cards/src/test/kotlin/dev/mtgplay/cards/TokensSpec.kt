@@ -62,14 +62,14 @@ class TokensSpec :
             val resolved = resolveRally(emptyBoard(alice, bob), alice)
             resolved.sharedZones.battlefield shouldHaveSize RALLY_AT_THE_HORNBURG_TOKENS
             resolved.sharedZones.battlefield.forEach { token ->
-                token.card shouldBe CardRef("Human Soldier")
+                token.card shouldBe CardRef.token("Human Soldier")
                 token.owner shouldBe alice
             }
             resolved.events.filterIsInstance<GameEvent.TokenCreated>() shouldHaveSize
                 RALLY_AT_THE_HORNBURG_TOKENS
             // CR 111: the token flows through the engine as an ordinary object whose definition is a
             // TokenDefinition — that is the whole "this object is a token" test.
-            (resolved.definitions[CardRef("Human Soldier")] is TokenDefinition) shouldBe true
+            (resolved.definitions[CardRef.token("Human Soldier")] is TokenDefinition) shouldBe true
         }
 
         "CR 608.2: the tokens are created before the pump, so they are Humans it gives haste to" {

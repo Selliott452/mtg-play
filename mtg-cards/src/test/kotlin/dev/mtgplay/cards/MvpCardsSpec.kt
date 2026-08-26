@@ -359,6 +359,7 @@ class MvpCardsSpec :
                     CardRef("Refurbished Familiar"),
                     CardRef("Remove Soul"),
                     CardRef("Ride's End"),
+                    CardRef("Sacred Cat"),
                     CardRef("Saruli Caretaker"),
                     CardRef("Scour from Existence"),
                     CardRef("Sea Gate Oracle"),

@@ -81,7 +81,7 @@ class KeywordTailAcceptanceSpec :
             (Keyword.LIFELINK in keywords) shouldBe true
             // CR 701.50a: Investigate created a Clue token, which the brief did not mention at all.
             resolved.state.sharedZones.battlefield
-                .count { it.card == CardRef("Clue") } shouldBe 1
+                .count { it.card == CardRef.token("Clue") } shouldBe 1
 
             // Attack with the 1/1 into bob's 3/3 Hill Giant. It deals 1 damage, which is nowhere near
             // lethal to toughness 3 — and CR 704.5h destroys the Giant anyway.

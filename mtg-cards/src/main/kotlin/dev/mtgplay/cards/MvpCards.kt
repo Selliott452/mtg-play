@@ -549,6 +549,7 @@ object MvpCards {
             refurbishedFamiliar,
             removeSoul,
             ridesEnd,
+            sacredCat,
             saruliCaretaker,
             scourFromExistence,
             seaGateOracle,
