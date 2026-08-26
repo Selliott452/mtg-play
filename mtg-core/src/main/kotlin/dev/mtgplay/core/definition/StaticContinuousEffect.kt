@@ -1,5 +1,6 @@
 package dev.mtgplay.core.definition
 
+import dev.mtgplay.core.card.CardType
 import dev.mtgplay.core.card.Keyword
 import dev.mtgplay.core.card.Quality
 import kotlinx.collections.immutable.PersistentList
@@ -42,12 +43,35 @@ import kotlinx.collections.immutable.persistentSetOf
  *   black and from red". A grant like any other keyword grant, and CR 613.1f's same layer; it is a
  *   field of its own only because protection carries a quality and [Keyword] cannot
  *   (docs/design/protection.md §4). Additive, flagged (`FW-PROTECT`).
+ * @property addedCardTypes card types the affected object **gains** in CR 613 layer 4 (CR 613.1d) —
+ *   Pinnacle Kill-Ship's "it's an artifact **creature** at 7+". Additive, flagged core (`W10-C`).
+ *
+ *   **The static declaration's own KDoc said this field would never exist, and that was wrong rather
+ *   than merely outdated.** `FW-TYPECHANGE` recorded that "every type change in the gauntlet pool is
+ *   printed on a resolving *ability*, never on a permanent's static ability", and made
+ *   [dev.mtgplay.core.state.ContinuousModification] the sole generator of a layer-4 change. A
+ *   Spacecraft's is the counterexample: nothing resolves, no ability goes on the stack, and the type
+ *   change starts and stops with a counter count (CR 604.3). The prediction attached to that note held
+ *   exactly as written — the field arrived here, `staticEffectsOn` threads it, and nothing below
+ *   `ActiveEffect` changed.
+ *
+ *   **Gains, never replaces** (CR 205.1b), for the reason the timed counterpart gives: the Spacecraft
+ *   stays an artifact. There is deliberately no `removedCardTypes` here either, and the reason is the
+ *   same one and no weaker — no card in the gauntlet prints the removing form on a static ability, so
+ *   the field would be an always-empty branch of the layer-4 application.
+ * @property addedSubtypes deliberately absent, in the shape [addedCardTypes]'s note argues for. CR 613.1d
+ *   is one layer for card types and subtypes alike and a static ability that granted a subtype would
+ *   belong in it, but no gauntlet card prints one: the Spacecraft that gains a card type gains no
+ *   subtype with it (it stays a Spacecraft, and "artifact creature" names types only). A field nothing
+ *   sets would be an untested branch of the same fold, which is the objection this file already makes on
+ *   the other side for evasions and mana abilities.
  * @property powerMod the layer-7c power modifier (CR 613.3 sublayer 7c), possibly [Magnitude.Zero].
  * @property toughnessMod the layer-7c toughness modifier (CR 613.3 sublayer 7c), possibly
  *   [Magnitude.Zero].
  */
 data class StaticContinuousEffect(
     val affects: AffectedSet = AffectedSet.Enchanted,
+    val addedCardTypes: PersistentSet<CardType> = persistentSetOf(),
     val grantedKeywords: PersistentSet<Keyword> = persistentSetOf(),
     val grantedManaAbilities: PersistentList<ManaAbility> = persistentListOf(),
     val grantedProtections: PersistentSet<Quality> = persistentSetOf(),

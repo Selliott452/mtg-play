@@ -40,6 +40,20 @@ sealed interface CounterDto {
         val keyword: String,
         override val count: Int,
     ) : CounterDto
+
+    /**
+     * A charge counter (CR 122.1): an inert marker whose meaning is written on the permanent carrying
+     * it, not on the counter. Added by `W10-C`; a Spacecraft's Station counters.
+     *
+     * It carries [count] and nothing else — there is no discriminator field, because
+     * [dev.mtgplay.core.state.Counter.Charge] is a singleton on the engine side. A named-counter wire
+     * form arrives with the first card that puts two different inert kinds on one permanent.
+     */
+    @Serializable
+    @SerialName("charge")
+    data class Charge(
+        override val count: Int,
+    ) : CounterDto
 }
 
 /** A counter multiset to its wire form, preserving the engine's deterministic entry order. */
@@ -48,6 +62,7 @@ fun PersistentMap<Counter, Int>.toDto(): List<CounterDto> =
         when (kind) {
             is Counter.PowerToughness -> CounterDto.PowerToughness(kind.power, kind.toughness, count)
             is Counter.KeywordCounter -> CounterDto.KeywordCounter(kind.keyword.name, count)
+            Counter.Charge -> CounterDto.Charge(count)
         }
     }
 
@@ -57,6 +72,7 @@ fun List<CounterDto>.toDomain(): PersistentMap<Counter, Int> =
         when (dto) {
             is CounterDto.PowerToughness -> Counter.PowerToughness(dto.power, dto.toughness) to dto.count
             is CounterDto.KeywordCounter -> Counter.KeywordCounter(keywordNamed(dto.keyword)) to dto.count
+            is CounterDto.Charge -> Counter.Charge to dto.count
         }
     }.toPersistentMap()
 

@@ -76,17 +76,15 @@ import dev.mtgplay.rules.decision.SourceClassKey
  * mana from a graveyard. A chosen sacrifice or return is a battlefield permanent either way, so the
  * scope guard does not reach it.
  *
- * @param chosenSacrifice the permanents already chosen for an [AbilityCost.Sacrifice] component, empty
- *   before that selection is answered (and for every ability without one).
- * @param chosenReturn the permanents already chosen for an [AbilityCost.ReturnPermanentYouControl]
- *   component, empty before that selection is answered (and for every ability without one).
+ * @param chosen the permanents already chosen for the ability's chosen-object cost components, empty
+ *   before those selections are answered (and for every ability without them). See [ChosenCostObjects]
+ *   for why the three arrive as one value.
  */
 internal fun manaSourcesReservedBy(
     state: GameState,
     source: GameObject,
     ability: ActivatedAbility,
-    chosenSacrifice: List<ObjectId> = emptyList(),
-    chosenReturn: List<ObjectId> = emptyList(),
+    chosen: ChosenCostObjects = ChosenCostObjects(),
 ): Set<ObjectId> {
     val reservesSource =
         ability.zoneScope == AbilityZoneScope.Battlefield &&
@@ -109,12 +107,50 @@ internal fun manaSourcesReservedBy(
                     is AbilityCost.Energy,
                     is AbilityCost.Sacrifice,
                     is AbilityCost.ReturnPermanentYouControl,
+                    // CR 602.1: a chosen-object tap reserves nothing *about the source* for the reason
+                    // the other two chosen-object costs do not — the permanent it taps is chosen, and
+                    // an "another" cost cannot even name the source. What it reserves is that chosen
+                    // permanent, passed in as [chosenTap].
+                    is AbilityCost.TapPermanentYouControl,
                     -> false
                 }
             }
     val fromSource = if (reservesSource) setOf(source.id) else emptySet()
-    return fromSource + sacrificeSourcesAmong(state, chosenSacrifice) + chosenReturn
+    return fromSource + sacrificeSourcesAmong(state, chosen.sacrificed) + chosen.returned + chosen.tapped
 }
+
+/**
+ * The permanents an activation has chosen to pay its **chosen-object** cost components with (CR 602.1),
+ * as far as the gathering has got: a [AbilityCost.Sacrifice]'s, a
+ * [AbilityCost.ReturnPermanentYouControl]'s and a [AbilityCost.TapPermanentYouControl]'s. Empty
+ * everywhere for an ability with none, which is most of them.
+ *
+ * One value rather than three parameters because there are three of them since `W10-C` and they always
+ * travel together to the same place — [manaSourcesReservedBy], which is the single point where a chosen
+ * permanent is withheld from the payment plan (docs/design/mana-payment.md §2.2). Grouping them is what
+ * keeps that function inside detekt's parameter budget, and it also names the fact that made the budget
+ * trip worth listening to: this trio is a *set of costs of one kind*, not three unrelated arguments.
+ *
+ * **The three are not reserved alike, and the asymmetry is the whole content of the reservation rule.**
+ * A sacrificed permanent is reserved only when it is itself a sacrifice-cost mana source (tapping a land
+ * for mana and then sacrificing it is legal Magic — CR 601.2g precedes CR 601.2h and CR 701.17 does not
+ * care that the permanent is tapped). A returned one is reserved unconditionally, because a permanent in
+ * its owner's hand is a new object with no tapped status at all (CR 400.7, CR 110.5). A tapped one is
+ * reserved unconditionally too, for the blunter reason that a permanent tapped for mana is not untapped
+ * any more and a tap cost needs one that is.
+ *
+ * At most one is ever non-empty on a gauntlet card; [abilityCostPayable] refuses an ability that carries
+ * two, because two joint payability answers would each reserve without seeing the other's choice.
+ *
+ * @property sacrificed the permanents chosen for a sacrifice component.
+ * @property returned the permanents chosen for a return component.
+ * @property tapped the permanents chosen for a tap component.
+ */
+internal data class ChosenCostObjects(
+    val sacrificed: List<ObjectId> = emptyList(),
+    val returned: List<ObjectId> = emptyList(),
+    val tapped: List<ObjectId> = emptyList(),
+)
 
 /**
  * The payment source class the battlefield object [obj] currently belongs to, or `null` if it is

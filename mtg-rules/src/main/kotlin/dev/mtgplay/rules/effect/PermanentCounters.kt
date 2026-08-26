@@ -50,6 +50,33 @@ fun putCounters(
 }
 
 /**
+ * Puts [amount] counters of kind [counter] on the battlefield permanent [objectId] when [amount] is
+ * positive, and does nothing at all when it is zero or less (CR 122.1) — the published primitive for a
+ * "put counters equal to *something*" effect, where the something is a number the rules let be zero or
+ * negative. `W10-C`; Pinnacle Kill-Ship's Station puts "charge counters equal to its power", and a
+ * creature's power may be either (CR 208.3).
+ *
+ * **A primitive rather than an `if` left to the card, because the clamp is a rules judgement and the
+ * two mistakes it prevents are both silent.** [putCounters] deliberately *refuses* a non-positive
+ * amount: every caller before this one computed a printed constant, so asking for zero counters was an
+ * arithmetic defect and failing loudly was right. A power-scaled amount is the first that can legally be
+ * zero — station a 0/1 mana dork and the printed line does exactly nothing — so a card composing
+ * [putCounters] directly would crash on a legal play. Loosening [putCounters] instead would silence the
+ * defect check for every card that still wants it, which is the trade this second function exists to
+ * avoid: the loud version stays loud, and the clamped version says so in its name.
+ *
+ * The clamp is CR 122.1's own reading rather than an invention — there is no such thing as putting zero
+ * counters, and a negative count is not an instruction to remove any. It emits nothing when it does
+ * nothing, so a trigger watching for counters being placed does not fire on a stationed 0/1.
+ */
+fun putCountersIfAny(
+    state: GameState,
+    objectId: ObjectId,
+    counter: Counter,
+    amount: Int,
+): GameState = if (amount <= 0) state else putCounters(state, objectId, counter, amount)
+
+/**
  * Removes [amount] counters of kind [counter] from the battlefield permanent [objectId] (CR 122.1),
  * returning the successor state. Emits [GameEvent.CountersRemoved].
  *

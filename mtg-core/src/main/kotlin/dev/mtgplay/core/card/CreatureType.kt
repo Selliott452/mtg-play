@@ -121,10 +121,12 @@ object CreatureType {
             Island
             Mountain
             Plains
+            Spacecraft
             Swamp
             Urza's Mine
             Urza's Power-Plant
             Urza's Tower
+            Vehicle
             """,
         )
 }

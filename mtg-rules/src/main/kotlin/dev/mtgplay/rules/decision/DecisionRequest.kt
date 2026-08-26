@@ -940,11 +940,23 @@ sealed interface DecisionRequest {
     }
 
     /**
-     * A non-mana **tap** cost selection (CR 601.2h, CR 702.34c): [seat] is casting [card] via a
-     * permission whose cost taps [count] permanents (Prismatic Strands' "Flashback—Tap an untapped
-     * white creature you control"), and picks exactly [count] of [options] — the untapped permanents
-     * they control matching the requirement — by index (a [Decision.MultiSelect]). Additive, flagged
-     * (`FW-PREVENT2`).
+     * A non-mana **tap** cost selection (CR 601.2h, CR 602.2b): [seat] is paying a cost that taps
+     * [count] permanents, and picks exactly [count] of [options] — the untapped permanents they control
+     * matching the cost — by index (a [Decision.MultiSelect]). Additive, flagged (`FW-PREVENT2`).
+     *
+     * **Two payers, one question** (`W10-C`). This was a cast's request alone — Prismatic Strands'
+     * "Flashback—Tap an untapped white creature you control" (CR 702.34c) — until an activated ability
+     * printed the same shape of cost: Pinnacle Kill-Ship's Station, "Tap another creature you control"
+     * (CR 602.1). "Which of your untapped permanents do you tap to pay this cost" is the same question
+     * with the same answer whichever object is asking, so it is deliberately **not** split in two: a
+     * second member would cost a dozen exhaustive dispatch sites to say nothing a seat could act on
+     * differently, and [cardObjectId] already names whichever object the cost belongs to. Which payer
+     * receives the answer is decided by the open pending record, in `applyChosenTapCost`.
+     *
+     * The two costs are still two costs and filter differently — the cast side on colour and card type
+     * ([dev.mtgplay.core.definition.TapRequirement]), the ability side on a
+     * [dev.mtgplay.core.definition.PermanentFilter] that may exclude its own source. What they share is
+     * the shape of the *decision*, which is all this type is.
      *
      * Surfaced only when at least [count] matching untapped permanents exist (the cast is otherwise not
      * enumerated at all, ADR-005), so a legal selection always exists. Every option is independently
@@ -961,8 +973,9 @@ sealed interface DecisionRequest {
      * a permission carrying both would make one shared request ambiguous about which cost an answer
      * paid — the objection `FW-ADDSAC` recorded when it declined to reuse `choose_sacrifices`.
      *
-     * @property cardObjectId the object being cast (still in its source zone — see
-     *   [dev.mtgplay.core.state.PendingCast]).
+     * @property cardObjectId the object whose cost this is: the card being cast, still in its source
+     *   zone (see [dev.mtgplay.core.state.PendingCast]), or the permanent whose ability is being
+     *   activated.
      * @property card the printed identity, for display.
      * @property options the untapped permanents that may be tapped to pay the cost, in battlefield
      *   order; indices stable within this request (ADR-005).

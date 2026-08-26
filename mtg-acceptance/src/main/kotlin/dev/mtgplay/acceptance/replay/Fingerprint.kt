@@ -1,10 +1,8 @@
 package dev.mtgplay.acceptance.replay
 
 import dev.mtgplay.acceptance.invariant.ZoneResidence
-import dev.mtgplay.core.state.Counter
 import dev.mtgplay.core.state.GameState
 import dev.mtgplay.core.state.StackEntry
-import dev.mtgplay.core.zone.ZoneId
 import java.security.MessageDigest
 
 /**
@@ -239,57 +237,6 @@ private fun StringBuilder.appendSeats(state: GameState) {
             // itself, so two states differing only here diverge on the very next precombat main.
             if (player.combatPhasesToSkip > 0) append(",combatSkips=").append(player.combatPhasesToSkip)
         }
-}
-
-// Digests one object's residence line: its zone, id, and printed card, plus its battlefield-only
-// statuses (tapped, marked damage and its deathtouch record, summoning sickness, the Aura-attachment
-// cause, and counters, §5) and its exile-only ones.
-private fun StringBuilder.appendResidence(residence: ZoneResidence) {
-    append("|@").append(residence.zone)
-    append('=').append(residence.obj.id.value)
-    append(':').append(residence.obj.card.name)
-    if (residence.obj.tapped) append(":tapped")
-    // Marked damage (CR 120.3d) and summoning sickness (CR 302.6) are rules-relevant only on the
-    // battlefield; off it they are meaningless bookkeeping and left out.
-    if (residence.zone == ZoneId.Battlefield) {
-        // CR 704.5h: *which source* dealt the damage is a cause the amount cannot carry, and it decides
-        // whether the creature is destroyed at the next check — two positions differing only in whether
-        // a point of damage came from a deathtoucher are genuinely different positions. It is appended
-        // inside this branch because the two always travel together: GameObject's own construction
-        // guarantee is that the record never exists without the damage it describes.
-        if (residence.obj.damageMarked != 0) {
-            append(":dmg=").append(residence.obj.damageMarked)
-            if (residence.obj.dealtDeathtouchDamage) append(":deathtouched")
-        }
-        if (residence.obj.summoningSick) append(":sick")
-        // The attachment *cause* (CR 303.4), not the computed continuous-effect values it implies:
-        // two states differing in continuous effects necessarily differ in which Auras are attached
-        // where, so they hash apart without re-implementing layer logic (docs/design/layer-system.md §5).
-        residence.obj.attachedTo?.let { append(":att=").append(it.value) }
-        // The as-enters chosen colour (CR 614.12) is rules-relevant — it fixes a triggered mana ability's
-        // output (Utopia Sprawl).
-        residence.obj.chosenColor?.let { append(":colour=").append(it.name) }
-        // Counters (CR 122.1) are battlefield-only state that changes what the permanent *is* — its
-        // power and toughness (CR 613.4c) and its keywords (CR 122.1b) — so two positions differing
-        // only in counters must hash apart. Digested as the *cause* (the multiset), not the computed
-        // P/T it implies, for the same reason the Aura attachment is
-        // (docs/design/layer-system.md §5). Iterated in the map's own deterministic order.
-        for ((kind, count) in residence.obj.counters) {
-            val tag =
-                when (kind) {
-                    is Counter.PowerToughness -> "%+d/%+d".format(kind.power, kind.toughness)
-                    is Counter.KeywordCounter -> kind.keyword.name
-                }
-            append(":ctr=").append(tag).append('x').append(count)
-        }
-        appendPerTurnAndUntapStatus(residence)
-    }
-    if (residence.zone == ZoneId.Exile) {
-        // The madness marker (CR 702.35a) is an exile-only status — a card waiting on its reflexive cast.
-        if (residence.obj.awaitingMadness) append(":madness")
-        // The plotted-turn marker (CR 702.140) is an exile-only status gating the free cast.
-        residence.obj.plottedTurn?.let { append(":plotted=").append(it) }
-    }
 }
 
 // Digests the stack entries and the fired-but-unplaced triggers (CR 405.2, CR 603.3b): a spell's card

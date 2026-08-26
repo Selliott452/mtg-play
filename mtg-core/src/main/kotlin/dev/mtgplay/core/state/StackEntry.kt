@@ -216,6 +216,19 @@ sealed interface StackEntry {
      *   the CR 608.2b re-check asks "is this still a noncreature artifact with mana value X?", and
      *   without the announced value on the record the re-check would ask a different question from the
      *   one the activation answered (docs/design/dependent-targets.md §3).
+     * @property tappedForCost the battlefield permanents tapped to pay an
+     *   [dev.mtgplay.core.definition.AbilityCost.TapPermanentYouControl] component (CR 602.2b), in the
+     *   order tapped; empty for every ability with no such cost. Additive, flagged core (`W10-C`).
+     *   Station's "put charge counters equal to **its** power" reads it.
+     *
+     *   **Live handles, not captured values, and that is CR 608.2h rather than a convenience.** A tapped
+     *   permanent is still on the battlefield when the ability resolves, so its power is read *then* —
+     *   a pump in response grows the counters and a shrink cuts them, both real plays. That is the
+     *   opposite call from [Spell.sacrificedForCost], which records printed identities because the
+     *   permanent it names is gone by resolution, and it is the same call
+     *   [dev.mtgplay.core.state.ChosenPowerSource.ChosenCreature] makes on the cast side for the same
+     *   reason. If the permanent has left the battlefield by resolution, CR 113.7a's last known
+     *   information answers instead.
      * @property blockingAtActivation the attackers the source was blocking when the ability was
      *   activated (CR 509.1), captured as CR 113.7c last-known information beside [sourceId] and
      *   [sourceCard]; empty for every ability that does not ask, which is every ability but Tinder
@@ -240,6 +253,7 @@ sealed interface StackEntry {
         val chosenX: Int = 0,
         val isCopy: Boolean = false,
         val blockingAtActivation: PersistentSet<ObjectId> = persistentSetOf(),
+        val tappedForCost: PersistentList<ObjectId> = persistentListOf(),
     ) : StackEntry {
         init {
             require(chosenX >= 0) { "CR 601.2b: an announced value of X is non-negative, was $chosenX" }

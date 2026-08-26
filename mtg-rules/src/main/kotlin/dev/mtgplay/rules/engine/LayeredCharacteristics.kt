@@ -178,6 +178,9 @@ private fun staticEffectsOn(
                     grantedKeywords = effect.grantedKeywords,
                     grantedManaAbilities = effect.grantedManaAbilities,
                     grantedProtections = effect.grantedProtections,
+                    // CR 613.1d: a static ability may change types too (`W10-C`) — the Spacecraft that
+                    // "is an artifact creature at 7+" while its condition holds.
+                    addedCardTypes = effect.addedCardTypes,
                     powerMod = effect.powerMod,
                     toughnessMod = effect.toughnessMod,
                     timestamp = source.id.value,
@@ -192,14 +195,24 @@ private fun staticEffectsOn(
  * and are therefore already constants — presented as [dev.mtgplay.core.definition.Magnitude.Fixed],
  * which is the only shape a timed magnitude can take (docs/design/duration.md §3.2).
  *
- * **This is also the only generator of a CR 613 layer-4 type change or a layer-7b set-P/T**
- * (`FW-TYPECHANGE`). [dev.mtgplay.core.definition.StaticContinuousEffect] has no type or set-P/T
- * fields and deliberately keeps none: every type change in the gauntlet pool is printed on a resolving
- * *ability* ("that artifact becomes a 0/0 Homunculus artifact creature"), never on a permanent's
- * static ability, and an always-empty pair of fields on the static declaration would be an untested
- * branch of layers 4 and 7b. The day a card prints "other Slivers you control are …", the static
- * declaration gains the fields and [staticEffectsOn] threads them exactly as this does — nothing below
- * [ActiveEffect] changes, because both generators already collapse to it.
+ * **This is still the only generator of a CR 613 layer-7b set-P/T, and is no longer the only generator
+ * of a layer-4 type change** (`FW-TYPECHANGE`, corrected by `W10-C`). That packet's note here predicted
+ * the correction almost word for word — "the day a card prints … the static declaration gains the
+ * fields and [staticEffectsOn] threads them exactly as this does — nothing below [ActiveEffect]
+ * changes" — and the prediction held exactly: the field was added to
+ * [dev.mtgplay.core.definition.StaticContinuousEffect], `staticEffectsOn` passes it through, and not one
+ * line of `Layers.kt` or `LayerApplication.kt` moved.
+ *
+ * What the old note got *wrong* is worth recording rather than deleting, because it was a claim about
+ * the pool and not about the engine: it said every type change in the gauntlet is printed on a resolving
+ * ability. Pinnacle Kill-Ship's is printed on the permanent — "it's an artifact creature at 7+" — and
+ * nothing resolves, nothing goes on the stack, and no player gets priority when the seventh counter
+ * lands (CR 604.3). A resolution-generated encoding of that line would have been a card that became a
+ * creature once and stayed one.
+ *
+ * Set-P/T remains timed-only, and for the *stated* reason rather than by omission: a Spacecraft's 7/7 is
+ * **printed on the card** (CR 208.1b), so the type change alone gives it a P/T box and there is nothing
+ * for a static 7b effect to set.
  */
 private fun timedEffectsOn(
     state: GameState,
@@ -268,6 +281,10 @@ private fun conditionHolds(
         null -> true
         is StaticCondition.YouControl ->
             countMatchingPermanents(state, condition.filter, controllerOf(source)) >= condition.atLeast
+        // CR 604.3 with CR 122.6: the source's own counters, counted on every read. The count is taken
+        // off the [GameObject] rather than through the layer system on purpose — counters are state, not
+        // characteristics, so nothing here can recurse back into the walk that called it.
+        is StaticCondition.CountersOnSelf -> source.counterCount(condition.counter) >= condition.atLeast
     }
 
 /** The controller of [source] (CR 108.4); ownership across this pool. */

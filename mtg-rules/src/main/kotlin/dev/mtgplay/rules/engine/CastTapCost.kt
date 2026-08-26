@@ -76,7 +76,17 @@ internal fun applyChosenTapCost(
     state: GameState,
     tapObjectIds: List<ObjectId>,
 ): AdvanceResult {
+    // CR 601.2h / CR 602.2b: "which of your untapped permanents do you tap to pay this cost" is one
+    // question, and since `W10-C` an activated ability asks it too (`AbilityTapCost.kt`). The two payers
+    // are mutually exclusive — a cast and an activation are separate priority actions and only one
+    // pending record is ever open — so the open record decides which one answered, and a request that
+    // reached here with neither open is an engine defect.
+    if (state.pendingCast == null) return applyChosenAbilityTap(state, tapObjectIds)
     val cast = state.pendingCast ?: error("no cast is gathering decisions")
+    require(state.pendingActivation == null) {
+        "CR 601.2h: a tap cost was answered with both a cast and an activation open; the two payers " +
+            "share one decision member and must never be open at once"
+    }
     require(cast.tapCost == null) { "CR 601.2h: this cast's tap cost is already chosen" }
     return pauseForNextCastDecision(
         state.copy(pendingCast = cast.copy(tapCost = tapObjectIds.toPersistentList())),

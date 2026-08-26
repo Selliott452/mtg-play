@@ -24,8 +24,9 @@ import kotlinx.collections.immutable.persistentSetOf
  * @property supertypes the printed supertypes (CR 205.4), possibly empty.
  * @property cardTypes the printed card types (CR 205.2, CR 300.1); never empty.
  * @property subtypes the printed subtypes (CR 205.3), possibly empty.
- * @property powerToughness the printed power/toughness box; present exactly for creature cards
- *   (CR 208.1).
+ * @property powerToughness the printed power/toughness box (CR 208.1); present on every creature card,
+ *   and on a noncreature card exactly when its type line carries one of
+ *   [POWER_TOUGHNESS_NONCREATURE_SUBTYPES] (CR 208.1b).
  * @property keywords the printed keyword abilities (CR 702), possibly empty (additive, flagged,
  *   P3.1). Printed values only — in-game keywords are computed by the layer system (CR 613,
  *   layer 6) in Phase 4, which adds aura-granted keywords; combat reads these only through the
@@ -78,10 +79,39 @@ data class PrintedCharacteristics(
         require(name.isNotBlank()) { "card name must not be blank" }
         require(cardTypes.isNotEmpty()) { "CR 300.1: a card has at least one card type (card \"$name\")" }
         val isCreature = CardType.CREATURE in cardTypes
-        require(isCreature == (powerToughness != null)) {
-            "CR 208.1: creature cards, and only creature cards, have printed power/toughness (card \"$name\"); " +
-                "non-creature cards with a P/T box (e.g. Vehicles) are outside the MVP pool and unsupported"
+        val mayHaveBox = isCreature || subtypes.any { it in POWER_TOUGHNESS_NONCREATURE_SUBTYPES }
+        require(mayHaveBox == (powerToughness != null)) {
+            "CR 208.1/208.1b: a creature card has printed power/toughness, and a noncreature card has one " +
+                "only with a P/T-bearing subtype ($POWER_TOUGHNESS_NONCREATURE_SUBTYPES); card \"$name\" " +
+                "has types $cardTypes, subtypes $subtypes and " +
+                (if (powerToughness == null) "no P/T box" else "a P/T box")
         }
+    }
+
+    companion object {
+        /**
+         * The noncreature subtypes whose cards print a power/toughness box (CR 208.1b) — the exception
+         * to CR 208.1's "creature cards, and only creature cards". Additive, flagged core (`W10-C`).
+         *
+         * **Spacecraft is why this list exists, and Vehicle is why it is a list.** Pinnacle Kill-Ship is
+         * an `Artifact — Spacecraft` printed 7/7 that is not a creature until it has seven charge
+         * counters; the box is on the card the whole time and the *type* is what arrives later, which is
+         * CR 208.1b's own sentence — such a permanent "has power and toughness, but they're not used
+         * unless it's a creature". Encoding the box as something a layer-7b effect *creates* instead
+         * would put the printed numbers in the rules text and make the card lie about itself; encoding
+         * the permanent as a creature the whole time would let it attack, block and die to a sweeper
+         * before it was ever stationed, which is an enumerated-but-illegal action (ADR-005).
+         *
+         * Vehicle (CR 301.7) is the same rule and is listed with it, because the two share the sentence
+         * and separating them would invite the next Vehicle to re-derive it. No gauntlet card prints
+         * Vehicle, so nothing here exercises that entry; it is one word rather than a code path.
+         *
+         * The check is deliberately an **exact** iff rather than a one-sided permission: a Spacecraft
+         * card with no P/T box is as much a definition defect as a creature card without one, and a
+         * one-sided rule would let it through.
+         */
+        val POWER_TOUGHNESS_NONCREATURE_SUBTYPES: Set<Subtype> =
+            setOf(Subtype("Spacecraft"), Subtype("Vehicle"))
     }
 
     /** The card's mana value (CR 203.3); a card with no mana cost has mana value 0. */
