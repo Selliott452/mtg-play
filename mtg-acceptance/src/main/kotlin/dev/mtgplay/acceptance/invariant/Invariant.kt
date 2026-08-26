@@ -353,6 +353,20 @@ enum class Invariant {
     REBOUND_MARKER_SCOPE,
 
     /**
+     * The CR 715.3d adventure marker ([dev.mtgplay.core.state.GameObject.onAnAdventure]) is an
+     * exile-only status. Added with `W10-B`; the exact shape of [PLOT_MARKER_SCOPE] and
+     * [REBOUND_MARKER_SCOPE], and for the third time the same kind of thing — a card waiting face-up in
+     * exile for a later play.
+     *
+     * The failure it exists to catch is specific: this marker is what *grants* the permission to play
+     * the card from exile, so a copy of it surviving a CR 400.7 zone move would let a Fang Dragon that
+     * had already come off its adventure — died, and been exiled again by anything at all — be cast a
+     * second time out of a zone that grants nothing. That is an illegal action the engine would have
+     * enumerated, which ADR-005 calls the worse of the two failures.
+     */
+    ADVENTURE_MARKER_SCOPE,
+
+    /**
      * An open each-opponent discard (CR 701.7a) is owned by a seat that is **not** the clause's
      * controller, and that seat has a non-empty hand. Added with `FW-NONCTRLDEC`
      * (docs/design/exile-and-return.md §6).

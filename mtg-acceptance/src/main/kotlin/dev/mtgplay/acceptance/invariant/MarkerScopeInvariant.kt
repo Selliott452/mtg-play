@@ -8,7 +8,8 @@ import dev.mtgplay.core.zone.ZoneId
  * - [Invariant.PLOT_MARKER_SCOPE]: the plotted-turn marker (CR 702.140) is exile-only;
  * - [Invariant.CHOSEN_COLOUR_SCOPE]: the as-enters chosen colour (CR 614.12) is battlefield-only;
  * - [Invariant.KICKED_MARKER_SCOPE]: the was-kicked marker (CR 702.33f) is battlefield-only;
- * - [Invariant.PROTOTYPE_MARKER_SCOPE]: the prototyped marker (CR 718.3b) is battlefield-only.
+ * - [Invariant.PROTOTYPE_MARKER_SCOPE]: the prototyped marker (CR 718.3b) is battlefield-only;
+ * - [Invariant.ADVENTURE_MARKER_SCOPE]: the adventure marker (CR 715.3d) is exile-only.
  *
  * Both operate on the residence list so corrupt placements are directly testable, mirroring the madness
  * marker's exile-only scope and tapped's battlefield-only scope.
@@ -100,3 +101,23 @@ internal fun checkEnteredTurnScope(
                 )
             }
     }
+
+/**
+ * [Invariant.ADVENTURE_MARKER_SCOPE] (`W10-B`): the adventure marker (CR 715.3d) is exile-only, exactly
+ * as the plot and rebound markers are — a card on an adventure lives in exile between the Adventure
+ * spell that put it there and the play that takes it out, and CR 400.7 says the object that arrives
+ * anywhere else carries none of the old one's status.
+ *
+ * Its own function rather than a fifth filter in [checkP62aMarkerScopes], because that function is at
+ * its budget; the same reason [checkEnteredTurnScope] sits beside it rather than inside it.
+ */
+internal fun checkAdventureMarkerScope(residences: List<ZoneResidence>): List<Violation> =
+    residences
+        .filter { it.obj.onAnAdventure && it.zone != ZoneId.Exile }
+        .map {
+            Violation(
+                Invariant.ADVENTURE_MARKER_SCOPE,
+                "CR 715.3d: object ${it.obj.id.value} is adventure-marked in ${it.zone}, but the marker is an " +
+                    "exile-only status that grants a play permission",
+            )
+        }

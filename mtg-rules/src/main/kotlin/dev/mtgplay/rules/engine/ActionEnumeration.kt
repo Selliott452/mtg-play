@@ -44,14 +44,21 @@ internal const val LAND_PLAYS_PER_TURN: Int = 1
  * exists; no MVP mainboard card plots, so the exile scan currently yields nothing.
  *
  * A **granted play permission** (CR 118.5) — Reckless Impulse's "until the end of your next turn, you
- * may play those cards" — is enumerated from exile per marked object ([grantedExilePlayOptions]). It is
- * not a [dev.mtgplay.core.definition.CastingPermission]: the permission is granted by another object's
- * resolution rather than declared by the card being played, it costs the printed cost, and — because it
- * says *play* rather than *cast* — it reaches a land as well as a spell.
+ * may play those cards" — is enumerated from exile per marked object ([grantedExilePlayOptions]), and so
+ * is an **adventurer card waiting in exile** (CR 715.3d, [adventureExilePlayOptions]). Neither is a
+ * [dev.mtgplay.core.definition.CastingPermission]: both are granted by a rule or another object's
+ * resolution rather than declared by the card being played, both cost the printed cost, and — because
+ * both say *play* rather than *cast* — both reach a land as well as a spell. See
+ * `ExilePlayPermissions.kt`.
+ *
+ * A **face cast** (CR 715.3, CR 720.3) *is* a permission, and a synthesized one: a card declaring an
+ * alternative face has an [dev.mtgplay.core.definition.CastingPermission.Adventure] or
+ * [dev.mtgplay.core.definition.CastingPermission.Omen] offered beside its normal hand cast, gated
+ * against the **face's** definition (CR 715.3a). See `CardFaces.kt`.
  *
  * Option order is fixed for deterministic indices (ADR-006): the pass, then hand normal casts and land
  * plays in hand order, then graveyard, exile, and hand permission casts in that order, then the granted
- * exile plays.
+ * exile plays, then the adventure exile plays.
  */
 internal fun legalPriorityOptions(
     state: GameState,
