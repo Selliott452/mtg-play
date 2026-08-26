@@ -35,6 +35,13 @@ import dev.mtgplay.core.state.PendingTrigger
  * The check lives here rather than in each of the half-dozen detectors so that a detector added later
  * cannot forget it (InterveningIfCheck.kt). An ability declaring no such clause is unaffected, which is
  * every ability in the pool but Goblin Bushwhacker's.
+ *
+ * It is also where the source's **last-known entry turn** is captured onto the record
+ * ([PendingTrigger.sourceEnteredTurn], `W9-A`), for the same one-funnel reason: a capture each detector
+ * had to remember would be forgotten by the next detector added, and CR 603.10 asks the question of the
+ * state as it was when the trigger fired — which is here and nowhere later. A source that is not on the
+ * battlefield now (a graveyard-scoped ability's, a departed permanent's) captures `null`, which is the
+ * honest answer rather than a guess.
  */
 internal fun enqueuePendingTrigger(
     state: GameState,
@@ -43,7 +50,11 @@ internal fun enqueuePendingTrigger(
     if (!interveningIfHolds(state, trigger.ability, trigger.sourceId, trigger.controller)) {
         state
     } else {
-        state.copy(pendingTriggers = state.pendingTriggers.adding(trigger))
+        val enteredTurn =
+            state.sharedZones.battlefield.firstOrNull { it.id == trigger.sourceId }?.enteredTurn
+        state.copy(
+            pendingTriggers = state.pendingTriggers.adding(trigger.copy(sourceEnteredTurn = enteredTurn)),
+        )
     }
 
 /**
@@ -184,12 +195,33 @@ internal fun detectEnterBattlefieldTriggers(
  *
  * The residual risk — a fifth path that adds to the battlefield and announces *nothing* — is what
  * `Invariant.ENTRY_TRIGGER_DETECTION` covers from the acceptance side.
+ *
+ * **It also stamps [dev.mtgplay.core.state.GameObject.enteredTurn]** (`W9-A`), for the same reason it
+ * fires the triggers: "when did this permanent enter" is a fact every entry path would otherwise have to
+ * remember separately, and one that forgot would be silently wrong rather than broken. Recording it here
+ * makes the fact and the announcement the same indivisible step. The stamp precedes detection so a
+ * CR 603.6a trigger that reads it (an intervening-if, a clause) sees the entry it fired for.
  */
 internal fun announceBattlefieldEntry(
     state: GameState,
     battlefieldId: ObjectId,
     announcement: GameEvent,
-): GameState = detectEnterBattlefieldTriggers(state.emit(announcement), battlefieldId)
+): GameState {
+    val announced = state.emit(announcement)
+    val index = announced.sharedZones.battlefield.indexOfFirst { it.id == battlefieldId }
+    val stamped =
+        if (index < 0) {
+            announced
+        } else {
+            announced.updateBattlefield { battlefield ->
+                // Battlefield order is the engine's determinism spine (CR 613.7 timestamps derive from
+                // entry order), so the stamp replaces in place and never reorders the zone.
+                val stampedObject = battlefield[index].copy(enteredTurn = announced.turn.number)
+                battlefield.removingAt(index).addingAt(index, stampedObject)
+            }
+        }
+    return detectEnterBattlefieldTriggers(stamped, battlefieldId)
+}
 
 /**
  * Announces that [leftObject] has left the battlefield and fires the triggers that departure fires —

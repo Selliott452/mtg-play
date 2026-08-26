@@ -46,6 +46,20 @@ import kotlinx.collections.immutable.persistentListOf
  *   battlefield and must be captured as the trigger fires. Distinct from [subject], which names one
  *   object the effect acts on in the *current* zone; these name objects in exile that a **linked**
  *   ability (CR 607.2) put there.
+ * @property sourceEnteredTurn the turn the source permanent entered the battlefield
+ *   ([GameObject.enteredTurn]) as last known when this trigger fired (CR 603.10), or `null` when the
+ *   source was not on the battlefield then — a graveyard-, hand- or exile-scoped ability's source, or a
+ *   leaves-the-battlefield trigger, whose source has already gone. Additive, flagged core (`W9-A`).
+ *
+ *   **Captured rather than looked up, for the reason [linkedExiled] is.** Moon-Circuit Hacker's *"discard
+ *   a card **unless this creature entered this turn**"* is a question about the source permanent, and the
+ *   source can be killed in response to the very trigger that asks it — at which point there is nothing
+ *   on the battlefield left to read. CR 603.10 says to answer from the game state as it was when the
+ *   trigger fired, which is exactly this field.
+ *
+ *   Stamped for **every** trigger, at the one enqueue funnel, rather than only for the abilities that
+ *   read it: a capture that each detector had to remember would be forgotten by the next detector added,
+ *   and the failure would be a silently wrong answer rather than a missing one.
  */
 data class PendingTrigger(
     val sourceId: ObjectId,
@@ -55,4 +69,5 @@ data class PendingTrigger(
     val amount: Int = 0,
     val subject: ObjectId? = null,
     val linkedExiled: PersistentList<ObjectId> = persistentListOf(),
+    val sourceEnteredTurn: Int? = null,
 )

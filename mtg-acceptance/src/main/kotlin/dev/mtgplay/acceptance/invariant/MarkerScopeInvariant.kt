@@ -48,3 +48,43 @@ internal fun checkP62aMarkerScopes(residences: List<ZoneResidence>): List<Violat
                 )
             }
     }
+
+/**
+ * [Invariant.ENTERED_TURN_SCOPE] (`W9-A`): the entry-turn stamp (CR 603.6a) is battlefield-only and
+ * never names a turn that has not happened.
+ *
+ * Its own function rather than a fourth filter in [checkP62aMarkerScopes] because it is the only marker
+ * scope here that also needs the *current* turn to check, and because that file's function is at its
+ * budget. Both halves matter: a stamp off the battlefield is a status the CR 400.7 rebirth should have
+ * dropped, and a stamp in the future is an engine defect that would make "entered this turn" answer yes
+ * forever.
+ */
+internal fun checkEnteredTurnScope(
+    residences: List<ZoneResidence>,
+    currentTurn: Int,
+): List<Violation> =
+    buildList {
+        residences
+            .filter { it.obj.enteredTurn != null && it.zone != ZoneId.Battlefield }
+            .forEach {
+                add(
+                    Violation(
+                        Invariant.ENTERED_TURN_SCOPE,
+                        "CR 603.6a: object ${it.obj.id.value} carries an entry turn in ${it.zone}, but it is a " +
+                            "battlefield-only quantity — the fresh object born of any zone move carries none",
+                    ),
+                )
+            }
+        residences
+            .mapNotNull { residence -> residence.obj.enteredTurn?.let { residence to it } }
+            .filter { (_, entered) -> entered > currentTurn }
+            .forEach { (residence, entered) ->
+                add(
+                    Violation(
+                        Invariant.ENTERED_TURN_SCOPE,
+                        "CR 603.6a: object ${residence.obj.id.value} claims to have entered on turn $entered, " +
+                            "but the game is on turn $currentTurn",
+                    ),
+                )
+            }
+    }

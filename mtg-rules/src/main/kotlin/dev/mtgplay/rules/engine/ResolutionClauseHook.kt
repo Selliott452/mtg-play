@@ -99,7 +99,11 @@ private fun lateClauseOrCompletion(
 ): AdvanceResult {
     val tapOrUntap = clauses.optionalTapOrUntap
     val chosenColor = clauses.chosenColorEffect
+    val drawThenMaybeDiscard = clauses.optionalDrawThenDiscard
     return when {
+        // CR 601.3b / CR 701.8: "you may draw a card. If you do, discard a card unless …" (Moon-Circuit
+        // Hacker) — the one clause that chains two pauses, the second conditional on the first's answer.
+        drawThenMaybeDiscard != null -> orchestrateOptionalDrawThenDiscard(state, entry, drawThenMaybeDiscard)
         tapOrUntap != null -> orchestrateTapOrUntap(state, entry, tapOrUntap)
         // CR 700.2 / CR 615.1: "sources of the color of your choice" (Prismatic Strands) — the colour
         // is named on resolution, so the clause pauses here rather than at CR 601.2b.

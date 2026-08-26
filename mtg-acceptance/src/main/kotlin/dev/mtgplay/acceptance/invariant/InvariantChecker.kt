@@ -76,6 +76,7 @@ object InvariantChecker {
             addAll(checkMadnessMarkerSanity(state))
             addAll(checkMulliganPhaseSanity(state))
             addAll(checkP62aMarkerScopes(residences))
+            addAll(checkEnteredTurnScope(residences, state.turn.number))
             addAll(checkPendingResolutionSanity(state))
             addAll(checkAbilityTargetSanity(state))
             addAll(checkTimedEffectSanity(state))

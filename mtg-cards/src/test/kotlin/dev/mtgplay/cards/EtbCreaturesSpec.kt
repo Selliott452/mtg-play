@@ -27,8 +27,10 @@ import dev.mtgplay.core.state.SharedZones
 import dev.mtgplay.core.state.Turn
 import dev.mtgplay.core.state.TurnPhase
 import io.kotest.core.spec.style.StringSpec
+import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.persistentMapOf
 import kotlinx.collections.immutable.persistentSetOf
@@ -221,6 +223,47 @@ class EtbCreaturesSpec :
             val context = ResolutionContext(alice, persistentListOf())
             listOf(faerieMiscreant, godPharaohsFaithful, gatecreeperVine, brambleWurm, trollOfKhazadDum)
                 .forEach { it.resolution.resolve(state, context) shouldBe state }
+        }
+
+        "CR 202/205/208: Clockwork Percussionist is a {R} 1/1 Artifact Creature — Monkey Toy with haste" {
+            val printed = clockworkPercussionist.characteristics
+            printed.manaCost shouldBe ManaCost.parse("{R}")
+            printed.cardTypes shouldBe persistentSetOf(CardType.ARTIFACT, CardType.CREATURE)
+            printed.subtypes shouldBe persistentSetOf(Subtype("Monkey"), Subtype("Toy"))
+            printed.powerToughness shouldBe PrintedPowerToughness(power = 1, toughness = 1)
+            printed.keywords shouldBe persistentSetOf(Keyword.HASTE)
+        }
+
+        "CR 700.4: the Percussionist's trigger is 'dies', not the general leaves-the-battlefield one" {
+            val trigger = clockworkPercussionist.triggeredAbilities.single()
+            // Exiled or bounced, it gives nothing back; only a graveyard from the battlefield pays.
+            trigger.condition shouldBe TriggerCondition.PutIntoGraveyardFromBattlefieldSelf
+            trigger.condition shouldNotBe TriggerCondition.LeftBattlefieldSelf
+        }
+
+        "CR 118.5: the dies trigger exiles one card from its controller's library, playable from exile" {
+            val state = singleSeatBoard(alice, libraryCards = 3)
+            val resolved =
+                clockworkPercussionist.triggeredAbilities
+                    .single()
+                    .effect
+                    .resolve(state, ResolutionContext(alice, persistentListOf()))
+            // Exactly one card off the top, into the shared exile zone (CR 406) — not drawn.
+            resolved.players.getValue(alice).library shouldHaveSize 3 - CLOCKWORK_PERCUSSIONIST_EXILE
+            resolved.players.getValue(alice).hand shouldHaveSize 0
+            resolved.sharedZones.exile shouldHaveSize CLOCKWORK_PERCUSSIONIST_EXILE
+            // The permission rides on the exiled object, recorded by the turn the grant began.
+            resolved.sharedZones.exile
+                .single()
+                .playGrantedTurn shouldBe state.turn.number
+        }
+
+        "CR 701.3a: a dies trigger with an empty library exiles nothing rather than failing" {
+            val state = singleSeatBoard(alice, libraryCards = 0)
+            clockworkPercussionist.triggeredAbilities
+                .single()
+                .effect
+                .resolve(state, ResolutionContext(alice, persistentListOf())) shouldBe state
         }
     })
 

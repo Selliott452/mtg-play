@@ -21,6 +21,7 @@ import dev.mtgplay.core.definition.TriggeredAbility
 import dev.mtgplay.core.mana.Color
 import dev.mtgplay.core.mana.ManaCost
 import dev.mtgplay.rules.effect.drawCards
+import dev.mtgplay.rules.effect.exileTopCardsPlayableUntilEndOfYourNextTurn
 import dev.mtgplay.rules.effect.gainLife
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.persistentSetOf
@@ -57,6 +58,9 @@ const val GOD_PHARAOHS_FAITHFUL_LIFEGAIN: Int = 1
 
 /** The life Bramble Wurm gains, on entry and again from its graveyard (CR 119.3). */
 const val BRAMBLE_WURM_LIFEGAIN: Int = 5
+
+/** How many cards Clockwork Percussionist's dies trigger exiles for play (CR 701.3a, CR 118.5). */
+const val CLOCKWORK_PERCUSSIONIST_EXILE: Int = 1
 
 /** The Gate land type (CR 205.3b) Gatecreeper Vine's search names beside the basic lands. */
 private val GATE: Subtype = Subtype("Gate")
@@ -330,6 +334,72 @@ val trollOfKhazadDum: SpellDefinition =
                     zoneScope = AbilityZoneScope.Hand,
                     effect = entersTheBattlefield,
                     librarySearch = LibrarySearch(find = LibrarySearchFilter.SWAMP_CARD),
+                ),
+            )
+    }
+
+/**
+ * Clockwork Percussionist — `{R}` Artifact Creature — Monkey Toy, a 1/1. "Haste. When this creature
+ * dies, exile the top card of your library. You may play it until the end of your next turn."
+ *
+ * **A one-mana hasty body that replaces itself when it trades**, which is why the red shells run it: it
+ * attacks the turn it lands, and the card it gives back arrives *after* the trade rather than before,
+ * so it is card advantage the opponent cannot deny by killing it.
+ *
+ * **The card `W8-E` dropped, and it is now pure composition.** That packet ceded it rather than race
+ * `W8-D` for the play-from-exile permission, and `W8-D` built exactly the primitive it needed:
+ * [exileTopCardsPlayableUntilEndOfYourNextTurn], which records the grant on the exiled object as
+ * [dev.mtgplay.core.state.GameObject.playGrantedTurn] and leaves `mtg-rules` to enumerate both halves
+ * of "play" from exile. There is no new engine mechanism here at all.
+ *
+ * **Its entry point into that primitive is not Reckless Impulse's, and the primitive already covers
+ * both.** Reckless Impulse grants from a resolving *sorcery*; this grants from a resolving *triggered
+ * ability* whose source is already in a graveyard. The primitive is a plain function of state and
+ * player, so neither the kind of resolving object nor the source's zone reaches it, and the "you" it
+ * exiles from is [dev.mtgplay.core.definition.ResolutionContext.controller] — for a
+ * leaves-the-battlefield trigger, the last-known controller captured as the permanent left (CR 603.10),
+ * which is the right player even though the Percussionist itself no longer exists.
+ *
+ * **"Dies" is CR 700.4** — put into a graveyard *from the battlefield* — so this is
+ * [TriggerCondition.PutIntoGraveyardFromBattlefieldSelf] and deliberately **not**
+ * [TriggerCondition.LeftBattlefieldSelf]: a Percussionist exiled or bounced gives nothing back, and
+ * encoding the general departure would hand its controller a free card off every answer that is not a
+ * kill.
+ *
+ * **"Until the end of your next turn" is a real deadline, not a formality.** Traded on the opponent's
+ * turn the exiled card is playable through the whole of the following turn; traded on its controller's
+ * own turn it is playable for the rest of that turn and all of the next. The engine decides that
+ * without predicting the turn order by recording when the grant *began* rather than when it ends (see
+ * [dev.mtgplay.core.state.GameObject.playGrantedTurn]).
+ */
+val clockworkPercussionist: SpellDefinition =
+    object : SpellDefinition {
+        override val characteristics =
+            PrintedCharacteristics(
+                name = "Clockwork Percussionist",
+                manaCost = ManaCost.parse("{R}"),
+                supertypes = persistentSetOf(),
+                cardTypes = persistentSetOf(CardType.ARTIFACT, CardType.CREATURE),
+                subtypes = persistentSetOf(Subtype("Monkey"), Subtype("Toy")),
+                powerToughness = PrintedPowerToughness(power = 1, toughness = 1),
+                keywords = persistentSetOf(Keyword.HASTE),
+            )
+        override val timing = TimingClass.SORCERY_SPEED
+        override val targetSpec = TargetSpec.None
+        override val resolution = entersTheBattlefield
+        override val triggeredAbilities =
+            persistentListOf(
+                TriggeredAbility(
+                    // CR 700.4: "dies" is exactly "put into a graveyard from the battlefield".
+                    condition = TriggerCondition.PutIntoGraveyardFromBattlefieldSelf,
+                    effect =
+                        ResolutionEffect { state, context ->
+                            exileTopCardsPlayableUntilEndOfYourNextTurn(
+                                state,
+                                context.controller,
+                                CLOCKWORK_PERCUSSIONIST_EXILE,
+                            )
+                        },
                 ),
             )
     }
