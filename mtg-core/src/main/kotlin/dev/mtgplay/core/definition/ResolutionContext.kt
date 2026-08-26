@@ -76,6 +76,18 @@ import kotlinx.collections.immutable.persistentListOf
  *   a chosen creature is still on the battlefield, so what the record carries is a *handle* the resolution
  *   re-reads live (CR 608.2h), not a captured value. See [dev.mtgplay.core.state.ChosenPowerSource] for
  *   why the other member is a printed [CardRef] instead.
+ * @property tappedForCost the battlefield permanents tapped to pay this **ability's**
+ *   [AbilityCost.TapPermanentYouControl] component (CR 602.2b), in the order tapped; empty for every
+ *   spell and for every ability with no such cost. Additive, flagged core (`W10-C`). The linked
+ *   information Pinnacle Kill-Ship's Station reads — "put charge counters equal to **its** power on
+ *   this Spacecraft" — supplied from
+ *   [dev.mtgplay.core.state.StackEntry.ActivatedAbilityOnStack.tappedForCost].
+ *
+ *   Live [ObjectId] handles rather than printed [CardRef]s, for [costPowerSource]'s reason and not
+ *   [sacrificedForCost]'s: the tapped permanent is alive on the battlefield when the ability resolves,
+ *   so CR 608.2h reads its power then. Wrap one in
+ *   [dev.mtgplay.core.state.ChosenPowerSource.ChosenCreature] to read it through the published
+ *   power primitive, which handles the CR 113.7a case where it has since left.
  * @property linkedExiled the exile objects a **linked** ability (CR 607.2) of this ability's source put
  *   into exile, in the order exiled; empty for every spell and for an ability with no linked partner.
  *   Additive, flagged core (`FW-LINKEDEXILE`, docs/design/exile-and-return.md §4). The linked
@@ -103,6 +115,7 @@ data class ResolutionContext(
     val chosenX: Int = 0,
     val optionalCostPaid: Boolean = false,
     val costPowerSource: ChosenPowerSource? = null,
+    val tappedForCost: PersistentList<ObjectId> = persistentListOf(),
 ) {
     /**
      * The [dev.mtgplay.core.state.DamageSource] this resolving object is, for the damage primitives

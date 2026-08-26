@@ -112,12 +112,13 @@ class OptionalCostCardsSpec :
             }
         }
 
-        "one of the two cards this packet could not encode stays absent" {
-            // Kaervek's Torch was the other, and `W10-D` shipped it: the cost increase this packet named
-            // is [dev.mtgplay.core.definition.StackTargetTax], and the enumeration gate it forces is
-            // `StackTargetTax.kt`. Nyxborn Hydra still needs bestow, and shipping it without that half
-            // would be a plausible-looking wrong card (PLAN.md §7).
+        // Both halves of this pin were written by different packets in the same wave, each asserting
+        // the *other* card was still absent. Both are now encoded — Kaervek's Torch by `W10-D`'s
+        // `StackTargetTax` (the cost-increase slot `FW-COST` left empty) and Nyxborn Hydra by `W10-C`'s
+        // bestow plus the CR 614.1c enters-with-counters replacement. The pin is inverted rather than
+        // deleted, so the day either is dropped from the registry this line says so.
+        "the two cards this file recorded as blocked are both encoded now" {
             MvpCards.definitions[CardRef("Kaervek's Torch")].shouldNotBeNull()
-            MvpCards.definitions[CardRef("Nyxborn Hydra")].shouldBeNull()
+            MvpCards.definitions[CardRef("Nyxborn Hydra")].shouldNotBeNull()
         }
     })

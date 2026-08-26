@@ -234,6 +234,23 @@ sealed interface CastingPermissionDto {
         val cost: String,
         val faceName: String,
     ) : CastingPermissionDto
+
+    /**
+     * Bestow (CR 702.103): cast from the hand for the bestow [cost], **as an Aura spell with enchant
+     * creature**. Added by `W10-C`.
+     *
+     * [Prototype]'s sibling in the one way that matters on the wire: both change what the object *is*
+     * and not only what it costs, so a peer that rendered the cost alone would be showing the wrong
+     * card. Here the payload is nonetheless just the cost, and that is not an omission — everything
+     * else bestow does is fixed by CR 702.103b (the spell is an Aura, its enchant restriction is
+     * "creature") or is a static ability the card declares for itself (the type change while attached).
+     * A restriction field would carry the same value on every bestow card ever printed.
+     */
+    @Serializable
+    @SerialName("bestow")
+    data class Bestow(
+        val cost: String,
+    ) : CastingPermissionDto
 }
 
 /** [CastingPermission] to its wire form. */
@@ -257,6 +274,7 @@ fun CastingPermission.toDto(): CastingPermissionDto =
         is CastingPermission.Cascade -> CastingPermissionDto.Cascade
         is CastingPermission.Adventure -> CastingPermissionDto.Adventure(cost.render(), faceName)
         is CastingPermission.Omen -> CastingPermissionDto.Omen(cost.render(), faceName)
+        is CastingPermission.Bestow -> CastingPermissionDto.Bestow(cost.render())
     }
 
 /** [CastingPermissionDto] back to the engine value. */
@@ -280,6 +298,7 @@ fun CastingPermissionDto.toDomain(): CastingPermission =
         is CastingPermissionDto.Cascade -> CastingPermission.Cascade
         is CastingPermissionDto.Adventure -> CastingPermission.Adventure(ManaCost.parse(cost), faceName)
         is CastingPermissionDto.Omen -> CastingPermission.Omen(ManaCost.parse(cost), faceName)
+        is CastingPermissionDto.Bestow -> CastingPermission.Bestow(ManaCost.parse(cost))
     }
 
 /**

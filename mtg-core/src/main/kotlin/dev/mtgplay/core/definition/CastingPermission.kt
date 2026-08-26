@@ -408,4 +408,43 @@ sealed interface CastingPermission {
     ) : CastingPermission {
         override val source: CastSource = CastSource.HAND
     }
+
+    /**
+     * Bestow (CR 702.103): the creature card may be cast **as an Aura spell with enchant creature**, for
+     * its bestow [cost], from [CastSource.HAND]. Additive, flagged core (`W10-C`) — Nyxborn Hydra's
+     * "Bestow `{X}{G}{G}`".
+     *
+     * **The one permission that changes what the spell *is*, not merely what it costs.** Every other
+     * member here answers "where is the card and what does it cost"; this one also answers "what kind of
+     * spell is it" (CR 702.103b: a card cast for its bestow cost is an Aura spell) and therefore "what
+     * does it target" — an Aura spell targets the permanent it will enchant (CR 601.2c, CR 303.4a),
+     * where the same card cast normally is a creature spell that targets nothing. That is why
+     * `mtg-rules` reads the targeting line in force through the *permission* since this member existed:
+     * one card, two target specs, decided by how it was cast.
+     *
+     * **What it becomes on the battlefield is a static ability, not this permission** (CR 702.103a's
+     * third ability): "as long as this permanent is attached to a creature, it's an Aura enchantment
+     * and not a creature", applied in CR 613 layer 4 and re-evaluated continuously. So a bestowed
+     * permanent whose host leaves *stops being an Aura and becomes a creature* (CR 702.103c) rather
+     * than being put into a graveyard — which is the whole of what makes bestow not an ordinary Aura,
+     * and which falls out of the layer system rather than needing a special case: the moment the
+     * condition fails the permanent is a creature, so CR 704.5m has no Aura to act on. The card
+     * declares that ability itself, as a [StaticContinuousEffect] conditioned on
+     * [StaticCondition.AttachedToCreature].
+     *
+     * **The enchant restriction is fixed at "creature" and is therefore not a property here.**
+     * CR 702.103b writes it into the keyword: every bestow card ever printed is an Aura *with enchant
+     * creature*, exactly as CR 301.5b gives every Equipment the same host requirement. A per-card
+     * restriction would be a field no printing sets.
+     *
+     * [offeredAtPriority] is `true`: bestow is an alternative cost for a card in hand, offered whenever
+     * that card could be cast, so both ways of casting a Hydra are enumerated side by side (ADR-005).
+     * Its timing is the card's own — a creature card, so sorcery speed — because CR 702.103b changes
+     * the spell's type and not when it may be cast.
+     */
+    data class Bestow(
+        override val cost: ManaCost,
+    ) : CastingPermission {
+        override val source: CastSource = CastSource.HAND
+    }
 }

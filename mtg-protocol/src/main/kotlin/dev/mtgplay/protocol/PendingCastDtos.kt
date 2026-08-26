@@ -148,6 +148,7 @@ data class PendingActivationDto(
     val chosenTargets: List<TargetDto>?,
     val chosenSacrifice: List<Long>?,
     val chosenReturn: List<Long>? = null,
+    val chosenTap: List<Long>? = null,
     val chosenX: Int? = null,
 )
 
@@ -166,6 +167,10 @@ fun PendingActivation.toDto(): PendingActivationDto =
         // three-valued shape the sibling cost selections use, so it must ride the wire rather than
         // being reconstructed, or a paused activation would decode to a *different* gathering stage.
         chosenReturn = chosenReturn?.map(ObjectId::value),
+        // CR 602.1 (`W10-C`): the "tap another creature you control" cost's chosen object, three-valued
+        // and riding the wire for [chosenReturn]'s reason exactly — an activation paused at the tap
+        // stage must decode back to the tap stage.
+        chosenTap = chosenTap?.map(ObjectId::value),
         // CR 601.2b (`W9-C`): the announced value of X. Three-valued exactly as the cost selections
         // above are — null means "not yet announced" — and it rides the wire for the same reason: on
         // this path the announcement is settled *first*, so a paused activation that dropped it would
@@ -184,6 +189,7 @@ fun PendingActivationDto.toDomain(): PendingActivation =
         chosenTargets = chosenTargets?.map { it.toDomain() }?.toPersistentList(),
         chosenSacrifice = chosenSacrifice?.map(::ObjectId)?.toPersistentList(),
         chosenReturn = chosenReturn?.map(::ObjectId)?.toPersistentList(),
+        chosenTap = chosenTap?.map(::ObjectId)?.toPersistentList(),
         chosenX = chosenX,
     )
 

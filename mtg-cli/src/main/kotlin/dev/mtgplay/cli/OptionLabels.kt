@@ -54,6 +54,9 @@ private fun permissionName(permission: CastingPermission): String =
         // read identically for the 6/3 creature and for the {1}{R} sweeper.
         is CastingPermission.Adventure -> "adventure ${permission.faceName} ${permission.cost.render()}"
         is CastingPermission.Omen -> "omen ${permission.faceName} ${permission.cost.render()}"
+        // CR 702.103b: the bestow cast's whole point is that the spell is a *different kind of spell*,
+        // so the label says so — the two options this card offers differ in what they target.
+        is CastingPermission.Bestow -> "bestow ${permission.cost.render()} (as an Aura)"
     }
 
 /** The zone a cast draws from (CR 601.2a). */

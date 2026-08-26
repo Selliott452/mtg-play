@@ -72,5 +72,12 @@ internal fun enchantRestrictionOf(
     (state.definitions[obj.card] as? SpellDefinition)
         // CR 601.2b: modality is asked *before* enchant-ness, because a modal card's `targetSpec` throws.
         ?.takeIf { it.modes.isEmpty() }
+        // CR 702.103c (`W10-C`): a permanent with bestow is an Aura while it is attached to a creature,
+        // and it is deliberately **not** answered here. This function has exactly one caller — the
+        // CR 704.5m graveyard state-based action — and CR 702.103c gives a bestowed permanent the
+        // opposite outcome on the same condition: it becomes unattached and stays on the battlefield.
+        // Answering with a restriction would put a Hydra whose host died into a graveyard, which is the
+        // single thing bestow exists not to do. Its attachment legality is `bestowAttachmentIsLegal`.
+        ?.takeIf { bestowOf(it) == null }
         ?.let { it.targetSpec as? TargetSpec.Enchantable }
         ?.restriction

@@ -47,6 +47,17 @@ import kotlinx.collections.immutable.PersistentList
  *   sacrifice is: a permanent that has been chosen to leave the battlefield must be reservable by the
  *   plan enumeration, and a choice not yet made cannot be reserved. A returned permanent is reserved
  *   *unconditionally*, unlike a sacrificed one — see `manaSourcesReservedBy`.
+ * @property chosenTap the battlefield permanent chosen to pay a
+ *   [dev.mtgplay.core.definition.AbilityCost.TapPermanentYouControl] component (Pinnacle Kill-Ship's
+ *   Station, "Tap another creature you control"): `null` before the selection is answered when the cost
+ *   demands one, an (empty) list once settled or when no such component applies. Additive, flagged core
+ *   (`W10-C`).
+ *
+ *   Gathered **after** the return selection and **before** the payment plan, for the reason both of
+ *   those are, and with [chosenReturn]'s *unconditional* reservation rather than [chosenSacrifice]'s
+ *   conditional one: a permanent tapped to pay this cost cannot also have been tapped for mana, because
+ *   CR 601.2g's mana abilities are activated before CR 601.2h pays the costs and a tapped permanent has
+ *   nothing left to give either way round. Reserving it is what stops that plan being enumerated.
  * @property chosenX the value announced for the ability's variable cost (CR 107.3, CR 601.2b via
  *   CR 602.2b): `null` before the announcement is made when the cost carries
  *   [dev.mtgplay.core.mana.ManaSymbol.X], `0` once settled or when it does not. Additive, flagged core
@@ -77,6 +88,7 @@ data class PendingActivation(
     val chosenTargets: PersistentList<Target>? = null,
     val chosenSacrifice: PersistentList<ObjectId>? = null,
     val chosenReturn: PersistentList<ObjectId>? = null,
+    val chosenTap: PersistentList<ObjectId>? = null,
     val chosenX: Int? = null,
 ) {
     init {

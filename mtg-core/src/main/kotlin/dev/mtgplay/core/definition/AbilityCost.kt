@@ -159,4 +159,49 @@ sealed interface AbilityCost {
     data class ReturnPermanentYouControl(
         val filter: PermanentFilter,
     ) : AbilityCost
+
+    /**
+     * **Tap one chosen untapped permanent you control** matching [filter] (CR 602.1, CR 701.20a) —
+     * Pinnacle Kill-Ship's Station, "Tap another creature you control". Additive, flagged core
+     * (`W10-C`).
+     *
+     * The fourth cost component with a *chosen* object, after [DiscardACard], [Sacrifice] and
+     * [ReturnPermanentYouControl], and deliberately their shape: the engine enumerates the candidates
+     * and the activator picks by index (ADR-005), and the tap happens during payment (CR 602.2b).
+     *
+     * **Not [TapSelf] with a filter.** `{T}` is a symbol naming the source and nothing else, and the two
+     * costs differ in every way that matters to the rules: `{T}` is subject to CR 302.6 summoning
+     * sickness and this is not (CR 302.6 restricts the `{T}` *symbol* in an ability of that permanent, so
+     * a creature that arrived this turn may be tapped to pay this — a real and frequently-correct line
+     * of play that a summoning-sickness gate here would delete). Nor is it
+     * [ReturnPermanentYouControl] with a different verb: a tapped permanent is alive, on the
+     * battlefield, and untaps next turn, so the two are the difference between a loan and a loss.
+     *
+     * **Untapped is intrinsic, not a field**, exactly as [TapRequirement] argues for the cast-side
+     * sibling: a tap cost can only be paid by an untapped permanent (CR 118.4 — tapping a tapped
+     * permanent does nothing and pays nothing), so the printed word "untapped" is reminder text.
+     *
+     * **"You control" is likewise not optional.** CR 601.2h lets a player tap only permanents they
+     * control to pay a cost, so it is a property of the cost rather than of the [filter] — the filter's
+     * own `controlledByYou` axis is set for the same reason it is on [ReturnPermanentYouControl], and a
+     * printing that tapped a permanent an opponent controlled would be a different cost entirely.
+     *
+     * @property filter which permanents may be chosen to pay it (CR 602.1) — Station's is
+     *   `PermanentFilter(cardType = CardType.CREATURE, controlledByYou = true)`.
+     * @property another whether the printed text says **another**, excluding the ability's own source
+     *   from the choice (CR 109.5). `false` for a cost that names no such restriction.
+     *
+     *   **A flag on the cost rather than an axis of the filter**, and the reason is the argument
+     *   [Sacrifice] already records from the other side. Krark-Clan Shaman's "Sacrifice an artifact"
+     *   prints no "another" and its source is excluded by the filter alone, so an `another` restriction
+     *   there would be *wrong*. Station prints the word, and its source is exactly the kind of permanent
+     *   that would otherwise match: a Spacecraft with seven charge counters **is** a creature you
+     *   control, so without this flag a fully-stationed Kill-Ship could tap itself to station itself —
+     *   an enumerated-but-illegal action (ADR-005), and one that only appears at the moment the card
+     *   starts working. Two printings, two answers, so the answer is data.
+     */
+    data class TapPermanentYouControl(
+        val filter: PermanentFilter,
+        val another: Boolean = false,
+    ) : AbilityCost
 }

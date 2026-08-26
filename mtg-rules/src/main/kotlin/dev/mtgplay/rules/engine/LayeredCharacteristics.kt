@@ -158,6 +158,35 @@ internal fun activeEffectsOn(
  * Raider's haste appears the instant an artifact enters and is gone the instant the last one leaves.
  * Because characteristics are computed on read and never cached (docs/design/layer-system.md §5), that
  * continuity costs exactly this one filter and no invalidation machinery.
+ *
+ * **"Does the layer store only hold effects created by a resolving ability?" — no, and the question
+ * contains the misreading worth naming** (`W10-C`, asked of Pinnacle Kill-Ship's "it's an artifact
+ * creature at 7+"). There is no single layer store. [activeEffectsOn] concatenates **two** generators
+ * with opposite mechanics, and only one of them is a store at all:
+ *
+ * - [dev.mtgplay.core.state.GameState.timedEffects] *is* a store, and it is the resolution-generated
+ *   half (CR 611.2). An effect is put in it when a spell or ability resolves, its magnitudes were
+ *   snapshotted at that moment (CR 608.2h), and nothing re-derives them afterwards. An effect whose
+ *   applicability had to change with the board could not live there — which is the true half of the
+ *   question, and the half that makes the other half look impossible.
+ * - This function is **not a store**. It re-derives the active static effects from the battlefield on
+ *   every characteristic read: which permanents are there, what their affected sets currently name, and
+ *   whether their conditions currently hold. Nothing is written down, so nothing can go stale.
+ *
+ * So a *conditional* continuous effect — one whose applicability is re-evaluated as the board changes,
+ * counters included — is not merely expressible, it is the only shape a static ability has ever had
+ * here. A Spacecraft is an artifact creature on the read after its seventh charge counter lands and a
+ * noncreature artifact on the read after one is removed, in both cases with nothing on the stack and no
+ * player receiving priority (CR 604.3). What `W10-C` actually had to add was **not** a mechanism for
+ * re-evaluation but a [StaticCondition] shape that counts counters on the source
+ * ([StaticCondition.CountersOnSelf]) and a layer-4 field for the static declaration to carry
+ * ([dev.mtgplay.core.definition.StaticContinuousEffect.addedCardTypes]) — a vocabulary gap, not an
+ * architectural one.
+ *
+ * The corollary is worth stating because it is the trap: a card whose type change **must** track state
+ * has to be encoded as a static ability, never as a resolving one. Writing "it's an artifact creature
+ * at 7+" as an effect a resolving ability creates would make a Spacecraft that became a creature once
+ * and stayed one — correct in every game that never removed a counter, and wrong in the ones that did.
  */
 private fun staticEffectsOn(
     state: GameState,
@@ -178,6 +207,12 @@ private fun staticEffectsOn(
                     grantedKeywords = effect.grantedKeywords,
                     grantedManaAbilities = effect.grantedManaAbilities,
                     grantedProtections = effect.grantedProtections,
+                    // CR 613.1d: a static ability may change types too (`W10-C`) — the Spacecraft that
+                    // "is an artifact creature at 7+" while its condition holds, and the bestowed
+                    // permanent that "is an Aura enchantment and not a creature" while attached.
+                    addedCardTypes = effect.addedCardTypes,
+                    addedSubtypes = effect.addedSubtypes,
+                    removedCardTypes = effect.removedCardTypes,
                     powerMod = effect.powerMod,
                     toughnessMod = effect.toughnessMod,
                     timestamp = source.id.value,
@@ -192,14 +227,24 @@ private fun staticEffectsOn(
  * and are therefore already constants — presented as [dev.mtgplay.core.definition.Magnitude.Fixed],
  * which is the only shape a timed magnitude can take (docs/design/duration.md §3.2).
  *
- * **This is also the only generator of a CR 613 layer-4 type change or a layer-7b set-P/T**
- * (`FW-TYPECHANGE`). [dev.mtgplay.core.definition.StaticContinuousEffect] has no type or set-P/T
- * fields and deliberately keeps none: every type change in the gauntlet pool is printed on a resolving
- * *ability* ("that artifact becomes a 0/0 Homunculus artifact creature"), never on a permanent's
- * static ability, and an always-empty pair of fields on the static declaration would be an untested
- * branch of layers 4 and 7b. The day a card prints "other Slivers you control are …", the static
- * declaration gains the fields and [staticEffectsOn] threads them exactly as this does — nothing below
- * [ActiveEffect] changes, because both generators already collapse to it.
+ * **This is still the only generator of a CR 613 layer-7b set-P/T, and is no longer the only generator
+ * of a layer-4 type change** (`FW-TYPECHANGE`, corrected by `W10-C`). That packet's note here predicted
+ * the correction almost word for word — "the day a card prints … the static declaration gains the
+ * fields and [staticEffectsOn] threads them exactly as this does — nothing below [ActiveEffect]
+ * changes" — and the prediction held exactly: the field was added to
+ * [dev.mtgplay.core.definition.StaticContinuousEffect], `staticEffectsOn` passes it through, and not one
+ * line of `Layers.kt` or `LayerApplication.kt` moved.
+ *
+ * What the old note got *wrong* is worth recording rather than deleting, because it was a claim about
+ * the pool and not about the engine: it said every type change in the gauntlet is printed on a resolving
+ * ability. Pinnacle Kill-Ship's is printed on the permanent — "it's an artifact creature at 7+" — and
+ * nothing resolves, nothing goes on the stack, and no player gets priority when the seventh counter
+ * lands (CR 604.3). A resolution-generated encoding of that line would have been a card that became a
+ * creature once and stayed one.
+ *
+ * Set-P/T remains timed-only, and for the *stated* reason rather than by omission: a Spacecraft's 7/7 is
+ * **printed on the card** (CR 208.1b), so the type change alone gives it a P/T box and there is nothing
+ * for a static 7b effect to set.
  */
 private fun timedEffectsOn(
     state: GameState,
@@ -268,7 +313,33 @@ private fun conditionHolds(
         null -> true
         is StaticCondition.YouControl ->
             countMatchingPermanents(state, condition.filter, controllerOf(source)) >= condition.atLeast
+        // CR 604.3 with CR 122.6: the source's own counters, counted on every read. The count is taken
+        // off the [GameObject] rather than through the layer system on purpose — counters are state, not
+        // characteristics, so nothing here can recurse back into the walk that called it.
+        is StaticCondition.CountersOnSelf -> source.counterCount(condition.counter) >= condition.atLeast
+        // CR 604.3 with CR 702.103a: bestow's "as long as this permanent is attached to a creature".
+        StaticCondition.AttachedToCreature -> attachedToCreature(state, source)
     }
+
+/**
+ * Whether [source] is attached to a permanent that is a creature **right now** (CR 702.103a) — the
+ * bestow condition, and the one place the layer walk asks a question about another object's type line.
+ *
+ * The creature read is layered (CR 613 layer 4), so a bestowed permanent stays an Aura on an animated
+ * host and stops being one the instant its host stops being a creature. That is a *cross-object* read
+ * inside the effect-collection step, which is worth naming because it is the first: it terminates
+ * because the host's own layer walk cannot reach back to [source] — no effect in the pool conditions on
+ * being *enchanted*, only on enchanting — and it would not terminate if one did. The day a card prints
+ * the other direction, this is the read that has to grow a CR 613.8 dependency answer.
+ */
+private fun attachedToCreature(
+    state: GameState,
+    source: GameObject,
+): Boolean {
+    val attachedTo = source.attachedTo
+    val host = state.sharedZones.battlefield.firstOrNull { it.id == attachedTo }
+    return host != null && isCreature(state, host)
+}
 
 /** The controller of [source] (CR 108.4); ownership across this pool. */
 private fun controllerOf(source: GameObject): PlayerId = source.owner

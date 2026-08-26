@@ -67,6 +67,31 @@ sealed interface Counter {
         }
     }
 
+    /**
+     * A **charge counter** (CR 122.1): a counter with a name and no intrinsic rules meaning of its own.
+     * Additive, flagged core (`W10-C`) — Pinnacle Kill-Ship's Station counters.
+     *
+     * **The first counter kind that does nothing.** [PowerToughness] modifies P/T in CR 613 sublayer 7c
+     * and [KeywordCounter] grants a keyword in layer 6, so each of them reaches the layer walk on its
+     * own. A charge counter reaches no layer at all: CR 122.1 makes it a marker, CR 122.6 lets abilities
+     * *count* it, and nothing else in the rules mentions it. What the counters do on a Spacecraft is
+     * written on the Spacecraft — "it's an artifact creature at 7+" is a static ability of the permanent
+     * whose condition reads the count (see
+     * [dev.mtgplay.core.definition.StaticCondition.CountersOnSelf]), not a property of the counter.
+     *
+     * That is why it is a `data object` rather than a `data class` carrying a name. CR 122.1 admits any
+     * word, but a counter kind with no rules meaning is distinguished only by the abilities that read
+     * it, and two differently-named inert counters would be indistinguishable to every one of them in
+     * this pool. A named member joins this type with the first card that puts two different inert
+     * counter kinds on one permanent; until then a name would be a field nothing reads.
+     *
+     * It is deliberately **not** [PowerToughness]`(0, 0)`, which that member's own `init` refuses: a
+     * `+0/+0` counter is not a P/T counter, and encoding an inert counter as one would put it into
+     * sublayer 7c where CR 704.5q could then annihilate it against a `-1/-1` counter — a wrong game that
+     * would look right until a Spacecraft lost a Station counter to a shrink effect.
+     */
+    data object Charge : Counter
+
     companion object {
         /** The `+1/+1` counter (CR 122.1a) — one of the two CR 704.5q annihilates against each other. */
         val PLUS_ONE_PLUS_ONE: PowerToughness = PowerToughness(1, 1)

@@ -1,6 +1,5 @@
 package dev.mtgplay.rules.engine
 
-import dev.mtgplay.core.definition.SpellDefinition
 import dev.mtgplay.core.definition.TargetSpec
 import dev.mtgplay.core.identity.CardRef
 import dev.mtgplay.core.identity.ObjectId
@@ -37,27 +36,6 @@ internal fun initialTargetsFor(
     self: ObjectId,
 ): PersistentList<Target>? =
     if (targetChoiceIsVacuous(state, spec, caster, Chooser.Spell(self))) persistentListOf() else null
-
-/**
- * The settled-targets value a cast of [definition] starts with (CR 601.2c), accounting for a card that
- * prints the word "target" more than once (`W9-C`).
- *
- * A multi-line card is **never** settled up front, whatever its first line looks like: settling would
- * claim every line is answered, and the later lines have not been asked. The vacuity shortcut therefore
- * applies only to a one-line card, which is every card in the pool but Searing Blaze — and the shortcut is
- * exactly the behaviour those cards had before this framework.
- */
-internal fun initialCastTargets(
-    state: GameState,
-    definition: SpellDefinition,
-    modes: List<Int>,
-    caster: PlayerId,
-    self: ObjectId,
-): PersistentList<Target>? {
-    val lines = targetLinesOf(definition, modes)
-    if (lines.size > 1) return null
-    return initialTargetsFor(state, lines.single(), caster, self)
-}
 
 /** The printed identity of the card an open [cast] is casting, wherever its source zone is (CR 601.2a). */
 internal fun castCardRef(

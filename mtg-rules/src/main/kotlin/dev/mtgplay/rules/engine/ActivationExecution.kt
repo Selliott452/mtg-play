@@ -18,6 +18,7 @@ import dev.mtgplay.rules.effect.exileCardFromGraveyard
 import dev.mtgplay.rules.effect.exilePermanent
 import dev.mtgplay.rules.effect.payEnergy
 import dev.mtgplay.rules.effect.returnPermanentToOwnersHand
+import kotlinx.collections.immutable.persistentListOf
 
 /*
  * Activated-ability execution and resolution (CR 602.2b–c, CR 608.2): paying the composite cost, putting
@@ -95,6 +96,9 @@ internal fun executeActivation(
             // CR 113.7c/608.2h: the source is still in combat *here* and will not be by the CR 608.2b
             // re-check, because the cost below may sacrifice it. Captured, never re-derived.
             blockingAtActivation = creaturesBlockedBy(state, source.id),
+            // CR 602.2b: the permanents the cost is about to tap, recorded as live handles so the
+            // resolution can read their power then (CR 608.2h) rather than now (`W10-C`).
+            tappedForCost = pending.chosenTap ?: persistentListOf(),
         )
     val cleared = allocated.copy(pendingActivation = null)
     establishActivationTargets(cleared, entry)
@@ -204,6 +208,7 @@ private fun payAbilityCost(
     val chosenDiscard = pending.chosenDiscard.orEmpty()
     val chosenSacrifice = pending.chosenSacrifice.orEmpty()
     val chosenReturn = pending.chosenReturn.orEmpty()
+    val chosenTap = pending.chosenTap.orEmpty()
     return ability.cost.fold(state) { current, component ->
         when (component) {
             // CR 601.2b/107.3: the announced value substituted in, which is the cost the plan was
@@ -232,6 +237,11 @@ private fun payAbilityCost(
             // can already have been tapped for mana by the fold above.
             is AbilityCost.ReturnPermanentYouControl ->
                 chosenReturn.fold(current) { s, id -> returnPermanentToOwnersHand(s, id) }
+            // CR 701.20a: the permanents chosen while gathering, tapped. The enumeration reserved each
+            // of them from the payment plan unconditionally, so none can already have been tapped for
+            // mana by the fold above — which is what lets [tapObjectForCost] demand an untapped one.
+            is AbilityCost.TapPermanentYouControl ->
+                chosenTap.fold(current) { s, id -> tapObjectForCost(s, id) }
         }
     }
 }
@@ -273,8 +283,20 @@ private fun markAbilityOncePerTurn(
     return state.updateBattlefield { it.removingAt(index).addingAt(index, marked) }
 }
 
-/** Taps the battlefield object [id] to pay a `{T}` cost (CR 602.2a); emits [GameEvent.ObjectTapped]. */
-private fun tapObjectForCost(
+/**
+ * Taps the battlefield object [id] to pay a tap cost (CR 602.2a); emits [GameEvent.ObjectTapped] and
+ * announces the CR 701.20a became-tapped event.
+ *
+ * Shared by the two tap costs an activation can carry: the `{T}` symbol naming its own source
+ * ([AbilityCost.TapSelf]) and the chosen permanent of
+ * [AbilityCost.TapPermanentYouControl] (`W10-C`). The tapping is identical — which object is chosen is
+ * the whole of the difference, and it was settled long before payment — so one function does both and
+ * the two costs cannot drift apart on what tapping means.
+ *
+ * **A cost's tap demands, where an effect's tap merely does**: an already-tapped object here is an
+ * engine defect and fails loudly, not a silent no-op, because the enumeration proved it untapped.
+ */
+internal fun tapObjectForCost(
     state: GameState,
     id: ObjectId,
 ): GameState {
@@ -326,6 +348,9 @@ internal fun resolveActivatedAbility(
             // CR 107.3: the value announced when the ability was activated (`W9-C`), so an effect
             // measured in X reads the same number the cost was paid at.
             chosenX = entry.chosenX,
+            // CR 608.2h: the permanents tapped to pay the cost, as live handles — Station reads the
+            // power of the creature it tapped, and reads it now rather than when the cost was paid.
+            tappedForCost = entry.tappedForCost,
         )
     val resolved = entry.ability.effect.resolve(state, context)
     require(resolved.sharedZones.stack == state.sharedZones.stack) {

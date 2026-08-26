@@ -145,7 +145,7 @@ internal fun abilityReturnCandidates(
                 state,
                 seat,
                 mana.cost,
-                manaSourcesReservedBy(state, source, ability, chosenReturn = listOf(candidate.id)),
+                manaSourcesReservedBy(state, source, ability, ChosenCostObjects(returned = listOf(candidate.id))),
             ).isNotEmpty()
     }
 }
@@ -181,7 +181,7 @@ internal fun abilitySacrificeCandidates(
                 state,
                 seat,
                 mana.cost,
-                manaSourcesReservedBy(state, source, ability, listOf(candidate.id)),
+                manaSourcesReservedBy(state, source, ability, ChosenCostObjects(sacrificed = listOf(candidate.id))),
             ).isNotEmpty()
     }
 }

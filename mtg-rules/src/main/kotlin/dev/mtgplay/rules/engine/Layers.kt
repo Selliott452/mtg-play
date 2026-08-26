@@ -95,11 +95,14 @@ internal enum class Layer {
     TEXT,
 
     /**
-     * Layer 4 — type-changing effects (CR 613.1d). **Populated** since `FW-TYPECHANGE`: card types
-     * and subtypes an effect *adds* to an object, unioned onto its printed type line (CR 205.1b —
-     * "becomes an artifact creature" keeps every type the permanent already had). Type *removal* is
-     * still refused, because no gauntlet card prints it: [ActiveEffect] has no removal field, so a
-     * removing effect cannot be constructed rather than being silently ignored.
+     * Layer 4 — type-changing effects (CR 613.1d). **Populated** since `FW-TYPECHANGE`: card types and
+     * subtypes an effect adds to an object, unioned onto its printed type line (CR 205.1b — "becomes an
+     * artifact creature" keeps every type the permanent already had).
+     *
+     * Type **removal** joined it in `W10-C`, where three packets' worth of "no gauntlet card prints it"
+     * stopped being true: bestow's "it's an Aura enchantment **and not a creature**" (CR 702.103a) both
+     * adds and removes in the same effect. Removal is applied after addition, which no card can currently
+     * observe and is fixed so that the first one that could does not have to discover it.
      */
     TYPE,
 
@@ -159,6 +162,9 @@ internal enum class Layer {
  * @property affected the object the effect modifies (CR 611.2c).
  * @property addedCardTypes card types the effect adds in layer 4 (CR 613.1d, CR 205.1b).
  * @property addedSubtypes subtypes the effect adds in layer 4 (CR 613.1d, CR 205.3).
+ * @property removedCardTypes card types the effect **removes** in layer 4 (CR 613.1d) — bestow's "and
+ *   not a creature" (`W10-C`). There is deliberately no `removedSubtypes` beside it: no card in the pool
+ *   removes a subtype, and an always-empty field would be an untested branch of the same fold.
  * @property setPower the power the effect *sets* in sublayer 7b (CR 613.4b), or `null`. A plain
  *   [Int] rather than a [Magnitude] because only a resolution-generated effect can carry one and its
  *   value is snapshotted by then (CR 608.2h); a `*`-P/T characteristic-defining ability would be
@@ -177,6 +183,7 @@ internal data class ActiveEffect(
     val toughnessMod: Magnitude = Magnitude.Zero,
     val addedCardTypes: PersistentSet<CardType> = persistentSetOf(),
     val addedSubtypes: PersistentSet<Subtype> = persistentSetOf(),
+    val removedCardTypes: PersistentSet<CardType> = persistentSetOf(),
     val setPower: Int? = null,
     val setToughness: Int? = null,
     val timestamp: Long,
@@ -196,7 +203,10 @@ internal fun layersOf(active: ActiveEffect): Set<Layer> =
     buildSet {
         // CR 613.1d: a type or subtype addition is layer 4, whatever else the same effect does — one
         // effect contributing to several layers is CR 613.1's normal case, not a special one.
-        if (active.addedCardTypes.isNotEmpty() || active.addedSubtypes.isNotEmpty()) {
+        if (active.addedCardTypes.isNotEmpty() ||
+            active.addedSubtypes.isNotEmpty() ||
+            active.removedCardTypes.isNotEmpty()
+        ) {
             add(Layer.TYPE)
         }
         if (grantsAnAbility(active)) {

@@ -135,7 +135,7 @@ private fun fizzleSpell(
     // "if all its targets ... are now illegal, the spell doesn't resolve". One dead bullet out of two
     // leaves a spell that resolves and does as much as it can, so `all` here rather than `any` is the
     // difference between a Call Damage Control that returns one card and one that returns none (`W9-B`).
-    val specs = targetLinesOf(entry.definition, entry.chosenModes)
+    val specs = targetLinesOf(entry.definition, entry.chosenModes, entry.castVia)
     val lines = targetLinesOf(entry)
     // The check carries the announced X (`W9-C`): an ability or spell re-checked against zero would ask
     // a different question from the one its own gathering answered.
@@ -273,6 +273,10 @@ internal fun putResolvedSpellOntoBattlefield(
             prototyped = entry.castVia is CastingPermission.Prototype,
             // CR 702.166b: the same CR 400.7 bridge the kicked flag is, for the other optional cost.
             optionalCostPaidWhenCast = entry.optionalCostPaid,
+            // CR 614.1c: a permanent whose card says it enters with counters does so — the counters are
+            // part of the entering event, so this object is never seen without them and the CR 704.5f
+            // check never measures the counterless body (`W10-C`, Nyxborn Hydra).
+            counters = entersWithCountersNow(entry.definition, entry.chosenX),
         )
     val moved =
         allocated
@@ -293,7 +297,7 @@ internal fun putResolvedSpellOntoBattlefield(
  * throw on the day one does, and answering "attaches to nothing" for it would be worse.
  */
 private fun auraAttachmentTargetOf(entry: StackEntry.Spell): ObjectId? =
-    when (effectiveTargetSpec(entry.definition, entry.chosenModes)) {
+    when (effectiveTargetSpec(entry.definition, entry.chosenModes, entry.castVia)) {
         TargetSpec.None,
         TargetSpec.AnyTarget,
         TargetSpec.TargetOpponent,

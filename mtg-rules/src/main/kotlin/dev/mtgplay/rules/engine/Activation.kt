@@ -132,10 +132,12 @@ internal fun abilityCostPayable(
     scope: AbilityZoneScope,
     ability: ActivatedAbility,
 ): Boolean {
-    require(sacrificeComponent(ability) == null || returnComponent(ability) == null) {
-        "CR 602.1: ${source.card.name} costs both a chosen sacrifice and a chosen return; the two " +
-            "joint payability answers each reserve without seeing the other's choice, so a cost " +
-            "carrying both needs one combined enumeration (docs/design/mana-payment.md §2.2)"
+    // CR 602.1: at most one chosen-object component, for the reason below — the three joint payability
+    // answers each reserve without seeing the others' choices (`W10-C` adds the third).
+    require(chosenObjectComponents(ability) <= 1) {
+        "CR 602.1: ${source.card.name} costs more than one chosen permanent (sacrifice, return or " +
+            "tap); the joint payability answers each reserve without seeing the others' choices, so " +
+            "a cost carrying two needs one combined enumeration (docs/design/mana-payment.md §2.2)"
     }
     // CR 113.6: the only caller reaches this having already matched the ability's declared zone against
     // the zone it found the source in, which is what lets [componentPayable] read one of them.
@@ -167,8 +169,7 @@ private fun componentPayable(
         // it (CR 602.1, triage trap T17) — otherwise legality would say yes to a plan that taps
         // the very permanent the `{T}` component then needs untapped.
         is AbilityCost.Mana ->
-            sacrificeComponent(ability) != null ||
-                returnComponent(ability) != null ||
+            chosenObjectComponents(ability) > 0 ||
                 enumeratePaymentPlans(
                     state,
                     seat,
@@ -200,6 +201,10 @@ private fun componentPayable(
         // CR 602.1 with CR 701.4a: the same joint answer, over the return cost's candidates.
         is AbilityCost.ReturnPermanentYouControl ->
             abilityReturnCandidates(state, seat, source, ability).isNotEmpty()
+        // CR 602.1 with CR 701.20a: and again, over the untapped permanents a chosen-object tap cost
+        // may name — less the source itself when the printed text says "another" (`W10-C`).
+        is AbilityCost.TapPermanentYouControl ->
+            abilityTapCandidates(state, seat, source, ability).isNotEmpty()
     }
 
 /**
@@ -232,6 +237,7 @@ private fun selfCostMatchesZone(
         is AbilityCost.Energy,
         is AbilityCost.Sacrifice,
         is AbilityCost.ReturnPermanentYouControl,
+        is AbilityCost.TapPermanentYouControl,
         -> error("CR 602.1: $component does not consume its own source")
     }
 
@@ -242,3 +248,18 @@ internal fun discardableForAbility(
     source: GameObject,
     scope: AbilityZoneScope,
 ): List<GameObject> = state.player(seat).hand.filter { !(scope == AbilityZoneScope.Hand && it.id == source.id) }
+
+/**
+ * How many **chosen-permanent** components [ability]'s cost carries (CR 602.1): a sacrifice, a return
+ * and a tap are each a cost whose object the activator picks, and each answers its payability *jointly*
+ * with the mana component by reserving its candidate from the payment enumeration
+ * (docs/design/mana-payment.md §2.2).
+ *
+ * Counted rather than compared pairwise because there are three of them now (`W10-C`) and the rule is
+ * the same for every pair: two joint answers, each reserving without seeing the other's choice, would
+ * over-offer. No gauntlet card carries two, so this is a loud gate on an unbuilt combination rather than
+ * a live branch — the mana component defers to whichever one is present, and with none it enumerates
+ * plans itself.
+ */
+private fun chosenObjectComponents(ability: ActivatedAbility): Int =
+    listOfNotNull(sacrificeComponent(ability), returnComponent(ability), tapComponent(ability)).size

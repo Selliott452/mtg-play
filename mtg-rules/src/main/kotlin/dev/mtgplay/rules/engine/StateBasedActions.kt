@@ -1,6 +1,5 @@
 package dev.mtgplay.rules.engine
 
-import dev.mtgplay.core.definition.EnchantRestriction
 import dev.mtgplay.core.event.GameEvent
 import dev.mtgplay.core.event.LossReason
 import dev.mtgplay.core.identity.ObjectId
@@ -53,6 +52,27 @@ internal sealed interface StateBasedAction {
      * this fires on the following check.
      */
     data class AuraFallsOff(
+        val objectId: ObjectId,
+    ) : StateBasedAction
+
+    /**
+     * The permanent with bestow [objectId] becomes **unattached** because it is attached to an illegal
+     * object (CR 702.103c). Added by `W10-C`.
+     *
+     * **The third outcome on the one condition**, and the only one that changes what the permanent *is*.
+     * A dangling Aura goes to a graveyard ([AuraFallsOff], CR 704.5m); a dangling Equipment lets go and
+     * waits to be equipped again ([EquipmentUnattaches], CR 704.5n); a dangling bestowed permanent lets
+     * go **and becomes a creature** — not here, but in the same instant, because the type-changing
+     * static ability that made it an Aura is conditioned on being attached to a creature and stops
+     * applying the moment this action lands (CR 604.3).
+     *
+     * That is why it is its own member rather than a reuse of [EquipmentUnattaches]. The two perform the
+     * same *mechanical* step and answer to different rules with different consequences, and merging them
+     * would make the engine's own log unable to say which rule acted. Reachable by three routes, all of
+     * them ordinary play: the enchanted creature dies, it stops being a creature, or it gains protection
+     * from the bestowed permanent (CR 702.16c).
+     */
+    data class BestowedPermanentUnattaches(
         val objectId: ObjectId,
     ) : StateBasedAction
 
@@ -179,28 +199,7 @@ internal fun applicableStateBasedActions(state: GameState): List<StateBasedActio
             }
         }
         addAll(creatureDeathActions(state))
-        for (obj in state.sharedZones.battlefield) {
-            val restriction = enchantRestrictionOf(state, obj) ?: continue
-            // CR 704.5m: an Aura attached to an illegal object or to nothing goes to its owner's
-            // graveyard. Two reachable cases: a gone enchanted object (its creature died), and —
-            // since `FW-PROTECT` — a still-present object that has protection from the Aura's own
-            // quality (CR 702.16c). CR 704.5n, the Equipment analogue, is the *separate* loop below:
-            // same condition, opposite outcome (`FW-EQUIP`).
-            //
-            // Ordering note (docs/design/protection.md §2.2): this check reads *layered* protections
-            // and layered characteristics are computed on read, so an Aura granting protection is
-            // still contributing its grant while the batch is collected.
-            if (!auraAttachmentIsLegal(state, obj, restriction)) {
-                add(StateBasedAction.AuraFallsOff(obj.id))
-            }
-        }
-        for (obj in state.sharedZones.battlefield) {
-            // CR 704.5n: an Equipment attached to an illegal permanent becomes unattached and **stays on
-            // the battlefield** — the opposite outcome to the Aura check above, on the same condition.
-            if (isEquipment(state, obj) && obj.attachedTo != null && !equipmentAttachmentIsLegal(state, obj)) {
-                add(StateBasedAction.EquipmentUnattaches(obj.id))
-            }
-        }
+        addAll(danglingAttachmentActions(state))
         for (obj in tokensOffBattlefield(state)) {
             // CR 704.5d: a token in any zone other than the battlefield ceases to exist.
             add(StateBasedAction.TokenCeasesToExist(obj.id))
@@ -248,29 +247,6 @@ private fun tokensOffBattlefield(state: GameState): List<GameObject> =
         )
         addAll(state.sharedZones.exile.filter { isToken(state, it) })
     }
-
-/**
- * Whether [aura]'s attachment is legal right now (CR 704.5m): it is attached to a battlefield object
- * that still satisfies the Aura's enchant [restriction]. Control is ownership in the MVP pool
- * (docs/design/layer-system.md §4), so "you control" reads the Aura's owner.
- */
-private fun auraAttachmentIsLegal(
-    state: GameState,
-    aura: GameObject,
-    restriction: EnchantRestriction,
-): Boolean {
-    val attachedTo = aura.attachedTo ?: return false
-    val target = state.sharedZones.battlefield.firstOrNull { it.id == attachedTo }
-    return target != null &&
-        // CR 702.16c: "A permanent … with protection can't be enchanted by Auras that have the
-        // stated quality. Such Auras attached to the permanent … with protection will be put into
-        // their owners' graveyards as a state-based action." So a still-present enchanted object can
-        // make the attachment illegal — which the comment at the call site said was unreachable
-        // until protection existed, and is exactly the case that would otherwise rot silently
-        // (docs/design/protection.md §2.2).
-        !hasProtectionFrom(state, attachedTo, aura.card) &&
-        satisfiesEnchantRestriction(state, restriction, target, aura.owner)
-}
 
 /** The result of one full state-based-action check (the CR 704.3 repeat-until-quiet loop). */
 internal sealed interface SbaOutcome {
@@ -334,6 +310,7 @@ private fun performBatch(
     val deaths = mutableListOf<StateBasedAction.CreatureDies>()
     val fallOffs = mutableListOf<StateBasedAction.AuraFallsOff>()
     val unattachments = mutableListOf<StateBasedAction.EquipmentUnattaches>()
+    val bestowUnattachments = mutableListOf<StateBasedAction.BestowedPermanentUnattaches>()
     val tokenCeases = mutableListOf<StateBasedAction.TokenCeasesToExist>()
     val annihilations = mutableListOf<StateBasedAction.CountersAnnihilate>()
     for (action in actions) {
@@ -343,6 +320,7 @@ private fun performBatch(
             is StateBasedAction.CreatureDies -> deaths += action
             is StateBasedAction.AuraFallsOff -> fallOffs += action
             is StateBasedAction.EquipmentUnattaches -> unattachments += action
+            is StateBasedAction.BestowedPermanentUnattaches -> bestowUnattachments += action
             is StateBasedAction.TokenCeasesToExist -> tokenCeases += action
             is StateBasedAction.CountersAnnihilate -> annihilations += action
         }
@@ -356,8 +334,14 @@ private fun performBatch(
         unattachments
             .map(StateBasedAction.EquipmentUnattaches::objectId)
             .fold(afterFallOffs, ::unattachPermanent)
+    // CR 702.103c, in the same batch and after the CR 704.5n unattachments for definiteness only: the
+    // two act on disjoint objects (a permanent with bestow is a creature card, never an Equipment).
+    val afterBestow =
+        bestowUnattachments
+            .map(StateBasedAction.BestowedPermanentUnattaches::objectId)
+            .fold(afterUnattach, ::unattachPermanent)
     val afterTokens =
-        performTokenCeasesToExist(afterUnattach, tokenCeases.map(StateBasedAction.TokenCeasesToExist::objectId))
+        performTokenCeasesToExist(afterBestow, tokenCeases.map(StateBasedAction.TokenCeasesToExist::objectId))
     return SbaOutcome.Continued(performCounterAnnihilations(afterTokens, annihilations), performedWork = true)
 }
 

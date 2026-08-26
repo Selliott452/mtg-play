@@ -1,5 +1,6 @@
 package dev.mtgplay.rules.engine
 
+import dev.mtgplay.core.definition.CastingPermission
 import dev.mtgplay.core.definition.SpellDefinition
 import dev.mtgplay.core.definition.TargetContext
 import dev.mtgplay.core.definition.TargetCount
@@ -70,10 +71,13 @@ import kotlinx.collections.immutable.toPersistentList
 internal fun targetLinesOf(
     definition: SpellDefinition,
     chosenModes: List<Int>,
+    castVia: CastingPermission? = null,
 ): List<TargetSpec> {
     // `W9-B` made this plural: "choose up to two" yields one targeting line per *chosen mode*, so a
     // modal card's line count is a property of the answer rather than of the card.
-    val modal = effectiveTargetSpecs(definition, chosenModes)
+    // CR 702.103b (`W10-C`): the line in force, which for a bestow cast is an Aura's and not the
+    // creature card's printed one.
+    val modal = effectiveTargetSpecs(definition, chosenModes, castVia)
     if (definition.additionalTargetSpecs.isEmpty()) return modal
     require(definition.modes.isEmpty()) {
         "CR 601.2b/c: ${definition.characteristics.name} prints both modes and additional targeting " +

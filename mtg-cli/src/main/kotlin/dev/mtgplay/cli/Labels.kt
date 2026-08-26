@@ -69,6 +69,7 @@ private fun counterTag(
     when (kind) {
         is Counter.PowerToughness -> "${count}x %+d/%+d".format(kind.power, kind.toughness)
         is Counter.KeywordCounter -> "${count}x ${kind.keyword.name.lowercase().replace('_', ' ')} counter"
+        Counter.Charge -> "${count}x charge counter"
     }
 
 /** The name of the object [id] an Aura is attached to (CR 303.4), with its id for disambiguation. */

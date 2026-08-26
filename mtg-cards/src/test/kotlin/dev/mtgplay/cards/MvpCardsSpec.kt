@@ -222,6 +222,8 @@ class MvpCardsSpec :
             MvpCards.definitions.keys shouldBe
                 setOf(
                     CardRef("Abundant Growth"),
+                    CardRef("Pinnacle Kill-Ship"),
+                    CardRef("Nyxborn Hydra"),
                     CardRef("Clockwork Percussionist"),
                     CardRef("Moon-Circuit Hacker"),
                     CardRef("Tolarian Terror"),

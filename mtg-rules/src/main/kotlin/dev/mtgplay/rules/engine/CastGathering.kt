@@ -162,7 +162,10 @@ internal fun applyChosenTarget(
                         .addingAll(targets),
             )
         } else {
-            require(cast.modeTargets.size < effectiveTargetSpecs(definition, cast.chosenModes.orEmpty()).size) {
+            require(
+                cast.modeTargets.size <
+                    effectiveTargetSpecs(definition, cast.chosenModes.orEmpty(), cast.castingPermission).size,
+            ) {
                 "CR 601.2c: this cast's targets are already chosen"
             }
             cast.copy(modeTargets = cast.modeTargets.adding(targets.toPersistentList()))

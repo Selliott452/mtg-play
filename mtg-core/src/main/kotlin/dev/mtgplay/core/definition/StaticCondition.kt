@@ -1,5 +1,7 @@
 package dev.mtgplay.core.definition
 
+import dev.mtgplay.core.state.Counter
+
 /**
  * The "as long as …" clause of a **conditional** static ability (CR 604.3) — the condition a
  * [StaticContinuousEffect] must satisfy for its continuous effect to be active at all. Additive,
@@ -23,6 +25,71 @@ package dev.mtgplay.core.definition
  * one and the card still *looks* right in every log.
  */
 sealed interface StaticCondition {
+    /**
+     * "As long as this permanent is **attached to a creature**" (CR 604.3, CR 702.103a) — the condition
+     * on bestow's battlefield static ability, and the reason a bestowed permanent is an Aura at all.
+     * Additive, flagged core (`W10-C`).
+     *
+     * **The whole of CR 702.103c is this condition failing.** When the enchanted creature leaves the
+     * battlefield, or stops being a creature, the condition stops holding — continuously, with no
+     * trigger, no stack and no player receiving priority (CR 604.3) — so the permanent stops being an
+     * Aura and is a creature again in the same instant. That is why bestow needs no rule of its own
+     * about graveyards: CR 704.5m acts on Auras, and at the moment the state-based actions are checked
+     * there is no longer an Aura to act on. Encoding the same text as a triggered ability, or as a
+     * one-shot type change, would put the permanent in a graveyard on the first check, which is the
+     * plausible-looking wrong card CONVENTIONS.md forbids.
+     *
+     * A `data object` with no host restriction, for [CountersOnSelf]'s inverse reason: the restriction
+     * is not a per-card choice. CR 702.103b writes "enchant creature" into the keyword, so every bestow
+     * card ever printed asks this one question, and a filter here would be a field with one value.
+     *
+     * "Attached to a creature" is the **layered** read (CR 613 layer 4): a permanent whose host was
+     * animated counts, and one whose host stopped being a creature does not.
+     */
+    data object AttachedToCreature : StaticCondition
+
+    /**
+     * "As long as this permanent has [atLeast] or more [counter] counters on it" (CR 604.3, CR 122.6) —
+     * Pinnacle Kill-Ship's **7+**, the threshold Station's counters climb towards. Additive, flagged
+     * core (`W10-C`).
+     *
+     * **The first condition that reads the source rather than the board**, and the reason it is worth a
+     * member of its own rather than a widening of [YouControl]: the question is not "how many permanents
+     * match a filter" but "how many counters of one kind does *this object* carry". No
+     * [PermanentFilter] can say it — the filter's axes are name, subtype, card type, keyword and
+     * controller — and a filter that could would be counting objects, not counters.
+     *
+     * **Continuous re-evaluation is the whole of its correctness** (CR 604.3), and counters are what
+     * make that observable in a way [YouControl] never quite did. A Spacecraft's charge counters go up
+     * mid-turn, in the middle of a resolution, with no player receiving priority; the instant the
+     * seventh lands the permanent *is* an artifact creature, and the instant an effect removed one it
+     * would stop being one. Because characteristics are computed on read and never cached
+     * (docs/design/layer-system.md §5), that continuity costs nothing here and would be impossible to
+     * retrofit onto a triggered-ability encoding of the same text, which would fire once and then be
+     * wrong for the rest of the game.
+     *
+     * "At least", never "exactly": every printing of the form is a threshold ("7+"), and an exact count
+     * would make a Spacecraft stop being a creature the moment an eighth counter arrived.
+     *
+     * @property counter which kind of counter is counted (CR 122.1) — the Spacecraft's
+     *   [dev.mtgplay.core.state.Counter.Charge].
+     * @property atLeast how many are needed; never below 1, for [YouControl.atLeast]'s reason — a
+     *   threshold of zero is satisfied by a permanent with no counters at all, i.e. an unconditional
+     *   ability written the long way round.
+     */
+    data class CountersOnSelf(
+        val counter: Counter,
+        val atLeast: Int,
+    ) : StaticCondition {
+        init {
+            require(atLeast >= 1) {
+                "CR 604.3: a counter-threshold condition needs at least one counter; a threshold of " +
+                    "$atLeast is satisfied by a permanent carrying none, which is an unconditional " +
+                    "ability rather than a conditional one"
+            }
+        }
+    }
+
     /**
      * "As long as you control [atLeast] or more permanents matching [filter]" (CR 604.3) — Goblin Tomb
      * Raider's "as long as you control an artifact" is `atLeast = 1` over a filter constrained to

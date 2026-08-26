@@ -1055,5 +1055,52 @@ package dev.mtgplay.protocol
  * The request carries the revealed card's name deliberately. It is not a leak and the two independent
  * `ViewLeakPropertySpec` oracles were both widened to say so: the card was revealed, so it is public
  * until the answer arrives and it goes back on top (secret again) or into a graveyard (public forever).
+ *    call it colourless and then disagree with the engine about whether protection from white stops it. *
+ * ## 11.0.0 — `W10-C`: charge counters and a chosen-permanent tap cost
+ *
+ * **Call: bump**, and the two halves break in opposite directions — one loudly, one silently — which is
+ * the reason to state both rather than only the larger.
+ *
+ * 1. **[CounterDto] gains a `charge` variant** (CR 122.1). Counters ride in [GameObjectDto] inside every
+ *    seat view, so this travels server→client on any board with a Spacecraft. It fails **loudly** on a
+ *    `10.0.0` peer: the sealed hierarchy's discriminator is closed, so an unknown `"charge"` is a decode
+ *    error rather than a dropped field. That is the good failure — the alternative would be a peer
+ *    quietly showing a 7/7 artifact that the engine considers a creature.
+ * 2. **[PendingActivationDto] gains an optional `chosenTap`** (CR 602.1). Optional in the schema and
+ *    defaulted to `null`, but the codec is strict about *unknown* fields, so an old peer rejects any
+ *    seat view carrying an activation that has reached the tap-cost stage. It cannot be omitted: like
+ *    its `chosenSacrifice` and `chosenReturn` siblings it is three-valued — `null` means "not yet
+ *    answered" and an empty list "settled, nothing to choose" — so an activation paused at the tap
+ *    stage would otherwise decode to a *different* gathering stage.
+ *
+ * The client→server direction is **unchanged**, and deliberately so. Station's cost surfaces the
+ * *existing* [DecisionRequestDto.ChooseTapsForCost] rather than a new member: "which of your untapped
+ * permanents do you tap to pay this cost" is one question whether a cast or an activated ability is
+ * asking it, and which payer receives the answer is decided engine-side by the open pending record. No
+ * [DecisionRequestKindDto] value is added, so nothing fails at `valueOf` mid-match — the same call
+ * `FW-ABILTGT` made when it reused `ChooseTargets` for three different askers.
+ *
+ * One field is **not** on the wire and the omission is deliberate:
+ * [dev.mtgplay.core.state.StackEntry.ActivatedAbilityOnStack.tappedForCost] is engine-internal
+ * resolution linkage (CR 608.2h), like `blockingAtActivation` beside it, and no seat view renders it.
+ *
+ * ### Also `11.0.0` — `W10-C`: bestow
+ *
+ * Landed in the same packet, so it rides the same bump. One schema change and one that is not:
+ *
+ * 1. **[CastingPermissionDto] gains a `bestow` variant** (CR 702.103), carrying the bestow cost.
+ *    Casting permissions travel in the printed-card table of every seat view, so this reaches a peer on
+ *    any board with the card, and it fails **loudly** on a `10.0.0` peer for [CounterDto]'s reason: the
+ *    discriminator is closed.
+ *
+ *    The payload is only the cost, and that is not an omission — unlike [CastingPermissionDto.Prototype],
+ *    whose alternative power and toughness a peer could not derive, everything else bestow does is fixed
+ *    by CR 702.103b (the spell is an Aura with enchant creature) or is a static ability the card already
+ *    publishes in its own declaration.
+ * 2. **A bestowed permanent's Aura-ness is *not* a new field**, which is the more interesting half. It is
+ *    a CR 613 layer-4 static ability conditioned on the permanent being attached, so a peer that computes
+ *    characteristics from the state it already receives — the attachment, the counters, the card's static
+ *    effects — gets the right answer with no extra bytes. Recording "was cast for bestow" on the object
+ *    would have been a second source of truth on the wire as well as in the engine.
  */
 const val PROTOCOL_VERSION: String = "11.0.0"

@@ -124,6 +124,14 @@ class CounterDtoSpec :
             // a card sitting in a *library*, and there because the printed card said "reveal" — and
             // DecisionRequestKindDto gains CHOOSE_EXPLORE_DESTINATION, whose `valueOf` fails at runtime
             // on an old peer rather than at compile time.
+            // `W10-C` takes it to 11.0.0: CounterDto gains a `charge` variant (CR 122.1), which a
+            // closed sealed discriminator makes a *loud* decode failure on an older peer, and
+            // PendingActivationDto gains an optional `chosenTap` that the strict codec still rejects
+            // as an unknown field. The client->server direction is unchanged — the tap cost reuses the
+            // existing ChooseTapsForCost rather than adding a DecisionRequest kind. The same packet's
+            // bestow half rides the bump: CastingPermissionDto gains a `bestow` variant, and a bestowed
+            // permanent's Aura-ness deliberately adds no field — it is a layer-4 static ability a peer
+            // computes from state it already has.
             // Pinned here so no bump in the chain can be quietly reverted.
             PROTOCOL_VERSION shouldBe "11.0.0"
         }

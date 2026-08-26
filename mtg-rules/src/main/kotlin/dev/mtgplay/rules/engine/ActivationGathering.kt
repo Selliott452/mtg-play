@@ -82,6 +82,8 @@ internal fun beginActivation(
                     chosenSacrifice = if (sacrificeComponent(ability) != null) null else persistentListOf(),
                     // CR 602.1: likewise a "Return a Forest you control to its owner's hand" component.
                     chosenReturn = if (returnComponent(ability) != null) null else persistentListOf(),
+                    // CR 602.1: and likewise a "Tap another creature you control" component (`W10-C`).
+                    chosenTap = if (tapComponent(ability) != null) null else persistentListOf(),
                 ),
         )
     return advanceActivationGathering(opened)
@@ -138,6 +140,7 @@ internal fun advanceActivationGathering(open: GameState): AdvanceResult {
         pending.chosenDiscard == null -> AdvanceResult.NeedsDecision(state, pendingActivationRequest(state))
         pending.chosenSacrifice == null -> AdvanceResult.NeedsDecision(state, pendingActivationRequest(state))
         pending.chosenReturn == null -> AdvanceResult.NeedsDecision(state, pendingActivationRequest(state))
+        pending.chosenTap == null -> AdvanceResult.NeedsDecision(state, pendingActivationRequest(state))
         manaComponent(ability) != null -> AdvanceResult.NeedsDecision(state, pendingActivationRequest(state))
         // No further decisions: pay the cost (with an empty plan) and put the ability on the stack.
         else -> executeActivation(state, PaymentPlan(emptyList(), emptyList()))
@@ -189,31 +192,8 @@ internal fun pendingActivationRequest(state: GameState): DecisionRequest {
                         .map { DecisionRequest.ChooseAbilityDiscard.Option(it.id, it.card) },
                 count = 1,
             )
-        // CR 602.1 with CR 701.17: the "Sacrifice an artifact" selection, offering exactly the
-        // candidates the legality check counted ([abilitySacrificeCandidates]) — an option that left
-        // the sibling mana component unpayable would dead-end the activation (ADR-005).
-        pending.chosenSacrifice == null ->
-            DecisionRequest.ChooseAbilitySacrifice(
-                id = id,
-                sourceObjectId = pending.sourceObjectId,
-                card = source.card,
-                options =
-                    abilitySacrificeCandidates(state, pending.activator, source, ability)
-                        .map { DecisionRequest.ChooseAbilitySacrifice.Option(it.id, it.card) },
-                count = 1,
-            )
-        // CR 602.1 with CR 701.4a: the "Return a Forest you control" selection, offering exactly the
-        // candidates the legality check counted ([abilityReturnCandidates]).
-        pending.chosenReturn == null ->
-            DecisionRequest.ChooseAbilityReturn(
-                id = id,
-                sourceObjectId = pending.sourceObjectId,
-                card = source.card,
-                options =
-                    abilityReturnCandidates(state, pending.activator, source, ability)
-                        .map { DecisionRequest.ChooseAbilityReturn.Option(it.id, it.card) },
-                count = 1,
-            )
+        pending.chosenSacrifice == null || pending.chosenReturn == null || pending.chosenTap == null ->
+            chosenObjectRequest(state, pending, source, ability, id)
         else -> activationPaymentRequest(state, pending, source, ability, id)
     }
 }
@@ -258,43 +238,13 @@ private fun activationPaymentRequest(
                     state,
                     source,
                     ability,
-                    pending.chosenSacrifice.orEmpty(),
-                    pending.chosenReturn.orEmpty(),
+                    ChosenCostObjects(
+                        sacrificed = pending.chosenSacrifice.orEmpty(),
+                        returned = pending.chosenReturn.orEmpty(),
+                        tapped = pending.chosenTap.orEmpty(),
+                    ),
                 ),
             ),
-    )
-}
-
-/**
- * Records the permanent chosen to pay an [AbilityCost.Sacrifice] component on the open activation
- * (CR 602.1) and continues gathering. It is sacrificed only when the activation executes
- * (CR 602.2b), atomically with everything else — nothing has left the battlefield yet.
- */
-internal fun applyChosenAbilitySacrifice(
-    state: GameState,
-    sacrificeObjectIds: List<ObjectId>,
-): AdvanceResult {
-    val pending = state.pendingActivation ?: error("no activation is gathering costs")
-    require(pending.chosenSacrifice == null) { "CR 602.2b: this activation's sacrifice cost is already chosen" }
-    return advanceActivationGathering(
-        state.copy(pendingActivation = pending.copy(chosenSacrifice = sacrificeObjectIds.toPersistentList())),
-    )
-}
-
-/**
- * Records the permanent chosen to pay an [AbilityCost.ReturnPermanentYouControl] component on the open
- * activation (CR 602.1) and continues gathering. It is returned to its owner's hand only when the
- * activation executes (CR 602.2b), atomically with everything else — nothing has left the battlefield
- * yet, which is what lets the payment plan enumerated next reserve it.
- */
-internal fun applyChosenAbilityReturn(
-    state: GameState,
-    returnObjectIds: List<ObjectId>,
-): AdvanceResult {
-    val pending = state.pendingActivation ?: error("no activation is gathering costs")
-    require(pending.chosenReturn == null) { "CR 602.2b: this activation's return cost is already chosen" }
-    return advanceActivationGathering(
-        state.copy(pendingActivation = pending.copy(chosenReturn = returnObjectIds.toPersistentList())),
     )
 }
 

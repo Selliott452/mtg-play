@@ -58,6 +58,7 @@ object CreatureType {
             Flagbearer
             Giant
             Goblin
+            Hydra
             Golem
             Homunculus
             Horror
@@ -131,11 +132,13 @@ object CreatureType {
             Mountain
             Omen
             Plains
+            Spacecraft
             Swamp
             Treasure
             Urza's Mine
             Urza's Power-Plant
             Urza's Tower
+            Vehicle
             """,
         )
 }

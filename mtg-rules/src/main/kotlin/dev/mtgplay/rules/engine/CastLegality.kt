@@ -53,7 +53,12 @@ internal fun targetsAndCostAvailable(
         // shapes at once, so this guard is the same mutual exclusion stated at the call site.
         (
             definition.modes.isNotEmpty() ||
-                targetLinesSatisfiable(state, targetLinesOf(definition, emptyList()), seat, Chooser.Spell(self))
+                targetLinesSatisfiable(
+                    state,
+                    targetLinesOf(definition, emptyList(), permission),
+                    seat,
+                    Chooser.Spell(self),
+                )
         ) &&
 
         additionalSacrificeSatisfiable(state, seat, definition) &&
