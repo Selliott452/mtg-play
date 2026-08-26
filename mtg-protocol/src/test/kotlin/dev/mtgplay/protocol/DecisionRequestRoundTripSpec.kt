@@ -611,4 +611,15 @@ private val allRequests: List<DecisionRequest> =
             revealCount = 4,
             options = listOf(RevealedCardFilter.CREATURE_CARD, RevealedCardFilter.LAND_CARD),
         ),
+        // CR 309.4: the Undercity's first fork — an index the engine answers on plus a name to show.
+        DecisionRequest.ChooseDungeonRoom(
+            ID,
+            dungeon = "Undercity",
+            fromRoom = "Secret Entrance",
+            options =
+                listOf(
+                    DecisionRequest.ChooseDungeonRoom.Option(1, "Forge"),
+                    DecisionRequest.ChooseDungeonRoom.Option(2, "Lost Well"),
+                ),
+        ),
     )

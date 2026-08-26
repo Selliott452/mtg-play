@@ -105,7 +105,11 @@ class CounterDtoSpec :
             // adding a capability, since ContinuousModification has carried granted evasions since the
             // keyword-tail packet and this mirror silently dropped them. The `duration` word gains
             // INDEFINITE (CR 611.2b), which an older peer already fails loudly on by design.
+            // `W10-A` takes it to 11.0.0: a new `choose_dungeon_room` request kind (CR 309.4, the
+            // Undercity's branches), whose DecisionRequestKindDto value fails `valueOf` mid-match on a
+            // 10.0.0 peer, plus an optional `initiative` on SeatViewDto (CR 701.51a) that a strict
+            // 10.0.0 codec still rejects the moment a game actually has one.
             // Pinned here so no bump in the chain can be quietly reverted.
-            PROTOCOL_VERSION shouldBe "10.0.0"
+            PROTOCOL_VERSION shouldBe "11.0.0"
         }
     })
