@@ -98,6 +98,7 @@ data class PendingActivationDto(
     val chosenTargets: List<TargetDto>?,
     val chosenSacrifice: List<Long>?,
     val chosenReturn: List<Long>? = null,
+    val chosenX: Int? = null,
 )
 
 /** [PendingActivation] to its wire form. */
@@ -115,6 +116,11 @@ fun PendingActivation.toDto(): PendingActivationDto =
         // three-valued shape the sibling cost selections use, so it must ride the wire rather than
         // being reconstructed, or a paused activation would decode to a *different* gathering stage.
         chosenReturn = chosenReturn?.map(ObjectId::value),
+        // CR 601.2b (`W9-C`): the announced value of X. Three-valued exactly as the cost selections
+        // above are — null means "not yet announced" — and it rides the wire for the same reason: on
+        // this path the announcement is settled *first*, so a paused activation that dropped it would
+        // decode to a gathering stage before the target choice rather than after it.
+        chosenX = chosenX,
     )
 
 /** [PendingActivationDto] back to the engine value. */
@@ -128,6 +134,7 @@ fun PendingActivationDto.toDomain(): PendingActivation =
         chosenTargets = chosenTargets?.map { it.toDomain() }?.toPersistentList(),
         chosenSacrifice = chosenSacrifice?.map(::ObjectId)?.toPersistentList(),
         chosenReturn = chosenReturn?.map(::ObjectId)?.toPersistentList(),
+        chosenX = chosenX,
     )
 
 /** Wire form of [PendingPlot] (CR 702.140) — the fact and the plotting seat; the card stays in hand. */

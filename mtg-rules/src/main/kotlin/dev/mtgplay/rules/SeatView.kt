@@ -289,6 +289,11 @@ data class SeatView(
  * @property attemptedDrawFromEmptyLibrary the CR 704.5c draw-from-empty fact; public.
  * @property decisionsAnswered how many decisions the seat has answered (ADR-004); public.
  * @property drawsThisTurn how many cards the player has drawn this turn (CR 121.1); public.
+ * @property landsEnteredThisTurn how many lands have entered the battlefield under this player's control
+ *   this turn (CR 305); public, and carried unfiltered for both seats because every land entry is a
+ *   visible event either way. Additive (`W9-C`) — an agent holding Searing Blaze cannot value it without
+ *   knowing whether landfall is on, and re-deriving it from the event log is not something the seat view
+ *   contract asks of a client.
  * @property combatPhasesToSkip how many of the player's next combat phases are skipped (CR 500.10);
  *   public. A scheduled skip resolves face-up and every seat can count the Dignitaries that caused it,
  *   so nothing about it is hidden — and an agent that could not see it would be planning attacks in a
@@ -305,6 +310,7 @@ data class PlayerView(
     val attemptedDrawFromEmptyLibrary: Boolean,
     val decisionsAnswered: Int,
     val drawsThisTurn: Int,
+    val landsEnteredThisTurn: Int,
     val combatPhasesToSkip: Int = 0,
 )
 

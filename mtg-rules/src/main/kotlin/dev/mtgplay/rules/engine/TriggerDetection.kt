@@ -9,6 +9,7 @@ import dev.mtgplay.core.identity.PlayerId
 import dev.mtgplay.core.state.GameObject
 import dev.mtgplay.core.state.GameState
 import dev.mtgplay.core.state.PendingTrigger
+import dev.mtgplay.rules.effect.countLandfall
 
 /*
  * Trigger detection (CR 603.3): the honest watch mechanism for the immutable-transition engine.
@@ -189,7 +190,7 @@ internal fun announceBattlefieldEntry(
     state: GameState,
     battlefieldId: ObjectId,
     announcement: GameEvent,
-): GameState = detectEnterBattlefieldTriggers(state.emit(announcement), battlefieldId)
+): GameState = detectEnterBattlefieldTriggers(countLandfall(state, battlefieldId).emit(announcement), battlefieldId)
 
 /**
  * Announces that [leftObject] has left the battlefield and fires the triggers that departure fires —

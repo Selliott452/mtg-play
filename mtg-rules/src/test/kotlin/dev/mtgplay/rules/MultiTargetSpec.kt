@@ -29,6 +29,7 @@ import dev.mtgplay.rules.decision.Decision
 import dev.mtgplay.rules.decision.DecisionRequest
 import dev.mtgplay.rules.decision.DecisionRequestId
 import dev.mtgplay.rules.engine.Chooser
+import dev.mtgplay.rules.engine.TargetCheck
 import dev.mtgplay.rules.engine.allTargetsIllegal
 import dev.mtgplay.rules.engine.legalTargets
 import dev.mtgplay.rules.engine.targetChoiceBounds
@@ -280,26 +281,33 @@ class MultiTargetSpec :
          */
         "CR 608.2b: an 'up to N' object that chose no targets still resolves and does what it can" {
             val state = multiTargetState()
-            allTargetsIllegal(state, upToTwoAnyCard, emptyList(), alice, Chooser.Nobody) shouldBe false
+            allTargetsIllegal(state, upToTwoAnyCard, emptyList(), TargetCheck(alice, Chooser.Nobody)) shouldBe false
         }
 
         "CR 603.3d/608.2b: a required-target object with no targets does not resolve" {
             val state = multiTargetState()
             val one = TargetSpec.CardInGraveyard(GraveyardCardRestriction.ANY_CARD, GraveyardScope.ANY)
-            allTargetsIllegal(state, one, emptyList(), alice, Chooser.Nobody) shouldBe true
-            allTargetsIllegal(state, exactlyTwoCreatures, emptyList(), alice, Chooser.Nobody) shouldBe true
+            allTargetsIllegal(state, one, emptyList(), TargetCheck(alice, Chooser.Nobody)) shouldBe true
+            allTargetsIllegal(state, exactlyTwoCreatures, emptyList(), TargetCheck(alice, Chooser.Nobody)) shouldBe true
         }
 
         "CR 608.2b: an object with some legal targets resolves; only all-illegal stops it" {
             val state = multiTargetState()
             val gone = Target.CardInGraveyard(ObjectId(9_999))
             val live = Target.CardInGraveyard(ObjectId(0))
-            allTargetsIllegal(state, upToTwoAnyCard, listOf(gone, live), alice, Chooser.Nobody) shouldBe false
-            allTargetsIllegal(state, upToTwoAnyCard, listOf(gone), alice, Chooser.Nobody) shouldBe true
+            allTargetsIllegal(state, upToTwoAnyCard, listOf(gone, live), TargetCheck(alice, Chooser.Nobody)) shouldBe
+                false
+            allTargetsIllegal(state, upToTwoAnyCard, listOf(gone), TargetCheck(alice, Chooser.Nobody)) shouldBe true
         }
 
         "CR 608.2b: an object that targets nothing never fizzles" {
-            allTargetsIllegal(multiTargetState(), TargetSpec.None, emptyList(), alice, Chooser.Nobody) shouldBe false
+            allTargetsIllegal(
+                multiTargetState(),
+                TargetSpec.None,
+                emptyList(),
+                TargetCheck(alice, Chooser.Nobody),
+            ) shouldBe
+                false
         }
     })
 

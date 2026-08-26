@@ -695,5 +695,52 @@ package dev.mtgplay.protocol
  *    field ([TapRequirementDto]) alongside its `sacrifice`, because CR 702.34c admits more than mana
  *    in a flashback cost. Recorded here rather than under `FW-PREVENT2` because it is the same
  *    permission payload, changed once.
+ *
+ * ### Held at `9.0.0` — `W9-C`: dependent targets, storm, and X on activated abilities
+ *
+ * **Call: no bump**, on this file's own repeatedly-applied standard — `9.0.0` is **unreleased**. The only
+ * tag is `v0.1.0`, which shipped protocol `1.0.0`, so `1.0.0` remains the last version any consumer can
+ * have seen and an unshipped major absorbs a further break from the same wave rather than inflating a
+ * major count for a version nobody could have consumed. Parallel packets in this wave reach the same
+ * conclusion, and one shared bump is meant to carry all of them. Naming the breaks is still owed, in
+ * descending order of sharpness:
+ *
+ * 1. **Three new required fields on payloads every seat view carries.** [TurnDto] gains
+ *    `spellsCastThisTurn` (CR 601.2i — the number storm reads) and [PlayerViewDto] gains
+ *    `landsEnteredThisTurn` (CR 305 — the landfall fact). Every seat view carries a turn and two player
+ *    views, so a strict `9.0.0` codec (`ignoreUnknownKeys = false`) rejects **every** seat view, not only
+ *    ones from a game containing these cards — the break shape `FW-COUNTERS` and `FW-BARGAIN` both
+ *    recorded.
+ *
+ *    Both are **required rather than defaulted**, and for the same reason: an agent that could not see
+ *    them would be offered every legal play and would misvalue several of them. A Weather the Storm in
+ *    hand is worth 3 life or 12 depending on `spellsCastThisTurn`, and a Searing Blaze is worth 1 damage
+ *    or 3 depending on `landsEnteredThisTurn`. Re-deriving either from the event log is not something the
+ *    seat-view contract asks of a client.
+ * 2. **A defaulted field on a pause payload.** [PendingActivationDto] gains `chosenX` (CR 601.2b via
+ *    CR 602.2b). Defaulted, so an older *payload* still decodes here; a strict older peer still rejects
+ *    the newer one, which is the asymmetry every additive field has had. It rides the wire rather than
+ *    being reconstructed because on the activation path the announcement is settled **first**, so a paused
+ *    activation that dropped it would decode to a gathering stage *before* the target choice rather than
+ *    after it — a different pause, not a cosmetic loss.
+ *
+ * **No new `DecisionRequest` kind, and that is the framework's central wire claim.** All three cards reuse
+ * requests that already exist: an activation's value of X is a [DecisionRequestDto.ChooseXValue], the same
+ * payload a cast's has always been, and a spell's *second* targeting line is a
+ * [DecisionRequestDto.ChooseTargets], the same payload its first one is. So [DecisionRequestKindDto] is
+ * untouched and nothing fails at `valueOf` mid-match — the softer of the two break modes, and here it is
+ * absent entirely.
+ *
+ * Reusing `ChooseTargets` for a second targeting line is the honest call rather than the cheap one. The
+ * payload is identical — a card, an object id, and a list of legal targets — and which printed instance of
+ * the word "target" an answer settles is read from the open [PendingCastDto], exactly as the same request
+ * has been disambiguated between a cast, an activation and a trigger placement since `FW-ABILTGT`. Adding
+ * an instance index would be a wire break for information the option list already carries; it becomes a
+ * field the day a card prints three lines over the same noun.
+ *
+ * **No [TargetDto] member and no `StackEntryViewDto` field is added.** A copied spell on the stack
+ * (CR 707.10a) renders as the spell it is a copy of, which is what it *is* — a copy has the original's
+ * copiable values — and the one thing that distinguishes it, that it ceases to exist instead of reaching a
+ * graveyard, is not a choice any agent makes.
  */
 const val PROTOCOL_VERSION: String = "9.0.0"

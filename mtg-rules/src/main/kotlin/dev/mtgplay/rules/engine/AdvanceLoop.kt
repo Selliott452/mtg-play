@@ -132,7 +132,9 @@ internal fun beginTurn(
     // (Sneaky Snacker) counts only draws made during the turn now starting.
     val counted =
         state.players.keys.fold(state) { current, seat ->
-            current.updatePlayer(seat) { it.copy(drawsThisTurn = 0) }
+            // CR 305 (`W9-C`): "a land entered the battlefield under your control **this turn**" is the
+            // same per-turn window, so landfall resets beside the draw count rather than accumulating.
+            current.updatePlayer(seat) { it.copy(drawsThisTurn = 0, landsEnteredThisTurn = 0) }
         }
     val refreshed =
         counted.copy(

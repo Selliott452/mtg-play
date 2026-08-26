@@ -68,19 +68,42 @@ private fun MutableList<PriorityOption.ActivateAbility>.addAbilities(
                 // window. Enumerating it outside that window would be an enumerated-but-illegal action
                 // (ADR-005), which is the whole reason `ActivatedAbility.timing` exists.
                 timingPermitsWindow(state, seat, ability.timing) &&
-                // CR 601.2c via CR 602.2b: an ability with no legal target cannot be activated. An
-                // ability's source is a permanent or a card in hand, never a spell on the stack, so
-                // there is nothing for it to exclude from its own enumeration — but CR 702.16b needs
-                // that source's characteristics, and this is where a missed protection check would
-                // become a phantom *action* rather than merely a phantom target
-                // (docs/design/protection.md §6, row 3).
-                targetsAvailable(state, ability.targetSpec, seat, Chooser.Ability(source.card)) &&
-                abilityCostPayable(state, seat, source, scope, ability)
+                offerable(state, seat, source, scope, ability)
         if (offerable) {
             add(PriorityOption.ActivateAbility(source.id, source.card, index, scope))
         }
     }
 }
+
+/**
+ * Whether [ability] of [source] is activatable by [seat] right now on the two axes that are *not* about
+ * timing or the once-per-turn record: that its whole cost is payable, and that CR 601.2c has something for
+ * it to point at.
+ *
+ * **For an ordinary ability the two are independent questions and are asked separately.** An ability's
+ * source is a permanent or a card in hand, never a spell on the stack, so there is nothing for it to
+ * exclude from its own enumeration — but CR 702.16b needs that source's characteristics, and this is where
+ * a missed protection check would become a phantom *action* rather than merely a phantom target
+ * (docs/design/protection.md §6, row 3).
+ *
+ * **For an ability announcing X they are one question** (`W9-C`), because both answers depend on the value
+ * announced and the value is one choice: Gorilla Shaman may be payable at X = 0 and targetable only at
+ * X = 2, and asking the two halves independently would enumerate an activation no single announcement
+ * carries through. [abilityActivatableAtSomeX] is that joint answer — see `AbilityXCost.kt`.
+ */
+private fun offerable(
+    state: GameState,
+    seat: PlayerId,
+    source: GameObject,
+    scope: AbilityZoneScope,
+    ability: ActivatedAbility,
+): Boolean =
+    if (abilityAnnouncesX(ability)) {
+        abilityActivatableAtSomeX(state, seat, source, ability)
+    } else {
+        targetsAvailable(state, ability.targetSpec, seat, Chooser.Ability(source.card)) &&
+            abilityCostPayable(state, seat, source, scope, ability)
+    }
 
 /**
  * Whether every component of [ability]'s cost is payable by [seat] for [source] right now (CR 602.2).

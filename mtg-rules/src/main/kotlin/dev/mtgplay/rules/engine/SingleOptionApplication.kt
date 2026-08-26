@@ -35,7 +35,7 @@ internal fun applySingleOptionSelection(
         is DecisionRequest.ChooseTargets -> applyChosenTargets(state, request, decision)
         is DecisionRequest.ChoosePaymentPlan -> applyChosenPaymentPlan(state, request, decision)
         // CR 601.2b: the option index names an *offered* value of X; the value itself is recorded.
-        is DecisionRequest.ChooseXValue -> applyChosenXValue(state, request.values[decision.index])
+        is DecisionRequest.ChooseXValue -> applyAnnouncedX(state, request.values[decision.index])
         // The option index *is* the amount assigned to the defending player (options are 0..excess).
         is DecisionRequest.AssignTrampleDamage ->
             applyTrampleAssignment(state, request, request.options[decision.index])
@@ -151,3 +151,26 @@ private fun applyChosenPaymentPlan(
         else -> executeCastPipeline(state, plan)
     }
 }
+
+/**
+ * Routes a CR 601.2b announcement of X to whichever record is open (`W9-C`): the cast in progress, or the
+ * activation in progress.
+ *
+ * One request kind, two pipelines, and the open record is what tells them apart — exactly as
+ * `DecisionRequest.ChooseTargets` has served a cast, an activation and a trigger placement since
+ * `FW-ABILTGT`. The two cannot both be open: a cast and an activation each hold priority for their whole
+ * gathering, so there is never an ambiguity to resolve.
+ *
+ * The **positions differ** — the cast path announces X last and the activation path first — but the
+ * *answer* does not, which is why the request is shared rather than duplicated. `AbilityXCost.kt`'s header
+ * argues the asymmetry.
+ */
+private fun applyAnnouncedX(
+    state: GameState,
+    value: Int,
+): AdvanceResult =
+    if (state.pendingActivation != null) {
+        applyChosenAbilityX(state, value)
+    } else {
+        applyChosenXValue(state, value)
+    }

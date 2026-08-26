@@ -39,4 +39,17 @@ sealed interface TriggerZoneScope {
      * detector; its own detection site scans graveyards.
      */
     data object Graveyard : TriggerZoneScope
+
+    /**
+     * The ability functions **while its source is a spell on the stack** (CR 113.6a). Additive, flagged
+     * core (`W9-C`) — storm's "When you cast this spell, copy it …" (CR 702.40a).
+     *
+     * The first scope whose source is not a card sitting quietly in a zone but an object mid-cast, and
+     * the distinction is what makes storm's ability *findable at all*: a storm trigger fires at CR 601.2i,
+     * when the card is neither in a hand nor on the battlefield, and no scope above could have named
+     * where it was. Like [Exile], nothing *detects* against it — the trigger is synthesized by the cast
+     * pipeline for a card declaring the keyword (`Storm.kt`), exactly as madness's reflexive trigger is
+     * synthesized by the discard replacement — so the trigger detector never scans the stack.
+     */
+    data object Stack : TriggerZoneScope
 }

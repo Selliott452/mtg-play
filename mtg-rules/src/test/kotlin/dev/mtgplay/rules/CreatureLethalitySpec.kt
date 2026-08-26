@@ -24,6 +24,7 @@ import dev.mtgplay.core.state.TurnPhase
 import dev.mtgplay.rules.engine.Chooser
 import dev.mtgplay.rules.engine.CreatureDeathCause
 import dev.mtgplay.rules.engine.StateBasedAction
+import dev.mtgplay.rules.engine.TargetCheck
 import dev.mtgplay.rules.engine.applicableStateBasedActions
 import dev.mtgplay.rules.engine.isTargetLegal
 import dev.mtgplay.rules.engine.legalTargets
@@ -164,7 +165,7 @@ class CreatureLethalitySpec :
                 )
             legalTargets(state, TargetSpec.AnyTarget, alice, Chooser.Nobody) shouldContainExactly
                 listOf(Target.Player(alice), Target.Player(bob), Target.Permanent(creatureId))
-            isTargetLegal(state, TargetSpec.AnyTarget, Target.Permanent(creatureId), alice, Chooser.Nobody)
+            isTargetLegal(state, TargetSpec.AnyTarget, Target.Permanent(creatureId), TargetCheck(alice, Chooser.Nobody))
                 .shouldBeTrue()
         }
 
@@ -177,15 +178,19 @@ class CreatureLethalitySpec :
                     nextObjectId = 1,
                     definitions = persistentMapOf(ref to creatureBody("Bear", 2, 2)),
                 )
-            isTargetLegal(onBattlefield, TargetSpec.AnyTarget, Target.Permanent(creatureId), alice, Chooser.Nobody)
-                .shouldBeTrue()
+            isTargetLegal(
+                onBattlefield,
+                TargetSpec.AnyTarget,
+                Target.Permanent(creatureId),
+                TargetCheck(alice, Chooser.Nobody),
+            ).shouldBeTrue()
 
             // The same creature, gone from the battlefield: no longer in the legal enumeration.
             val gone =
                 onBattlefield.copy(
                     sharedZones = onBattlefield.sharedZones.copy(battlefield = persistentListOf()),
                 )
-            isTargetLegal(gone, TargetSpec.AnyTarget, Target.Permanent(creatureId), alice, Chooser.Nobody)
+            isTargetLegal(gone, TargetSpec.AnyTarget, Target.Permanent(creatureId), TargetCheck(alice, Chooser.Nobody))
                 .shouldBeFalse()
         }
     })

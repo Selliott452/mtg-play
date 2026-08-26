@@ -4,6 +4,7 @@ import dev.mtgplay.core.card.CardType
 import dev.mtgplay.core.definition.CardDefinition
 import dev.mtgplay.core.definition.CastSource
 import dev.mtgplay.core.definition.SpellDefinition
+import dev.mtgplay.core.definition.TargetContext
 import dev.mtgplay.core.definition.TargetSpec
 import dev.mtgplay.core.definition.TimingClass
 import dev.mtgplay.core.identity.ObjectId
@@ -292,4 +293,5 @@ internal fun targetsAvailable(
     spec: TargetSpec,
     seat: PlayerId,
     chooser: Chooser,
-): Boolean = legalTargets(state, spec, seat, chooser).size >= spec.count.minimum
+    context: TargetContext = TargetContext.NONE,
+): Boolean = legalTargets(state, spec, seat, chooser, context).size >= spec.count.minimum

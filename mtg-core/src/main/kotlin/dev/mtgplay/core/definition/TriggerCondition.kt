@@ -198,6 +198,28 @@ sealed interface TriggerCondition {
     data object MadnessCast : TriggerCondition
 
     /**
+     * Storm's "When you cast this spell, copy it for each spell cast before it this turn" (CR 702.40a).
+     * Additive, flagged core (`W9-C`, docs/design/dependent-targets.md §4).
+     *
+     * **A cast trigger of the spell itself**, which is what makes it different from every
+     * [SpellCast] above: those are abilities of a *battlefield permanent* watching somebody cast
+     * something, while this is an ability of the spell on the stack watching **itself** be cast. It
+     * therefore functions from [TriggerZoneScope.Stack], and — like [MadnessCast] — it is never
+     * *detected* against a game event: the cast pipeline synthesizes the fired trigger directly for a
+     * card declaring [SpellDefinition.storm], so the trigger detector never has to scan the stack.
+     *
+     * **The copy count is linked information, not a live read.** CR 702.40a fixes it at "each spell cast
+     * before it this turn", which is settled the instant the trigger fires (CR 601.2i); the count rides on
+     * [dev.mtgplay.core.state.PendingTrigger.amount]. Reading the turn's tally again at *resolution* would
+     * be a different and wrong number, because a storm spell's trigger goes on the stack above it and any
+     * player may cast more spells in response before it resolves.
+     *
+     * The ability's [TriggeredAbility.effect] is unused: copying a spell on the stack is the engine's
+     * move (CR 707.10), not a [ResolutionEffect], for the reason madness's reflexive cast is.
+     */
+    data object StormCast : TriggerCondition
+
+    /**
      * "Whenever this creature deals combat damage to a player" (CR 603.2, CR 510.2) — a self-referential
      * combat-damage trigger. Additive, flagged core (`FW-TRIGCOMBAT`). Ninja of the Deep Hours' *"you may
      * draw a card"* fires here.

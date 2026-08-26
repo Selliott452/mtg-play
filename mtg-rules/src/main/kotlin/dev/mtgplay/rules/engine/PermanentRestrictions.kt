@@ -5,10 +5,12 @@ import dev.mtgplay.core.card.PrintedCharacteristics
 import dev.mtgplay.core.card.Subtype
 import dev.mtgplay.core.card.Supertype
 import dev.mtgplay.core.definition.PermanentRestriction
+import dev.mtgplay.core.definition.TargetContext
 import dev.mtgplay.core.identity.PlayerId
 import dev.mtgplay.core.mana.Color
 import dev.mtgplay.core.state.GameObject
 import dev.mtgplay.core.state.GameState
+import dev.mtgplay.core.state.Target
 
 /*
  * Interpreting a "target <permanent>" restriction (CR 115.1b): whether a battlefield object is a
@@ -49,12 +51,19 @@ private val VEHICLE: Subtype = Subtype("Vehicle")
  * [PermanentRestriction.CREATURE_AN_OPPONENT_CONTROLS] are the two that read it, and they are the
  * reason it is a parameter at all. It is the same parameter [satisfiesEnchantRestriction] already
  * takes, for the same reason.
+ *
+ * [context] is what the choosing object has already settled (`W9-C`): the value announced for its
+ * variable cost (CR 601.2b) and the targets it chose for its **earlier** targeting lines (CR 601.2c). Two
+ * restrictions read it and the rest ignore it, exactly as most ignore [you]. Its default
+ * ([TargetContext.NONE]) fails closed in both directions — X reads as zero, an earlier target as absent —
+ * so a caller that has nothing to say under-offers rather than offering something illegal.
  */
 internal fun satisfiesPermanentRestriction(
     state: GameState,
     restriction: PermanentRestriction,
     candidate: GameObject,
     you: PlayerId,
+    context: TargetContext = TargetContext.NONE,
 ): Boolean {
     val characteristics = state.definitions[candidate.card]?.characteristics ?: return false
     val isCreature = CardType.CREATURE in characteristics.cardTypes
@@ -82,8 +91,44 @@ internal fun satisfiesPermanentRestriction(
         PermanentRestriction.CREATURE_YOU_CONTROL,
         PermanentRestriction.ARTIFACT_CREATURE_OR_LAND_YOU_CONTROL,
         -> satisfiesControlRestriction(restriction, characteristics, candidate, you, isCreature)
+        PermanentRestriction.NONCREATURE_ARTIFACT_WITH_MANA_VALUE_X,
+        PermanentRestriction.CREATURE_CONTROLLED_BY_TARGETED_PLAYER,
+        -> satisfiesDependentRestriction(restriction, characteristics, candidate, isCreature, context)
     }
 }
+
+/**
+ * The **dependent** arms of [satisfiesPermanentRestriction] (`W9-C`,
+ * docs/design/dependent-targets.md §3): the two restrictions whose answer is not a function of the board
+ * alone but of what the choosing object has already announced or already chosen ([context]).
+ *
+ * Split out beside [satisfiesTypeRestriction] and [satisfiesControlRestriction] to keep the main `when`
+ * inside detekt's complexity budget, and grouped together because they share the property that makes them
+ * unusual rather than because they share a rule — one reads a cost announcement (CR 601.2b), the other an
+ * earlier targeting line (CR 601.2c).
+ */
+private fun satisfiesDependentRestriction(
+    restriction: PermanentRestriction,
+    characteristics: PrintedCharacteristics,
+    candidate: GameObject,
+    isCreature: Boolean,
+    context: TargetContext,
+): Boolean =
+    when (restriction) {
+        // CR 202.3b: the candidate's *printed* mana value, compared with the value announced for the
+        // activating ability's own {X} (CR 107.3). Two different Xs, which is why one is read off the
+        // permanent and the other off the context. "Noncreature" excludes an artifact creature outright
+        // (CR 205.1a), whatever its mana value.
+        PermanentRestriction.NONCREATURE_ARTIFACT_WITH_MANA_VALUE_X ->
+            CardType.ARTIFACT in characteristics.cardTypes &&
+                !isCreature &&
+                characteristics.manaValue == context.chosenX
+        // CR 115.1b: the creatures controlled by the player an earlier targeting line named. With no
+        // earlier target the set is empty rather than universal — see the restriction's own KDoc.
+        PermanentRestriction.CREATURE_CONTROLLED_BY_TARGETED_PLAYER ->
+            isCreature && context.earlierTargets.any { it is Target.Player && it.id == candidate.owner }
+        else -> error("CR 601.2b/c: $restriction does not depend on an earlier announcement or choice")
+    }
 
 /**
  * The **card-type** arms of [satisfiesPermanentRestriction] (CR 205.2), split out beside

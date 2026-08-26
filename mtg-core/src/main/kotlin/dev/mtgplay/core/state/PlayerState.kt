@@ -46,6 +46,23 @@ import kotlinx.collections.immutable.persistentListOf
  *   successful draw and reset to 0 for every player when a turn begins (`mtg-rules`); a per-player
  *   counter because any player may draw on any turn (an opponent's-turn draw effect still counts
  *   toward *that* player's per-turn total). Non-negative.
+ * @property landsEnteredThisTurn how many lands have entered the battlefield under this player's control
+ *   during the current turn (CR 305, CR 603.6a). Additive, flagged core (`W9-C`) — the per-turn fact
+ *   **landfall** reads (Searing Blaze's "if you had a land enter the battlefield under your control this
+ *   turn"). Non-negative, and reset to 0 for every player when a turn begins, exactly as [drawsThisTurn]
+ *   is and for the same reason: "this turn" is a per-turn window.
+ *
+ *   **Per player, and counting *entries* rather than *plays*.** [Turn.landsPlayedThisTurn] is the
+ *   neighbouring counter and is neither: it is on the turn because only the active player may *play* a
+ *   land (CR 305.1), and it counts the CR 305.1 land drop. Landfall is a different question — a land put
+ *   onto the battlefield by a search, a return, or a blink triggers it and consumes no land drop — and any
+ *   player may have a land enter on any turn, which is why this one is per seat. Encoding landfall against
+ *   the land-drop counter would be a plausible-looking wrong card in a gauntlet holding fetch effects.
+ *
+ *   **A count, not a flag**, matching [drawsThisTurn]: the pool's landfall card only asks "was there at
+ *   least one?", but nothing is gained by throwing away the number and a "second landfall this turn"
+ *   card would need it. Incremented at the single battlefield-entry announcement site, so a new entry
+ *   path cannot forget it.
  * @property combatPhasesToSkip how many of this player's **next** combat phases are skipped (CR 500.10),
  *   Stonehorn Dignitary's "target opponent skips their next combat phase". Additive, flagged core
  *   (`W8-G`). Non-negative.
@@ -74,11 +91,15 @@ data class PlayerState(
     val attemptedDrawFromEmptyLibrary: Boolean = false,
     val decisionsAnswered: Int = 0,
     val drawsThisTurn: Int = 0,
+    val landsEnteredThisTurn: Int = 0,
     val combatPhasesToSkip: Int = 0,
 ) {
     init {
         require(decisionsAnswered >= 0) { "answered-decision count must be non-negative, was $decisionsAnswered" }
         require(drawsThisTurn >= 0) { "CR 121.1: draws this turn must be non-negative, was $drawsThisTurn" }
+        require(landsEnteredThisTurn >= 0) {
+            "CR 305: lands entered this turn must be non-negative, was $landsEnteredThisTurn"
+        }
         require(combatPhasesToSkip >= 0) {
             "CR 500.10: scheduled combat-phase skips must be non-negative, was $combatPhasesToSkip"
         }

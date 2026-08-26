@@ -84,6 +84,30 @@ sealed interface StackEntry {
      *   the card in every other zone; the announced value lives here, on the one object for which the
      *   rule says X is not zero. Keeping them apart is what stops a card in a graveyard from claiming a
      *   mana value it only had on the stack.
+     * @property isCopy whether this spell is a **copy** put onto the stack rather than a cast card
+     *   (CR 707.10a) — storm's copies (CR 702.40a). Additive, flagged core (`W9-C`,
+     *   docs/design/dependent-targets.md §4); `false` for every spell that was cast.
+     *
+     *   **A copy of a spell is a spell but not a card**, and that one sentence is the whole reason this
+     *   is a flag here rather than a new [StackEntry] member. Everything a copy does on the stack it does
+     *   exactly as its original does — it resolves, it can be countered, it can be targeted by "counter
+     *   target spell" — so making it a separate member would fork every one of those paths for no
+     *   behavioural difference. What it must **not** do is behave like a card, and there is already one
+     *   seam for that: [cardObject], which returns `null` for an ability precisely because an ability is
+     *   not a card either (CR 113.7a). A copy returns `null` there too, so the zone-residence, card-census
+     *   and object-conservation machinery ignore it with no new cases.
+     *
+     *   Two consequences the engine has to get right, and both fall out of that seam:
+     *   - **It does not go to a graveyard.** CR 608.2m moves a *card*; a copy has none, so it simply
+     *     ceases to exist as it leaves the stack (CR 707.10a via CR 704.5e). `SpellLeftStack.kt` owns it.
+     *   - **It is not "cast", so it does not count for storm** (CR 601.2i is not reached — a copy is
+     *     *created* on the stack, CR 707.10a), which is what stops a storm spell copying itself into a
+     *     larger storm count.
+     *
+     *   The [obj] a copy carries is a fresh object with the original's printed identity, which is what
+     *   makes the copy answer characteristic questions the way CR 707.2 says it must — it copies the
+     *   printed card, not the state of the original — and gives it a distinct id (CR 400.7) so every
+     *   copy is a separately targetable, separately counterable object.
      */
     data class Spell(
         val obj: GameObject,
@@ -97,6 +121,7 @@ sealed interface StackEntry {
         val kicked: Boolean = false,
         val optionalCostPaid: Boolean = false,
         val chosenX: Int = 0,
+        val isCopy: Boolean = false,
     ) : StackEntry {
         init {
             require(chosenX >= 0) { "CR 601.2b: an announced value of X is non-negative, was $chosenX" }
@@ -137,6 +162,16 @@ sealed interface StackEntry {
      *   chosen; empty for an untargeted ability. Never short: an ability with no legal target cannot be
      *   activated (CR 601.2c) and is not enumerated. Additive, flagged core (`FW-ABILTGT`,
      *   docs/design/targeted-abilities.md).
+     * @property chosenX the value announced for the ability's variable cost as it was activated
+     *   (CR 107.3, CR 601.2b via CR 602.2b); `0` for an ability whose cost carries none. Additive,
+     *   flagged core (`W9-C`) — Gorilla Shaman's `{X}{X}{1}`.
+     *
+     *   The sibling of [Spell.chosenX] and it is on the record for the same reason: the value is fixed
+     *   when the object goes on the stack and can never change afterwards. It is **load-bearing at
+     *   resolution rather than merely informational**, because Gorilla Shaman's targeting line reads it —
+     *   the CR 608.2b re-check asks "is this still a noncreature artifact with mana value X?", and
+     *   without the announced value on the record the re-check would ask a different question from the
+     *   one the activation answered (docs/design/dependent-targets.md §3).
      */
     data class ActivatedAbilityOnStack(
         val sourceId: ObjectId,
@@ -144,7 +179,13 @@ sealed interface StackEntry {
         val controller: PlayerId,
         val ability: ActivatedAbility,
         val targets: PersistentList<Target> = persistentListOf(),
-    ) : StackEntry
+        val chosenX: Int = 0,
+        val isCopy: Boolean = false,
+    ) : StackEntry {
+        init {
+            require(chosenX >= 0) { "CR 601.2b: an announced value of X is non-negative, was $chosenX" }
+        }
+    }
 }
 
 /**
@@ -155,7 +196,10 @@ sealed interface StackEntry {
 val StackEntry.cardObject: GameObject?
     get() =
         when (this) {
-            is StackEntry.Spell -> obj
+            // CR 707.10a (`W9-C`): a **copy** of a spell is an object on the stack but not a card, so it
+            // contributes no zone residence and no conserved card — the same answer, for the same reason,
+            // that an ability gives. This is the single seam that keeps a storm copy out of the census.
+            is StackEntry.Spell -> obj.takeUnless { isCopy }
             is StackEntry.Ability -> null
             is StackEntry.ActivatedAbilityOnStack -> null
         }

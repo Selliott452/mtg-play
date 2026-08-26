@@ -3,6 +3,7 @@ package dev.mtgplay.rules.engine
 import dev.mtgplay.core.card.CardType
 import dev.mtgplay.core.definition.CastingPermission
 import dev.mtgplay.core.definition.ResolutionContext
+import dev.mtgplay.core.definition.TargetContext
 import dev.mtgplay.core.definition.TargetSpec
 import dev.mtgplay.core.event.GameEvent
 import dev.mtgplay.core.identity.ObjectId
@@ -118,8 +119,13 @@ private fun fizzleSpell(
     // CR 608.2b re-checks against the spec the spell was *cast* under, which for a modal spell is the
     // chosen mode's — Blue Elemental Blast's counter mode fizzles when its target stops being a red
     // spell, its destroy mode when its target stops being a red permanent (`FW-MODAL`).
-    val spec = effectiveTargetSpec(entry.definition, entry.chosenModes)
-    if (!allTargetsIllegal(state, spec, entry.targets, entry.controller, Chooser.Spell(entry.obj.id))) return null
+    // Since `W9-C` the re-check is per printed instance of the word "target", and the verdict is
+    // CR 608.2b's *whole-spell* one: a Searing Blaze whose creature has died but whose player is still
+    // there resolves and does what it can.
+    val lines = targetLinesOf(entry.definition, entry.chosenModes)
+    val check =
+        TargetCheck(entry.controller, Chooser.Spell(entry.obj.id), TargetContext(chosenX = entry.chosenX))
+    if (!allTargetLinesIllegal(state, lines, entry.targets, check)) return null
     val left = putResolvedSpellOffStack(state, entry)
     val fizzled =
         left.state.emit(

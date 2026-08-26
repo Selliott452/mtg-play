@@ -254,18 +254,24 @@ private fun establishTargets(
     entry: StackEntry.Spell,
 ): GameState {
     // For a modal spell this is the *chosen mode's* spec: the CR 601.2b answer settled one stage above
-    // determines the CR 601.2c question asked here (`FW-MODAL`).
-    val spec = effectiveTargetSpec(entry.definition, entry.chosenModes)
-    // CR 601.2a ran before this stage, so the spell is already on the stack under `entry.obj.id`;
-    // naming it here keeps this re-validation's enumeration equal to the gathering-time one, in which
-    // the card was still in its source zone.
-    // CR 601.2c: announceable, not merely legal — a targeting requirement standing against the caster
-    // narrowed what could be offered, so it must narrow what is re-validated (`W8-G`).
-    val options = announceableTargets(state, spec, entry.controller, Chooser.Spell(entry.obj.id))
-    requireWellFormedTargetChoice(spec, entry.targets, options.size, entry.obj.card.name)
-    entry.targets.forEach { target ->
-        require(target in options) {
-            "CR 601.2c: $target is not a legal target for ${entry.obj.card.name}"
+    // determines the CR 601.2c question asked here (`FW-MODAL`). Since `W9-C` it is a *list*: a card may
+    // print the word "target" more than once, and each instance is re-validated separately, against the
+    // same context its own gathering used.
+    val lines = targetLinesOf(entry.definition, entry.chosenModes)
+    val byLine = targetsByLine(lines, entry.targets)
+    lines.forEachIndexed { index, spec ->
+        // CR 601.2a ran before this stage, so the spell is already on the stack under `entry.obj.id`;
+        // naming it here keeps this re-validation's enumeration equal to the gathering-time one, in which
+        // the card was still in its source zone.
+        // CR 601.2c: announceable, not merely legal — a targeting requirement standing against the caster
+        // narrowed what could be offered, so it must narrow what is re-validated (`W8-G`).
+        val context = contextForLine(lines, entry.targets, index)
+        val options = announceableTargets(state, spec, entry.controller, Chooser.Spell(entry.obj.id), context)
+        requireWellFormedTargetChoice(spec, byLine[index], options.size, entry.obj.card.name)
+        byLine[index].forEach { target ->
+            require(target in options) {
+                "CR 601.2c: $target is not a legal target for ${entry.obj.card.name}"
+            }
         }
     }
     // A spell that announced no targets — one that targets nothing, or an "up to N" whose controller
@@ -382,5 +388,18 @@ private fun payCosts(
 private fun completeCast(
     state: GameState,
     entry: StackEntry.Spell,
-): GameState =
-    detectCastTriggers(state.emit(GameEvent.SpellCast(entry.controller, entry.obj.id, entry.obj.card)), entry)
+): GameState {
+    // CR 702.40a: "each spell cast **before** it this turn" — read before the increment below, so a storm
+    // spell never counts itself, and fixed on the trigger as linked information rather than re-read when
+    // the trigger resolves (`Storm.kt`, fact 2).
+    val castBefore = state.turn.spellsCastThisTurn
+    val announced =
+        state
+            .copy(turn = state.turn.copy(spellsCastThisTurn = castBefore + 1))
+            .emit(GameEvent.SpellCast(entry.controller, entry.obj.id, entry.obj.card))
+    val triggered = detectCastTriggers(announced, entry)
+    // CR 702.40a: storm is an ability of the spell on the stack, so nothing detects it — the cast
+    // pipeline synthesizes the fired trigger, exactly as the discard replacement synthesizes madness's.
+    val storm = stormTriggerFor(entry, castBefore) ?: return triggered
+    return enqueuePendingTrigger(triggered, storm)
+}

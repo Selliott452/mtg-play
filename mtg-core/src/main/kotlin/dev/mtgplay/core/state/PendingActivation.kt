@@ -47,6 +47,26 @@ import kotlinx.collections.immutable.PersistentList
  *   sacrifice is: a permanent that has been chosen to leave the battlefield must be reservable by the
  *   plan enumeration, and a choice not yet made cannot be reserved. A returned permanent is reserved
  *   *unconditionally*, unlike a sacrificed one — see `manaSourcesReservedBy`.
+ * @property chosenX the value announced for the ability's variable cost (CR 107.3, CR 601.2b via
+ *   CR 602.2b): `null` before the announcement is made when the cost carries
+ *   [dev.mtgplay.core.mana.ManaSymbol.X], `0` once settled or when it does not. Additive, flagged core
+ *   (`W9-C`, docs/design/dependent-targets.md §3) — Gorilla Shaman's `{X}{X}{1}`.
+ *
+ *   **Settled *first*, before [chosenTargets], which is CR 601.2b's own printed order** and the exact
+ *   opposite of where [dev.mtgplay.core.state.PendingCast.chosenX] sits. The two are not inconsistent;
+ *   they are the same trade decided differently because the two paths have different things to protect:
+ *
+ *   - The **cast** path deviates from CR 601.2b and announces X *after* every cost selection, so the
+ *     bound on X can use the exact mana reservation those selections produce. It pays for that with the
+ *     rule that no card's targets may depend on its X — a rule the whole encoded pool obeys.
+ *   - The **activation** path had no X stage at all before `W9-C`, so it has no such pool to protect, and
+ *     Gorilla Shaman's "target noncreature artifact **with mana value X**" makes the deviation
+ *     immediately observable: the legal targets are not knowable until X is. It therefore announces at
+ *     CR 601.2b's printed position and takes the weaker bound — see `AbilityXCost.kt`, which gates that
+ *     weakness loudly rather than assuming it away.
+ *
+ *   The choice is per *path* rather than global precisely so the cast side keeps its exact reservation;
+ *   reordering both would have charged every cast in the game for one activated ability.
  */
 data class PendingActivation(
     val activator: PlayerId,
@@ -57,4 +77,11 @@ data class PendingActivation(
     val chosenTargets: PersistentList<Target>? = null,
     val chosenSacrifice: PersistentList<ObjectId>? = null,
     val chosenReturn: PersistentList<ObjectId>? = null,
-)
+    val chosenX: Int? = null,
+) {
+    init {
+        require(chosenX == null || chosenX >= 0) {
+            "CR 601.2b: an announced value of X is non-negative, was $chosenX"
+        }
+    }
+}

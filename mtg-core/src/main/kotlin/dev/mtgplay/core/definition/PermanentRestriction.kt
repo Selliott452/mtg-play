@@ -199,4 +199,54 @@ enum class PermanentRestriction {
      * one of the sites that must route through the layer system.
      */
     CREATURE_OR_VEHICLE,
+
+    /**
+     * "Target **noncreature artifact with mana value X**" (CR 115.1b, CR 202.3) — Gorilla Shaman's
+     * `{X}{X}{1}` ability. Additive, flagged core (`W9-C`, docs/design/dependent-targets.md §3).
+     *
+     * **The first restriction whose legal set is not a function of the board alone.** Every member above
+     * answers "is this permanent one of the things named?" from the permanent and the deciding player;
+     * this one additionally needs the value announced for the activating ability's variable cost
+     * (CR 107.3, CR 601.2b), which is not a property of any permanent. That is what
+     * [dev.mtgplay.core.definition.TargetContext] carries into the enumeration, and it is why the
+     * announcement of X must be settled **before** CR 601.2c on any object printing this — see
+     * [dev.mtgplay.core.state.PendingActivation.chosenX].
+     *
+     * Mana value is read **printed** (CR 202.3b): the candidate is a permanent on the battlefield, and
+     * CR 202.3b fixes a permanent's mana value from its printed mana cost with any {X} counting as zero.
+     * The X in *this* line is the activating ability's announced X, a different quantity entirely — the
+     * ability's, not the target's — which is exactly why the two live in different places.
+     *
+     * **"Noncreature" is an exclusion, not the complement of a type list.** An artifact creature is a
+     * creature (CR 205.1a) and so is never a legal choice, however small its mana value; reading the line
+     * as "artifact" would let Gorilla Shaman eat an Ornithopter, which the printed line forbids.
+     */
+    NONCREATURE_ARTIFACT_WITH_MANA_VALUE_X,
+
+    /**
+     * "Target creature **that player** controls" (CR 115.1b) — the second instance of the word "target"
+     * on Searing Blaze, whose legal set is the creatures controlled by the player chosen for the
+     * **first** instance. Additive, flagged core (`W9-C`, docs/design/dependent-targets.md §2).
+     *
+     * **The first genuinely *dependent* restriction**, and it is a different kind of dependence from
+     * [NONCREATURE_ARTIFACT_WITH_MANA_VALUE_X]'s. That one reads a cost announcement; this one reads an
+     * answer given to an *earlier targeting line of the same object*, which is what makes a card printing
+     * two instances of the word "target" need its lines gathered **in order** rather than as a set
+     * (docs/design/dependent-targets.md §2). The earlier answer arrives through
+     * [dev.mtgplay.core.definition.TargetContext.earlierTargets].
+     *
+     * Decider-relative only through that dependence: it does not care who is choosing, it cares which
+     * player the earlier line named. "That player" is a [dev.mtgplay.core.state.Target.Player] — Searing
+     * Blaze's first line is "target player or planeswalker" and there are no planeswalkers in Pauper, so
+     * the earlier target is always a player (see the card definition, which says so out loud rather than
+     * silently narrowing the printed line).
+     *
+     * **It is empty, not universal, when no earlier target has been chosen.** An enumeration made with no
+     * context names no creatures at all, which is the conservative direction: the alternative would offer
+     * every creature on the battlefield to a line that has not yet learned whose creatures it may point
+     * at, and that is ADR-005's enumerated-but-illegal defect. A card is never *cast* through that path —
+     * the gathering settles line one first — so an empty answer here is only ever reached by a legality
+     * probe, where "cannot yet be answered" and "no legal choice" happen to want the same result.
+     */
+    CREATURE_CONTROLLED_BY_TARGETED_PLAYER,
 }

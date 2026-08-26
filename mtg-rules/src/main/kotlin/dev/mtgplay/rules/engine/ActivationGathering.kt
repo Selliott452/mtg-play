@@ -3,6 +3,7 @@ package dev.mtgplay.rules.engine
 import dev.mtgplay.core.definition.AbilityCost
 import dev.mtgplay.core.definition.AbilityZoneScope
 import dev.mtgplay.core.definition.ActivatedAbility
+import dev.mtgplay.core.definition.TargetContext
 import dev.mtgplay.core.identity.ObjectId
 import dev.mtgplay.core.identity.PlayerId
 import dev.mtgplay.core.state.GameObject
@@ -13,6 +14,7 @@ import dev.mtgplay.rules.AdvanceResult
 import dev.mtgplay.rules.decision.DecisionRequest
 import dev.mtgplay.rules.decision.DecisionRequestId
 import dev.mtgplay.rules.decision.PaymentPlan
+import kotlinx.collections.immutable.PersistentList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toPersistentList
 
@@ -23,10 +25,16 @@ import kotlinx.collections.immutable.toPersistentList
  * ActivationExecution.kt (payment, stack placement, resolution) so each file stays within its function
  * budget.
  *
- * **The order is CR 601.2b–i**, which CR 602.2b defers to wholesale: targets (CR 601.2c) first, then the
- * "discard a card" cost selection, then the payment plan (CR 602.2f–g) — the same order the cast
- * pipeline runs. Nothing about the game changes while gathering; the whole activation executes
+ * **The order is CR 601.2b–i**, which CR 602.2b defers to wholesale: the **value of X** (CR 601.2b) first,
+ * then targets (CR 601.2c), then the "discard a card" cost selection, then the payment plan
+ * (CR 602.2f–g). Nothing about the game changes while gathering; the whole activation executes
  * atomically in the transition that receives the last choice.
+ *
+ * **X sits above targets here and below them on the cast path, and that asymmetry is deliberate**
+ * (`W9-C`). Gorilla Shaman's targets are a function of its announced X, so CR 601.2c has nothing to
+ * enumerate until X is known; the cast path keeps its deviation because moving it would cost every other
+ * cast the exact mana reservation. `AbilityXCost.kt`'s header argues the choice in full and gates the one
+ * thing the printed order gives up.
  */
 
 /** Whether [ability]'s cost includes a "discard a card" component. */
@@ -60,14 +68,15 @@ internal fun beginActivation(
                     source = scope,
                     abilityIndex = abilityIndex,
                     chosenDiscard = if (hasDiscardACard(ability)) null else persistentListOf(),
+                    // CR 601.2b: an ability whose mana component carries {X} announces its value first
+                    // (`W9-C`); every other ability settles it at zero and never sees the stage.
+                    chosenX = if (abilityAnnouncesX(ability)) null else 0,
                     // CR 601.2c: an untargeted ability — and an "up to N" one with nothing legal to
-                    // point at — settles its (empty) target list immediately.
-                    chosenTargets =
-                        if (targetChoiceIsVacuous(state, ability.targetSpec, seat, Chooser.Ability(source.card))) {
-                            persistentListOf()
-                        } else {
-                            null
-                        },
+                    // point at — settles its (empty) target list immediately. Deliberately **not**
+                    // decided here for an ability still to announce X: what it may point at is not
+                    // knowable yet, so the question is asked again once the announcement lands
+                    // ([settleVacuousTargets]).
+                    chosenTargets = initialActivationTargets(state, seat, source, ability),
                     // CR 602.1: a "Sacrifice an artifact" component needs a selection; every other
                     // activation settles it empty.
                     chosenSacrifice = if (sacrificeComponent(ability) != null) null else persistentListOf(),
@@ -78,11 +87,44 @@ internal fun beginActivation(
     return advanceActivationGathering(opened)
 }
 
-/** Surfaces the next activation decision (targets, discard, then payment), or executes when none remain. */
-private fun advanceActivationGathering(state: GameState): AdvanceResult {
+/**
+ * The target list an activation opens with (CR 601.2c): empty when there is nothing to decide, `null`
+ * when a decision is owed.
+ *
+ * An ability still to announce X always opens with `null`, whatever the board looks like, because "what
+ * may this point at?" has no answer until the announcement lands — the question is asked again by
+ * [settleVacuousTargets] once it does.
+ */
+private fun initialActivationTargets(
+    state: GameState,
+    seat: PlayerId,
+    source: GameObject,
+    ability: ActivatedAbility,
+): PersistentList<Target>? =
+    if (abilityAnnouncesX(ability)) {
+        null
+    } else if (targetChoiceIsVacuous(state, ability.targetSpec, seat, Chooser.Ability(source.card))) {
+        persistentListOf()
+    } else {
+        null
+    }
+
+/**
+ * Surfaces the next activation decision (X, targets, discard, then payment), or executes when none
+ * remain.
+ *
+ * [settleVacuousActivationTargets] runs first because an announcement can *close* the target stage: an ability that
+ * announces X reaches CR 601.2c with a target spec whose enumeration was unanswerable a moment ago, and
+ * for an untargeted or "up to N" one the answer may be "nothing to decide" (ADR-004 — a vacuous choice is
+ * never surfaced).
+ */
+internal fun advanceActivationGathering(open: GameState): AdvanceResult {
+    val state = settleVacuousActivationTargets(open)
     val pending = state.pendingActivation ?: error("no activation is gathering costs")
     val ability = abilityAt(state, pending.activator, pending.sourceObjectId, pending.source, pending.abilityIndex)
     return when {
+        // CR 601.2b: the value of X, before anything that could depend on it.
+        pending.chosenX == null -> AdvanceResult.NeedsDecision(state, pendingActivationRequest(state))
         pending.chosenTargets == null -> AdvanceResult.NeedsDecision(state, pendingActivationRequest(state))
         pending.chosenDiscard == null -> AdvanceResult.NeedsDecision(state, pendingActivationRequest(state))
         pending.chosenSacrifice == null -> AdvanceResult.NeedsDecision(state, pendingActivationRequest(state))
@@ -106,6 +148,9 @@ internal fun pendingActivationRequest(state: GameState): DecisionRequest {
     val ability = abilityAt(state, pending.activator, pending.sourceObjectId, pending.source, pending.abilityIndex)
     val id = DecisionRequestId(pending.activator, state.player(pending.activator).decisionsAnswered)
     return when {
+        // CR 601.2b/107.3b: the value of X, bounded by what this seat can pay *and* by what it would
+        // then have to point at (`W9-C`, `ActivationXGathering.kt`).
+        pending.chosenX == null -> abilityXAnnouncementRequest(state, pending, source, ability, id)
         pending.chosenTargets == null ->
             targetRequest(
                 id = id,
@@ -114,12 +159,15 @@ internal fun pendingActivationRequest(state: GameState): DecisionRequest {
                 spec = ability.targetSpec,
                 // CR 113.7b/702.16b: enumerated against the ability's *source*, so the options offered
                 // are the ones execution will re-validate against (ADR-005).
+                // CR 601.2b: and against the announced value of X, which Gorilla Shaman's restriction
+                // reads — settled one stage above precisely so this enumeration has an answer.
                 options =
                     announceableTargets(
                         state,
                         ability.targetSpec,
                         pending.activator,
                         Chooser.Ability(source.card),
+                        TargetContext(chosenX = pending.chosenX ?: 0),
                     ),
             )
         pending.chosenDiscard == null ->
@@ -181,7 +229,10 @@ private fun activationPaymentRequest(
         // modifies one and no declaration can express it (docs/design/cost-modification.md §12) — so the
         // determined cost *is* the printed component, and saying so here keeps the request's cost field
         // meaning the same thing it means for a spell.
-        cost = mana.cost,
+        // CR 601.2b/107.3: with the announced value substituted in, which is where an {X} component
+        // stops being a variable (`W9-C`). Zero for every ability that announces none, and
+        // [ManaCost.substitutingX] is the identity on a cost without the symbol.
+        cost = mana.cost.substitutingX(pending.chosenX ?: 0),
         // Same reservation the legality check used (triage trap T17): the options offered must be
         // exactly the ones execution can carry out (ADR-005), so the source cannot appear here as a
         // payer for a cost that also taps or sacrifices it — nor may the permanent already chosen for a
@@ -191,7 +242,9 @@ private fun activationPaymentRequest(
             enumeratePaymentPlans(
                 state,
                 pending.activator,
-                mana.cost,
+                // The same substituted cost the request advertises above; enumerating against the
+                // printed `{X}` would reach [expandToUnits]'s loud refusal (`W9-C`).
+                mana.cost.substitutingX(pending.chosenX ?: 0),
                 manaSourcesReservedBy(
                     state,
                     source,

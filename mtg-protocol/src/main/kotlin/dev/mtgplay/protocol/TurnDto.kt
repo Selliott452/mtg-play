@@ -20,6 +20,10 @@ import kotlinx.serialization.Serializable
  * @property phase the current phase (CR 500.1).
  * @property step the current step, or `null` in a main phase (CR 505).
  * @property landsPlayedThisTurn how many lands have been played this turn (CR 305.2).
+ * @property spellsCastThisTurn how many spells every player together has cast this turn (CR 601.2i) —
+ *   the number storm reads (CR 702.40a). Public: every cast is announced to the table. Additive
+ *   (`W9-C`), and required rather than defaulted, because a seat that could not see it could not value
+ *   a storm card in hand.
  * @property combat the combat progress, or `null` outside combat (CR 506.1).
  */
 @Serializable
@@ -29,6 +33,7 @@ data class TurnDto(
     val phase: TurnPhaseDto,
     val step: TurnStepDto?,
     val landsPlayedThisTurn: Int,
+    val spellsCastThisTurn: Int,
     val combat: CombatStateDto?,
 )
 
@@ -78,6 +83,7 @@ fun Turn.toDto(): TurnDto =
         phase = phase.toDto(),
         step = step?.toDto(),
         landsPlayedThisTurn = landsPlayedThisTurn,
+        spellsCastThisTurn = spellsCastThisTurn,
         combat = combat?.toDto(),
     )
 
@@ -89,6 +95,7 @@ fun TurnDto.toDomain(): Turn =
         phase = phase.toDomain(),
         step = step?.toDomain(),
         landsPlayedThisTurn = landsPlayedThisTurn,
+        spellsCastThisTurn = spellsCastThisTurn,
         combat = combat?.toDomain(),
     )
 
