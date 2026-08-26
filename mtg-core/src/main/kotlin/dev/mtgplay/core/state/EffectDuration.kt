@@ -84,9 +84,21 @@ sealed interface EffectDuration {
          *
          * **The one derivation, shared by the wear-off and by the acceptance invariant that checks the
          * wear-off fired.** Two spellings of the same rule is how an effect comes to be swept a turn
-         * early by one and reported healthy by the other, which is [GameObject.playGrantedTurn]'s
-         * argument for a single `playGrantHasExpired`. Arithmetic over three recorded facts, so it
+         * early by one and reported healthy by the other. Arithmetic over three recorded facts, so it
          * decides no game rule and stays on this side of ADR-009.
+         *
+         * **Sharing is right here and was wrong for [GameObject.playGrantedTurn], and the difference is
+         * worth stating** because that marker's KDoc once cited this same argument. Both callers here
+         * ask the identical question — *"is this effect gone?"* — at moments where the answer is the
+         * same. The play grant's two callers did not: its cleanup asks *"does this end now?"* while its
+         * enumeration asks *"is this live?"*, and because that permission runs until the **end** of the
+         * owner's next turn rather than its beginning, the two answers differ for a whole turn. Sharing
+         * a derivation is sound only when the callers share a question.
+         *
+         * One consequence to know when reading this: like any predicate of this shape it is `false`
+         * again on every later turn that is not [player]'s. That is harmless for the wear-off, which
+         * fires once at the boundary and removes the effect, but it does mean the invariant cannot
+         * catch an effect that leaked past its boundary and is observed on an opponent's turn.
          */
         fun hasEnded(
             activePlayer: PlayerId,

@@ -136,13 +136,14 @@ internal fun cleanupRemoveDamageAndEndEffects(state: GameState): GameState {
             }.toPersistentList()
     // CR 118.5: "until the end of your next turn" — a play permission granted on an earlier turn ends
     // at the cleanup of the first later turn that is its owner's. Read through the same
-    // [playGrantHasExpired] the enumeration uses, so an expired permission cannot be offered and a live
-    // one cannot be cleared early.
+    // [playGrantEndsAtThisCleanup], which is this moment's question and no other's — enumeration now
+    // trusts the marker rather than re-deriving the duration, because the two were asking different
+    // questions and the shared derivation denied the card on the owner's next turn.
     val exile =
         state.sharedZones.exile
             .map { obj ->
                 val granted = obj.playGrantedTurn
-                if (granted != null && playGrantHasExpired(state, obj.owner, granted)) {
+                if (granted != null && playGrantEndsAtThisCleanup(state, obj.owner, granted)) {
                     obj.copy(playGrantedTurn = null)
                 } else {
                     obj

@@ -72,9 +72,13 @@ internal fun checkTimedEffectSanity(state: GameState): List<Violation> =
  * shows up in a game as removal that mysteriously cannot be cast.
  *
  * Asked through the duration's own [EffectDuration.UntilYourNextTurn.hasEnded], so the oracle and the
- * turn-based action share **one** derivation of "has this run out yet" — the discipline
- * `playGrantHasExpired` set. Two spellings is how a store comes to be swept a turn early by one and
- * reported healthy by the other.
+ * turn-based action share **one** derivation of "has this run out yet". Two spellings is how a store
+ * comes to be swept a turn early by one and reported healthy by the other.
+ *
+ * Sharing is right here because both callers ask the same question at moments where it has the same
+ * answer. It was *wrong* for the play-grant marker, whose cleanup and enumeration ask different
+ * questions a turn apart — see `playGrantMarkerAllows`, which is the counterexample this comment used
+ * to cite as its precedent.
  */
 private fun checkUntilYourNextTurnDurationsHonoured(state: GameState): List<Violation> {
     fun expired(

@@ -172,9 +172,45 @@ class W8DPrimitivesSpec :
                 .single()
                 .playGrantedTurn
                 .shouldBeNull()
-            // The enumeration agrees with the cleanup by construction: both read the same derivation.
-            playGrantMarkerAllows(ownNextTurn, ownNextTurn.sharedZones.exile.single()) shouldBe false
+            // The enumeration is live for the *whole* of that turn and stops only once the cleanup has
+            // cleared the marker. This line used to assert `false` here, sharing the cleanup's
+            // derivation — which denied the card on the one turn "until the end of your next turn"
+            // exists to cover.
+            playGrantMarkerAllows(ownNextTurn, ownNextTurn.sharedZones.exile.single()) shouldBe true
             playGrantMarkerAllows(granted, granted.sharedZones.exile.single()) shouldBe true
+            expired.sharedZones.exile
+                .single()
+                .let { playGrantMarkerAllows(expired, it) } shouldBe false
+        }
+
+        "CR 118.5: the permission is live across every turn of its window and dead after it" {
+            // The regression this file previously encoded. A grant made on alice's turn N covers N, the
+            // opponent's N+1, and the whole of alice's N+2 — and the old shared derivation answered
+            // "expired" on N+2 while answering "live" again on every later opponent turn, so it was not
+            // even conservative.
+            val granted = exileTopCardsPlayableUntilEndOfYourNextTurn(boardWith(library = listOf(BEAR)), alice, 1)
+
+            fun liveOn(
+                active: dev.mtgplay.core.identity.PlayerId,
+                number: Int,
+            ): Boolean {
+                val at = granted.copy(turn = granted.turn.copy(activePlayer = active, number = number))
+                return playGrantMarkerAllows(at, at.sharedZones.exile.single())
+            }
+
+            liveOn(alice, GRANT_TURN) shouldBe true
+            liveOn(bob, GRANT_TURN + 1) shouldBe true
+            liveOn(alice, GRANT_TURN + 2) shouldBe true
+
+            // And the cleanup is what ends it: after it runs on alice's next turn there is no marker
+            // left, so no later turn of either seat can offer the card.
+            val afterCleanup =
+                cleanupRemoveDamageAndEndEffects(
+                    granted.copy(turn = granted.turn.copy(activePlayer = alice, number = GRANT_TURN + 2)),
+                )
+            afterCleanup.sharedZones.exile
+                .single()
+                .let { playGrantMarkerAllows(afterCleanup, it) } shouldBe false
         }
 
         "CR 702.74a: an evoke intervening-if reads the marker off the permanent, not the spell" {

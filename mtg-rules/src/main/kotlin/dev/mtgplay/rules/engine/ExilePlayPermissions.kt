@@ -97,33 +97,46 @@ private fun exilePlayOption(
 }
 
 /**
- * Whether the exile object [obj] still carries a live "you may play this" permission (CR 118.5) — it has
- * a [dev.mtgplay.core.state.GameObject.playGrantedTurn] marker at all, and the turn it was granted on
- * has not yet been followed by a completed turn of its owner's.
+ * Whether the exile object [obj] still carries a live "you may play this" permission (CR 118.5) — that
+ * is, whether it has a [dev.mtgplay.core.state.GameObject.playGrantedTurn] marker at all.
  *
- * The second half is belt-and-braces against the CR 514.2 cleanup that clears the marker: they agree by
- * construction, and stating the condition here as well means an expired permission is never enumerated
- * even in a state a test constructed by hand.
+ * **The marker's presence *is* the permission, and the CR 514.2 cleanup is its sole authority.**
+ * [playGrantEndsAtThisCleanup] clears it at the end of the owner's next turn and nothing else touches
+ * it, so a marker that survives into the window the engine is enumerating for is live by construction.
+ *
+ * This used to re-derive the duration here as well, "belt-and-braces" against a hand-built state, and
+ * that second check was **wrong in the one window the card is bought for**. The cleanup asks *"does this
+ * grant end at the end of the turn now finishing?"*; enumeration asks *"is this grant live right now?"*
+ * Those are different questions, and the cleanup's answer is `true` for the whole of the owner's next
+ * turn — so sharing the derivation denied Reckless Impulse's cards on exactly the turn its
+ * "until the end of your next turn" exists to cover. It was not even a conservative failure: because the
+ * cleanup's question is false on every turn that is not the owner's, the shared check flipped back to
+ * *live* on each opponent turn thereafter.
+ *
+ * There is no correct parity-free way to re-derive "is it live" from a grant turn alone — the answer
+ * depends on which turns between the grant and now belonged to the owner, which the state does not
+ * record. A stale marker therefore means the cleanup did not run, which is a defect in the caller and
+ * not something enumeration can paper over.
  */
 internal fun playGrantMarkerAllows(
-    state: GameState,
+    @Suppress("UNUSED_PARAMETER") state: GameState,
     obj: GameObject,
-): Boolean {
-    val granted = obj.playGrantedTurn ?: return false
-    return !playGrantHasExpired(state, obj.owner, granted)
-}
+): Boolean = obj.playGrantedTurn != null
 
 /**
- * Whether a play permission granted on turn [grantedTurn] to [owner] has run out by the *end* of the
- * turn now in progress (CR 118.5) — "until the end of your next turn": true exactly when the current
- * turn is [owner]'s and is strictly later than [grantedTurn].
+ * Whether a play permission granted on turn [grantedTurn] to [owner] **ends at the cleanup now
+ * running** (CR 118.5, CR 514.2) — "until the end of your next turn" is over exactly when the turn
+ * finishing is [owner]'s and is strictly later than [grantedTurn].
  *
- * The one derivation of the duration, shared by enumeration and by the CR 514.2 cleanup that clears the
- * marker, so the two cannot disagree about when the permission ends — the discipline `FW-OPTCOST` used
- * for the intervening-if's two checks, and load-bearing for the same reason: a permission enumerated
- * after it expired is an illegal action the engine offered (ADR-005).
+ * **This is the cleanup's question and only the cleanup's.** It is asked at one moment — the end of a
+ * turn — and is meaningless at any other, because it is `true` for the whole of the owner's next turn
+ * and `false` again on every turn after that which is not theirs. Enumeration must not ask it; see
+ * [playGrantMarkerAllows], which used to and denied the card on the one turn it was bought for.
+ *
+ * Named for the moment it answers rather than for a general "has expired", so the next caller cannot
+ * make the same substitution by reading the name alone.
  */
-internal fun playGrantHasExpired(
+internal fun playGrantEndsAtThisCleanup(
     state: GameState,
     owner: PlayerId,
     grantedTurn: Int,
