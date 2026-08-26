@@ -343,4 +343,69 @@ sealed interface CastingPermission {
         override val source: CastSource = CastSource.EXILE
         override val offeredAtPriority: Boolean = false
     }
+
+    /**
+     * Adventure (CR 715.3): the card is being cast as the Adventure printed in its inset frame — a
+     * *sorcery or instant* with [faceName]'s own name, type line, targeting and resolution, for
+     * [cost] instead of the card's printed one. Cast from [CastSource.HAND]. Additive, flagged core
+     * (`W10-B`); Fang Dragon's *Forktail Sweep*.
+     *
+     * **The only permission that changes what the spell *does*.** [Prototype] was the first to change
+     * what a spell *is* (CR 718.3b — a different cost, colour and size), and its KDoc is careful that
+     * the card "keeps its printed name, supertypes, card types, subtypes, keywords and every ability".
+     * An Adventure keeps none of those: CR 715.3b says the spell "has **only** its alternative
+     * characteristics", so a Fang Dragon cast as Forktail Sweep is a `{1}{R}` Sorcery that sweeps the
+     * board and is not a creature spell at all. That is why the face lives on the card
+     * ([SpellDefinition.alternativeFace]) as a whole second definition, and why this permission is only
+     * the *pointer* at it.
+     *
+     * **Cost and name and nothing else, because the wire has to carry it.** A permission travels to a
+     * remote seat as an enumerated option and comes back (ADR-005, the protocol's `PriorityOptionDto`);
+     * a permission carrying resolution effects — function values — could not round-trip. These two
+     * fields are what a seat needs to tell "Cast Fang Dragon" from "Cast Forktail Sweep", and both are
+     * derived by the engine from the declared face, so they cannot disagree with it.
+     *
+     * **What resolution does with it (CR 715.3d).** An Adventure spell that *resolves* is exiled
+     * instead of being put into its owner's graveyard, marked
+     * [dev.mtgplay.core.state.GameObject.onAnAdventure], and that player may then play the card's
+     * **normal** half from exile — never the Adventure again. A countered or fizzled Adventure goes to
+     * the graveyard like any other spell, which is why this is decided by the resolution path rather
+     * than by [exilesOnLeaveStack] (rebound's distinction exactly, one keyword over).
+     *
+     * @property cost the face's printed mana cost (CR 715.3a), which replaces the card's (CR 118.9).
+     * @property faceName the face's printed name (CR 201, CR 715.5) — what the spell on the stack is
+     *   called, and what a seat sees in the enumerated option.
+     */
+    data class Adventure(
+        override val cost: ManaCost,
+        val faceName: String,
+    ) : CastingPermission {
+        override val source: CastSource = CastSource.HAND
+    }
+
+    /**
+     * Omen (CR 720.3): the card is being cast as the Omen printed in its inset frame — a *sorcery or
+     * instant* with [faceName]'s own name, type line, targeting and resolution, for [cost] instead of
+     * the card's printed one. Cast from [CastSource.HAND]. Additive, flagged core (`W10-B`); Sagu
+     * Wildling's *Sagu Wilds*.
+     *
+     * [Adventure]'s twin in every respect but one, and the one is the point: **an Omen spell that
+     * resolves is shuffled into its owner's library** (CR 720.3d) rather than exiled. There is no later
+     * cast, no exile marker and no permission from exile — the card goes back into the deck and may be
+     * drawn again. That makes an Omen the cheaper half of the two-faces framework and, for a seat,
+     * a genuinely different decision: an Adventure banks the creature for later, an Omen spends it.
+     *
+     * A separate member rather than a flag on [Adventure] because CR 715 and CR 720 are separate rules
+     * with separate spell types, and because the difference decides which *zone* the card ends in —
+     * the one thing a permission's identity most needs to be honest about.
+     *
+     * @property cost the face's printed mana cost (CR 720.3a), which replaces the card's (CR 118.9).
+     * @property faceName the face's printed name (CR 201, CR 720.5).
+     */
+    data class Omen(
+        override val cost: ManaCost,
+        val faceName: String,
+    ) : CastingPermission {
+        override val source: CastSource = CastSource.HAND
+    }
 }

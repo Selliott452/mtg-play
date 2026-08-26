@@ -256,6 +256,29 @@ import kotlinx.collections.immutable.persistentSetOf
  *   any zone move carries none (CR 400.7), which is the rules answer as well as the state one: a
  *   creature bounced and recast is a new object and unaffected. The acceptance invariant checker
  *   enforces the scope.
+ * @property onAnAdventure whether this **exile** card was put there by an Adventure spell of its own
+ *   resolving (CR 715.3d) — Fang Dragon exiled by *Forktail Sweep*. Additive, flagged core (`W10-B`);
+ *   `false` for every other object.
+ *
+ *   **The fifth exile marker, and the one that grants a permission rather than recording a cost.**
+ *   [awaitingMadness], [plottedTurn], [reboundTurn] and [playGrantedTurn] are its siblings, and this
+ *   one is closest to [playGrantedTurn]: both say "the card in exile may be played from there at its
+ *   printed cost". The difference is the duration. A play grant expires (CR 118.5 — "until the end of
+ *   your next turn"), so it stores a turn number; CR 715.3d's grant lasts *"for as long as that card
+ *   remains exiled"*, which has no end to compute — so a boolean is the honest shape, and the marker
+ *   simply ceases to exist with the object when the card is finally cast (CR 400.7).
+ *
+ *   **What may be played is the card's normal half only.** CR 715.3d: *"It can't be cast as an
+ *   Adventure this way"* — so the engine offers the printed creature at its printed cost from exile,
+ *   and never the face again. Nothing else in this type needs to know which face was cast, because
+ *   the answer is always "the Adventure" for a card that reached exile this way.
+ *
+ *   There is no Omen counterpart and there never will be: an Omen spell is shuffled into its owner's
+ *   library as it resolves (CR 720.3d) and reaches exile by no path at all.
+ *
+ *   `false` on the fresh object born of any later zone move (CR 400.7), which is what stops a card
+ *   played off its adventure and later exiled again from still being playable. The acceptance
+ *   invariant checker enforces the scope.
  */
 data class GameObject(
     val id: ObjectId,
@@ -281,6 +304,7 @@ data class GameObject(
     val playGrantedTurn: Int? = null,
     val optionalCostPaidWhenCast: Boolean = false,
     val enteredTurn: Int? = null,
+    val onAnAdventure: Boolean = false,
 ) {
     init {
         require(damageMarked >= 0) { "CR 120.3: marked damage is non-negative, was $damageMarked" }

@@ -281,4 +281,29 @@ interface SpellDefinition :
      * list *per mode*.
      */
     val additionalTargetSpecs: PersistentList<TargetSpec> get() = persistentListOf()
+
+    /**
+     * The **second set of characteristics** printed in this card's inset frame (CR 715.2, CR 720.2) —
+     * an Adventure or an Omen — or `null` for the single-faced card, which is every other card in the
+     * pool. Additive, flagged core (`W10-B`). Fang Dragon's *Forktail Sweep*, Sagu Wildling's
+     * *Sagu Wilds*.
+     *
+     * **Nullability is the whole of the "is this card two-faced?" test**, so there is no second flag
+     * that could disagree with it — the discipline [modes] uses for modality.
+     *
+     * **On the card rather than on a [CastingPermission], and that is what keeps the wire honest.**
+     * Every other alternative way to cast is fully described by the permission that offers it, so a
+     * remote seat can be handed one and hand it back. A face is a whole [SpellDefinition] — resolution
+     * effects and targeting specs are *function values* — so a permission carrying one could be sent
+     * and never reconstructed. The permission ([CastingPermission.Adventure],
+     * [CastingPermission.Omen]) therefore carries only the face's cost and name, and `mtg-rules`
+     * reaches the face itself through the registry, off this property. The permission is never declared
+     * by a card at all: the engine synthesizes it from the face, exactly as it synthesizes ward's
+     * trigger from [CardDefinition.ward] — a card that restated it would be free to restate it wrongly.
+     *
+     * **In every zone but the stack the card has only its normal characteristics** (CR 715.4,
+     * CR 720.4), so nothing here changes what this card *is* in a hand, a graveyard or on the
+     * battlefield: the face is consulted only while the card is a spell cast as that face.
+     */
+    val alternativeFace: AlternativeFace? get() = null
 }
