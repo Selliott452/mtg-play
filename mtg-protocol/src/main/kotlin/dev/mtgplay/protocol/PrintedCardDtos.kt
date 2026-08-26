@@ -42,7 +42,9 @@ data class PrintedPowerToughnessDto(
  * @property supertypes the printed supertypes (CR 205.4) as [Supertype] names.
  * @property cardTypes the printed card types (CR 205.2) as [CardType] names; never empty.
  * @property subtypes the printed subtypes (CR 205.3) as their exact printed words.
- * @property powerToughness the printed power/toughness box (CR 208.1); present exactly for creatures.
+ * @property powerToughness the printed power/toughness box (CR 208.1); present on every creature card and,
+ *   under CR 208.1b, on a noncreature card whose type line carries a P/T-bearing subtype — a Spacecraft
+ *   prints a 7/7 it does not use until an effect makes it a creature.
  * @property keywords the printed keyword abilities (CR 702) as [Keyword] names.
  * @property evasions the printed non-keyword evasion abilities (CR 509.1b) as [Evasion] names.
  * @property protections the printed protection abilities (CR 702.16), one [QualityDto] per quality.

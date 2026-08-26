@@ -105,7 +105,12 @@ class CounterDtoSpec :
             // adding a capability, since ContinuousModification has carried granted evasions since the
             // keyword-tail packet and this mirror silently dropped them. The `duration` word gains
             // INDEFINITE (CR 611.2b), which an older peer already fails loudly on by design.
+            // `W10-C` takes it to 11.0.0: CounterDto gains a `charge` variant (CR 122.1), which a
+            // closed sealed discriminator makes a *loud* decode failure on an older peer, and
+            // PendingActivationDto gains an optional `chosenTap` that the strict codec still rejects
+            // as an unknown field. The client->server direction is unchanged — the tap cost reuses the
+            // existing ChooseTapsForCost rather than adding a DecisionRequest kind.
             // Pinned here so no bump in the chain can be quietly reverted.
-            PROTOCOL_VERSION shouldBe "10.0.0"
+            PROTOCOL_VERSION shouldBe "11.0.0"
         }
     })

@@ -979,6 +979,33 @@ package dev.mtgplay.protocol
  *    field in this bump an older peer could have tolerated: it defaults to `null` and every card omits
  *    it. It is required for a token whose colours the creating effect defined rather than derived —
  *    Sacred Cat's embalm token is white with **no mana cost**, and a peer that derived its colours would
- *    call it colourless and then disagree with the engine about whether protection from white stops it.
+ *    call it colourless and then disagree with the engine about whether protection from white stops it. *
+ * ## 11.0.0 — `W10-C`: charge counters and a chosen-permanent tap cost
+ *
+ * **Call: bump**, and the two halves break in opposite directions — one loudly, one silently — which is
+ * the reason to state both rather than only the larger.
+ *
+ * 1. **[CounterDto] gains a `charge` variant** (CR 122.1). Counters ride in [GameObjectDto] inside every
+ *    seat view, so this travels server→client on any board with a Spacecraft. It fails **loudly** on a
+ *    `10.0.0` peer: the sealed hierarchy's discriminator is closed, so an unknown `"charge"` is a decode
+ *    error rather than a dropped field. That is the good failure — the alternative would be a peer
+ *    quietly showing a 7/7 artifact that the engine considers a creature.
+ * 2. **[PendingActivationDto] gains an optional `chosenTap`** (CR 602.1). Optional in the schema and
+ *    defaulted to `null`, but the codec is strict about *unknown* fields, so an old peer rejects any
+ *    seat view carrying an activation that has reached the tap-cost stage. It cannot be omitted: like
+ *    its `chosenSacrifice` and `chosenReturn` siblings it is three-valued — `null` means "not yet
+ *    answered" and an empty list "settled, nothing to choose" — so an activation paused at the tap
+ *    stage would otherwise decode to a *different* gathering stage.
+ *
+ * The client→server direction is **unchanged**, and deliberately so. Station's cost surfaces the
+ * *existing* [DecisionRequestDto.ChooseTapsForCost] rather than a new member: "which of your untapped
+ * permanents do you tap to pay this cost" is one question whether a cast or an activated ability is
+ * asking it, and which payer receives the answer is decided engine-side by the open pending record. No
+ * [DecisionRequestKindDto] value is added, so nothing fails at `valueOf` mid-match — the same call
+ * `FW-ABILTGT` made when it reused `ChooseTargets` for three different askers.
+ *
+ * One field is **not** on the wire and the omission is deliberate:
+ * [dev.mtgplay.core.state.StackEntry.ActivatedAbilityOnStack.tappedForCost] is engine-internal
+ * resolution linkage (CR 608.2h), like `blockingAtActivation` beside it, and no seat view renders it.
  */
-const val PROTOCOL_VERSION: String = "10.0.0"
+const val PROTOCOL_VERSION: String = "11.0.0"
