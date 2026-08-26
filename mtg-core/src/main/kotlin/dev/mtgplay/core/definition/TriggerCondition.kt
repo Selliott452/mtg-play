@@ -360,6 +360,44 @@ sealed interface TriggerCondition {
     }
 
     /**
+     * The Initiative's *"Whenever you take the initiative **and** at the beginning of your upkeep, venture
+     * into Undercity"* (CR 701.51a, CR 701.51b). Additive, flagged core (`W10-A`).
+     *
+     * **One condition for two moments, because the card prints one ability.** Taking the initiative
+     * (CR 701.51a) and the initiative holder's upkeep (CR 701.51b) are different events, and the printed
+     * line joins them with "and" rather than making two abilities — so this is deliberately *not* an
+     * [AnyOf] of two members. There is nothing for a disjunction to distinguish: the ability does the same
+     * thing either way, and no effect in the game can observe which of the two fired it.
+     *
+     * **Never detected against a game event.** Like [MadnessCast], [ReboundCast], [CascadeCast] and
+     * [StormCast], the fired trigger is synthesized directly — by `takeTheInitiative` for the first half
+     * and by the upkeep turn-based check for the second — so no detector scans for it and the ability is
+     * never found on a printed [CardDefinition.triggeredAbilities] list. Its source is the venturing
+     * player's dungeon card, functioning from [TriggerZoneScope.Command].
+     *
+     * Its [TriggeredAbility.effect] is unused: a venture may need the CR 309.4 branch choice, which is a
+     * decision, and ADR-004 forbids a [ResolutionEffect] making one. The engine orchestrates it.
+     */
+    data object VentureIntoDungeon : TriggerCondition
+
+    /**
+     * A dungeon **room's** ability, triggered by a venture marker being put on it (CR 309.5). Additive,
+     * flagged core (`W10-A`) — every room of the Undercity.
+     *
+     * **The condition is shared by every room, and the *ability* is what differs.** CR 309.5 gives each
+     * room the same trigger condition — "when you enter this room" — so the room graph carries a whole
+     * [TriggeredAbility] per room ([DungeonRoom.ability]) and they all declare this. Nothing dispatches on
+     * *which* room fired: the ability the engine put on the stack already is that room's.
+     *
+     * Synthesized by the venture, never detected, and functioning from [TriggerZoneScope.Command] for the
+     * reason [VentureIntoDungeon] does — the source is the dungeon card, which is in no ordinary zone.
+     * Unlike [VentureIntoDungeon] the ability here resolves through the *ordinary* trigger path, effect,
+     * targets, post-resolution clause and all: a room that scries is CR 701.17a hanging off CR 309.5, and
+     * runs through exactly the orchestration Preordain uses.
+     */
+    data object EnteredDungeonRoom : TriggerCondition
+
+    /**
      * "Whenever this permanent becomes the target of a spell or ability an opponent controls"
      * (CR 702.21a) — the condition ward's synthesized trigger carries. Additive, flagged core
      * (`FW-WARD`).

@@ -1059,4 +1059,40 @@ sealed interface GameEvent {
         val card: CardRef,
         val defendingPlayer: PlayerId,
     ) : GameEvent
+
+    /**
+     * [player] took the initiative (CR 701.51a), from [previousHolder] — `null` when no player had it
+     * before, which happens once per game. Added with `W10-A`.
+     *
+     * Narrated separately from the venture it causes because the two are separate rules and a player may
+     * take the initiative they already hold (CR 701.51a): [previousHolder] equal to [player] is a legal,
+     * reachable event that still ventures.
+     */
+    data class InitiativeTaken(
+        val player: PlayerId,
+        val previousHolder: PlayerId?,
+    ) : GameEvent
+
+    /**
+     * [player]'s venture marker was put on [room] of [dungeon] (CR 309.4, CR 701.49) — either entering the
+     * dungeon at its first room or advancing to the next one. Added with `W10-A`.
+     *
+     * The room's own CR 309.5 triggered ability is a separate object that goes on the stack afterwards, so
+     * this event narrates the *move*, not what the room does.
+     */
+    data class VenturedIntoDungeon(
+        val player: PlayerId,
+        val dungeon: String,
+        val room: String,
+    ) : GameEvent
+
+    /**
+     * [player] completed [dungeon] (CR 309.6): their marker reached the last room, that room's ability has
+     * left the stack, and the dungeon card is removed — so [player] is no longer in a dungeon and their
+     * next venture starts again at the first room. Added with `W10-A`.
+     */
+    data class DungeonCompleted(
+        val player: PlayerId,
+        val dungeon: String,
+    ) : GameEvent
 }
