@@ -695,5 +695,39 @@ package dev.mtgplay.protocol
  *    field ([TapRequirementDto]) alongside its `sacrifice`, because CR 702.34c admits more than mana
  *    in a flashback cost. Recorded here rather than under `FW-PREVENT2` because it is the same
  *    permission payload, changed once.
+ *
+ * ### Held at `9.0.0` — `W9-B`: collect evidence and the each-opponent sacrifice
+ *
+ * **Call: no bump**, on this file's repeatedly-applied standard: `9.0.0` is **unreleased**. The only tag
+ * is `v0.1.0`, which shipped protocol `1.0.0`, so `1.0.0` remains the last version any consumer can have
+ * seen and the break below is invisible from outside the repo. The breaks, in descending order of
+ * sharpness:
+ *
+ * 1. **Two new `DecisionRequest` kinds**, the harsher of the two modes — a `valueOf` on
+ *    [DecisionRequestKindDto] fails at *runtime* mid-match rather than at decode time.
+ *    [DecisionRequestDto] gains [DecisionRequestDto.ChooseEvidence] (`choose_evidence`) and
+ *    [DecisionRequestDto.ChooseOpponentSacrifice] (`choose_opponent_sacrifice`), with the matching
+ *    `CHOOSE_EVIDENCE` and `CHOOSE_OPPONENT_SACRIFICE` kinds. Both are answerable client→server.
+ *
+ *    The collect-evidence *announcement* deliberately adds **no** kind: like kicker's and bargain's it
+ *    is a `ChooseYesNo`, because "you may pay an additional cost" is exactly that request's two-answer
+ *    shape. And the selection is deliberately **not** folded into `choose_optional_cost_sacrifice`,
+ *    which is the same CR 601.2b stage of the same cost family: that one's answer is bounded by a
+ *    *count* and this one's by a *summed mana value*, so one shared payload could not state its own
+ *    legality rule.
+ * 2. **A new request family with a new option payload.** [DecisionRequestDto.SummedSelectionDto] joins
+ *    the six existing families, and its options are [WeightedCardOptionDto] — the first option type in
+ *    the schema to carry a **weight** beside the object id and card name. That is load-bearing rather
+ *    than decorative: a summed selection is the one family whose legal answers cannot be derived from
+ *    the index range, so a client that could not see the per-option mana values could not construct a
+ *    legal answer at all. Re-deriving them client-side would need a card database the protocol
+ *    deliberately does not assume.
+ * 3. **No seat-view change whatsoever**, which is worth stating because the sibling framework needed
+ *    one. `FW-NONCTRLDEC` gave [SeatViewDto] a count-only `pendingOpponentDiscard` because a discard's
+ *    options are the deciding opponent's hidden hand (CR 402.1) and the controller must learn *that* a
+ *    pause exists without learning *what* is in it. An each-opponent **sacrifice** chooses among
+ *    battlefield permanents, which are public (CR 400.2) — every seat can already see the whole option
+ *    list — so `PendingOpponentSacrifice` gets no projection and [SeatViewDto] is untouched. Adding one
+ *    would publish nothing new and would imply an asymmetry that does not exist.
  */
 const val PROTOCOL_VERSION: String = "9.0.0"
