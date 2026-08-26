@@ -401,3 +401,70 @@ discloses — a disclosure job, not a clause), and `Writhing Chrysalis` (a `Cast
 plus a sacrifice watcher with a subtype axis).
 
 Every one has a named framework. Nothing is blocked on "we do not know why".
+
+## Wave 10 — the last nine
+
+Four packets, all merged. **Backlog 9 → 2; mainboard 171 → 177 of 178; sideboard 45 → 47 of 48.**
+
+| Packet | Encoded | Dropped |
+|---|---|---|
+| W10-A the initiative | 0 | 2 |
+| W10-B two faces (adventure, omen) | 2 | 0 |
+| W10-C bestow and station | 2 | 0 |
+| W10-D cost increase, explore, cast trigger | 3 | 0 |
+
+**Eleven of thirteen decks now have a complete mainboard**, and seven are complete on both boards:
+GW Bogles, Mono-Red Madness, Mono Red Rally, Spy Combo, Monster Tron, Jund Wildfire, Grixis Affinity.
+
+### Three predicted-hard frameworks turned out to be nearly there
+
+The pattern of the last two waves held to the end: **four of the deferred ten fell not by building the
+framework the triage named, but by finding most of it already present under another name.**
+
+- **Two faces** was predicted to force either a second slot on `PrintedCharacteristics` that every
+  characteristics read must consult, or a second registry key that every CR 400.7 zone move must agree
+  about. It was neither: a face is a whole second `SpellDefinition`, and the *cast* substitutes it at
+  the five sites the CR 601 pipeline already went through. Everything downstream became face-aware
+  with no edit at all.
+- **The conditional continuous effect** station needs was already the only shape a static ability has
+  ever had. There is no single layer store: the timed store holds resolution-generated effects,
+  snapshotted at CR 608.2h, while `staticEffectsOn` re-derives from the battlefield on every read.
+- **Bestow's "becomes a creature again"** needs no rule of its own — the type change is *conditioned*
+  on being attached, so CR 704.5m finds no Aura to act on.
+
+### Kaervek's Torch, and the modal counterspells
+
+The cost *increase* `FW-COST` had left unrepresentable on purpose is built. W9-C was right about the
+defect and pessimistic about the fix: the minimum-over-choices gate need only run when a taxing spell
+is on the stack **and** the card being cast can name a spell. Otherwise pricing at no targets is
+*exact*, not merely cheap.
+
+The finding that mattered most came out of it, and neither my brief nor any recorded note had it:
+**the pool's counterspells are modal.** A first draft refused a modal caster loudly, and a registry
+test caught that this was a crash on a line two decks actually play — Pyroblast and the Elemental
+Blasts print "counter target spell, **or** destroy target permanent", and a Torch is exactly the red
+spell they are held for. The fix is that a modal card needs no whole-cast minimum at all.
+
+Also learned: **CR 601.2f's increase-then-reduce order is load-bearing, not conventional.** The `{0}`
+clamp makes them non-commutative, and both orders are now a test.
+
+### The two that remain, and why
+
+**Avenging Hunter and Goliath Paladin.** The initiative subsystem is *built* — all of CR 701.51, the
+CR 309 dungeon machinery, and the Undercity's nine rooms with seven working abilities. Two rooms
+cannot be finished and no path avoids them both:
+
+- **Arena's goad** is an *attack requirement* (CR 508.1d), and the engine has no requirement framework
+  at all — it publishes a free subset of eligible attackers and accepts any subset back. Goad is a
+  change to the enumerated action space (ADR-005), not an effect.
+- **Throne of the Dead Three** is the last room, so every path ends there, and it needs four absent
+  frameworks including a reveal with a *battlefield* destination.
+
+Registering the creatures would have meant either two rooms silently doing nothing — an agent learns
+Arena is free and the payoff room is blank — or a crash on a line the engine itself offered. Both
+rooms are an explicit `Unimplemented(printed, diagnosis)` that fails loudly, and the spec pins both
+gaps *by name* plus both cards' absence, so whoever finishes this deletes assertions rather than
+discovering the hole in a game.
+
+**That is the whole remaining backlog: one mainboard card and one sideboard card, blocked on one
+framework (attack requirements) plus a reveal destination.**
