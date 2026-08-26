@@ -464,6 +464,32 @@ import dev.mtgplay.core.identity.CardRef
  * per chosen mode, carried through gathering, the CR 601.2c re-validation, the CR 608.2b fizzle and the
  * resolution. Its brief's claim that CR 601.2c forbids naming one object for two modes was **wrong**;
  * CR 115.3 permits it explicitly, and ModalInstants.kt records what that changed.
+ *
+ * `W10-D` adds the last three cards of the deferred ten that were not blocked on a whole absent
+ * mechanic, and each turned out to be a different size than its recorded diagnosis said.
+ *
+ * **[writhingChrysalis]** (CastTriggers.kt) was exactly the size `W9-F` predicted: two trigger
+ * conditions and nothing else. [dev.mtgplay.core.definition.TriggerCondition.CastSelf] is "when you cast
+ * this spell" — an ability of the *spell*, synthesized on the [dev.mtgplay.core.definition.TriggerZoneScope.Stack]
+ * that cascade and storm had already built, so the Eldrazi Spawn arrive even when the creature is
+ * countered. [dev.mtgplay.core.definition.TriggerCondition.YouSacrificedAnother] is the engine's first
+ * watcher of a CR 701.17a sacrifice and its first condition with a CR 205.3 subtype axis, and `W9-F` was
+ * right that it is **one** detection site rather than a fan-out: every sacrifice in the engine funnels
+ * through one private function.
+ *
+ * **[fanaticalOffering]** and its [mapToken] (CardAdvantage.kt) came in on **explore** (CR 701.40a), and
+ * `W9-D` was right that the conditional branch is the smaller half. The larger half is that CR 701.40a
+ * says *reveal*, so the revealed card is public **while sitting in a library** — the one zone
+ * [dev.mtgplay.rules.SeatView] had never disclosed. That is an ADR-007 job, and it landed in the five
+ * places `W9-D` named plus the protocol bump they imply, including **both** of
+ * `ViewLeakPropertySpec`'s deliberately independent oracles.
+ *
+ * **[kaerveksTorch]** (BurnAndRemoval.kt) fills the cost-**increase** slot CR 601.2f's formula has
+ * carried empty since `FW-COST` ([dev.mtgplay.core.definition.StackTargetTax]), and the interesting part
+ * is the **gate**: `W9-C` was right that pricing legality at no targets under-charges an increase and
+ * crashes, and pessimistic about the fix, which does not have to run on every cast in every window. See
+ * `StackTargetTax.kt`. Its first draft refused modal casters and a test caught that the pool's
+ * counterspells *are* modal — Pyroblast is exactly what a Torch is cast into.
  */
 object MvpCards {
     /** Every defined card, keyed by its printed-name [CardRef] (CR 201). */
