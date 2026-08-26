@@ -8,7 +8,9 @@ import dev.mtgplay.core.identity.CardRef
 import dev.mtgplay.core.identity.ObjectId
 import dev.mtgplay.core.identity.PlayerId
 import kotlinx.collections.immutable.PersistentList
+import kotlinx.collections.immutable.PersistentSet
 import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.persistentSetOf
 
 /**
  * One object waiting on the stack (CR 405.2): the typed shape of
@@ -205,6 +207,19 @@ sealed interface StackEntry {
      *   the CR 608.2b re-check asks "is this still a noncreature artifact with mana value X?", and
      *   without the announced value on the record the re-check would ask a different question from the
      *   one the activation answered (docs/design/dependent-targets.md §3).
+     * @property blockingAtActivation the attackers the source was blocking when the ability was
+     *   activated (CR 509.1), captured as CR 113.7c last-known information beside [sourceId] and
+     *   [sourceCard]; empty for every ability that does not ask, which is every ability but Tinder
+     *   Wall's. Additive, flagged core (`W9-F`).
+     *
+     *   **A captured *relation*, not a captured id, and the difference is the card.** "Target creature
+     *   **it's blocking**" is a fact about the source's place in combat, and by the time this entry
+     *   resolves the source has been sacrificed to its own cost — it is a new object in a graveyard
+     *   (CR 400.7), in no combat at all. CR 608.2h settles such a question once, as the ability is
+     *   activated, which is also the only moment CR 601.2c has already guaranteed the source is still on
+     *   the battlefield: targets are chosen at CR 601.2c and costs are not paid until CR 601.2h. Reading
+     *   [dev.mtgplay.core.state.CombatState] at the CR 608.2b re-check instead would make every
+     *   activation of that ability fizzle.
      */
     data class ActivatedAbilityOnStack(
         val sourceId: ObjectId,
@@ -215,6 +230,7 @@ sealed interface StackEntry {
         val entryId: ObjectId? = null,
         val chosenX: Int = 0,
         val isCopy: Boolean = false,
+        val blockingAtActivation: PersistentSet<ObjectId> = persistentSetOf(),
     ) : StackEntry {
         init {
             require(chosenX >= 0) { "CR 601.2b: an announced value of X is non-negative, was $chosenX" }

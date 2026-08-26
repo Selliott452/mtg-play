@@ -197,6 +197,29 @@ interface ResolutionClauses {
      * and why this is not an [InterveningIf].
      */
     val clauseCondition: ClauseCondition? get() = null
+
+    /**
+     * A "you may exile a matching card from your graveyard; **if you do**, do this" clause (CR 404,
+     * CR 608.2c), or `null` for a definition with none. Masked Vandal's enters trigger. Additive,
+     * flagged core (`W9-F`).
+     *
+     * **The one clause that carries its own effect**, and the only one whose declaring object leaves the
+     * ordinary [ResolutionEffect] slot empty on purpose. Every sibling here runs *after* the ordinary
+     * effect; this one **gates** it, so the gated half has to live where the gate can withhold it. See
+     * [OptionalGraveyardExileGate].
+     */
+    val optionalGraveyardExileGate: OptionalGraveyardExileGate? get() = null
+
+    /**
+     * An "the owner of target nonland permanent puts it into their library second from the top or on the
+     * bottom" clause (CR 401.1), or `null` for a definition with none. Deem Inferior's. Additive,
+     * flagged core (`W9-F`).
+     *
+     * The **third** clause whose decider is not the resolving object's controller, after
+     * [eachOpponentDiscards] and [targetPlayerExilesFromGraveyard], and the first decided by a
+     * permanent's **owner** (CR 108.3). See [OwnerLibraryPlacement].
+     */
+    val ownerLibraryPlacement: OwnerLibraryPlacement? get() = null
 }
 
 /**
@@ -222,6 +245,8 @@ val ResolutionClauses.declaredClauses: List<Any>
             targetPlayerExilesFromGraveyard,
             chosenTypeReveal,
             chosenColorEffect,
+            optionalGraveyardExileGate,
+            ownerLibraryPlacement,
         )
 
 /**

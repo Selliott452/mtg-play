@@ -148,20 +148,13 @@ import kotlinx.collections.immutable.persistentSetOf
  *   restriction that reads a *number chosen this activation* is a shape
  *   [PermanentRestriction] cannot express at all, since it is a closed enum of board questions.
  *
- * - **Cleansing Wildfire** `{1}{R}` — "Destroy target land. Its controller **may** search their library
- *   for a basic land card, put it onto the battlefield tapped, then shuffle. Draw a card." Three gaps in
- *   the CR 701.18 search clause. (1) **The decider is not the resolving spell's controller** — it is the
- *   target's controller. `orchestrateLibrarySearch` takes the decider from `entry.resolutionController`
- *   with no axis to say otherwise; [dev.mtgplay.core.definition.EachOpponentDiscards] is the precedent
- *   that a non-controller clause is expressible, and the search clause has no equivalent. (2) The search
- *   is **optional in a way that changes the shuffle**: the engine's search always shuffles (right for a
- *   mandatory "search … then shuffle" with CR 701.18b failure-to-find), but declining a "may search"
- *   means no shuffle happens at all — and a shuffle is not cosmetic here, it consumes seeded entropy
- *   (ADR-006) and reorders the library. (3) **The draw comes after the search**, and
- *   [dev.mtgplay.core.definition.ResolutionClauses] clauses run *after* the ordinary resolution effect
- *   with nothing after them. Folding the draw into the effect would draw before the shuffle, which is a
- *   different card off a different library. `FW-CLAUSEHOOK` shipped a *post*-resolution hook; this needs
- *   a mid-resolution one.
+ * **Cleansing Wildfire shipped in `W9-F`** and lives in LandDestruction.kt beside Raze, which is the
+ * file its printed line belongs to. Of the three gaps this header used to record against it, gap (2) —
+ * "a declined *may* search must not shuffle" — was already **stale** when it was written: `W8-E` landed
+ * [dev.mtgplay.core.definition.LibrarySearch.optional] with its own enumerated decline index for
+ * Gatecreeper Vine. The other two were real and are closed by
+ * [dev.mtgplay.core.definition.LibrarySearchSearcher] and
+ * [dev.mtgplay.core.definition.LibrarySearch.thenDraw]; LandDestruction.kt carries the reasoning.
  */
 
 /** Searing Blaze's damage to each of its two targets without landfall (CR 119.3). */

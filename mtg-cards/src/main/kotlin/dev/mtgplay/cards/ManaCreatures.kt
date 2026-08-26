@@ -5,7 +5,10 @@ import dev.mtgplay.core.card.Keyword
 import dev.mtgplay.core.card.PrintedCharacteristics
 import dev.mtgplay.core.card.PrintedPowerToughness
 import dev.mtgplay.core.card.Subtype
+import dev.mtgplay.core.definition.AbilityCost
+import dev.mtgplay.core.definition.ActivatedAbility
 import dev.mtgplay.core.definition.ManaAbility
+import dev.mtgplay.core.definition.ManaAbilityCost
 import dev.mtgplay.core.definition.ManaAbilityRider
 import dev.mtgplay.core.definition.ManaAmount
 import dev.mtgplay.core.definition.PermanentFilter
@@ -17,6 +20,7 @@ import dev.mtgplay.core.definition.TriggerCondition
 import dev.mtgplay.core.definition.TriggeredAbility
 import dev.mtgplay.core.mana.ManaCost
 import dev.mtgplay.core.mana.ManaType
+import dev.mtgplay.rules.effect.dealDamage
 import kotlinx.collections.immutable.PersistentSet
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.persistentSetOf
@@ -67,17 +71,24 @@ import kotlinx.collections.immutable.persistentSetOf
  *   pause. Its `{R/G}{R/G}` is the pool's second hybrid cost after Slippery Bogle's, and the first on a
  *   card whose two halves are the *same* pair of colours twice.
  *
- * **Tinder Wall stays out**, and only its second ability is the reason; the first —
- * `ManaAbility(options = [RED], cost = [SacrificeSelf], amount = Fixed(2))` — is expressible today.
- * "{R}, Sacrifice this creature: It deals 2 damage to target creature **it's blocking**" needs a
- * targeting restriction stated relative to the ability's *source object*, and the engine's
- * `Chooser.Ability` deliberately carries only the source's [dev.mtgplay.core.identity.CardRef] and no
- * id — the card's own KDoc names Tinder Wall as the reason, because a sacrifice cost has already made
- * the source a new object in a graveyard (CR 400.7) before the ability is even on the stack. So the
- * blocking relationship must be captured as last-known information at activation (CR 608.2h, CR
- * 113.7c) and re-checked from that capture at CR 608.2b. That is a combat-relative targeting framework
- * plus an ability-LKI capture, neither of which this packet owns; encoding only the ritual half would
- * hand an agent a card that cannot do the thing it is held up for.
+ * `W9-F` adds [tinderWall], which this header had recorded as out for two waves — and the recorded
+ * diagnosis was **right in every particular**, which is worth saying because most of the diagnoses this
+ * wave re-checked were not. Its ritual half was expressible from the day
+ * [ManaAbilityCost.SacrificeSelf] landed; its second ability, "{R}, Sacrifice this creature: It deals 2
+ * damage to target creature **it's blocking**", needed exactly the two things the note named:
+ *
+ * - a **targeting restriction stated relative to the ability's source object**, which is
+ *   [TargetSpec.CreatureBlockedBySource] — a [TargetSpec] member rather than a
+ *   [dev.mtgplay.core.definition.PermanentRestriction], because every member of that enum answers a
+ *   question about the *candidate* and this one asks about the Wall; and
+ * - an **ability-LKI capture**, because the sacrifice cost has already made the source a new object in
+ *   a graveyard (CR 400.7) before the ability reaches the stack.
+ *   [dev.mtgplay.core.state.StackEntry.ActivatedAbilityOnStack.blockingAtActivation] holds the
+ *   *relation* — an id would name a dead object, which is the same reason `Chooser.Ability` carries no
+ *   id — captured at CR 601.2c, before CR 601.2h pays the cost, and read again at CR 608.2b.
+ *
+ * Encoding only the ritual half would have handed an agent a card that cannot do the thing it is held
+ * up for, so it was both halves or neither.
  */
 
 /**
@@ -347,6 +358,102 @@ val burningTreeEmissary: SpellDefinition =
                     // declaration beside it. There is nothing left for an effect to do.
                     effect = entersTheBattlefield,
                     addsMana = persistentListOf(ManaType.RED, ManaType.GREEN),
+                ),
+            )
+    }
+
+/** Tinder Wall's printed toughness (CR 208.2) — a 0/3 Wall. */
+private const val TINDER_WALL_TOUGHNESS: Int = 3
+
+/** The red mana Tinder Wall's ritual ability adds (CR 605.2). */
+private const val TINDER_WALL_MANA: Int = 2
+
+/** The damage Tinder Wall's second ability deals to the creature it was blocking (CR 120.3d). */
+private const val TINDER_WALL_DAMAGE: Int = 2
+
+/**
+ * Tinder Wall — `{G}` Creature — Plant Wall, a 0/3 with defender, "Sacrifice this creature: Add
+ * `{R}{R}`" and "`{R}`, Sacrifice this creature: It deals 2 damage to target creature it's blocking."
+ *
+ * Added by `W9-F`, and the reason [TargetSpec.CreatureBlockedBySource] and the ability-LKI capture on
+ * [dev.mtgplay.core.state.StackEntry.ActivatedAbilityOnStack.blockingAtActivation] exist. This file's
+ * header recorded the card as blocked for two waves on exactly that, and the diagnosis was right.
+ *
+ * **Both halves or nothing.** The ritual is a green one-drop that ramps into a three-drop, and it was
+ * expressible from the day [ManaAbilityCost.SacrificeSelf] landed. The blocking half is what makes the
+ * Wall a *combat* card — a 0/3 that eats a two-power attacker for `{R}` — and encoding only the ritual
+ * would have handed an agent a card that cannot do the thing it is played for (PLAN.md §7).
+ *
+ * Four readings decide whether the second ability is the card:
+ *
+ * - **"It", the source, deals the damage** (CR 120.1), so the damage has a source with characteristics:
+ *   CR 615 prevention and CR 702.16e protection both apply to it, as they would not to a bare life
+ *   subtraction. The source is read from the ability's captured
+ *   [dev.mtgplay.core.state.StackEntry.ActivatedAbilityOnStack.sourceCard] (CR 113.7c), the Wall itself
+ *   being in a graveyard by then.
+ * - **"Target creature it's blocking"** is a restriction on the *source*, not on the candidate, which is
+ *   why it is a [TargetSpec] member rather than a
+ *   [dev.mtgplay.core.definition.PermanentRestriction]: every member of that enum answers a question
+ *   about the permanent being offered, and this one asks about the Wall.
+ * - **The relation is last-known information** (CR 113.7c, CR 608.2h). The sacrifice is a *cost*, paid
+ *   at CR 601.2h — after the target is chosen at CR 601.2c — so the Wall is still blocking when the
+ *   choice is enumerated and is a new object in a graveyard (CR 400.7) by the CR 608.2b re-check.
+ *   Re-deriving "it's blocking" from the live combat state there would fizzle every activation.
+ * - **The ability cannot be activated outside combat at all** (CR 601.2c): with no block declared there
+ *   is no legal target, so the whole activation is absent from the enumerated action space rather than
+ *   offered and then wasted. The ritual stays offered, which is the choice the card actually poses —
+ *   ramp now, or hold the Wall for a blocker and a Shock.
+ *
+ * Defender (CR 702.3b) is printed and honoured: the Wall never attacks, which is the only way it is
+ * ever *blocking* anything and therefore a precondition of its own second ability.
+ */
+val tinderWall: SpellDefinition =
+    object : SpellDefinition {
+        override val characteristics =
+            PrintedCharacteristics(
+                name = "Tinder Wall",
+                manaCost = ManaCost.parse("{G}"),
+                supertypes = persistentSetOf(),
+                cardTypes = persistentSetOf(CardType.CREATURE),
+                subtypes = persistentSetOf(Subtype("Plant"), Subtype("Wall")),
+                powerToughness = PrintedPowerToughness(power = 0, toughness = TINDER_WALL_TOUGHNESS),
+                keywords = persistentSetOf(Keyword.DEFENDER),
+            )
+
+        override val timing = TimingClass.SORCERY_SPEED
+        override val targetSpec = TargetSpec.None
+        override val resolution = entersTheBattlefield
+
+        // CR 605.1a: no target, could add mana, not a loyalty ability — so it is a mana ability and
+        // never uses the stack, even though its cost destroys its own source.
+        override val manaAbilities =
+            persistentListOf(
+                ManaAbility(
+                    options = persistentListOf(ManaType.RED),
+                    cost = persistentListOf(ManaAbilityCost.SacrificeSelf),
+                    amount = ManaAmount.Fixed(TINDER_WALL_MANA),
+                ),
+            )
+        override val activatedAbilities =
+            persistentListOf(
+                ActivatedAbility(
+                    // CR 602.1: printed order — the `{R}` is paid before the sacrifice.
+                    cost =
+                        persistentListOf(
+                            AbilityCost.Mana(ManaCost.parse("{R}")),
+                            AbilityCost.SacrificeSelf,
+                        ),
+                    // CR 115.1b/509.1: the attacker this Wall was blocking as the ability was activated.
+                    targetSpec = TargetSpec.CreatureBlockedBySource,
+                    effect =
+                        ResolutionEffect { state, context ->
+                            dealDamage(
+                                state,
+                                context.damageSource(),
+                                context.targets.single(),
+                                TINDER_WALL_DAMAGE,
+                            )
+                        },
                 ),
             )
     }

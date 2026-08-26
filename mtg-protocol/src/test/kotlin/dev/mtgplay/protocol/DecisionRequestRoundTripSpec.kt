@@ -4,6 +4,7 @@ import dev.mtgplay.core.card.Subtype
 import dev.mtgplay.core.definition.AbilityZoneScope
 import dev.mtgplay.core.definition.CastSource
 import dev.mtgplay.core.definition.CastingPermission
+import dev.mtgplay.core.definition.LibraryPosition
 import dev.mtgplay.core.definition.ManaAbilityCost
 import dev.mtgplay.core.definition.ManaAbilityRider
 import dev.mtgplay.core.definition.OptionalCostMode
@@ -546,6 +547,15 @@ private val allRequests: List<DecisionRequest> =
                     DecisionRequest.ChooseGraveyardCardToExile.Option(ObjectId(5), CardRef("Lightning Bolt")),
                     DecisionRequest.ChooseGraveyardCardToExile.Option(ObjectId(6), CardRef("Mountain")),
                 ),
+        ),
+        // CR 401.1: decided by the targeted permanent's *owner*, over a closed two-member vocabulary.
+        DecisionRequest.ChooseLibraryPosition(
+            ID,
+            controller = PlayerId(1),
+            sourceCard = CardRef("Deem Inferior"),
+            permanent = ObjectId(7),
+            permanentCard = CardRef("Grizzly Bears"),
+            options = listOf(LibraryPosition.SECOND_FROM_TOP, LibraryPosition.BOTTOM),
         ),
         // CR 609.4: Winding Way's "choose creature or land", answered before anything is revealed.
         DecisionRequest.ChooseRevealedCardType(

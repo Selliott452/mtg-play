@@ -96,6 +96,33 @@ sealed interface CostReduction {
             require(amount > 0) { "a target-conditional reduction reduces by at least 1, was $amount" }
         }
     }
+
+    /**
+     * Reduce by [amountPerDraw] generic mana for **each card the caster has drawn this turn** (CR 121.1)
+     * — Deem Inferior's *"This spell costs {1} less to cast for each card you've drawn this turn."*
+     * Additive, flagged core (`W9-F`).
+     *
+     * **A fourth member rather than a [CountScope], and the reason is what it counts.** [PerMatching]
+     * multiplies its amount by the objects in a *zone* matching an [ObjectPredicate]; this counts an
+     * **event tally** that no zone holds — the cards drawn are in a hand, indistinguishable from the ones
+     * that were there at the draw step, and cards drawn and then discarded still count. The tally has
+     * lived on [dev.mtgplay.core.state.PlayerState.drawsThisTurn] since Sneaky Snacker's
+     * [TriggerCondition.DrewNthCardThisTurn], so this reads state the engine already keeps; what it
+     * cannot do is pretend to be a set of objects.
+     *
+     * The reading is **"you", the caster** (CR 601.2f reads the game state as the total cost is
+     * determined), and the tally is per-player, so an opponent's draws on your turn reduce nothing.
+     * The turn's own draw step counts: a Deem Inferior cast in a main phase is already `{2}{U}`.
+     *
+     * @property amountPerDraw the generic mana to reduce by per card drawn; at least one.
+     */
+    data class PerDrawThisTurn(
+        val amountPerDraw: Int,
+    ) : CostReduction {
+        init {
+            require(amountPerDraw > 0) { "a per-draw reduction reduces by at least 1, was $amountPerDraw" }
+        }
+    }
 }
 
 /**

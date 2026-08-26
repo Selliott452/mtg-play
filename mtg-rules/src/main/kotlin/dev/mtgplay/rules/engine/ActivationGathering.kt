@@ -103,7 +103,16 @@ private fun initialActivationTargets(
 ): PersistentList<Target>? =
     if (abilityAnnouncesX(ability)) {
         null
-    } else if (targetChoiceIsVacuous(state, ability.targetSpec, seat, Chooser.Ability(source.card))) {
+    } else if (targetChoiceIsVacuous(
+            state,
+            ability.targetSpec,
+            seat,
+            // The blocking relation must be visible here too (`W9-F`): a spec whose legal set is
+            // "creatures this source is blocking" is vacuous without it, and the ability would never
+            // be offered (ADR-005).
+            Chooser.Ability(source.card, creaturesBlockedBy(state, source.id)),
+        )
+    ) {
         persistentListOf()
     } else {
         null
@@ -166,7 +175,7 @@ internal fun pendingActivationRequest(state: GameState): DecisionRequest {
                         state,
                         ability.targetSpec,
                         pending.activator,
-                        Chooser.Ability(source.card),
+                        Chooser.Ability(source.card, creaturesBlockedBy(state, source.id)),
                         TargetContext(chosenX = pending.chosenX ?: 0),
                     ),
             )

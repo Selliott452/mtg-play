@@ -225,6 +225,8 @@ private fun libraryLookOrLatePauseRequest(state: GameState): DecisionRequest? =
         // CR 701.3a: the *targeted player* chooses which of their own graveyard cards is exiled — a
         // decider named by a target, so unlike the opponent discard it may be the controller themselves.
         state.pendingGraveyardExile != null -> pendingGraveyardExileRequest(state)
+        // CR 401.1/108.3: the targeted permanent's *owner* names a depth in their own library.
+        state.pendingLibraryPlacement != null -> pendingLibraryPlacementRequest(state)
         // CR 609.4: the resolution-time card-type choice, answered before anything is revealed.
         state.pendingTypeChoice != null -> pendingTypeChoiceRequest(state)
         else -> null

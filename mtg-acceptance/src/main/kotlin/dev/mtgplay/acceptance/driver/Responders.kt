@@ -115,6 +115,11 @@ object Responders {
                 // did, which is exactly why it is spelled out rather than left to a catch-all.
                 is DecisionRequest.ChooseGraveyardCardToExile ->
                     error("the pass-everything responder never activates a graveyard-exile ability: $request")
+                // CR 401.1: a library-position choice belongs to a Deem Inferior this policy never cast —
+                // and this seat is the *owner* of the targeted permanent, not the caster, which is
+                // exactly why it is spelled out rather than left to a catch-all.
+                is DecisionRequest.ChooseLibraryPosition ->
+                    error("the pass-everything responder never casts a library-placement spell: $request")
                 // CR 609.4: a resolution-time card-type choice only exists while a Winding Way this
                 // policy never cast is resolving.
                 is DecisionRequest.ChooseRevealedCardType ->

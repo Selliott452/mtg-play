@@ -91,6 +91,9 @@ internal fun executeActivation(
             targets = targets,
             entryId = entryId,
             chosenX = chosenX,
+            // CR 113.7c/608.2h: the source is still in combat *here* and will not be by the CR 608.2b
+            // re-check, because the cost below may sacrifice it. Captured, never re-derived.
+            blockingAtActivation = creaturesBlockedBy(state, source.id),
         )
     val cleared = allocated.copy(pendingActivation = null)
     establishActivationTargets(cleared, entry)
@@ -135,7 +138,7 @@ private fun establishActivationTargets(
             state,
             spec,
             entry.controller,
-            Chooser.Ability(entry.sourceCard),
+            Chooser.Ability(entry.sourceCard, entry.blockingAtActivation),
             TargetContext(chosenX = entry.chosenX),
         )
     requireWellFormedTargetChoice(spec, entry.targets, options.size, "${entry.sourceCard.name}'s ability")
@@ -164,7 +167,9 @@ private fun fizzleActivatedAbility(
     val check =
         TargetCheck(
             entry.controller,
-            Chooser.Ability(entry.sourceCard),
+            // CR 113.7c again: the blocking relation the activation captured travels on the chooser,
+            // because by now the ability's own source may have been sacrificed to pay for it.
+            Chooser.Ability(entry.sourceCard, entry.blockingAtActivation),
             TargetContext(chosenX = entry.chosenX),
         )
     if (!allTargetsIllegal(state, entry.ability.targetSpec, entry.targets, check)) return null
@@ -324,5 +329,5 @@ internal fun resolveActivatedAbility(
     }
     // CR 608.2c: a post-resolution clause the ability carries runs after its ordinary effect and may pause
     // (`FW-CLAUSEHOOK`). With no clause this is the bare CR 113.7a cessation.
-    return orchestrateResolutionClauses(resolved, entry)
+    return orchestrateResolutionClauses(resolved, entry, beforeEffect = state)
 }

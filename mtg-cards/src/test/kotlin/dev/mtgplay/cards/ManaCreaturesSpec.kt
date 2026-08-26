@@ -1,8 +1,10 @@
 package dev.mtgplay.cards
 
 import dev.mtgplay.core.card.CardType
+import dev.mtgplay.core.card.Keyword
 import dev.mtgplay.core.card.PrintedPowerToughness
 import dev.mtgplay.core.card.Subtype
+import dev.mtgplay.core.definition.AbilityCost
 import dev.mtgplay.core.definition.ManaAbility
 import dev.mtgplay.core.definition.ManaAbilityCost
 import dev.mtgplay.core.definition.ManaAbilityRider
@@ -20,6 +22,8 @@ import dev.mtgplay.core.mana.ManaType
 import io.kotest.core.spec.style.StringSpec
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldBeIn
+import io.kotest.matchers.collections.shouldContainExactly
+import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
@@ -182,5 +186,50 @@ class ManaCreaturesSpec :
             ).forEach { (definition, name) ->
                 MvpCards.definitions[CardRef(name)] shouldBe definition
             }
+        }
+
+        // ---------------------------------------------------------------- Tinder Wall (`W9-F`)
+
+        "CR 201/205: Tinder Wall is a {G} 0/3 Plant Wall with defender" {
+            with(tinderWall.characteristics) {
+                name shouldBe "Tinder Wall"
+                manaCost shouldBe ManaCost.parse("{G}")
+                cardTypes shouldBe persistentSetOf(CardType.CREATURE)
+                subtypes shouldBe persistentSetOf(Subtype("Plant"), Subtype("Wall"))
+                powerToughness shouldBe PrintedPowerToughness(power = 0, toughness = 3)
+                // CR 702.3b: printed and honoured — a Wall that never attacks is the only kind that
+                // is ever *blocking* anything, which its second ability depends on.
+                keywords shouldBe persistentSetOf(Keyword.DEFENDER)
+            }
+            tinderWall.timing shouldBe TimingClass.SORCERY_SPEED
+            tinderWall.targetSpec shouldBe TargetSpec.None
+        }
+
+        "CR 605.1a: 'Sacrifice this creature: Add {R}{R}' is a mana ability, not an activated one" {
+            val ability = tinderWall.manaAbilities.single()
+            // No target, could add mana, not a loyalty ability — so it never uses the stack (CR 605.3a)
+            // and stays in the payment planner, even though its cost destroys its own source.
+            ability.options shouldContainExactly listOf(ManaType.RED)
+            ability.cost shouldContainExactly listOf(ManaAbilityCost.SacrificeSelf)
+            ability.amount shouldBe ManaAmount.Fixed(2)
+            ability.rider.shouldBeNull()
+        }
+
+        "CR 115.1b/509.1: the second ability targets the creature the Wall is blocking" {
+            val ability = tinderWall.activatedAbilities.single()
+            // CR 602.1: printed order, so the {R} is paid before the source is sacrificed.
+            ability.cost shouldContainExactly
+                listOf(AbilityCost.Mana(ManaCost.parse("{R}")), AbilityCost.SacrificeSelf)
+            // A restriction on the *source*, not on the candidate — which is why it is a TargetSpec
+            // member and not a PermanentRestriction, and why the relation is captured at activation
+            // (CR 113.7c): by the CR 608.2b re-check the Wall is a new object in a graveyard.
+            ability.targetSpec shouldBe TargetSpec.CreatureBlockedBySource
+            // CR 602.5a: an ordinary instant-speed activation; nothing on the card restricts the window.
+            ability.timing shouldBe TimingClass.INSTANT_SPEED
+            ability.oncePerTurn shouldBe false
+        }
+
+        "Tinder Wall is in the registry under its printed name (CR 201)" {
+            MvpCards.definitions[CardRef("Tinder Wall")] shouldBe tinderWall
         }
     })

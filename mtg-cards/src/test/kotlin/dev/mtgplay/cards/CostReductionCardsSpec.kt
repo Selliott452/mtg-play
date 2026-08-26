@@ -12,7 +12,6 @@ import dev.mtgplay.core.identity.CardRef
 import dev.mtgplay.core.mana.Color
 import io.kotest.core.spec.style.StringSpec
 import io.kotest.matchers.collections.shouldContainExactly
-import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
@@ -151,6 +150,9 @@ class CostReductionCardsSpec :
                     // the eighth — the twin whose cost half is Cryptic Serpent's and whose ward {2}
                     // (CR 702.21a) `W9-A` finally built (`FW-WARD`, Ward.kt).
                     tolarianTerror,
+                    // the ninth, and the first reducer counting a per-turn **event** rather than a zone
+                    // or a chosen target: `CostReduction.PerDrawThisTurn` (`W9-F`, CostReduction.kt).
+                    deemInferior,
                 )
             registered.forEach { card ->
                 MvpCards.definitions[CardRef(card.characteristics.name)] shouldBe card
@@ -174,18 +176,23 @@ class CostReductionCardsSpec :
                 .map { it.characteristics.name } shouldContainExactly listOf("Sunscape Familiar")
         }
 
-        "the one other FW-COST card stays unencoded, on a framework this packet does not own" {
-            // Deem Inferior: the *owner* chooses a library position, second-from-top or bottom — a zone
-            //   move nothing performs plus a non-controller mid-resolution decision. Its reduction is
-            //   **not** the blocker: `W8-B` found `PlayerState.drawsThisTurn` has existed since Sneaky
-            //   Snacker, so the earlier "the state does not track it" diagnosis was wrong.
-            // Refurbished Familiar has left this list: `FW-NONCTRLDEC` landed and it is now encoded.
-            // Ride's End has left it too: `W8-C` shipped `FW-TGTCOND` (BurnAndRemoval.kt), so a cost
-            // priced off the chosen target is expressible and the card is registered above.
-            // Tolarian Terror has left it too: `W9-A` shipped `FW-WARD`, so ward {2} is expressible and
-            // the card is registered above.
-            listOf("Deem Inferior").forEach {
-                MvpCards.definitions[CardRef(it)].shouldBeNull()
+        // W9-A encoded Tolarian Terror (ward) and W9-F encoded Deem Inferior (the owner-chosen
+        // library insertion) in the same wave, which empties the list this test used to pin. Rather
+        // than delete it or leave it asserting nothing, it is inverted: every card `FW-COST` ever
+        // named is now registered, and this fails if one is ever removed.
+        "every card FW-COST recorded as blocked is now encoded" {
+            // Refurbished Familiar came in with `FW-NONCTRLDEC`; Ride's End with `W8-C`'s `FW-TGTCOND`;
+            // Sunscape Familiar with `W8-B`; Tolarian Terror with `W9-A`'s `FW-WARD`; and Deem Inferior
+            // with `W9-F`, which shipped both halves it was waiting on — `CostReduction.PerDrawThisTurn`
+            // for the cost, and `OwnerLibraryPlacement` with `LibraryPosition` for the insertion.
+            listOf(
+                "Refurbished Familiar",
+                "Ride's End",
+                "Sunscape Familiar",
+                "Tolarian Terror",
+                "Deem Inferior",
+            ).forEach {
+                MvpCards.definitions[CardRef(it)].shouldNotBeNull()
             }
         }
     })

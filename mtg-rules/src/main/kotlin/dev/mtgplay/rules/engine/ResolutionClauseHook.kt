@@ -44,10 +44,19 @@ import dev.mtgplay.rules.AdvanceResult
  * would be a silent approximation of an ordering no card states. [ActivatedAbility] and [TriggeredAbility]
  * gate that at construction; `SpellDefinition` is an interface with no `init` and cannot, so the gate is
  * re-checked here, which covers all three carriers uniformly.
+ *
+ * [beforeEffect] is the game state as the object **began** resolving, which is not the same board
+ * [state] describes: the ordinary effect has already run and may have moved the very permanent a clause
+ * needs to read. CR 608.2h settles such a question once, as the effect is applied, so a clause whose
+ * *decider* is named by a target — Cleansing Wildfire's "Destroy target land. **Its controller** may
+ * search…" — reads it from here rather than from a battlefield the destroy has already emptied
+ * (`W9-F`). Only [orchestrateLibrarySearch] consumes it today; it is a parameter rather than a captured
+ * field so the two states can never be confused at a call site.
  */
 internal fun orchestrateResolutionClauses(
     state: GameState,
     entry: StackEntry,
+    beforeEffect: GameState,
 ): AdvanceResult {
     val clauses: ResolutionClauses = entry.resolutionClauses
     requireAtMostOneClause(clauses) { "the resolving ${entry.resolutionSourceCard.name}" }
@@ -55,7 +64,7 @@ internal fun orchestrateResolutionClauses(
     // holds. Checked once, here, before any clause is dispatched — a false condition is not a clause
     // that does nothing, it is a resolution with no clause at all, so the object finishes now.
     return if (clauseConditionHolds(entry, clauses)) {
-        dispatchDeclaredClause(state, entry, clauses)
+        dispatchDeclaredClause(state, entry, clauses, beforeEffect)
     } else {
         completeClauseResolution(state, entry)
     }
@@ -71,6 +80,10 @@ private fun dispatchDeclaredClause(
     state: GameState,
     entry: StackEntry,
     clauses: ResolutionClauses,
+    // `W9-F`: the board as the resolution *began*, before the ordinary effect ran. A search whose
+    // decider is named by a target needs it, because this spell's own effect may already have
+    // destroyed the permanent that named them (CR 608.2h).
+    beforeEffect: GameState,
 ): AdvanceResult {
     val reveal = clauses.libraryReveal
     val look = clauses.libraryLook
@@ -96,7 +109,7 @@ private fun dispatchDeclaredClause(
         look != null -> orchestrateLibraryLook(state, entry, look)
         costDraw != null -> orchestrateOptionalCostDraw(state, entry, costDraw)
         drawDiscard != null -> orchestrateDrawThenDiscard(state, entry, drawDiscard)
-        search != null -> orchestrateLibrarySearch(state, entry, search)
+        search != null -> orchestrateLibrarySearch(state, entry, search, beforeEffect)
         handReveal != null -> orchestrateHandRevealChoice(state, entry, handReveal)
         opponentDiscard != null -> orchestrateEachOpponentDiscards(state, entry, opponentDiscard)
         permanents != null -> orchestratePermanentSelection(state, entry, permanents)
@@ -150,10 +163,17 @@ private fun lateClauseOrCompletion(
     val tapOrUntap = clauses.optionalTapOrUntap
     val chosenColor = clauses.chosenColorEffect
     val drawThenMaybeDiscard = clauses.optionalDrawThenDiscard
+    val exileGate = clauses.optionalGraveyardExileGate
     return when {
         // CR 601.3b / CR 701.8: "you may draw a card. If you do, discard a card unless …" (Moon-Circuit
         // Hacker) — the one clause that chains two pauses, the second conditional on the first's answer.
         drawThenMaybeDiscard != null -> orchestrateOptionalDrawThenDiscard(state, entry, drawThenMaybeDiscard)
+        // CR 401.1 / CR 108.3: the targeted permanent's *owner* names a depth in their own library
+        // (Deem Inferior) — a decider that is neither the controller nor an opponent of one.
+        clauses.ownerLibraryPlacement != null -> orchestrateLibraryPlacement(state, entry)
+        // CR 404 / CR 608.2c: "you may exile a creature card from your graveyard. If you do, …" — the one
+        // clause that *gates* an effect rather than following one (Masked Vandal).
+        exileGate != null -> orchestrateOptionalGraveyardExile(state, entry, exileGate)
         tapOrUntap != null -> orchestrateTapOrUntap(state, entry, tapOrUntap)
         // CR 700.2 / CR 615.1: "sources of the color of your choice" (Prismatic Strands) — the colour
         // is named on resolution, so the clause pauses here rather than at CR 601.2b.

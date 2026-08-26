@@ -1,5 +1,6 @@
 package dev.mtgplay.core.event
 
+import dev.mtgplay.core.definition.LibraryPosition
 import dev.mtgplay.core.identity.CardRef
 import dev.mtgplay.core.identity.ObjectId
 import dev.mtgplay.core.identity.PlayerId
@@ -705,6 +706,31 @@ sealed interface GameEvent {
         val player: PlayerId,
         val objectId: ObjectId,
         val card: CardRef,
+    ) : GameEvent
+
+    /**
+     * [player]'s permanent left the battlefield for a chosen depth in their own library as the new object
+     * [objectId] (CR 400.7, CR 401.1) — Deem Inferior's "puts it into their library second from the top
+     * or on the bottom". Added with `W9-F`.
+     *
+     * **The third library-arrival event, and not a reading of either sibling.** [CardPutOnLibrary]'s
+     * `onTop` names an *end* of the library and cannot say "second from the top";
+     * [CardShuffledIntoLibrary] names no position at all because a shuffle assigns none. Reporting a
+     * chosen depth through either would name a position no rule assigned, which is the argument
+     * [CardShuffledIntoLibrary] already makes against overloading `onTop`.
+     *
+     * @property player the permanent's **owner** (CR 108.3), whose library it joins — not necessarily
+     *   the controller it had on the battlefield, and not the controller of the spell that moved it.
+     * @property objectId the new library object (CR 400.7); the battlefield object it was is gone.
+     * @property card its printed identity. The move is public even though the destination is hidden: the
+     *   whole table watched the permanent leave, and both players may count the library.
+     * @property position the depth its owner chose.
+     */
+    data class PermanentPutIntoLibrary(
+        val player: PlayerId,
+        val objectId: ObjectId,
+        val card: CardRef,
+        val position: LibraryPosition,
     ) : GameEvent
 
     /**

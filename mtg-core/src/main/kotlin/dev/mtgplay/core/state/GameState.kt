@@ -145,6 +145,12 @@ import kotlinx.collections.immutable.persistentMapOf
  *   Non-null only at that mid-resolution pause. The second pending record whose decider is not the
  *   resolving object's controller, and the first whose decider is named by a *target* and may therefore
  *   be the controller — see [PendingGraveyardExile].
+ * @property pendingLibraryPlacement an "the owner of target nonland permanent puts it into their library
+ *   second from the top or on the bottom" clause awaiting that owner's choice of depth (CR 401.1), or
+ *   `null`. Additive, flagged core (`W9-F`) — Deem Inferior. Non-null only at that mid-resolution pause,
+ *   where the resolving spell is on top of the stack and the permanent is still on the battlefield. The
+ *   third pending record whose decider is not the resolving object's controller, and the first whose
+ *   decider is a permanent's **owner** rather than anybody's controller — see [PendingLibraryPlacement].
  * @property pendingTypeChoice a "choose a card type, then reveal the top N and partition them" clause
  *   awaiting the type (CR 609.4, CR 701.16), or `null`. Additive, flagged core (`W8-D`) — Winding Way.
  *   Non-null only at that mid-resolution pause, where the resolving spell is on top of the stack and
@@ -224,6 +230,7 @@ data class GameState(
     val pendingTapOrUntap: PendingTapOrUntap? = null,
     val pendingOptionalManaPayment: PendingOptionalManaPayment? = null,
     val pendingGraveyardExile: PendingGraveyardExile? = null,
+    val pendingLibraryPlacement: PendingLibraryPlacement? = null,
     val pendingTypeChoice: PendingTypeChoice? = null,
     val timedEffects: PersistentList<TimedContinuousEffect> = persistentListOf(),
     val preventionEffects: PersistentList<TimedPreventionEffect> = persistentListOf(),

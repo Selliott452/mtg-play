@@ -1,5 +1,6 @@
 package dev.mtgplay.protocol
 
+import dev.mtgplay.core.definition.LibraryPosition
 import dev.mtgplay.core.definition.RevealedCardFilter
 import dev.mtgplay.core.identity.CardRef
 import dev.mtgplay.core.identity.ObjectId
@@ -94,6 +95,7 @@ private fun resolutionClauseToDomain(dto: DecisionRequestDto.SingleOptionSelecti
         is DecisionRequestDto.ChooseTapOrUntap -> tapOrUntapToDomain(dto)
         is DecisionRequestDto.ChooseOptionalManaPayment -> optionalManaPaymentToDomain(dto)
         is DecisionRequestDto.ChooseGraveyardCardToExile -> graveyardExileToDomain(dto)
+        is DecisionRequestDto.ChooseLibraryPosition -> libraryPositionToDomain(dto)
         is DecisionRequestDto.ChooseRevealedCardType -> revealedCardTypeToDomain(dto)
         else -> error("no domain conversion for ${dto::class.simpleName}; every request must have one")
     }
@@ -135,6 +137,26 @@ private fun graveyardExileToDomain(
         PlayerId(dto.controller),
         CardRef(dto.sourceCard),
         dto.options.mapOptions { o, c -> DecisionRequest.ChooseGraveyardCardToExile.Option(o, c) },
+        dto.optionalExile,
+    )
+
+/**
+ * An owner's library-position choice (CR 401.1) back to the engine value. The depths travel as
+ * [LibraryPosition] names; an unknown one fails loudly rather than silently becoming a different depth.
+ */
+private fun libraryPositionToDomain(
+    dto: DecisionRequestDto.ChooseLibraryPosition,
+): DecisionRequest.ChooseLibraryPosition =
+    DecisionRequest.ChooseLibraryPosition(
+        dto.id.toDomain(),
+        PlayerId(dto.controller),
+        CardRef(dto.sourceCard),
+        ObjectId(dto.permanent),
+        CardRef(dto.permanentCard),
+        dto.options.map { name ->
+            LibraryPosition.entries.firstOrNull { it.name == name }
+                ?: error("CR 401.1: unknown library position $name")
+        },
     )
 
 /**

@@ -111,17 +111,14 @@ private fun singleOptionSelectionToDto(request: DecisionRequest.SingleOptionSele
                 request.card.name,
                 request.options.map { it.toDto() },
             )
-        is DecisionRequest.ChooseReplacement ->
-            DecisionRequestDto.ChooseReplacement(
-                request.id.toDto(),
-                request.options.map { ReplacementOptionDto(it.description) },
-            )
+        is DecisionRequest.ChooseReplacement,
         is DecisionRequest.ChooseCounterPayment,
         is DecisionRequest.ChooseRevealedHandCard,
         is DecisionRequest.ChooseLibraryArrangement,
         is DecisionRequest.ChooseTapOrUntap,
         is DecisionRequest.ChooseOptionalManaPayment,
         is DecisionRequest.ChooseGraveyardCardToExile,
+        is DecisionRequest.ChooseLibraryPosition,
         is DecisionRequest.ChooseRevealedCardType,
         -> laterSingleOptionSelectionToDto(request)
     }
@@ -161,29 +158,12 @@ private fun laterSingleOptionSelectionToDto(request: DecisionRequest.SingleOptio
                 request.pool.map { cardOption(it.objectId, it.card) },
                 request.options.map { LibraryArrangementDto(it.toHand, it.toTop, it.toBottom, it.toGraveyard) },
             )
-        is DecisionRequest.ChooseOptionalManaPayment ->
-            DecisionRequestDto.ChooseOptionalManaPayment(
+        is DecisionRequest.ChooseReplacement ->
+            DecisionRequestDto.ChooseReplacement(
                 request.id.toDto(),
-                request.sourceCard.name,
-                request.cost.render(),
-                request.drawCount,
-                request.options.map { it.toDto() },
+                request.options.map { ReplacementOptionDto(it.description) },
             )
-        is DecisionRequest.ChooseGraveyardCardToExile ->
-            DecisionRequestDto.ChooseGraveyardCardToExile(
-                request.id.toDto(),
-                request.controller.seat,
-                request.sourceCard.name,
-                request.options.map { cardOption(it.objectId, it.card) },
-            )
-        is DecisionRequest.ChooseRevealedCardType ->
-            DecisionRequestDto.ChooseRevealedCardType(
-                request.id.toDto(),
-                request.sourceCard.name,
-                request.revealCount,
-                request.options.map { it.name },
-            )
-        else -> error("not a later single-option request: $request")
+        else -> resolutionClauseToDto(request)
     }
 
 /**

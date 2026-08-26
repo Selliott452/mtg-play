@@ -101,7 +101,14 @@ private fun offerable(
     if (abilityAnnouncesX(ability)) {
         abilityActivatableAtSomeX(state, seat, source, ability)
     } else {
-        targetsAvailable(state, ability.targetSpec, seat, Chooser.Ability(source.card)) &&
+        targetsAvailable(
+            state,
+            ability.targetSpec,
+            seat,
+            // CR 113.7c: the source is still where the scan found it here, so its combat relation is
+            // read live and captured; by resolution its own cost may have removed it (`W9-F`).
+            Chooser.Ability(source.card, creaturesBlockedBy(state, source.id)),
+        ) &&
             abilityCostPayable(state, seat, source, scope, ability)
     }
 

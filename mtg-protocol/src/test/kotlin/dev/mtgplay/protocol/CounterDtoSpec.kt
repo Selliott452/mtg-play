@@ -94,6 +94,10 @@ class CounterDtoSpec :
             // is the first whose payload is a *size* rather than a cost, and cascade), a new
             // GameObjectDto field the permanent's power and colours are read off, and a new SeatViewDto
             // pending record. No DecisionRequest kind is added.
+            // `W9-F` takes it to 10.0.0: a new `choose_library_position` request kind (CR 401.1, Deem
+            // Inferior — answered by the targeted permanent's **owner**), whose DecisionRequestKindDto
+            // value fails `valueOf` mid-match on a 9.0.0 peer, plus a defaulted `optionalExile` field on
+            // `choose_graveyard_card_to_exile` (CR 601.3b, Masked Vandal's "you may exile").
             // Pinned here so no bump in the chain can be quietly reverted.
             PROTOCOL_VERSION shouldBe "10.0.0"
         }
