@@ -270,16 +270,24 @@ import dev.mtgplay.core.identity.CardRef
  * ability one declared ability, and a single announcement site reached by all four ways a permanent becomes
  * tapped. [ridesEnd] closes the `FW-TGTCOND` gap `FW-COST` recorded: a spell that prices itself off its own
  * chosen target, which needs the castability gate to price the *cheapest* target choice and the target
- * request to be narrowed to what the seat can pay for. Four of the packet's seven cards stay absent, each
+ * request to be narrowed to what the seat can pay for. Three of the packet's seven cards stay absent, each
  * on a framework it does not own, and BurnAndRemoval.kt's header carries the full diagnoses: **Searing
- * Blaze** prints two separate — and *dependent* — instances of the word "target"; **Torch the Tower** needs
- * an optional additional *sacrifice* cost, a token-aware sacrifice filter, and above all a **delayed**
- * CR 614 replacement keyed on the permanents it damaged; **Gorilla Shaman** needs `{X}` on an *activated*
- * ability plus the CR 601.2b announcement moved back above the target stage, which
+ * Blaze** prints two separate — and *dependent* — instances of the word "target"; **Gorilla Shaman**
+ * needs `{X}` on an *activated* ability plus the CR 601.2b announcement moved back above the target stage, which
  * `PendingCastRequest.kt`'s header already names it as the card that would force; and **Cleansing
  * Wildfire** needs a library search whose decider is not the resolving spell's controller, whose shuffle is
  * conditional on choosing to search, and which is followed by a further instruction — a *mid*-resolution
  * clause where `FW-CLAUSEHOOK` shipped a post-resolution one.
+ *
+ * The `W9-D` packet takes **[torchTheTower]** off that list, and its own header records that three of the
+ * four gaps had already closed: bargain and its token-aware filter shipped with `FW-BARGAIN` in wave 8, and
+ * the conditional scry is [dev.mtgplay.core.definition.ClauseCondition], a three-line gate beside the
+ * clause. What remained was the one `W8-C` called the real gap — a **delayed** CR 614.1a replacement,
+ * created by a resolution, scoped to a duration, and keyed on *other* objects — and it lands as a third
+ * turn-scoped store beside `timedEffects` and `preventionEffects`
+ * ([dev.mtgplay.core.state.TimedDeathReplacement]) plus one interception in each of the engine's four
+ * battlefield-to-graveyard moves, because CR 700.4's "dies" is every one of them and catching three would
+ * be the silent kind of wrong.
  *
  * The `FW-TAPUNTAP` packet adds the pool's first cards that **tap, untap, or choose a permanent of
  * their own** (TapEffects.kt): [sleepOfTheDead] (tap target creature, and it does not untap next untap
@@ -583,6 +591,7 @@ object MvpCards {
             thoughtScour,
             thrabenCharm,
             timberwatchElf,
+            torchTheTower,
             toxinAnalysis,
             trollOfKhazadDum,
             troublemakerOuphe,

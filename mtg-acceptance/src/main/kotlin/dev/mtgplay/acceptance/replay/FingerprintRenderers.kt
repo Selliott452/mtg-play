@@ -98,4 +98,15 @@ private fun StringBuilder.appendPreventionEffects(state: GameState) {
         append(':').append(effect.sourceCard.name)
         append('@').append(effect.source?.value ?: "-")
     }
+    state.deathReplacements.forEach { replacement ->
+        append("|dies=").append(replacement.effect)
+        // The affected set has no intrinsic order, so it is sorted: two replays that reached the same
+        // position must produce the same bytes, and an unordered collection's iteration order is not a
+        // guarantee this digest may lean on.
+        val ids = replacement.affected.map { it.value }.sorted()
+        append(':').append(ids.joinToString(","))
+        append(':').append(replacement.duration::class.simpleName)
+        append(':').append(replacement.sourceCard.name)
+        append('@').append(replacement.source?.value ?: "-")
+    }
 }

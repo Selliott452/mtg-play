@@ -1,6 +1,7 @@
 package dev.mtgplay.rules.engine
 
 import dev.mtgplay.core.definition.ActivatedAbility
+import dev.mtgplay.core.definition.ClauseCondition
 import dev.mtgplay.core.definition.ResolutionClauses
 import dev.mtgplay.core.definition.TriggeredAbility
 import dev.mtgplay.core.definition.requireAtMostOneClause
@@ -50,6 +51,27 @@ internal fun orchestrateResolutionClauses(
 ): AdvanceResult {
     val clauses: ResolutionClauses = entry.resolutionClauses
     requireAtMostOneClause(clauses) { "the resolving ${entry.resolutionSourceCard.name}" }
+    // CR 608.2c (`W9-D`): a clause the definition gates on a condition runs only when the condition
+    // holds. Checked once, here, before any clause is dispatched — a false condition is not a clause
+    // that does nothing, it is a resolution with no clause at all, so the object finishes now.
+    return if (clauseConditionHolds(entry, clauses)) {
+        dispatchDeclaredClause(state, entry, clauses)
+    } else {
+        completeClauseResolution(state, entry)
+    }
+}
+
+/**
+ * The dispatch itself: runs whichever clause [clauses] declares, or completes the resolution when it
+ * declares none. Split from [orchestrateResolutionClauses] so the CR 608.2c gate above stays outside
+ * detekt's complexity budget for the chain — the same reason [lateClauseOrCompletion] exists, and the
+ * order here is documentation rather than precedence for that function's reason.
+ */
+private fun dispatchDeclaredClause(
+    state: GameState,
+    entry: StackEntry,
+    clauses: ResolutionClauses,
+): AdvanceResult {
     val reveal = clauses.libraryReveal
     val look = clauses.libraryLook
     val costDraw = clauses.optionalCostThenDraw
@@ -81,6 +103,34 @@ internal fun orchestrateResolutionClauses(
         else -> lateClauseOrCompletion(state, entry, clauses)
     }
 }
+
+/**
+ * Whether [entry]'s [ResolutionClauses.clauseCondition] holds (CR 608.2c) — `true` for the ordinary
+ * definition that declares none, so an unconditional clause is unaffected.
+ *
+ * A pure read of the resolving object's own cast record, so it needs no state and cannot disagree with
+ * itself: [ClauseCondition.SpellPaidOptionalAdditionalCost] is
+ * [StackEntry.Spell.optionalCostPaid], the boolean the CR 601.2b announcement wrote when the spell was
+ * cast (CR 702.166b for bargain).
+ *
+ * **An ability that declares this condition fails loudly**, and that is the ruling: an ability is not
+ * cast (CR 602.2a) and has no optional additional cost, so "was it bargained" has no answer for one.
+ * Returning `false` would silently delete a clause a card printed; the exhaustive `when` here is what
+ * catches the mistake at the first resolution rather than never.
+ */
+private fun clauseConditionHolds(
+    entry: StackEntry,
+    clauses: ResolutionClauses,
+): Boolean =
+    when (val condition = clauses.clauseCondition) {
+        null -> true
+        ClauseCondition.SpellPaidOptionalAdditionalCost ->
+            (entry as? StackEntry.Spell)?.optionalCostPaid
+                ?: error(
+                    "CR 601.2b: $condition asks whether a spell paid an optional additional cost, but " +
+                        "${entry.resolutionSourceCard.name} is resolving as an ability, which is never cast",
+                )
+    }
 
 /**
  * The tail of [orchestrateResolutionClauses]: the clauses that arrived last, and the completion when

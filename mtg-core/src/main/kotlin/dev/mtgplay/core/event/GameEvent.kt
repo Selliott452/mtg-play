@@ -874,6 +874,26 @@ sealed interface GameEvent {
     ) : GameEvent
 
     /**
+     * A resolving spell or ability created a **delayed death replacement** (CR 614.1a, CR 603.7a):
+     * [sourceCard]'s resolution said that each permanent in [affected], if it would die before the
+     * replacement expires, is exiled instead. Added with `W9-D` — Torch the Tower.
+     *
+     * The third sibling of [ContinuousEffectCreated] and [PreventionEffectCreated], and it names its
+     * affected objects where the prevention one names none: this replacement is keyed on a fixed set of
+     * permanents (CR 400.7 makes that set meaningful), and a log line that did not say which ones would
+     * be unreadable the moment the exile happened turns later in the same turn.
+     *
+     * No event narrates the CR 514.2 wear-off, exactly as none narrates its two siblings': it is silent
+     * bookkeeping, and the acceptance invariant confirms no death replacement survives its turn. The
+     * *use* of the replacement is narrated by the ordinary [PermanentExiled] at the moment the permanent
+     * would have died, which is the correct narration — the death never happened (CR 614.6).
+     */
+    data class DeathReplacementCreated(
+        val sourceCard: CardRef,
+        val affected: List<ObjectId>,
+    ) : GameEvent
+
+    /**
      * [player] activated the ninjutsu ability of [card] (CR 702.49a), revealing it from hand and returning
      * the unblocked attacker [returnedAttacker] to its owner's hand as part of the cost. Added with
      * `FW-NINJUTSU`.

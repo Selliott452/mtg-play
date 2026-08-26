@@ -65,6 +65,10 @@ private fun sacrificeOnePermanent(
     require(permanent.owner == player) {
         "CR 701.17: $player may sacrifice only a permanent they control, but $objectId is ${permanent.owner}'s"
     }
+    // CR 614.1a, CR 700.4: a sacrifice puts a permanent into a graveyard from the battlefield, so it is a
+    // death, and a delayed replacement may exile it instead. The cost was still paid — CR 701.17a's
+    // requirement is that the permanent be sacrificed, not that it reach a graveyard.
+    replaceBattlefieldDeath(state, objectId)?.let { return it }
     val (graveyardId, allocated) = state.allocateObjectId()
     val reborn = GameObject(id = graveyardId, card = permanent.card, owner = permanent.owner)
     val moved =

@@ -54,7 +54,8 @@ class GauntletCoverageSpec :
                     Pinned("Gates", 15, 17, 5, 5),
                     Pinned("Grixis Affinity", 20, 22, 5, 7),
                     Pinned("GW Bogles", 18, 18, 8, 8),
-                    Pinned("Jeskai Ephemerate", 21, 22, 6, 7),
+                    // `W9-D` added Torch the Tower: 21 -> 22, and the mainboard is now complete.
+                    Pinned("Jeskai Ephemerate", 22, 22, 6, 7),
                     Pinned("Jund Wildfire", 18, 22, 6, 7),
                     // `FW-NINJUTSU` added Ninja of the Deep Hours and Harrier Strix: 6 -> 8.
                     // `W8-E` added Faerie Miscreant: 10 -> 11.
@@ -111,8 +112,8 @@ private const val SIDEBOARD_SIZE = 15
 private const val TOTAL_DISTINCT_MAIN = 178
 
 /** Of those, how many `mtg-cards` defines — the number this burn-down drives to [TOTAL_DISTINCT_MAIN]. */
-private const val TOTAL_ENCODED_MAIN = 158
-private const val TOTAL_MISSING_MAIN = 20
+private const val TOTAL_ENCODED_MAIN = 159
+private const val TOTAL_MISSING_MAIN = 19
 
 /** Distinct cards named by at least one gauntlet sideboard. */
 private const val TOTAL_DISTINCT_SIDEBOARD = 48
@@ -120,7 +121,7 @@ private const val TOTAL_ENCODED_SIDEBOARD = 37
 private const val TOTAL_MISSING_SIDEBOARD = 11
 
 /** The whole backlog: distinct undefined cards across both boards of all thirteen decks. */
-private const val TOTAL_MISSING_BOTH_BOARDS = 29
+private const val TOTAL_MISSING_BOTH_BOARDS = 28
 
 /** Of the backlog, the cards that appear only in sideboards. */
 private const val TOTAL_MISSING_SIDEBOARD_ONLY = 9

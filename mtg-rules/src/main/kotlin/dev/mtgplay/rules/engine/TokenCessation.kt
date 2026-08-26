@@ -36,13 +36,18 @@ internal fun performTokenCeasesToExist(
 ): GameState = tokens.fold(state, ::removeCeasedToken)
 
 /**
- * Removes the ceasing token [objectId] from its owner's graveyard and emits the cessation event.
+ * Removes the ceasing token [objectId] from a graveyard or from exile and emits the cessation event.
  *
- * In the MVP pool the only reachable off-battlefield zone for a token is a graveyard — a token creature
- * dies (CR 704.5f/g) into its owner's graveyard, then ceases here on the following check. No MVP card
- * puts a token into a library, hand, exile, or the stack, so those zones are an unimplemented corner
- * and this fails loudly rather than guess (CONVENTIONS.md loud-failure rule); the general cessation
- * arrives with the first card that bounces or exiles a token.
+ * **Two reachable zones, not one.** A token creature that dies (CR 704.5f/g) is in its owner's graveyard
+ * for the moment between two checks; a token *exiled* from the battlefield is in the shared exile zone
+ * for the same moment, and the pool reaches that three ways — an "exile target creature" removal
+ * (Ride's End, Last Breath, Scour from Existence) pointed at a token, and, since `W9-D`, a delayed
+ * death replacement that exiles a token instead of letting it die (Torch the Tower). Both are ordinary
+ * lines, and both end here.
+ *
+ * A library, a hand, and the stack stay an unimplemented corner and fail loudly rather than guess
+ * (CONVENTIONS.md loud-failure rule): no card in the gauntlet puts a token into any of them, and the
+ * general cessation arrives with the first one that does.
  */
 private fun removeCeasedToken(
     state: GameState,
@@ -52,13 +57,20 @@ private fun removeCeasedToken(
         state.players.entries
             .firstOrNull { (_, playerState) -> playerState.graveyard.any { it.id == objectId } }
             ?.key
-            ?: error(
-                "CR 704.5d: the only reachable off-battlefield zone for a token in the MVP pool is a graveyard; " +
-                    "$objectId is in none (library/hand/exile token cessation arrives with a card that puts one there)",
-            )
-    val graveyard = state.players.getValue(owner).graveyard
-    val index = graveyard.indexOfFirst { it.id == objectId }
+    if (owner != null) {
+        val graveyard = state.players.getValue(owner).graveyard
+        val index = graveyard.indexOfFirst { it.id == objectId }
+        return state
+            .updatePlayer(owner) { it.copy(graveyard = it.graveyard.removingAt(index)) }
+            .emit(GameEvent.TokenCeasedToExist(objectId, graveyard[index].card))
+    }
+    val exileIndex = state.sharedZones.exile.indexOfFirst { it.id == objectId }
+    require(exileIndex >= 0) {
+        "CR 704.5d: a ceasing token is in a graveyard or in exile in this pool; $objectId is in neither " +
+            "(library/hand/stack token cessation arrives with a card that puts one there)"
+    }
+    val exiled = state.sharedZones.exile[exileIndex]
     return state
-        .updatePlayer(owner) { it.copy(graveyard = it.graveyard.removingAt(index)) }
-        .emit(GameEvent.TokenCeasedToExist(objectId, graveyard[index].card))
+        .updateExile { it.removingAt(exileIndex) }
+        .emit(GameEvent.TokenCeasedToExist(objectId, exiled.card))
 }

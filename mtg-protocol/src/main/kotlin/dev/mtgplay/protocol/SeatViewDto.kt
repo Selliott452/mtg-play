@@ -49,6 +49,7 @@ data class SeatViewDto(
     val pendingPermanentSelection: PendingPermanentSelectionDto? = null,
     val timedEffects: List<TimedContinuousEffectDto>,
     val preventionEffects: List<TimedPreventionEffectDto>,
+    val deathReplacements: List<TimedDeathReplacementDto>,
 )
 
 /** [SeatView] to its wire form. */
@@ -88,6 +89,7 @@ fun SeatView.toDto(): SeatViewDto =
         pendingPermanentSelection = pendingPermanentSelection?.toDto(),
         timedEffects = timedEffects.map { it.toDto() },
         preventionEffects = preventionEffects.map { it.toDto() },
+        deathReplacements = deathReplacements.map { it.toDto() },
     )
 
 /** [SeatViewDto] back to the engine value. */
@@ -127,4 +129,5 @@ fun SeatViewDto.toDomain(): SeatView =
         pendingPermanentSelection = pendingPermanentSelection?.toDomain(),
         timedEffects = timedEffects.map { it.toDomain() },
         preventionEffects = preventionEffects.map { it.toDomain() },
+        deathReplacements = deathReplacements.map { it.toDomain() },
     )

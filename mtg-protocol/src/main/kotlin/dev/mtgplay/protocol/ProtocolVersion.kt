@@ -695,5 +695,33 @@ package dev.mtgplay.protocol
  *    field ([TapRequirementDto]) alongside its `sacrifice`, because CR 702.34c admits more than mana
  *    in a flashback cost. Recorded here rather than under `FW-PREVENT2` because it is the same
  *    permission payload, changed once.
+ *
+ * ### Held at `9.0.0` — `W9-D`: the delayed death replacement
+ *
+ * **Call: no bump**, on this file's repeatedly-applied standard — `9.0.0` is **unreleased**. The only tag
+ * is `v0.1.0`, which shipped protocol `1.0.0`, so `1.0.0` remains the last version any consumer can have
+ * seen and an unshipped major absorbs a further break from the same wave. Naming the break is still owed:
+ *
+ * 1. **A new required field on [SeatViewDto]**: `deathReplacements`, a list of
+ *    [TimedDeathReplacementDto] (CR 614.1a). The identical break shape to `preventionEffects` under
+ *    `FW-PREVENT2` and `timedEffects` under `6.0.0` — a strict codec (`ignoreUnknownKeys = false`)
+ *    rejects every seat view carrying it — and required for the identical reason: a defaulted empty list
+ *    would let an old client watch a creature it Torched get exiled instead of dying with nothing in the
+ *    message explaining why, which is the one fact an agent must have to value a block, a sacrifice
+ *    outlet, or a recursion line for the rest of the turn.
+ *
+ * The client→server direction is **unchanged**, and again not by accident of scope. The framework adds no
+ * [DecisionRequestKindDto] value and no request DTO: a delayed replacement makes **no decision**. CR 616.1
+ * would hand the affected object's controller a choice among two or more applicable replacements, but every
+ * member of [dev.mtgplay.core.state.DeathReplacement] the engine implements is the same exile, so any order
+ * produces the same game and there is nothing to enumerate. The first member whose result differs is what
+ * must add the request — and the `when` in `DeathReplacements.kt` breaks at compile time when it arrives.
+ *
+ * **The option set is otherwise unchanged**, for the reason `FW-PREVENT2` gives about prevention: this
+ * changes an *outcome* — which zone a permanent ends in — never a legal play. Torch the Tower's own
+ * bargain announcement and its conditional scry both reuse requests that already exist (`ChooseYesNo`,
+ * `ChooseOptionalCostSacrifice`, `ChooseLibraryArrangement`); the [dev.mtgplay.core.definition.ClauseCondition]
+ * gate is visible on the wire only as the *absence* of a library-look pause on an unbargained cast, which
+ * is precisely what an agent should see.
  */
 const val PROTOCOL_VERSION: String = "9.0.0"

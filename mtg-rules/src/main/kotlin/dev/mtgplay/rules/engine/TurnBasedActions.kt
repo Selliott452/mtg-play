@@ -84,7 +84,8 @@ internal fun drawStepTurnBasedAction(state: GameState): GameState = drawCard(sta
  * Both halves are now real. All damage marked on battlefield objects (CR 120.3d) wears off, and
  * every [dev.mtgplay.core.state.EffectDuration.UntilEndOfTurn] effect leaves
  * [GameState.timedEffects] (`FW-DURATION`, docs/design/duration.md §5.4) — and, since `FW-PREVENT2`,
- * every global prevention effect in [GameState.preventionEffects] alongside them.
+ * every global prevention effect in [GameState.preventionEffects] alongside them, and since `W9-D`
+ * every delayed death replacement in [GameState.deathReplacements] as well.
  *
  * **The simultaneity is load-bearing, not a formality.** A 1/2 pumped to a 4/5 that took 4 combat
  * damage survives (4 < 5). If the pump ended *before* the damage cleared, the creature would
@@ -149,9 +150,20 @@ internal fun cleanupRemoveDamageAndEndEffects(state: GameState): GameState {
                     EffectDuration.UntilEndOfTurn -> true
                 }
             }.toPersistentList()
+    // CR 514.2 again, for the third turn-scoped store (`W9-D`): Torch the Tower's "if a permanent dealt
+    // damage by this **would die this turn**" rider ends here, so a creature it damaged and that survived
+    // goes to the graveyard normally from the next turn on. Same exhaustive `when`, same reason.
+    val survivingDeathReplacements =
+        state.deathReplacements
+            .filterNot { replacement ->
+                when (replacement.duration) {
+                    EffectDuration.UntilEndOfTurn -> true
+                }
+            }.toPersistentList()
     return state.copy(
         sharedZones = state.sharedZones.copy(battlefield = cleared, exile = exile),
         timedEffects = surviving,
         preventionEffects = survivingPrevention,
+        deathReplacements = survivingDeathReplacements,
     )
 }

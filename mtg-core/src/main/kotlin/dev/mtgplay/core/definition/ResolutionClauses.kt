@@ -169,6 +169,23 @@ interface ResolutionClauses {
      * rule at a different moment.
      */
     val chosenColorEffect: ChosenColorEffect? get() = null
+
+    /**
+     * The condition this definition's clause is **conditional on** (CR 608.2c), or `null` — the default
+     * — for a definition whose clause runs whenever the object resolves. Additive, flagged core
+     * (`W9-D`). Torch the Tower's *"you scry 1"*, which happens only on the bargained branch.
+     *
+     * **Not a clause**, which is why it is declared here and excluded from [declaredClauses]: it opens no
+     * decision, needs no pause, and orchestrates nothing. It is a gate on whichever clause the definition
+     * *does* declare, so a definition may carry it alongside its one clause without tripping
+     * [requireAtMostOneClause]. On a definition with no clause it is inert, and saying that here is what
+     * stops a later reader wiring it to the ordinary [SpellDefinition.resolution] effect, which is a pure
+     * function that can test any condition it likes for itself.
+     *
+     * See [ClauseCondition] for why an unconditional clause was the wrong shape for a conditional rider
+     * and why this is not an [InterveningIf].
+     */
+    val clauseCondition: ClauseCondition? get() = null
 }
 
 /**

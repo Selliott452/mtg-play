@@ -233,6 +233,7 @@ class MvpCardsSpec :
                     CardRef("Prohibit"),
                     CardRef("Ancestral Mask"),
                     CardRef("Ancient Grudge"),
+                    CardRef("Torch the Tower"),
                     CardRef("Ancient Stirrings"),
                     CardRef("Annul"),
                     CardRef("Archaeomancer"),

@@ -163,6 +163,14 @@ import kotlinx.collections.immutable.persistentMapOf
  *   because neither member names an affected object or classifies into a CR 613 layer (see
  *   [PreventionEffect]). Empty outside the turn an effect was created on, for [timedEffects]' reason:
  *   the same CR 514.2 turn-based action ends both.
+ * @property deathReplacements the **delayed** replacement effects watching named permanents for a
+ *   battlefield-to-graveyard move (CR 614.1a, CR 700.4), in creation order. Additive, flagged core
+ *   (`W9-D`) — Torch the Tower's "if a permanent dealt damage by this would die this turn, exile it
+ *   instead". The third piece of rules-relevant content that hangs off no object, and a separate store
+ *   from both [timedEffects] and [preventionEffects] because it is read at a third place: the CR 614
+ *   interception point of a death, rather than at characteristic computation or at CR 615 (see
+ *   [TimedDeathReplacement]). Empty outside the turn a replacement was created on — the same CR 514.2
+ *   turn-based action ends all three.
  */
 data class GameState(
     val players: PersistentMap<PlayerId, PlayerState>,
@@ -202,6 +210,7 @@ data class GameState(
     val timedEffects: PersistentList<TimedContinuousEffect> = persistentListOf(),
     val preventionEffects: PersistentList<TimedPreventionEffect> = persistentListOf(),
     val pendingChosenColor: PendingChosenColor? = null,
+    val deathReplacements: PersistentList<TimedDeathReplacement> = persistentListOf(),
 ) {
     init {
         require(players.isNotEmpty()) { "a game has at least one seated player" }
