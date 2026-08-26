@@ -17,7 +17,15 @@ import kotlinx.serialization.Serializable
 /** Wire form of [StackEntryView] — the public facts of one stack entry (CR 405). */
 @Serializable
 sealed interface StackEntryViewDto {
-    /** Wire form of [StackEntryView.SpellOnStack] (CR 112.1). */
+    /**
+     * Wire form of [StackEntryView.SpellOnStack] (CR 112.1).
+     *
+     * [castAsFace] carries the name of the inset-frame face this spell was cast as (CR 715.3b,
+     * CR 720.3b), or `null` for every spell cast normally. It is the one fact [card] cannot supply: a
+     * card ref is the *card's* name in every zone (CR 715.2c), so without it a peer watching "Fang
+     * Dragon" resolve could not tell a 6/3 creature spell from a `{1}{R}` sweeper — and the stack is
+     * public (CR 405), so the distinction is not information the view may withhold. Added by `W10-B`.
+     */
     @Serializable
     @SerialName("spell_on_stack")
     data class SpellOnStack(
@@ -25,6 +33,7 @@ sealed interface StackEntryViewDto {
         val card: String,
         val controller: Int,
         val targets: List<TargetDto>,
+        val castAsFace: String? = null,
     ) : StackEntryViewDto
 
     /** Wire form of [StackEntryView.TriggeredAbilityOnStack] (CR 113.3c). */
@@ -52,7 +61,13 @@ sealed interface StackEntryViewDto {
 fun StackEntryView.toDto(): StackEntryViewDto =
     when (this) {
         is StackEntryView.SpellOnStack ->
-            StackEntryViewDto.SpellOnStack(objectId.value, card.name, controller.seat, targets.map { it.toDto() })
+            StackEntryViewDto.SpellOnStack(
+                objectId.value,
+                card.name,
+                controller.seat,
+                targets.map { it.toDto() },
+                castAsFace,
+            )
         is StackEntryView.TriggeredAbilityOnStack ->
             StackEntryViewDto.TriggeredAbilityOnStack(
                 sourceId.value,
@@ -78,6 +93,7 @@ fun StackEntryViewDto.toDomain(): StackEntryView =
                 CardRef(card),
                 PlayerId(controller),
                 targets.map { it.toDomain() },
+                castAsFace,
             )
         is StackEntryViewDto.TriggeredAbilityOnStack ->
             StackEntryView.TriggeredAbilityOnStack(
